@@ -41,3 +41,7 @@ mocs_compilation*.cpp
 *.log
 *.tmp
 Thumbs.db
+
+# Vendored third-party payload
+!/3rd/
+!/3rd/**

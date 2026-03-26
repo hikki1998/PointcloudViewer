@@ -13,27 +13,202 @@ set(CMAKE_AUTOUIC ON)
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
 option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
 
+set(THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rd" CACHE PATH "Root directory containing project third-party dependencies")
 set(QT_ROOT "E:/code/Qt5.15.2/5.15.2/msvc2019_64" CACHE PATH "Qt installation root")
-set(OSG_ROOT "E:/code/thirdparty/osg3.6.5" CACHE PATH "OpenSceneGraph installation root")
-set(QTITAN_ROOT "E:/code/thirdparty/QtitanRibbon" CACHE PATH "QtitanRibbon package root")
-set(PCL_ROOT "E:/code/thirdparty/PCL 1.8.1" CACHE PATH "PCL installation root")
-set(LASLIB_ROOT "E:/code/thirdparty/laslib-v2.0.4-win64" CACHE PATH "LASlib package root")
-set(LASZIP_ROOT "E:/code/thirdparty/LAStools-2.0.4/LASzip" CACHE PATH "LASzip source root")
+set(OSG_ROOT "" CACHE PATH "Legacy override for OpenSceneGraph installation root")
+set(QTITAN_ROOT "" CACHE PATH "Legacy override for QtitanRibbon package root")
+set(PCL_ROOT "" CACHE PATH "Legacy override for PCL installation root")
+set(LASLIB_ROOT "" CACHE PATH "Legacy override for LASlib package root")
+set(LASTOOLS_ROOT "" CACHE PATH "Legacy override for LAStools package root")
+set(LASZIP_ROOT "" CACHE PATH "Legacy override for LASzip source root")
 
-if(NOT LASLIB_ROOT)
-    set(LASLIB_ROOT "E:/code/thirdparty/laslib-v2.0.4-win64" CACHE PATH "LASlib package root" FORCE)
+function(las_viewer_read_version_marker marker_file out_name out_version)
+    set(package_name "")
+    set(package_version "")
+
+    if(EXISTS "${marker_file}")
+        file(STRINGS "${marker_file}" marker_lines)
+        foreach(marker_line IN LISTS marker_lines)
+            if(marker_line MATCHES "^NAME=(.+)$")
+                set(package_name "${CMAKE_MATCH_1}")
+            elseif(marker_line MATCHES "^VERSION=(.+)$")
+                set(package_version "${CMAKE_MATCH_1}")
+            endif()
+        endforeach()
+    endif()
+
+    set(${out_name} "${package_name}" PARENT_SCOPE)
+    set(${out_version} "${package_version}" PARENT_SCOPE)
+endfunction()
+
+function(las_viewer_resolve_package_root out_var package_label stable_dir)
+    set(options)
+    set(one_value_args LEGACY_ROOT)
+    set(multi_value_args REQUIRED_PATHS)
+    cmake_parse_arguments(LAS_VIEWER "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+    set(candidate_roots)
+    if(LAS_VIEWER_LEGACY_ROOT)
+        list(APPEND candidate_roots "${LAS_VIEWER_LEGACY_ROOT}")
+    endif()
+    list(APPEND candidate_roots "${THIRDPARTY_ROOT}/${stable_dir}")
+    list(REMOVE_DUPLICATES candidate_roots)
+
+    set(validation_failures)
+    foreach(candidate_root IN LISTS candidate_roots)
+        if(NOT candidate_root OR NOT IS_DIRECTORY "${candidate_root}")
+            continue()
+        endif()
+
+        set(missing_entries)
+        if(candidate_root STREQUAL "${THIRDPARTY_ROOT}/${stable_dir}" AND NOT EXISTS "${candidate_root}/.version")
+            list(APPEND missing_entries ".version")
+        endif()
+
+        foreach(required_path IN LISTS LAS_VIEWER_REQUIRED_PATHS)
+            if(NOT EXISTS "${candidate_root}/${required_path}")
+                list(APPEND missing_entries "${required_path}")
+            endif()
+        endforeach()
+
+        if(NOT missing_entries)
+            if(EXISTS "${candidate_root}/.version")
+                las_viewer_read_version_marker("${candidate_root}/.version" package_name package_version)
+                if(package_name OR package_version)
+                    message(STATUS "Using ${package_label}: ${candidate_root} (${package_name} ${package_version})")
+                else()
+                    message(STATUS "Using ${package_label}: ${candidate_root}")
+                endif()
+            else()
+                message(STATUS "Using ${package_label}: ${candidate_root} (legacy override)")
+            endif()
+
+            set(${out_var} "${candidate_root}" PARENT_SCOPE)
+            return()
+        endif()
+
+        list(JOIN missing_entries ", " missing_summary)
+        list(APPEND validation_failures "${candidate_root} [missing: ${missing_summary}]")
+    endforeach()
+
+    if(validation_failures)
+        string(JOIN "\n  " validation_report ${validation_failures})
+        message(FATAL_ERROR
+            "Unable to locate ${package_label}.\n"
+            "Checked:\n  ${validation_report}\n"
+            "Expected stable directory: ${THIRDPARTY_ROOT}/${stable_dir}"
+        )
+    endif()
+
+    message(FATAL_ERROR
+        "Unable to locate ${package_label}.\n"
+        "Expected stable directory: ${THIRDPARTY_ROOT}/${stable_dir}\n"
+        "Required entries: ${LAS_VIEWER_REQUIRED_PATHS} and .version"
+    )
+endfunction()
+
+if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
+    message(FATAL_ERROR
+        "Qt5 was not found under QT_ROOT='${QT_ROOT}'. "
+        "Expected '${QT_ROOT}/lib/cmake/Qt5'."
+    )
 endif()
 
-if(NOT LASZIP_ROOT)
-    set(LASZIP_ROOT "E:/code/thirdparty/LAStools-2.0.4/LASzip" CACHE PATH "LASzip source root" FORCE)
+if(LASZIP_ROOT AND NOT LASTOOLS_ROOT)
+    get_filename_component(derived_lastools_root "${LASZIP_ROOT}" DIRECTORY)
+    set(LASTOOLS_ROOT "${derived_lastools_root}" CACHE PATH "Legacy override for LAStools package root" FORCE)
+endif()
+
+las_viewer_resolve_package_root(RESOLVED_OSG_ROOT "OpenSceneGraph" "osg"
+    LEGACY_ROOT "${OSG_ROOT}"
+    REQUIRED_PATHS "include/osg/Node" "lib" "bin"
+)
+set(OSG_ROOT "${RESOLVED_OSG_ROOT}" CACHE PATH "OpenSceneGraph installation root" FORCE)
+
+las_viewer_resolve_package_root(RESOLVED_QTITAN_ROOT "QtitanRibbon" "qtitan"
+    LEGACY_ROOT "${QTITAN_ROOT}"
+    REQUIRED_PATHS "include/QtitanRibbon.h" "bin"
+)
+set(QTITAN_ROOT "${RESOLVED_QTITAN_ROOT}" CACHE PATH "QtitanRibbon package root" FORCE)
+
+if(LAS_VIEWER_ENABLE_PCL)
+    las_viewer_resolve_package_root(RESOLVED_PCL_ROOT "PCL" "pcl"
+        LEGACY_ROOT "${PCL_ROOT}"
+        REQUIRED_PATHS "include" "cmake"
+    )
+    set(PCL_ROOT "${RESOLVED_PCL_ROOT}" CACHE PATH "PCL installation root" FORCE)
+endif()
+
+if(LAS_VIEWER_ENABLE_LASLIB)
+    las_viewer_resolve_package_root(RESOLVED_LASLIB_ROOT "LASlib" "laslib"
+        LEGACY_ROOT "${LASLIB_ROOT}"
+        REQUIRED_PATHS "include/laslib/lasreader.hpp" "include/laszip/laszip_common.h" "lib"
+    )
+    set(LASLIB_ROOT "${RESOLVED_LASLIB_ROOT}" CACHE PATH "LASlib package root" FORCE)
+
+    las_viewer_resolve_package_root(RESOLVED_LASTOOLS_ROOT "LAStools" "lastools"
+        LEGACY_ROOT "${LASTOOLS_ROOT}"
+        REQUIRED_PATHS "LASzip/src/laszip.hpp"
+    )
+    set(LASTOOLS_ROOT "${RESOLVED_LASTOOLS_ROOT}" CACHE PATH "LAStools package root" FORCE)
+
+    set(default_laszip_root "${LASTOOLS_ROOT}/LASzip")
+    if(LASZIP_ROOT AND EXISTS "${LASZIP_ROOT}/src/laszip.hpp")
+        set(LASZIP_ROOT "${LASZIP_ROOT}" CACHE PATH "LASzip source root" FORCE)
+    elseif(EXISTS "${default_laszip_root}/src/laszip.hpp")
+        if(LASZIP_ROOT AND NOT LASZIP_ROOT STREQUAL "${default_laszip_root}")
+            message(STATUS
+                "Ignoring invalid LASZIP_ROOT='${LASZIP_ROOT}' and using '${default_laszip_root}' instead."
+            )
+        endif()
+        set(LASZIP_ROOT "${default_laszip_root}" CACHE PATH "LASzip source root" FORCE)
+    else()
+        message(FATAL_ERROR
+            "LASzip source root was not found.\n"
+            "Checked LASZIP_ROOT='${LASZIP_ROOT}' and expected '${default_laszip_root}/src/laszip.hpp'."
+        )
+    endif()
 endif()
 
 list(PREPEND CMAKE_PREFIX_PATH
     "${QT_ROOT}"
     "${QT_ROOT}/lib/cmake"
-    "${PCL_ROOT}"
-    "${PCL_ROOT}/cmake"
 )
+
+if(LAS_VIEWER_ENABLE_PCL)
+    list(PREPEND CMAKE_PREFIX_PATH
+        "${PCL_ROOT}"
+        "${PCL_ROOT}/cmake"
+    )
+endif()
+
+foreach(cached_dependency_var
+    QTITAN_INCLUDE_DIR
+    QTITAN_RELEASE_LIBRARY
+    QTITAN_DEBUG_LIBRARY
+    LASLIB_INCLUDE_DIR
+    LASZIP_INCLUDE_DIR
+    LASZIP_SRC_INCLUDE_DIR
+    LASLIB_LIBRARY
+    LASZIP_LIBRARY
+    LASLIB_DEBUG_LIBRARY
+    LASZIP_DEBUG_LIBRARY
+    OSG_INCLUDE_DIR
+    OPENTHREADS_RELEASE_LIBRARY
+    OPENTHREADS_DEBUG_LIBRARY
+    OSG_RELEASE_LIBRARY
+    OSG_DEBUG_LIBRARY
+    OSGDB_RELEASE_LIBRARY
+    OSGDB_DEBUG_LIBRARY
+    OSGGA_RELEASE_LIBRARY
+    OSGGA_DEBUG_LIBRARY
+    OSGVIEWER_RELEASE_LIBRARY
+    OSGVIEWER_DEBUG_LIBRARY
+    OSGUTIL_RELEASE_LIBRARY
+    OSGUTIL_DEBUG_LIBRARY
+)
+    unset(${cached_dependency_var} CACHE)
+endforeach()
 
 find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
@@ -184,7 +359,16 @@ find_library(OSGUTIL_DEBUG_LIBRARY
 )
 
 set(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG OFF)
-if(MSVC AND LAS_VIEWER_ENABLE_LASLIB AND (NOT LASLIB_DEBUG_LIBRARY OR NOT LASZIP_DEBUG_LIBRARY))
+if(MSVC AND (
+    NOT QTITAN_DEBUG_LIBRARY OR
+    NOT OPENTHREADS_DEBUG_LIBRARY OR
+    NOT OSG_DEBUG_LIBRARY OR
+    NOT OSGDB_DEBUG_LIBRARY OR
+    NOT OSGGA_DEBUG_LIBRARY OR
+    NOT OSGVIEWER_DEBUG_LIBRARY OR
+    NOT OSGUTIL_DEBUG_LIBRARY OR
+    (LAS_VIEWER_ENABLE_LASLIB AND (NOT LASLIB_DEBUG_LIBRARY OR NOT LASZIP_DEBUG_LIBRARY))
+))
     set(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG ON)
 endif()
 
@@ -223,21 +407,15 @@ find_package_handle_standard_args(OpenSceneGraph
     REQUIRED_VARS
         OSG_INCLUDE_DIR
         OPENTHREADS_RELEASE_LIBRARY
-        OPENTHREADS_DEBUG_LIBRARY
         OSG_RELEASE_LIBRARY
-        OSG_DEBUG_LIBRARY
         OSGDB_RELEASE_LIBRARY
-        OSGDB_DEBUG_LIBRARY
         OSGGA_RELEASE_LIBRARY
-        OSGGA_DEBUG_LIBRARY
         OSGVIEWER_RELEASE_LIBRARY
-        OSGVIEWER_DEBUG_LIBRARY
         OSGUTIL_RELEASE_LIBRARY
-        OSGUTIL_DEBUG_LIBRARY
 )
 
 find_package_handle_standard_args(QtitanRibbon
-    REQUIRED_VARS QTITAN_INCLUDE_DIR QTITAN_RELEASE_LIBRARY QTITAN_DEBUG_LIBRARY
+    REQUIRED_VARS QTITAN_INCLUDE_DIR QTITAN_RELEASE_LIBRARY
 )
 
 if(LAS_VIEWER_ENABLE_LASLIB)
@@ -361,14 +539,25 @@ function(deploy_osg_runtime target_name)
         return()
     endif()
 
-    set(osg_runtime_dlls
-        "OpenThreads$<$<CONFIG:Debug>:d>.dll"
-        "osg$<$<CONFIG:Debug>:d>.dll"
-        "osgDB$<$<CONFIG:Debug>:d>.dll"
-        "osgGA$<$<CONFIG:Debug>:d>.dll"
-        "osgViewer$<$<CONFIG:Debug>:d>.dll"
-        "osgUtil$<$<CONFIG:Debug>:d>.dll"
-    )
+    if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
+        set(osg_runtime_dlls
+            "OpenThreads.dll"
+            "osg.dll"
+            "osgDB.dll"
+            "osgGA.dll"
+            "osgViewer.dll"
+            "osgUtil.dll"
+        )
+    else()
+        set(osg_runtime_dlls
+            "OpenThreads$<$<CONFIG:Debug>:d>.dll"
+            "osg$<$<CONFIG:Debug>:d>.dll"
+            "osgDB$<$<CONFIG:Debug>:d>.dll"
+            "osgGA$<$<CONFIG:Debug>:d>.dll"
+            "osgViewer$<$<CONFIG:Debug>:d>.dll"
+            "osgUtil$<$<CONFIG:Debug>:d>.dll"
+        )
+    endif()
 
     foreach(osg_runtime_dll IN LISTS osg_runtime_dlls)
         add_custom_command(TARGET ${target_name} POST_BUILD
@@ -385,6 +574,12 @@ function(deploy_runtime_dependencies target_name use_qtitan)
     endif()
 
     if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
+        set(osg_runtime_probe_suffix "")
+    else()
+        set(osg_runtime_probe_suffix "$<$<CONFIG:Debug>:d>")
+    endif()
+
+    if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
         set(qtitan_runtime_probe "qtnribbon4.dll")
     else()
         set(qtitan_runtime_probe "$<IF:$<CONFIG:Debug>,qtnribbond4.dll,qtnribbon4.dll>")
@@ -396,12 +591,12 @@ set(target_file "$<TARGET_FILE:@target_name@>")
 set(target_dir "$<TARGET_FILE_DIR:@target_name@>")
 
 set(scan_libraries
-    "@OSG_ROOT@/bin/OpenThreads$<$<CONFIG:Debug>:d>.dll"
-    "@OSG_ROOT@/bin/osg$<$<CONFIG:Debug>:d>.dll"
-    "@OSG_ROOT@/bin/osgDB$<$<CONFIG:Debug>:d>.dll"
-    "@OSG_ROOT@/bin/osgGA$<$<CONFIG:Debug>:d>.dll"
-    "@OSG_ROOT@/bin/osgViewer$<$<CONFIG:Debug>:d>.dll"
-    "@OSG_ROOT@/bin/osgUtil$<$<CONFIG:Debug>:d>.dll"
+    "@OSG_ROOT@/bin/OpenThreads@osg_runtime_probe_suffix@.dll"
+    "@OSG_ROOT@/bin/osg@osg_runtime_probe_suffix@.dll"
+    "@OSG_ROOT@/bin/osgDB@osg_runtime_probe_suffix@.dll"
+    "@OSG_ROOT@/bin/osgGA@osg_runtime_probe_suffix@.dll"
+    "@OSG_ROOT@/bin/osgViewer@osg_runtime_probe_suffix@.dll"
+    "@OSG_ROOT@/bin/osgUtil@osg_runtime_probe_suffix@.dll"
 )
 
 if("@use_qtitan@" STREQUAL "TRUE")
@@ -425,6 +620,7 @@ set(search_directories
     "@OSG_ROOT@/bin"
     "@QTITAN_ROOT@/bin"
     "@LASLIB_ROOT@/bin"
+    "@LASTOOLS_ROOT@/bin"
 )
 
 if(existing_scan_libraries)
@@ -440,9 +636,9 @@ if(existing_scan_libraries)
             "ext-ms-.*"
             "HvsiFileTrust\\.dll"
         POST_EXCLUDE_REGEXES
-            [[.*/[Ww]indows/.*]]
-            [[.*/[Ss]ystem32/.*]]
-            [[.*/[Ss]ysWOW64/.*]]
+            "^.*[\\\\/][Ww]indows[\\\\/].*"
+            "^.*[\\\\/][Ss]ystem32[\\\\/].*"
+            "^.*[\\\\/][Ss]ysWOW64[\\\\/].*"
     )
 else()
     file(GET_RUNTIME_DEPENDENCIES
@@ -456,9 +652,9 @@ else()
             "ext-ms-.*"
             "HvsiFileTrust\\.dll"
         POST_EXCLUDE_REGEXES
-            [[.*/[Ww]indows/.*]]
-            [[.*/[Ss]ystem32/.*]]
-            [[.*/[Ss]ysWOW64/.*]]
+            "^.*[\\\\/][Ww]indows[\\\\/].*"
+            "^.*[\\\\/][Ss]ystem32[\\\\/].*"
+            "^.*[\\\\/][Ss]ysWOW64[\\\\/].*"
     )
 endif()
 

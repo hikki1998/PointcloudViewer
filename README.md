@@ -8,6 +8,7 @@
 - `examples/`：示例和 smoke test
 - `test_data/`：测试数据与生成脚本
 - `shaders/`：渲染资源
+- `3rd/`：仓库内随代码分发的精简版 release 三方库
 - `out/`：推荐的本地构建输出目录，不纳入版本控制
 
 ## 构建
@@ -16,14 +17,13 @@
 
 ```powershell
 cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 `
-  -DQT_ROOT=E:/code/Qt5.15.2/5.15.2/msvc2019_64 `
-  -DOSG_ROOT=E:/code/thirdparty/osg3.6.5 `
-  -DQTITAN_ROOT=E:/code/thirdparty/QtitanRibbon `
-  -DLASLIB_ROOT=E:/code/thirdparty/laslib-v2.0.4-win64
+  -DQT_ROOT=E:/code/Qt5.15.2/5.15.2/msvc2019_64
 
 cmake --build out/build --config Release --target LASPointCloudViewer
 cmake --build out/build --config Release --target LASViewerSmokeTest
 ```
+
+默认会使用仓库内 `3rd/` 作为 `THIRDPARTY_ROOT`。其中包含 `osg/`、`qtitan/`、`laslib/`、`lastools/` 这几个精简版 release 依赖目录，每个目录根下都有 `.version` 标记文件。Qt 不随仓库分发，仍需通过 `QT_ROOT` 单独指定。
 
 ## 运行
 
@@ -46,3 +46,13 @@ python .\test_data\create_test_las.py
 - LASlib / LASzip
 - Visual Studio 2022
 - CMake 3.16+
+
+仓库内 `3rd/` 目录布局：
+
+```text
+3rd/
+  osg/
+  qtitan/
+  laslib/
+  lastools/
+```
