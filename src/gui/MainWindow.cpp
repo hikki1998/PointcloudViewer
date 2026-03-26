@@ -27,10 +27,15 @@
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStyle>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWindow>
 #include <QMouseEvent>
+
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
 
 #include "QtnRibbonBar.h"
 #include "QtnRibbonGroup.h"
@@ -49,6 +54,7 @@ const QColor kWindowChromeLight(243, 246, 251);
 const QColor kWindowChromeDark(51, 65, 85);
 const QColor kRibbonGlyphColor(28, 64, 111);
 const QColor kRibbonAccentColor(59, 130, 246);
+constexpr int kWindowResizeBorder = 8;
 
 enum class RibbonGlyph
 {
@@ -69,6 +75,14 @@ enum class RibbonGlyph
     ThemeColorful,
     ThemeWhite,
     ThemeDarkGray
+};
+
+enum class WindowControlGlyph
+{
+    Minimize,
+    Maximize,
+    Restore,
+    Close
 };
 
 QString formatCoordinate(float value)
@@ -286,12 +300,49 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
 
     return QIcon(pixmap);
 }
+
+QIcon createWindowControlIcon(WindowControlGlyph glyph, const QColor& color)
+{
+    constexpr int iconSize = 12;
+    QPixmap pixmap(iconSize, iconSize);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    const QPen pen(color, glyph == WindowControlGlyph::Close ? 1.8 : 1.4, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+    painter.setPen(pen);
+
+    switch (glyph) {
+    case WindowControlGlyph::Minimize:
+        painter.drawLine(QPointF(2.0, 8.0), QPointF(10.0, 8.0));
+        break;
+    case WindowControlGlyph::Maximize:
+        painter.drawRect(QRectF(2.0, 2.0, 8.0, 8.0));
+        break;
+    case WindowControlGlyph::Restore:
+        painter.drawRect(QRectF(4.0, 2.0, 6.0, 6.0));
+        painter.drawLine(QPointF(4.0, 4.0), QPointF(2.0, 4.0));
+        painter.drawLine(QPointF(2.0, 4.0), QPointF(2.0, 10.0));
+        painter.drawLine(QPointF(2.0, 10.0), QPointF(8.0, 10.0));
+        break;
+    case WindowControlGlyph::Close:
+        painter.drawLine(QPointF(2.5, 2.5), QPointF(9.5, 9.5));
+        painter.drawLine(QPointF(9.5, 2.5), QPointF(2.5, 9.5));
+        break;
+    }
+
+    return QIcon(pixmap);
+}
 }
 
 MainWindow::MainWindow(QWidget* parent)
     : Qtitan::RibbonMainWindow(parent)
 {
     setWindowFlag(Qt::FramelessWindowHint, true);
+    setWindowFlag(Qt::WindowMinimizeButtonHint, true);
+    setWindowFlag(Qt::WindowMaximizeButtonHint, true);
+    setWindowFlag(Qt::WindowCloseButtonHint, true);
     setWindowTitle(QStringLiteral("LAS Point Cloud Viewer"));
     resize(1520, 920);
     setAcceptDrops(true);
@@ -358,16 +409,18 @@ void MainWindow::dropEvent(QDropEvent* event)
 bool MainWindow::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == ribbonBar_ && event != nullptr) {
-        if (event->type() == QEvent::MouseButtonPress) {
+        if (event->type() == QEvent::MouseButtonDblClick) {
             auto* mouseEvent = static_cast<QMouseEvent*>(event);
-            if (mouseEvent->button() == Qt::LeftButton) {
-                QWidget* child = ribbonBar_->childAt(mouseEvent->pos());
-                const bool clickedBackground = child == nullptr || child == ribbonBar_;
-                if (clickedBackground) {
-                    if (QWindow* win = windowHandle()) {
-                        win->startSystemMove();
-                        return true;
-                    }
+            if (mouseEvent->button() == Qt::LeftButton && isDraggableRibbonArea(mouseEvent->pos())) {
+                toggleMaximizedWindow();
+                return true;
+            }
+        } else if (event->type() == QEvent::MouseButtonPress) {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton && !isMaximized() && isDraggableRibbonArea(mouseEvent->pos())) {
+                if (QWindow* win = windowHandle()) {
+                    win->startSystemMove();
+                    return true;
                 }
             }
         }
@@ -375,6 +428,74 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
 
     return Qtitan::RibbonMainWindow::eventFilter(watched, event);
 }
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    Qtitan::RibbonMainWindow::changeEvent(event);
+
+    if (event != nullptr && event->type() == QEvent::WindowStateChange) {
+        updateWindowControlButtons();
+    }
+}
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* result)
+{
+    Q_UNUSED(eventType);
+
+    if (message != nullptr && result != nullptr) {
+        MSG* nativeMessage = static_cast<MSG*>(message);
+        if (nativeMessage->message == WM_NCHITTEST && !isMaximized() && !isFullScreen()) {
+            const int globalX = static_cast<short>(LOWORD(nativeMessage->lParam));
+            const int globalY = static_cast<short>(HIWORD(nativeMessage->lParam));
+            const QPoint localPosition = mapFromGlobal(QPoint(globalX, globalY));
+            if (rect().contains(localPosition)) {
+                if (!isWindowControlWidget(childAt(localPosition))) {
+                    const bool onLeft = localPosition.x() >= 0 && localPosition.x() < kWindowResizeBorder;
+                    const bool onRight = localPosition.x() < width() && localPosition.x() >= width() - kWindowResizeBorder;
+                    const bool onTop = localPosition.y() >= 0 && localPosition.y() < kWindowResizeBorder;
+                    const bool onBottom = localPosition.y() < height() && localPosition.y() >= height() - kWindowResizeBorder;
+
+                    if (onTop && onLeft) {
+                        *result = HTTOPLEFT;
+                        return true;
+                    }
+                    if (onTop && onRight) {
+                        *result = HTTOPRIGHT;
+                        return true;
+                    }
+                    if (onBottom && onLeft) {
+                        *result = HTBOTTOMLEFT;
+                        return true;
+                    }
+                    if (onBottom && onRight) {
+                        *result = HTBOTTOMRIGHT;
+                        return true;
+                    }
+                    if (onLeft) {
+                        *result = HTLEFT;
+                        return true;
+                    }
+                    if (onRight) {
+                        *result = HTRIGHT;
+                        return true;
+                    }
+                    if (onTop) {
+                        *result = HTTOP;
+                        return true;
+                    }
+                    if (onBottom) {
+                        *result = HTBOTTOM;
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return Qtitan::RibbonMainWindow::nativeEvent(eventType, message, result);
+}
+#endif
 
 void MainWindow::createActions()
 {
@@ -442,6 +563,7 @@ void MainWindow::createRibbon()
     ribbonBar_->showQuickAccess(true);
     ribbonBar_->installEventFilter(this);
     setRibbonBar(ribbonBar_);
+    createWindowControls();
 
     ribbonBar_->quickAccessBar()->addAction(openAction_);
     ribbonBar_->quickAccessBar()->addAction(fitSceneAction_);
@@ -475,6 +597,43 @@ void MainWindow::createRibbon()
     themeGroup->addAction(themeColorfulAction_, Qt::ToolButtonTextUnderIcon);
     themeGroup->addAction(themeWhiteAction_, Qt::ToolButtonTextUnderIcon);
     themeGroup->addAction(themeDarkGrayAction_, Qt::ToolButtonTextUnderIcon);
+}
+
+void MainWindow::createWindowControls()
+{
+    if (ribbonBar_ == nullptr) {
+        return;
+    }
+
+    windowControlsWidget_ = new QWidget(ribbonBar_);
+    auto* controlsLayout = new QHBoxLayout(windowControlsWidget_);
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    controlsLayout->setSpacing(0);
+
+    minimizeButton_ = new QToolButton(windowControlsWidget_);
+    maximizeButton_ = new QToolButton(windowControlsWidget_);
+    closeButton_ = new QToolButton(windowControlsWidget_);
+
+    const QList<QToolButton*> buttons = { minimizeButton_, maximizeButton_, closeButton_ };
+    for (QToolButton* button : buttons) {
+        button->setAutoRaise(true);
+        button->setCursor(Qt::ArrowCursor);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setIconSize(QSize(12, 12));
+        button->setFixedSize(34, 26);
+        controlsLayout->addWidget(button);
+    }
+
+    minimizeButton_->setObjectName(QStringLiteral("windowMinimizeButton"));
+    maximizeButton_->setObjectName(QStringLiteral("windowMaximizeButton"));
+    closeButton_->setObjectName(QStringLiteral("windowCloseButton"));
+
+    connect(minimizeButton_, &QToolButton::clicked, this, &QWidget::showMinimized);
+    connect(maximizeButton_, &QToolButton::clicked, this, [this]() { toggleMaximizedWindow(); });
+    connect(closeButton_, &QToolButton::clicked, this, &QWidget::close);
+
+    ribbonBar_->setCornerWidget(windowControlsWidget_, Qt::TopRightCorner);
+    updateWindowControlButtons();
 }
 
 void MainWindow::createInspectorPanel()
@@ -762,7 +921,99 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
         ribbonBar_->update();
     }
 
+    updateWindowControlAppearance(theme);
+    updateWindowControlButtons();
     update();
+}
+
+void MainWindow::updateWindowControlButtons()
+{
+    if (minimizeButton_ == nullptr || maximizeButton_ == nullptr || closeButton_ == nullptr) {
+        return;
+    }
+
+    Qtitan::RibbonStyle::Theme theme = Qtitan::RibbonStyle::Office2016White;
+    if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
+        theme = ribbonStyle->getTheme();
+    }
+
+    const bool useDarkChrome = theme == Qtitan::RibbonStyle::Office2016DarkGray;
+    const QColor iconColor = useDarkChrome ? QColor(241, 245, 249) : QColor(31, 41, 55);
+
+    minimizeButton_->setIcon(createWindowControlIcon(WindowControlGlyph::Minimize, iconColor));
+    closeButton_->setIcon(createWindowControlIcon(WindowControlGlyph::Close, iconColor));
+
+    if (isMaximized()) {
+        maximizeButton_->setIcon(createWindowControlIcon(WindowControlGlyph::Restore, iconColor));
+        maximizeButton_->setToolTip(tr("Restore Down"));
+    } else {
+        maximizeButton_->setIcon(createWindowControlIcon(WindowControlGlyph::Maximize, iconColor));
+        maximizeButton_->setToolTip(tr("Maximize"));
+    }
+
+    minimizeButton_->setToolTip(tr("Minimize"));
+    closeButton_->setToolTip(tr("Close"));
+}
+
+void MainWindow::updateWindowControlAppearance(Qtitan::RibbonStyle::Theme theme)
+{
+    if (windowControlsWidget_ == nullptr) {
+        return;
+    }
+
+    const bool useDarkChrome = theme == Qtitan::RibbonStyle::Office2016DarkGray;
+    const QString hoverColor = useDarkChrome ? QStringLiteral("rgba(255, 255, 255, 0.12)") : QStringLiteral("rgba(15, 23, 42, 0.08)");
+    const QString pressedColor = useDarkChrome ? QStringLiteral("rgba(255, 255, 255, 0.18)") : QStringLiteral("rgba(15, 23, 42, 0.14)");
+    windowControlsWidget_->setStyleSheet(QStringLiteral(
+        "QToolButton {"
+        "border: none;"
+        "background: transparent;"
+        "padding: 0;"
+        "}"
+        "QToolButton:hover {"
+        "background: %1;"
+        "}"
+        "QToolButton:pressed {"
+        "background: %2;"
+        "}"
+        "QToolButton#windowCloseButton:hover {"
+        "background: #e11d48;"
+        "}"
+        "QToolButton#windowCloseButton:pressed {"
+        "background: #be123c;"
+        "}").arg(hoverColor, pressedColor));
+}
+
+void MainWindow::toggleMaximizedWindow()
+{
+    if (isMaximized()) {
+        showNormal();
+    } else {
+        showMaximized();
+    }
+    updateWindowControlButtons();
+}
+
+bool MainWindow::isDraggableRibbonArea(const QPoint& position) const
+{
+    if (ribbonBar_ == nullptr || !ribbonBar_->rect().contains(position)) {
+        return false;
+    }
+
+    QWidget* child = ribbonBar_->childAt(position);
+    return child == nullptr || child == ribbonBar_;
+}
+
+bool MainWindow::isWindowControlWidget(const QWidget* widget) const
+{
+    const QWidget* current = widget;
+    while (current != nullptr) {
+        if (current == windowControlsWidget_) {
+            return true;
+        }
+        current = current->parentWidget();
+    }
+    return false;
 }
 
 void MainWindow::syncUiFromViewer()

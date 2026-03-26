@@ -8,6 +8,7 @@
 
 class QAction;
 class QActionGroup;
+class QByteArray;
 class QCheckBox;
 class QComboBox;
 class QDockWidget;
@@ -19,6 +20,8 @@ class QLabel;
 class QObject;
 class QPushButton;
 class QSpinBox;
+class QToolButton;
+class QWidget;
 
 namespace Qtitan
 {
@@ -39,10 +42,15 @@ protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void changeEvent(QEvent* event) override;
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
+#endif
 
 private:
     void createActions();
     void createRibbon();
+    void createWindowControls();
     void createInspectorPanel();
     void createStatusBar();
     void createConnections();
@@ -53,6 +61,11 @@ private:
     void chooseBackgroundColor();
     void applyOfficeTheme(Qtitan::RibbonStyle::Theme theme);
     void updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme);
+    void updateWindowControlButtons();
+    void updateWindowControlAppearance(Qtitan::RibbonStyle::Theme theme);
+    void toggleMaximizedWindow();
+    bool isDraggableRibbonArea(const QPoint& position) const;
+    bool isWindowControlWidget(const QWidget* widget) const;
     void syncUiFromViewer();
     void updateDatasetPanel();
     void updateActionState();
@@ -75,6 +88,10 @@ private:
     QPushButton* backgroundColorButton_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
+    QWidget* windowControlsWidget_ = nullptr;
+    QToolButton* minimizeButton_ = nullptr;
+    QToolButton* maximizeButton_ = nullptr;
+    QToolButton* closeButton_ = nullptr;
 
     QAction* openAction_ = nullptr;
     QAction* clearAction_ = nullptr;
