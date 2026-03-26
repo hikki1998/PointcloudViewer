@@ -1,0 +1,78 @@
+#include "pointcloud/PointCloudData.h"
+
+#include <algorithm>
+
+PointCloudData::PointCloudData()
+{
+    clear();
+}
+
+void PointCloudData::clear()
+{
+    points_.clear();
+    minBounds_.x = minBounds_.y = minBounds_.z = std::numeric_limits<float>::max();
+    maxBounds_.x = maxBounds_.y = maxBounds_.z = std::numeric_limits<float>::lowest();
+    hasColor_ = false;
+}
+
+void PointCloudData::reserve(std::size_t count)
+{
+    points_.reserve(count);
+}
+
+void PointCloudData::addPoint(float x, float y, float z, std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a)
+{
+    PointRecord point;
+    point.x = x;
+    point.y = y;
+    point.z = z;
+    point.r = r;
+    point.g = g;
+    point.b = b;
+    point.a = a;
+
+    points_.push_back(point);
+    hasColor_ = hasColor_ || r != 255 || g != 255 || b != 255;
+    updateBounds(point);
+}
+
+bool PointCloudData::empty() const
+{
+    return points_.empty();
+}
+
+std::size_t PointCloudData::size() const
+{
+    return points_.size();
+}
+
+const std::vector<PointRecord>& PointCloudData::points() const
+{
+    return points_;
+}
+
+bool PointCloudData::hasColor() const
+{
+    return hasColor_;
+}
+
+const PointRecord& PointCloudData::minBounds() const
+{
+    return minBounds_;
+}
+
+const PointRecord& PointCloudData::maxBounds() const
+{
+    return maxBounds_;
+}
+
+void PointCloudData::updateBounds(const PointRecord& point)
+{
+    minBounds_.x = std::min(minBounds_.x, point.x);
+    minBounds_.y = std::min(minBounds_.y, point.y);
+    minBounds_.z = std::min(minBounds_.z, point.z);
+
+    maxBounds_.x = std::max(maxBounds_.x, point.x);
+    maxBounds_.y = std::max(maxBounds_.y, point.y);
+    maxBounds_.z = std::max(maxBounds_.z, point.z);
+}

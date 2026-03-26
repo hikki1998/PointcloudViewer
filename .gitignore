@@ -1,0 +1,43 @@
+# Build output
+/out/
+/build/
+/build-*/
+/thirdparty_builds/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Visual Studio
+/.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.dir/
+*.opensdf
+*.sdf
+*.ilk
+*.idb
+*.ipdb
+*.iobj
+*.pdb
+
+# Binaries and intermediates
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+*.exe
+
+# Qt autogen
+*_autogen/
+mocs_compilation*.cpp
+
+# Runtime and local files
+*.log
+*.tmp
+Thumbs.db
