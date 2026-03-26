@@ -366,8 +366,10 @@ function(deploy_osg_runtime target_name)
         "osg$<$<CONFIG:Debug>:d>.dll"
         "osgDB$<$<CONFIG:Debug>:d>.dll"
         "osgGA$<$<CONFIG:Debug>:d>.dll"
+        "osgText$<$<CONFIG:Debug>:d>.dll"
         "osgViewer$<$<CONFIG:Debug>:d>.dll"
         "osgUtil$<$<CONFIG:Debug>:d>.dll"
+        "zlib$<$<CONFIG:Debug>:d>.dll"
     )
 
     foreach(osg_runtime_dll IN LISTS osg_runtime_dlls)
