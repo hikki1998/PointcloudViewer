@@ -556,6 +556,16 @@ Max (%2)</source>
       <source>Stop Measurement</source>
       <translation>停止量测</translation>
     </message>
+    <message>
+      <location filename="../src/gui/MainWindow.cpp" line="1141" />
+      <source>Overview</source>
+      <translation>概览</translation>
+    </message>
+    <message>
+      <location filename="../src/gui/MainWindow.cpp" line="1142" />
+      <source>Rendering</source>
+      <translation>渲染</translation>
+    </message>
   </context>
   <context>
     <name>PointCloudViewer</name>
@@ -676,6 +686,21 @@ Max (%2)</source>
       <location filename="../src/gui/PointCloudViewer.cpp" line="941" />
       <source>Measured distance %1 with height delta %2.</source>
       <translation>量测距离 %1，高差 %2。</translation>
+    </message>
+    <message>
+      <location filename="../src/gui/PointCloudViewer.cpp" line="1194" />
+      <source>A</source>
+      <translation>A</translation>
+    </message>
+    <message>
+      <location filename="../src/gui/PointCloudViewer.cpp" line="1213" />
+      <source>B</source>
+      <translation>B</translation>
+    </message>
+    <message>
+      <location filename="../src/gui/PointCloudViewer.cpp" line="1227" />
+      <source>3D %1 | Height %2</source>
+      <translation>3D %1 | 高差 %2</translation>
     </message>
   </context>
 </TS>

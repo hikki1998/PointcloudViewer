@@ -82,6 +82,8 @@ private:
     osgGA::EventQueue* eventQueue() const;
     void updateViewport(int width, int height);
     int mapMouseButton(Qt::MouseButton button) const;
+    void dispatchMouseButtonEvent(const QPointF& localPos, Qt::MouseButton button, bool pressed);
+    void dispatchMouseMotion(const QPointF& localPos);
     static float toDevicePixels(float value, float devicePixelRatio);
 
     osg::ref_ptr<osgViewer::Viewer> viewer_;
@@ -93,6 +95,7 @@ private:
     bool middleButtonPressed_ = false;
     bool rightButtonPressed_ = false;
     bool leftButtonDragDetected_ = false;
+    bool leftButtonEventDispatched_ = false;
     QPointF leftButtonAnchor_;
     QPointF middleButtonAnchor_;
     QPointF rightButtonAnchor_;
@@ -160,6 +163,7 @@ private:
     bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint) const;
     osg::ref_ptr<osg::Node> buildMeasurementOverlay() const;
     QPointF projectPointToViewport(const PointRecord& point, bool* visible) const;
+    void refreshMeasurementOverlay();
     void updateMeasurementOverlayWidgets();
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
     void resetMeasurementState(bool notifyChange = true);

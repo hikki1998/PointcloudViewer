@@ -233,6 +233,7 @@ void OsgWidget::setMeasurementModeEnabled(bool enabled)
     measurementModeEnabled_ = enabled;
     leftButtonPressed_ = false;
     leftButtonDragDetected_ = false;
+    leftButtonEventDispatched_ = false;
 }
 
 OsgWidget::~OsgWidget()
@@ -278,6 +279,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         leftButtonPressed_ = true;
         leftButtonAnchor_ = event->localPos();
         leftButtonDragDetected_ = false;
+        leftButtonEventDispatched_ = !measurementModeEnabled_;
         lastOrbitCursorPosition_ = event->localPos();
         lastOrbitEventPosition_ = event->localPos();
     } else if (event->button() == Qt::MiddleButton) {
@@ -297,16 +299,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         return;
     }
 
-    if (eventQueue() != nullptr) {
-        const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
-        const float x = toDevicePixels(static_cast<float>(event->localPos().x()), devicePixelRatio);
-        const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(event->localPos().y()), devicePixelRatio);
-
-        const int button = mapMouseButton(event->button());
-        if (button != 0) {
-            eventQueue()->mouseButtonPress(x, y, button);
-        }
-    }
+    dispatchMouseButtonEvent(event->localPos(), event->button(), true);
 
     update();
 }
@@ -318,23 +311,19 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
     }
 
     if (measurementModeEnabled_ && event->button() == Qt::LeftButton) {
-        if (!leftButtonDragDetected_) {
+        if (leftButtonEventDispatched_) {
+            dispatchMouseButtonEvent(event->localPos(), event->button(), false);
+        } else if (!leftButtonDragDetected_) {
             emit sceneClicked(event->localPos());
         }
-    } else if (eventQueue() != nullptr) {
-        const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
-        const float x = toDevicePixels(static_cast<float>(event->localPos().x()), devicePixelRatio);
-        const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(event->localPos().y()), devicePixelRatio);
-
-        const int button = mapMouseButton(event->button());
-        if (button != 0) {
-            eventQueue()->mouseButtonRelease(x, y, button);
-        }
+    } else {
+        dispatchMouseButtonEvent(event->localPos(), event->button(), false);
     }
 
     if (event->button() == Qt::LeftButton) {
         leftButtonPressed_ = false;
         leftButtonDragDetected_ = false;
+        leftButtonEventDispatched_ = false;
     } else if (event->button() == Qt::MiddleButton) {
         middleButtonPressed_ = false;
     } else if (event->button() == Qt::RightButton) {
@@ -357,38 +346,72 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         }
     }
 
-    if (eventQueue() != nullptr) {
-        QPointF adjustedPosition = event->localPos();
-        if ((event->buttons() & (Qt::RightButton | Qt::MiddleButton)) != 0
-            && (rightButtonPressed_ || middleButtonPressed_)) {
-            QPointF delta = event->localPos() - lastPanCursorPosition_;
-            if (interactionOptions_.invertPanDrag) {
-                delta = QPointF(-delta.x(), -delta.y());
-            }
-            adjustedPosition = lastPanEventPosition_ + delta;
-            lastPanCursorPosition_ = event->localPos();
-            lastPanEventPosition_ = adjustedPosition;
-        } else if (!measurementModeEnabled_
-            && (event->buttons() & Qt::LeftButton) != 0
-            && leftButtonPressed_) {
-            QPointF delta = event->localPos() - lastOrbitCursorPosition_;
-            if (interactionOptions_.invertOrbitDrag) {
-                delta = QPointF(-delta.x(), -delta.y());
-            }
-            adjustedPosition = lastOrbitEventPosition_ + delta;
-            lastOrbitCursorPosition_ = event->localPos();
-            lastOrbitEventPosition_ = adjustedPosition;
+    QPointF adjustedPosition = event->localPos();
+    if ((event->buttons() & (Qt::RightButton | Qt::MiddleButton)) != 0
+        && (rightButtonPressed_ || middleButtonPressed_)) {
+        QPointF delta = event->localPos() - lastPanCursorPosition_;
+        if (interactionOptions_.invertPanDrag) {
+            delta = QPointF(-delta.x(), -delta.y());
         }
+        adjustedPosition = lastPanEventPosition_ + delta;
+        lastPanCursorPosition_ = event->localPos();
+        lastPanEventPosition_ = adjustedPosition;
+    } else if ((event->buttons() & Qt::LeftButton) != 0 && leftButtonPressed_) {
+        QPointF delta = event->localPos() - lastOrbitCursorPosition_;
+        if (interactionOptions_.invertOrbitDrag) {
+            delta = QPointF(-delta.x(), -delta.y());
+        }
+        adjustedPosition = lastOrbitEventPosition_ + delta;
+        lastOrbitCursorPosition_ = event->localPos();
+        lastOrbitEventPosition_ = adjustedPosition;
+    }
 
-        if (!(measurementModeEnabled_ && (event->buttons() & Qt::LeftButton) != 0)) {
-            const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
-            const float x = toDevicePixels(static_cast<float>(adjustedPosition.x()), devicePixelRatio);
-            const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(adjustedPosition.y()), devicePixelRatio);
-            eventQueue()->mouseMotion(x, y);
-        }
+    if (measurementModeEnabled_ && leftButtonPressed_ && leftButtonDragDetected_ && !leftButtonEventDispatched_) {
+        dispatchMouseButtonEvent(leftButtonAnchor_, Qt::LeftButton, true);
+        leftButtonEventDispatched_ = true;
+    }
+
+    if (!measurementModeEnabled_
+        || (event->buttons() & Qt::LeftButton) == 0
+        || !leftButtonPressed_
+        || leftButtonEventDispatched_) {
+        dispatchMouseMotion(adjustedPosition);
     }
 
     update();
+}
+
+void OsgWidget::dispatchMouseButtonEvent(const QPointF& localPos, Qt::MouseButton button, bool pressed)
+{
+    if (eventQueue() == nullptr) {
+        return;
+    }
+
+    const int mappedButton = mapMouseButton(button);
+    if (mappedButton == 0) {
+        return;
+    }
+
+    const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
+    const float x = toDevicePixels(static_cast<float>(localPos.x()), devicePixelRatio);
+    const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(localPos.y()), devicePixelRatio);
+    if (pressed) {
+        eventQueue()->mouseButtonPress(x, y, mappedButton);
+    } else {
+        eventQueue()->mouseButtonRelease(x, y, mappedButton);
+    }
+}
+
+void OsgWidget::dispatchMouseMotion(const QPointF& localPos)
+{
+    if (eventQueue() == nullptr) {
+        return;
+    }
+
+    const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
+    const float x = toDevicePixels(static_cast<float>(localPos.x()), devicePixelRatio);
+    const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(localPos.y()), devicePixelRatio);
+    eventQueue()->mouseMotion(x, y);
 }
 
 void OsgWidget::wheelEvent(QWheelEvent* event)
@@ -889,16 +912,7 @@ void PointCloudViewer::rebuildScene()
         rootGroup_->addChild(pointCloudNode_.get());
     }
 
-    measurementOverlayNode_ = buildMeasurementOverlay();
-    if (measurementOverlayNode_.valid()) {
-        rootGroup_->addChild(measurementOverlayNode_.get());
-    }
-
-    if (osgWidget_ != nullptr) {
-        osgWidget_->update();
-    }
-
-    updateMeasurementOverlayWidgets();
+    refreshMeasurementOverlay();
 }
 
 void PointCloudViewer::updateFooter()
@@ -1046,7 +1060,7 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
             false);
     }
 
-    rebuildScene();
+    refreshMeasurementOverlay();
     updateFooter();
     emit measurementChanged();
 }
@@ -1234,6 +1248,26 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
     positionOverlayLabel(measurementSummaryOverlayLabel_, summaryAnchor, QPoint(0, -34));
 }
 
+void PointCloudViewer::refreshMeasurementOverlay()
+{
+    if (rootGroup_.valid() && measurementOverlayNode_.valid()) {
+        rootGroup_->removeChild(measurementOverlayNode_.get());
+        measurementOverlayNode_ = nullptr;
+    }
+
+    if (rootGroup_.valid() && measurementResult_.hasStartPoint) {
+        measurementOverlayNode_ = buildMeasurementOverlay();
+        if (measurementOverlayNode_.valid()) {
+            rootGroup_->addChild(measurementOverlayNode_.get());
+        }
+    }
+
+    updateMeasurementOverlayWidgets();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
 void PointCloudViewer::positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const
 {
     if (label == nullptr || osgWidget_ == nullptr) {
@@ -1260,10 +1294,9 @@ void PointCloudViewer::resetMeasurementState(bool notifyChange)
 {
     const bool hadMeasurement = measurementResult_.hasStartPoint || measurementResult_.hasEndPoint;
     measurementResult_ = MeasurementResult();
-    measurementOverlayNode_ = nullptr;
 
     if (hasPointCloud()) {
-        rebuildScene();
+        refreshMeasurementOverlay();
         updateFooter();
     }
 
