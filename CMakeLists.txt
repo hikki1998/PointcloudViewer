@@ -457,7 +457,7 @@ set(COMMON_HEADERS
     src/osg/OsgPointCloudNode.h
 )
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
 
 function(configure_las_viewer_target target_name use_qtitan)
     target_include_directories(${target_name} PRIVATE

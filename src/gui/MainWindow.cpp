@@ -2,10 +2,13 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QAbstractButton>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QFileDialog>
@@ -23,10 +26,14 @@
 #include <QPushButton>
 #include <QDropEvent>
 #include <QPalette>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QSettings>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStyle>
+#include <QTabBar>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -74,7 +81,8 @@ enum class RibbonGlyph
     SingleColor,
     ThemeColorful,
     ThemeWhite,
-    ThemeDarkGray
+    ThemeDarkGray,
+    Log
 };
 
 enum class WindowControlGlyph
@@ -296,6 +304,17 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.setPen(QPen(QColor(148, 163, 184), 2.5));
         painter.drawLine(QPointF(r.left() + 4.0, r.top() + 9.0), QPointF(r.right() - 4.0, r.top() + 9.0));
         break;
+    case RibbonGlyph::Log:
+        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 4.0, 20.0, 18.0), 4.0, 4.0);
+        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 9.0), QPointF(r.right() - 3.0, r.top() + 9.0));
+        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 14.0), QPointF(r.right() - 6.0, r.top() + 14.0));
+        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 19.0), QPointF(r.right() - 9.0, r.top() + 19.0));
+        painter.setBrush(kRibbonAccentColor);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 7.0, 2.8, 2.8));
+        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 12.0, 2.8, 2.8));
+        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 17.0, 2.8, 2.8));
+        break;
     }
 
     return QIcon(pixmap);
@@ -345,6 +364,7 @@ MainWindow::MainWindow(QWidget* parent)
     setWindowFlag(Qt::WindowCloseButtonHint, true);
     setWindowTitle(QStringLiteral("LAS Point Cloud Viewer"));
     resize(1520, 920);
+    setMinimumSize(960, 640);
     setAcceptDrops(true);
 
     viewer_ = new PointCloudViewer(this);
@@ -353,7 +373,9 @@ MainWindow::MainWindow(QWidget* parent)
     createActions();
     createRibbon();
     createInspectorPanel();
+    createLogDock();
     createStatusBar();
+    loadInteractionSettings();
     createConnections();
 
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
@@ -361,8 +383,8 @@ MainWindow::MainWindow(QWidget* parent)
     }
 
     syncUiFromViewer();
-
-    statusBar()->showMessage(QStringLiteral("Ready. Open or drag a LAS/LAZ file to begin."), 4000);
+    updateNavigationHelpText();
+    showUserMessage(LogLevel::Info, QStringLiteral("Ready. Open or drag a LAS/LAZ file to begin."), 4000);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
@@ -403,7 +425,7 @@ void MainWindow::dropEvent(QDropEvent* event)
         return;
     }
 
-    statusBar()->showMessage(tr("Only LAS and LAZ files can be dropped here."), 4000);
+    showUserMessage(LogLevel::Warning, tr("Only LAS and LAZ files can be dropped here."), 4000);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event)
@@ -445,12 +467,12 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
 
     if (message != nullptr && result != nullptr) {
         MSG* nativeMessage = static_cast<MSG*>(message);
-        if (nativeMessage->message == WM_NCHITTEST && !isMaximized() && !isFullScreen()) {
+        if (nativeMessage->message == WM_NCHITTEST && !isFullScreen()) {
             const int globalX = static_cast<short>(LOWORD(nativeMessage->lParam));
             const int globalY = static_cast<short>(HIWORD(nativeMessage->lParam));
             const QPoint localPosition = mapFromGlobal(QPoint(globalX, globalY));
             if (rect().contains(localPosition)) {
-                if (!isWindowControlWidget(childAt(localPosition))) {
+                if (!isMaximized() && !isWindowControlWidget(childAt(localPosition))) {
                     const bool onLeft = localPosition.x() >= 0 && localPosition.x() < kWindowResizeBorder;
                     const bool onRight = localPosition.x() < width() && localPosition.x() >= width() - kWindowResizeBorder;
                     const bool onTop = localPosition.y() >= 0 && localPosition.y() < kWindowResizeBorder;
@@ -486,6 +508,14 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, long* r
                     }
                     if (onBottom) {
                         *result = HTBOTTOM;
+                        return true;
+                    }
+                }
+
+                if (ribbonBar_ != nullptr && ribbonBar_->geometry().contains(localPosition)) {
+                    const QPoint ribbonPosition = ribbonBar_->mapFrom(this, localPosition);
+                    if (isDraggableRibbonArea(ribbonPosition)) {
+                        *result = HTCAPTION;
                         return true;
                     }
                 }
@@ -552,6 +582,11 @@ void MainWindow::createActions()
     themeActionGroup_->addAction(themeColorfulAction_);
     themeActionGroup_->addAction(themeWhiteAction_);
     themeActionGroup_->addAction(themeDarkGrayAction_);
+
+    showLogAction_ = new QAction(createRibbonIcon(RibbonGlyph::Log), tr("Log"), this);
+    showLogAction_->setCheckable(true);
+    showLogAction_->setChecked(true);
+    showLogAction_->setToolTip(tr("Show or hide the log panel"));
 }
 
 void MainWindow::createRibbon()
@@ -586,6 +621,9 @@ void MainWindow::createRibbon()
     sceneGroup->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
     sceneGroup->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
     sceneGroup->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
+
+    Qtitan::RibbonGroup* workspaceGroup = homePage->addGroup(tr("Workspace"));
+    workspaceGroup->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
 
     Qtitan::RibbonPage* appearancePage = ribbonBar_->addPage(tr("Appearance"));
     Qtitan::RibbonGroup* colorGroup = appearancePage->addGroup(tr("Point Colors"));
@@ -708,11 +746,16 @@ void MainWindow::createInspectorPanel()
 
     auto* tipsGroupBox = new QGroupBox(tr("Navigation"), panel);
     auto* tipsLayout = new QVBoxLayout(tipsGroupBox);
-    auto* tipsLabel = new QLabel(
-        tr("Left drag orbits, right drag pans, and the mouse wheel zooms. Use the ribbon camera presets to quickly inspect the dataset from top, front, or right."),
-        tipsGroupBox);
-    tipsLabel->setWordWrap(true);
-    tipsLayout->addWidget(tipsLabel);
+    navigationTipsLabel_ = new QLabel(tipsGroupBox);
+    navigationTipsLabel_->setWordWrap(true);
+    tipsLayout->addWidget(navigationTipsLabel_);
+
+    invertOrbitCheckBox_ = new QCheckBox(tr("Invert orbit drag"), tipsGroupBox);
+    invertPanCheckBox_ = new QCheckBox(tr("Invert pan drag"), tipsGroupBox);
+    invertWheelCheckBox_ = new QCheckBox(tr("Invert wheel zoom"), tipsGroupBox);
+    tipsLayout->addWidget(invertOrbitCheckBox_);
+    tipsLayout->addWidget(invertPanCheckBox_);
+    tipsLayout->addWidget(invertWheelCheckBox_);
 
     panelLayout->addWidget(datasetGroupBox);
     panelLayout->addWidget(renderingGroupBox);
@@ -760,6 +803,33 @@ void MainWindow::createInspectorPanel()
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
 }
 
+void MainWindow::createLogDock()
+{
+    logDock_ = new QDockWidget(tr("Application Log"), this);
+    logDock_->setObjectName(QStringLiteral("applicationLogDock"));
+    logDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    logDock_->setFeatures(
+        QDockWidget::DockWidgetClosable
+        | QDockWidget::DockWidgetMovable
+        | QDockWidget::DockWidgetFloatable);
+
+    logTextEdit_ = new QPlainTextEdit(logDock_);
+    logTextEdit_->setReadOnly(true);
+    logTextEdit_->setMaximumBlockCount(500);
+    logTextEdit_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    logTextEdit_->setStyleSheet(QStringLiteral(
+        "QPlainTextEdit {"
+        "background-color: #0f172a;"
+        "color: #dbe4f0;"
+        "border: none;"
+        "font-family: Consolas, 'Courier New', monospace;"
+        "font-size: 11px;"
+        "}"));
+
+    logDock_->setWidget(logTextEdit_);
+    addDockWidget(Qt::BottomDockWidgetArea, logDock_);
+}
+
 void MainWindow::createStatusBar()
 {
     statusBar()->setSizeGripEnabled(false);
@@ -805,16 +875,35 @@ void MainWindow::createConnections()
     connect(backgroundColorButton_, &QPushButton::clicked, this, [this]() { chooseBackgroundColor(); });
     connect(axesCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowAxes);
     connect(boundingBoxCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowBoundingBox);
+    connect(invertOrbitCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertOrbitDrag);
+    connect(invertPanCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertPanDrag);
+    connect(invertWheelCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertWheelZoom);
+
+    connect(showLogAction_, &QAction::toggled, this, [this](bool visible) {
+        if (logDock_ != nullptr) {
+            logDock_->setVisible(visible);
+        }
+    });
+    connect(logDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (showLogAction_ != nullptr && showLogAction_->isChecked() != visible) {
+            showLogAction_->setChecked(visible);
+        }
+    });
 
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         syncUiFromViewer();
-        statusBar()->showMessage(tr("Point cloud loaded."), 3000);
     });
     connect(viewer_, &PointCloudViewer::pointCloudCleared, this, [this]() {
         syncUiFromViewer();
-        statusBar()->showMessage(tr("Scene cleared."), 3000);
+        showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
     });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { syncUiFromViewer(); });
+    connect(viewer_, &PointCloudViewer::interactionOptionsChanged, this, [this]() {
+        persistInteractionSettings();
+        syncUiFromViewer();
+        updateNavigationHelpText();
+        showUserMessage(LogLevel::Info, tr("Navigation preferences updated."), 2500);
+    });
 }
 
 void MainWindow::openPointCloud()
@@ -826,7 +915,7 @@ void MainWindow::openPointCloud()
         tr("LAS Files (*.las *.laz);;All Files (*.*)"));
 
     if (filePath.isEmpty()) {
-        statusBar()->showMessage(tr("Open cancelled."), 2000);
+        showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
         return;
     }
 
@@ -838,12 +927,18 @@ bool MainWindow::loadPointCloudFile(const QString& filePath)
     QString errorMessage;
     if (viewer_->loadPointCloud(filePath, &errorMessage)) {
         const QFileInfo fileInfo(filePath);
-        statusBar()->showMessage(tr("Loaded %1").arg(fileInfo.fileName()), 4000);
+        showUserMessage(
+            LogLevel::Info,
+            tr("Loaded %1. %2").arg(fileInfo.fileName(), errorMessage),
+            4000);
         return true;
     }
 
     syncUiFromViewer();
-    statusBar()->showMessage(errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage, 6000);
+    showUserMessage(
+        LogLevel::Error,
+        errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage,
+        6000);
     return false;
 }
 
@@ -879,7 +974,7 @@ void MainWindow::applyOfficeTheme(Qtitan::RibbonStyle::Theme theme)
         ribbonStyle->setTheme(theme);
         updateWindowChromePalette(theme);
         syncUiFromViewer();
-        statusBar()->showMessage(tr("Theme updated."), 2500);
+        showUserMessage(LogLevel::Info, tr("Theme updated."), 2500);
     }
 }
 
@@ -1001,7 +1096,29 @@ bool MainWindow::isDraggableRibbonArea(const QPoint& position) const
     }
 
     QWidget* child = ribbonBar_->childAt(position);
-    return child == nullptr || child == ribbonBar_;
+    return !isInteractiveRibbonWidget(child);
+}
+
+bool MainWindow::isInteractiveRibbonWidget(const QWidget* widget) const
+{
+    const QWidget* current = widget;
+    while (current != nullptr) {
+        if (current == ribbonBar_) {
+            return false;
+        }
+        if (isWindowControlWidget(current)) {
+            return true;
+        }
+        if (qobject_cast<const QAbstractButton*>(current) != nullptr
+            || qobject_cast<const QComboBox*>(current) != nullptr
+            || qobject_cast<const QAbstractSpinBox*>(current) != nullptr
+            || qobject_cast<const QTabBar*>(current) != nullptr) {
+            return true;
+        }
+        current = current->parentWidget();
+    }
+
+    return false;
 }
 
 bool MainWindow::isWindowControlWidget(const QWidget* widget) const
@@ -1019,12 +1136,16 @@ bool MainWindow::isWindowControlWidget(const QWidget* widget) const
 void MainWindow::syncUiFromViewer()
 {
     const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
+    const InteractionOptions& interactionOptions = viewer_->interactionOptions();
 
     {
         const QSignalBlocker pointSizeBlocker(pointSizeSpinBox_);
         const QSignalBlocker colorModeBlocker(colorModeComboBox_);
         const QSignalBlocker axesBlocker(axesCheckBox_);
         const QSignalBlocker boundsBlocker(boundingBoxCheckBox_);
+        const QSignalBlocker orbitBlocker(invertOrbitCheckBox_);
+        const QSignalBlocker panBlocker(invertPanCheckBox_);
+        const QSignalBlocker wheelBlocker(invertWheelCheckBox_);
         const QSignalBlocker axesActionBlocker(showAxesAction_);
         const QSignalBlocker boundsActionBlocker(showBoundingBoxAction_);
         const QSignalBlocker rgbActionBlocker(rgbColorAction_);
@@ -1038,6 +1159,9 @@ void MainWindow::syncUiFromViewer()
         colorModeComboBox_->setCurrentIndex(static_cast<int>(options.colorMode));
         axesCheckBox_->setChecked(options.showAxes);
         boundingBoxCheckBox_->setChecked(options.showBoundingBox);
+        invertOrbitCheckBox_->setChecked(interactionOptions.invertOrbitDrag);
+        invertPanCheckBox_->setChecked(interactionOptions.invertPanDrag);
+        invertWheelCheckBox_->setChecked(interactionOptions.invertWheelZoom);
 
         showAxesAction_->setChecked(options.showAxes);
         showBoundingBoxAction_->setChecked(options.showBoundingBox);
@@ -1054,6 +1178,7 @@ void MainWindow::syncUiFromViewer()
 
     setColorButtonAppearance(pointColorButton_, options.singleColor, tr("Pick Color"));
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
+    updateNavigationHelpText();
     updateDatasetPanel();
     updateActionState();
 }
@@ -1120,4 +1245,75 @@ void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& col
         "border-radius: 4px;"
         "padding: 6px 10px;"
         "}").arg(color.name(), foreground));
+}
+
+void MainWindow::appendLog(LogLevel level, const QString& message)
+{
+    if (logTextEdit_ == nullptr || message.trimmed().isEmpty()) {
+        return;
+    }
+
+    QString levelText;
+    switch (level) {
+    case LogLevel::Warning:
+        levelText = QStringLiteral("WARN");
+        break;
+    case LogLevel::Error:
+        levelText = QStringLiteral("ERROR");
+        break;
+    case LogLevel::Info:
+    default:
+        levelText = QStringLiteral("INFO");
+        break;
+    }
+
+    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss"));
+    logTextEdit_->appendPlainText(
+        QStringLiteral("[%1] %2 %3")
+            .arg(timestamp)
+            .arg(levelText.leftJustified(5, QLatin1Char(' ')))
+            .arg(message));
+    logTextEdit_->verticalScrollBar()->setValue(logTextEdit_->verticalScrollBar()->maximum());
+}
+
+void MainWindow::showUserMessage(LogLevel level, const QString& message, int timeoutMs)
+{
+    if (statusBar() != nullptr) {
+        statusBar()->showMessage(message, timeoutMs);
+    }
+    appendLog(level, message);
+}
+
+void MainWindow::loadInteractionSettings()
+{
+    QSettings settings;
+    InteractionOptions options;
+    options.invertOrbitDrag = settings.value(QStringLiteral("interaction/invertOrbitDrag"), false).toBool();
+    options.invertPanDrag = settings.value(QStringLiteral("interaction/invertPanDrag"), false).toBool();
+    options.invertWheelZoom = settings.value(QStringLiteral("interaction/invertWheelZoom"), false).toBool();
+    viewer_->setInteractionOptions(options);
+}
+
+void MainWindow::persistInteractionSettings() const
+{
+    QSettings settings;
+    const InteractionOptions& options = viewer_->interactionOptions();
+    settings.setValue(QStringLiteral("interaction/invertOrbitDrag"), options.invertOrbitDrag);
+    settings.setValue(QStringLiteral("interaction/invertPanDrag"), options.invertPanDrag);
+    settings.setValue(QStringLiteral("interaction/invertWheelZoom"), options.invertWheelZoom);
+}
+
+void MainWindow::updateNavigationHelpText()
+{
+    if (navigationTipsLabel_ == nullptr || viewer_ == nullptr) {
+        return;
+    }
+
+    const InteractionOptions& options = viewer_->interactionOptions();
+    navigationTipsLabel_->setText(tr(
+        "Left drag orbits (%1), right drag pans (%2), and the mouse wheel zooms (%3). "
+        "Use the toggles below to match your preferred interaction direction.")
+        .arg(options.invertOrbitDrag ? tr("inverted") : tr("normal"))
+        .arg(options.invertPanDrag ? tr("inverted") : tr("normal"))
+        .arg(options.invertWheelZoom ? tr("inverted") : tr("normal")));
 }

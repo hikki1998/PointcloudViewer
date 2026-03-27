@@ -59,6 +59,11 @@ OsgWidget::OsgWidget(QWidget* parent)
     setMouseTracking(true);
 }
 
+void OsgWidget::setInteractionOptions(const InteractionOptions& options)
+{
+    interactionOptions_ = options;
+}
+
 OsgWidget::~OsgWidget()
 {
     if (viewer_.valid()) {
@@ -93,6 +98,21 @@ void OsgWidget::paintGL()
 
 void OsgWidget::mousePressEvent(QMouseEvent* event)
 {
+    if (event == nullptr) {
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton) {
+        leftButtonPressed_ = true;
+        leftButtonAnchor_ = event->localPos();
+    } else if (event->button() == Qt::MiddleButton) {
+        middleButtonPressed_ = true;
+        middleButtonAnchor_ = event->localPos();
+    } else if (event->button() == Qt::RightButton) {
+        rightButtonPressed_ = true;
+        rightButtonAnchor_ = event->localPos();
+    }
+
     if (eventQueue() != nullptr) {
         const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
         const float x = toDevicePixels(static_cast<float>(event->localPos().x()), devicePixelRatio);
@@ -117,6 +137,10 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
 
 void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (event == nullptr) {
+        return;
+    }
+
     if (eventQueue() != nullptr) {
         const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
         const float x = toDevicePixels(static_cast<float>(event->localPos().x()), devicePixelRatio);
@@ -136,15 +160,38 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         eventQueue()->mouseButtonRelease(x, y, button);
     }
 
+    if (event->button() == Qt::LeftButton) {
+        leftButtonPressed_ = false;
+    } else if (event->button() == Qt::MiddleButton) {
+        middleButtonPressed_ = false;
+    } else if (event->button() == Qt::RightButton) {
+        rightButtonPressed_ = false;
+    }
+
     update();
 }
 
 void OsgWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    if (event == nullptr) {
+        return;
+    }
+
     if (eventQueue() != nullptr) {
+        QPointF adjustedPosition = event->localPos();
+        if ((event->buttons() & (Qt::RightButton | Qt::MiddleButton)) != 0
+            && interactionOptions_.invertPanDrag) {
+            const QPointF anchor = rightButtonPressed_ ? rightButtonAnchor_ : middleButtonAnchor_;
+            adjustedPosition = reflectPosition(adjustedPosition, anchor);
+        } else if ((event->buttons() & Qt::LeftButton) != 0
+            && interactionOptions_.invertOrbitDrag
+            && leftButtonPressed_) {
+            adjustedPosition = reflectPosition(adjustedPosition, leftButtonAnchor_);
+        }
+
         const float devicePixelRatio = static_cast<float>(devicePixelRatioF());
-        const float x = toDevicePixels(static_cast<float>(event->localPos().x()), devicePixelRatio);
-        const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(event->localPos().y()), devicePixelRatio);
+        const float x = toDevicePixels(static_cast<float>(adjustedPosition.x()), devicePixelRatio);
+        const float y = toDevicePixels(static_cast<float>(height()) - static_cast<float>(adjustedPosition.y()), devicePixelRatio);
         eventQueue()->mouseMotion(x, y);
     }
 
@@ -153,9 +200,16 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
 
 void OsgWidget::wheelEvent(QWheelEvent* event)
 {
-    if (eventQueue() != nullptr) {
+    if (event == nullptr) {
+        return;
+    }
+
+    if (eventQueue() != nullptr && event->angleDelta().y() != 0) {
+        const bool scrollUp = event->angleDelta().y() > 0;
         eventQueue()->mouseScroll(
-            event->angleDelta().y() > 0 ? osgGA::GUIEventAdapter::SCROLL_UP : osgGA::GUIEventAdapter::SCROLL_DOWN);
+            (scrollUp ^ interactionOptions_.invertWheelZoom)
+                ? osgGA::GUIEventAdapter::SCROLL_UP
+                : osgGA::GUIEventAdapter::SCROLL_DOWN);
     }
 
     update();
@@ -210,6 +264,11 @@ float OsgWidget::toDevicePixels(float value, float devicePixelRatio)
     return value * devicePixelRatio;
 }
 
+QPointF OsgWidget::reflectPosition(const QPointF& position, const QPointF& anchor)
+{
+    return QPointF(anchor.x() - (position.x() - anchor.x()), anchor.y() - (position.y() - anchor.y()));
+}
+
 PointCloudViewer::PointCloudViewer(QWidget* parent)
     : QWidget(parent)
 {
@@ -247,7 +306,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     applyClearColor();
     updateMessage(
         QStringLiteral("Ready for point cloud inspection"),
-        QStringLiteral("Open a LAS or LAZ file. Mouse: orbit, pan, zoom. Use the ribbon for view presets and display controls."));
+        QStringLiteral("Open a LAS or LAZ file. Mouse: orbit, pan, zoom. Use the navigation options to invert orbit, pan, or wheel behavior."));
 }
 
 PointCloudViewer::~PointCloudViewer()
@@ -342,6 +401,11 @@ const PointCloudData* PointCloudViewer::pointCloudData() const
 const PointCloudVisualizationOptions& PointCloudViewer::visualizationOptions() const
 {
     return visualizationOptions_;
+}
+
+const InteractionOptions& PointCloudViewer::interactionOptions() const
+{
+    return interactionOptions_;
 }
 
 void PointCloudViewer::setPointSize(int pointSize)
@@ -446,6 +510,42 @@ void PointCloudViewer::setViewPreset(PointCloudViewPreset viewPreset)
     applyViewPreset(viewPreset);
 }
 
+void PointCloudViewer::setInteractionOptions(const InteractionOptions& options)
+{
+    if (interactionOptions_.invertOrbitDrag == options.invertOrbitDrag
+        && interactionOptions_.invertPanDrag == options.invertPanDrag
+        && interactionOptions_.invertWheelZoom == options.invertWheelZoom) {
+        return;
+    }
+
+    interactionOptions_ = options;
+    if (osgWidget_ != nullptr) {
+        osgWidget_->setInteractionOptions(interactionOptions_);
+    }
+    emit interactionOptionsChanged();
+}
+
+void PointCloudViewer::setInvertOrbitDrag(bool invert)
+{
+    InteractionOptions options = interactionOptions_;
+    options.invertOrbitDrag = invert;
+    setInteractionOptions(options);
+}
+
+void PointCloudViewer::setInvertPanDrag(bool invert)
+{
+    InteractionOptions options = interactionOptions_;
+    options.invertPanDrag = invert;
+    setInteractionOptions(options);
+}
+
+void PointCloudViewer::setInvertWheelZoom(bool invert)
+{
+    InteractionOptions options = interactionOptions_;
+    options.invertWheelZoom = invert;
+    setInteractionOptions(options);
+}
+
 void PointCloudViewer::createStatusPanel()
 {
     statusPanel_ = new QFrame(this);
@@ -497,7 +597,7 @@ void PointCloudViewer::updateFooter()
     if (!hasPointCloud()) {
         updateMessage(
             QStringLiteral("Ready for point cloud inspection"),
-            QStringLiteral("Open a LAS or LAZ file. Mouse: orbit, pan, zoom. Use the ribbon for view presets and display controls."));
+            QStringLiteral("Open a LAS or LAZ file. Mouse: orbit, pan, zoom. Use the navigation options to invert orbit, pan, or wheel behavior."));
         return;
     }
 

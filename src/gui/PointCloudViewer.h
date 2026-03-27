@@ -24,6 +24,13 @@ class Group;
 class Node;
 }
 
+struct InteractionOptions
+{
+    bool invertOrbitDrag = false;
+    bool invertPanDrag = false;
+    bool invertWheelZoom = false;
+};
+
 class OsgWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
@@ -33,6 +40,8 @@ public:
     ~OsgWidget() override;
 
     osgViewer::Viewer* getViewer() { return viewer_.get(); }
+    const InteractionOptions& interactionOptions() const { return interactionOptions_; }
+    void setInteractionOptions(const InteractionOptions& options);
 
 protected:
     void initializeGL() override;
@@ -50,10 +59,18 @@ private:
     osgGA::EventQueue* eventQueue() const;
     void updateViewport(int width, int height);
     static float toDevicePixels(float value, float devicePixelRatio);
+    static QPointF reflectPosition(const QPointF& position, const QPointF& anchor);
 
     osg::ref_ptr<osgViewer::Viewer> viewer_;
     osg::ref_ptr<osgViewer::GraphicsWindowEmbedded> graphicsWindow_;
     bool initialized_ = false;
+    InteractionOptions interactionOptions_;
+    bool leftButtonPressed_ = false;
+    bool middleButtonPressed_ = false;
+    bool rightButtonPressed_ = false;
+    QPointF leftButtonAnchor_;
+    QPointF middleButtonAnchor_;
+    QPointF rightButtonAnchor_;
 };
 
 class PointCloudViewer final : public QWidget
@@ -71,6 +88,7 @@ public:
     QString currentFilePath() const;
     const PointCloudData* pointCloudData() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
+    const InteractionOptions& interactionOptions() const;
 
 public slots:
     void setPointSize(int pointSize);
@@ -82,11 +100,16 @@ public slots:
     void setShowBoundingBox(bool showBoundingBox);
     void resetView();
     void setViewPreset(PointCloudViewPreset viewPreset);
+    void setInteractionOptions(const InteractionOptions& options);
+    void setInvertOrbitDrag(bool invert);
+    void setInvertPanDrag(bool invert);
+    void setInvertWheelZoom(bool invert);
 
 signals:
     void pointCloudLoaded();
     void pointCloudCleared();
     void visualizationOptionsChanged();
+    void interactionOptionsChanged();
 
 private:
     void createStatusPanel();
@@ -105,6 +128,7 @@ private:
     PointCloudData currentPointCloud_;
     QString currentFilePath_;
     PointCloudVisualizationOptions visualizationOptions_;
+    InteractionOptions interactionOptions_;
 
     osg::ref_ptr<osg::Group> rootGroup_;
     osg::ref_ptr<osg::Node> pointCloudNode_;
