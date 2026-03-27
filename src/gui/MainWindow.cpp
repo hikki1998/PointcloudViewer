@@ -38,6 +38,7 @@
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStyle>
+#include <QSlider>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QToolButton>
@@ -46,6 +47,8 @@
 #include <QVBoxLayout>
 #include <QWindow>
 #include <QMouseEvent>
+
+#include <cmath>
 
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -850,9 +853,10 @@ void MainWindow::createInspectorPanel()
     renderingLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
     renderingLayout_->setFormAlignment(Qt::AlignTop);
 
-    pointSizeSpinBox_ = new QSpinBox(renderingGroupBox_);
-    pointSizeSpinBox_->setRange(1, 12);
-    pointSizeSpinBox_->setSuffix(tr(" px"));
+    pointSizeControl_ = createSliderControl(pointSizeSlider_, pointSizeValueLabel_, 1, 20, 1);
+    pointOpacityControl_ = createSliderControl(pointOpacitySlider_, pointOpacityValueLabel_, 10, 100, 5);
+    depthCueControl_ = createSliderControl(depthCueSlider_, depthCueValueLabel_, 0, 100, 5);
+    edlStrengthControl_ = createSliderControl(edlStrengthSlider_, edlStrengthValueLabel_, 0, 100, 5);
 
     colorModeComboBox_ = new QComboBox(renderingGroupBox_);
     colorModeComboBox_->addItem(tr("RGB"));
@@ -862,13 +866,18 @@ void MainWindow::createInspectorPanel()
     pointColorButton_ = new QPushButton(tr("Pick Color"), renderingGroupBox_);
     backgroundColorButton_ = new QPushButton(tr("Pick Background"), renderingGroupBox_);
 
+    roundSplatsCheckBox_ = new QCheckBox(tr("Round splats (survey style)"), renderingGroupBox_);
     axesCheckBox_ = new QCheckBox(tr("Show XYZ axes"), renderingGroupBox_);
     boundingBoxCheckBox_ = new QCheckBox(tr("Show bounding box"), renderingGroupBox_);
 
-    renderingLayout_->addRow(tr("Point Size"), pointSizeSpinBox_);
+    renderingLayout_->addRow(tr("Point Size"), pointSizeControl_);
+    renderingLayout_->addRow(tr("Point Opacity"), pointOpacityControl_);
+    renderingLayout_->addRow(tr("Depth Cue"), depthCueControl_);
+    renderingLayout_->addRow(tr("EDL-style Shading"), edlStrengthControl_);
     renderingLayout_->addRow(tr("Color Mode"), colorModeComboBox_);
     renderingLayout_->addRow(tr("Single Color"), pointColorButton_);
     renderingLayout_->addRow(tr("Background"), backgroundColorButton_);
+    renderingLayout_->addRow(QString(), roundSplatsCheckBox_);
     renderingLayout_->addRow(QString(), axesCheckBox_);
     renderingLayout_->addRow(QString(), boundingBoxCheckBox_);
 
@@ -1069,6 +1078,91 @@ void MainWindow::createStatusBar()
         "}"));
 }
 
+QWidget* MainWindow::createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step)
+{
+    auto* container = new QWidget(renderingGroupBox_);
+    auto* layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(10);
+
+    slider = new QSlider(Qt::Horizontal, container);
+    slider->setRange(minimum, maximum);
+    slider->setSingleStep(step);
+    slider->setPageStep(std::max(step, (maximum - minimum) / 10));
+    slider->setTracking(true);
+    slider->setTickInterval(step);
+
+    valueLabel = new QLabel(container);
+    valueLabel->setMinimumWidth(56);
+    valueLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    valueLabel->setStyleSheet(QStringLiteral(
+        "QLabel {"
+        "color: #475569;"
+        "font-weight: 600;"
+        "}"));
+
+    layout->addWidget(slider, 1);
+    layout->addWidget(valueLabel, 0);
+    return container;
+}
+
+void MainWindow::updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const
+{
+    if (slider == nullptr || valueLabel == nullptr) {
+        return;
+    }
+
+    valueLabel->setText(formatText.arg(QLocale().toString(slider->value())));
+}
+
+void MainWindow::updateVisualizationTooltips()
+{
+    const auto applyTooltip = [](QWidget* primary, QWidget* secondary, QWidget* tertiary, const QString& tooltip) {
+        if (primary != nullptr) {
+            primary->setToolTip(tooltip);
+        }
+        if (secondary != nullptr) {
+            secondary->setToolTip(tooltip);
+        }
+        if (tertiary != nullptr) {
+            tertiary->setToolTip(tooltip);
+        }
+    };
+
+    if (pointSizeSlider_ != nullptr) {
+        const QString tooltip = tr(
+            "<b>Point Size</b><br/>"
+            "Controls the screen size of each rendered point.");
+        applyTooltip(pointSizeSlider_, pointSizeValueLabel_, pointSizeControl_, tooltip);
+    }
+    if (pointOpacitySlider_ != nullptr) {
+        const QString tooltip = tr(
+            "<b>Point Opacity</b><br/>"
+            "Controls how solid each point appears.<br/>"
+            "Lower values reveal deeper layers; higher values make the cloud denser and stronger.");
+        applyTooltip(pointOpacitySlider_, pointOpacityValueLabel_, pointOpacityControl_, tooltip);
+    }
+    if (depthCueSlider_ != nullptr) {
+        const QString tooltip = tr(
+            "<b>Depth Cue</b><br/>"
+            "Adds distance-based fading for better front/back separation.<br/>"
+            "Higher values make distant points fade more strongly.");
+        applyTooltip(depthCueSlider_, depthCueValueLabel_, depthCueControl_, tooltip);
+    }
+    if (edlStrengthSlider_ != nullptr) {
+        const QString tooltip = tr(
+            "<b>EDL-style Shading</b><br/>"
+            "Enhances point edges and local depth contrast, similar to survey software display enhancement.<br/>"
+            "Higher values produce stronger contour darkening and a more layered look.");
+        applyTooltip(edlStrengthSlider_, edlStrengthValueLabel_, edlStrengthControl_, tooltip);
+    }
+    if (roundSplatsCheckBox_ != nullptr) {
+        roundSplatsCheckBox_->setToolTip(tr(
+            "<b>Round splats</b><br/>"
+            "Draw points as circular splats instead of square pixels for a more natural survey-style point cloud look."));
+    }
+}
+
 void MainWindow::retranslateUi()
 {
     setWindowTitle(tr("LAS Point Cloud Viewer"));
@@ -1172,16 +1266,24 @@ void MainWindow::retranslateUi()
     setFieldLabel(datasetLayout_, datasetExtentValueLabel_, tr("Extent"));
     setFieldLabel(datasetLayout_, datasetColorValueLabel_, tr("Color Source"));
 
-    setFieldLabel(renderingLayout_, pointSizeSpinBox_, tr("Point Size"));
+    setFieldLabel(renderingLayout_, pointSizeControl_, tr("Point Size"));
+    setFieldLabel(renderingLayout_, pointOpacityControl_, tr("Point Opacity"));
+    setFieldLabel(renderingLayout_, depthCueControl_, tr("Depth Cue"));
+    setFieldLabel(renderingLayout_, edlStrengthControl_, tr("EDL-style Shading"));
     setFieldLabel(renderingLayout_, colorModeComboBox_, tr("Color Mode"));
     setFieldLabel(renderingLayout_, pointColorButton_, tr("Single Color"));
     setFieldLabel(renderingLayout_, backgroundColorButton_, tr("Background"));
-    pointSizeSpinBox_->setSuffix(tr(" px"));
     colorModeComboBox_->setItemText(0, tr("RGB"));
     colorModeComboBox_->setItemText(1, tr("Elevation Ramp"));
     colorModeComboBox_->setItemText(2, tr("Single Color"));
+    roundSplatsCheckBox_->setText(tr("Round splats (survey style)"));
     axesCheckBox_->setText(tr("Show XYZ axes"));
     boundingBoxCheckBox_->setText(tr("Show bounding box"));
+    updateSliderValueLabel(pointSizeSlider_, pointSizeValueLabel_, tr("%1 px"));
+    updateSliderValueLabel(pointOpacitySlider_, pointOpacityValueLabel_, tr("%1%"));
+    updateSliderValueLabel(depthCueSlider_, depthCueValueLabel_, tr("%1%"));
+    updateSliderValueLabel(edlStrengthSlider_, edlStrengthValueLabel_, tr("%1%"));
+    updateVisualizationTooltips();
 
     setFieldLabel(measurementLayout_, measurementStartValueLabel_, tr("Start Point"));
     setFieldLabel(measurementLayout_, measurementEndValueLabel_, tr("End Point"));
@@ -1232,7 +1334,22 @@ void MainWindow::createConnections()
     connect(measureAction_, &QAction::toggled, viewer_, &PointCloudViewer::setMeasurementEnabled);
     connect(clearMeasurementAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearMeasurement);
 
-    connect(pointSizeSpinBox_, qOverload<int>(&QSpinBox::valueChanged), viewer_, &PointCloudViewer::setPointSize);
+    connect(pointSizeSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointSize);
+    connect(pointOpacitySlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointOpacity);
+    connect(depthCueSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setDepthCueStrength);
+    connect(edlStrengthSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setEdlStrength);
+    connect(pointSizeSlider_, &QSlider::valueChanged, this, [this](int) {
+        updateSliderValueLabel(pointSizeSlider_, pointSizeValueLabel_, tr("%1 px"));
+    });
+    connect(pointOpacitySlider_, &QSlider::valueChanged, this, [this](int) {
+        updateSliderValueLabel(pointOpacitySlider_, pointOpacityValueLabel_, tr("%1%"));
+    });
+    connect(depthCueSlider_, &QSlider::valueChanged, this, [this](int) {
+        updateSliderValueLabel(depthCueSlider_, depthCueValueLabel_, tr("%1%"));
+    });
+    connect(edlStrengthSlider_, &QSlider::valueChanged, this, [this](int) {
+        updateSliderValueLabel(edlStrengthSlider_, edlStrengthValueLabel_, tr("%1%"));
+    });
     connect(
         colorModeComboBox_,
         qOverload<int>(&QComboBox::currentIndexChanged),
@@ -1240,6 +1357,7 @@ void MainWindow::createConnections()
         static_cast<void (PointCloudViewer::*)(int)>(&PointCloudViewer::setColorMode));
     connect(pointColorButton_, &QPushButton::clicked, this, [this]() { choosePointColor(); });
     connect(backgroundColorButton_, &QPushButton::clicked, this, [this]() { chooseBackgroundColor(); });
+    connect(roundSplatsCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setUseRoundSplats);
     connect(axesCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowAxes);
     connect(boundingBoxCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowBoundingBox);
     connect(invertOrbitCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertOrbitDrag);
@@ -1542,8 +1660,12 @@ void MainWindow::syncUiFromViewer()
     const InteractionOptions& interactionOptions = viewer_->interactionOptions();
 
     {
-        const QSignalBlocker pointSizeBlocker(pointSizeSpinBox_);
+        const QSignalBlocker pointSizeBlocker(pointSizeSlider_);
+        const QSignalBlocker pointOpacityBlocker(pointOpacitySlider_);
+        const QSignalBlocker depthCueBlocker(depthCueSlider_);
+        const QSignalBlocker edlStrengthBlocker(edlStrengthSlider_);
         const QSignalBlocker colorModeBlocker(colorModeComboBox_);
+        const QSignalBlocker roundSplatsBlocker(roundSplatsCheckBox_);
         const QSignalBlocker axesBlocker(axesCheckBox_);
         const QSignalBlocker boundsBlocker(boundingBoxCheckBox_);
         const QSignalBlocker orbitBlocker(invertOrbitCheckBox_);
@@ -1561,8 +1683,12 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker englishLanguageBlocker(languageEnglishAction_);
         const QSignalBlocker chineseLanguageBlocker(languageChineseAction_);
 
-        pointSizeSpinBox_->setValue(static_cast<int>(options.pointSize));
+        pointSizeSlider_->setValue(static_cast<int>(options.pointSize));
+        pointOpacitySlider_->setValue(static_cast<int>(std::lround(options.pointOpacity * 100.0f)));
+        depthCueSlider_->setValue(static_cast<int>(std::lround(options.depthCueStrength * 100.0f)));
+        edlStrengthSlider_->setValue(static_cast<int>(std::lround(options.edlStrength * 100.0f)));
         colorModeComboBox_->setCurrentIndex(static_cast<int>(options.colorMode));
+        roundSplatsCheckBox_->setChecked(options.useRoundSplats);
         axesCheckBox_->setChecked(options.showAxes);
         boundingBoxCheckBox_->setChecked(options.showBoundingBox);
         invertOrbitCheckBox_->setChecked(interactionOptions.invertOrbitDrag);
@@ -1584,6 +1710,11 @@ void MainWindow::syncUiFromViewer()
             themeDarkGrayAction_->setChecked(ribbonStyle->getTheme() == Qtitan::RibbonStyle::Office2016DarkGray);
         }
     }
+
+    updateSliderValueLabel(pointSizeSlider_, pointSizeValueLabel_, tr("%1 px"));
+    updateSliderValueLabel(pointOpacitySlider_, pointOpacityValueLabel_, tr("%1%"));
+    updateSliderValueLabel(depthCueSlider_, depthCueValueLabel_, tr("%1%"));
+    updateSliderValueLabel(edlStrengthSlider_, edlStrengthValueLabel_, tr("%1%"));
 
     setColorButtonAppearance(pointColorButton_, options.singleColor, tr("Pick Color"));
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
@@ -1726,9 +1857,13 @@ void MainWindow::loadVisualizationSettings()
     QSettings settings;
     const PointCloudVisualizationOptions defaults = viewer_->visualizationOptions();
     viewer_->setPointSize(settings.value(QStringLiteral("visualization/pointSize"), defaults.pointSize).toInt());
+    viewer_->setPointOpacity(settings.value(QStringLiteral("visualization/pointOpacity"), defaults.pointOpacity * 100.0f).toInt());
+    viewer_->setDepthCueStrength(settings.value(QStringLiteral("visualization/depthCueStrength"), defaults.depthCueStrength * 100.0f).toInt());
+    viewer_->setEdlStrength(settings.value(QStringLiteral("visualization/edlStrength"), defaults.edlStrength * 100.0f).toInt());
     viewer_->setColorMode(settings.value(QStringLiteral("visualization/colorMode"), static_cast<int>(defaults.colorMode)).toInt());
     viewer_->setSingleColor(settings.value(QStringLiteral("visualization/singleColor"), defaults.singleColor).value<QColor>());
     viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
+    viewer_->setUseRoundSplats(settings.value(QStringLiteral("visualization/useRoundSplats"), defaults.useRoundSplats).toBool());
     viewer_->setShowAxes(settings.value(QStringLiteral("visualization/showAxes"), defaults.showAxes).toBool());
     viewer_->setShowBoundingBox(settings.value(QStringLiteral("visualization/showBoundingBox"), defaults.showBoundingBox).toBool());
 }
@@ -1742,9 +1877,13 @@ void MainWindow::persistVisualizationSettings() const
     QSettings settings;
     const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
     settings.setValue(QStringLiteral("visualization/pointSize"), options.pointSize);
+    settings.setValue(QStringLiteral("visualization/pointOpacity"), options.pointOpacity * 100.0f);
+    settings.setValue(QStringLiteral("visualization/depthCueStrength"), options.depthCueStrength * 100.0f);
+    settings.setValue(QStringLiteral("visualization/edlStrength"), options.edlStrength * 100.0f);
     settings.setValue(QStringLiteral("visualization/colorMode"), static_cast<int>(options.colorMode));
     settings.setValue(QStringLiteral("visualization/singleColor"), options.singleColor);
     settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
+    settings.setValue(QStringLiteral("visualization/useRoundSplats"), options.useRoundSplats);
     settings.setValue(QStringLiteral("visualization/showAxes"), options.showAxes);
     settings.setValue(QStringLiteral("visualization/showBoundingBox"), options.showBoundingBox);
 }

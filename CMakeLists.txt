@@ -10,6 +10,13 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+if(MSVC)
+    list(APPEND CMAKE_VS_GLOBALS
+        UseMultiToolTask=true
+        EnforceProcessCountAcrossBuilds=true
+    )
+endif()
+
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
 option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
 
@@ -536,6 +543,7 @@ function(configure_las_viewer_target target_name use_qtitan)
 
     if(MSVC)
         target_compile_definitions(${target_name} PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+        target_compile_options(${target_name} PRIVATE /MP /FS)
         if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
             target_compile_definitions(${target_name} PRIVATE $<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=0>)
             set_target_properties(${target_name} PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")

@@ -9,10 +9,13 @@
 #include <QLocale>
 #include <QMouseEvent>
 #include <QOpenGLContext>
+#include <QPainter>
+#include <QResizeEvent>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -39,6 +42,75 @@
 namespace
 {
 constexpr int kMeasurementOverlayRenderBin = 100;
+constexpr int kAxisIndicatorSize = 112;
+constexpr float kHoverPickTolerancePixels = 12.0f;
+
+class AxisIndicatorOverlay final : public QWidget
+{
+public:
+    explicit AxisIndicatorOverlay(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setFixedSize(kAxisIndicatorSize, kAxisIndicatorSize);
+    }
+
+    void setAxisDirections(const std::array<QPointF, 3>& axisDirections)
+    {
+        axisDirections_ = axisDirections;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        painter.setBrush(QColor(15, 23, 42, 170));
+        painter.setPen(QPen(QColor(148, 163, 184, 160), 1.0));
+        painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), 14.0, 14.0);
+
+        const QPointF center(width() * 0.5, height() * 0.5);
+        painter.setBrush(QColor(248, 250, 252));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(center, 3.5, 3.5);
+
+        const struct AxisStyle {
+            QColor color;
+            QString label;
+        } kAxisStyles[3] = {
+            { QColor(239, 68, 68), QStringLiteral("X+") },
+            { QColor(34, 197, 94), QStringLiteral("Y+") },
+            { QColor(59, 130, 246), QStringLiteral("Z+") }
+        };
+
+        painter.setFont(QFont(QStringLiteral("Segoe UI"), 9, QFont::DemiBold));
+        for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
+            const QPointF endPoint = center + axisDirections_[axisIndex];
+            painter.setPen(QPen(kAxisStyles[axisIndex].color, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter.drawLine(center, endPoint);
+
+            painter.setBrush(kAxisStyles[axisIndex].color);
+            painter.setPen(Qt::NoPen);
+            painter.drawEllipse(endPoint, 3.8, 3.8);
+
+            const QPointF labelAnchor = endPoint + QPointF(endPoint.x() >= center.x() ? 8.0 : -24.0, endPoint.y() >= center.y() ? 16.0 : -8.0);
+            painter.setPen(kAxisStyles[axisIndex].color.lighter(150));
+            painter.drawText(QRectF(labelAnchor.x(), labelAnchor.y() - 10.0, 28.0, 20.0), Qt::AlignLeft | Qt::AlignVCenter, kAxisStyles[axisIndex].label);
+        }
+    }
+
+private:
+    std::array<QPointF, 3> axisDirections_ = {
+        QPointF(28.0, 0.0),
+        QPointF(0.0, -28.0),
+        QPointF(20.0, -20.0)
+    };
+};
 
 class PointCloudTrackballManipulator final : public osgGA::TrackballManipulator
 {
@@ -82,6 +154,16 @@ QString colorModeLabel(PointCloudColorMode colorMode)
 QString formatPointCount(std::size_t pointCount)
 {
     return QLocale().toString(static_cast<qlonglong>(pointCount));
+}
+
+float clampUnit(float value)
+{
+    return std::clamp(value, 0.0f, 1.0f);
+}
+
+int percentFromUnit(float value)
+{
+    return static_cast<int>(std::lround(clampUnit(value) * 100.0f));
 }
 
 QString formatCoordinate(float value)
@@ -213,10 +295,12 @@ OsgWidget::OsgWidget(QWidget* parent)
     manipulator->setAllowThrow(false);
     manipulator->setAnimationTime(0.0);
     manipulator->setVerticalAxisFixed(true);
-    manipulator->setTrackballSize(1.1);
+    manipulator->setTrackballSize(1.0);
     manipulator->setWheelZoomFactor(0.45);
-    manipulator->setMinimumDistance(0.0005, true);
+    manipulator->setMinimumDistance(0.0, false);
     viewer_->setCameraManipulator(manipulator);
+    viewer_->getCamera()->setNearFarRatio(0.000001);
+    viewer_->getCamera()->setSmallFeatureCullingPixelSize(-1.0f);
 
     setAutoFillBackground(false);
     setFocusPolicy(Qt::StrongFocus);
@@ -267,6 +351,12 @@ void OsgWidget::paintGL()
         viewer_->frame();
         emit frameRendered();
     }
+}
+
+void OsgWidget::leaveEvent(QEvent* event)
+{
+    QOpenGLWidget::leaveEvent(event);
+    emit sceneHoverEnded();
 }
 
 void OsgWidget::mousePressEvent(QMouseEvent* event)
@@ -378,6 +468,10 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         dispatchMouseMotion(adjustedPosition);
     }
 
+    if (event->buttons() == Qt::NoButton) {
+        emit sceneHovered(event->localPos());
+    }
+
     update();
 }
 
@@ -475,7 +569,7 @@ void OsgWidget::updateViewport(int width, int height)
     viewer_->getCamera()->setProjectionMatrixAsPerspective(
         30.0,
         static_cast<double>(framebufferWidth) / static_cast<double>(framebufferHeight),
-        1.0,
+        0.01,
         1000000.0);
 }
 
@@ -505,6 +599,9 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     osgWidget_ = new OsgWidget(this);
     createStatusPanel();
     createMeasurementOverlayWidgets();
+    axisIndicatorOverlay_ = new AxisIndicatorOverlay(osgWidget_);
+    axisIndicatorOverlay_->show();
+    axisIndicatorOverlay_->raise();
 
     layout_->addWidget(osgWidget_, 0, 0);
     layout_->addWidget(statusPanel_, 1, 0);
@@ -528,12 +625,22 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
         "QLabel#viewerDetailLabel {"
         "color: #aeb8c7;"
         "font-size: 11px;"
+        "}"
+        "QLabel#viewerCursorLabel {"
+        "color: #dbe4ef;"
+        "font-size: 11px;"
         "}");
 
     connect(osgWidget_, &OsgWidget::sceneClicked, this, &PointCloudViewer::handleSceneClick);
-    connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::updateMeasurementOverlayWidgets);
+    connect(osgWidget_, &OsgWidget::sceneHovered, this, &PointCloudViewer::handleSceneHover);
+    connect(osgWidget_, &OsgWidget::sceneHoverEnded, this, &PointCloudViewer::clearHoveredPoint);
+    connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
+        updateMeasurementOverlayWidgets();
+        updateAxisIndicator();
+    });
 
     applyClearColor();
+    positionAxisIndicator();
     retranslateUi();
 }
 
@@ -571,6 +678,9 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
 
     currentPointCloud_ = std::move(loadedPointCloud);
     currentFilePath_ = filePath;
+    hoveredPointValid_ = false;
+    lastHoverQueryPosition_ = QPointF();
+    lastHoverQueryTime_ = {};
     resetMeasurementState(false);
 
     if (!currentPointCloud_.hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
@@ -596,6 +706,9 @@ void PointCloudViewer::clearPointCloud()
 {
     currentPointCloud_.clear();
     currentFilePath_.clear();
+    hoveredPointValid_ = false;
+    lastHoverQueryPosition_ = QPointF();
+    lastHoverQueryTime_ = {};
     resetMeasurementState(false);
 
     if (rootGroup_.valid()) {
@@ -664,6 +777,19 @@ void PointCloudViewer::setPointSize(int pointSize)
     emit visualizationOptionsChanged();
 }
 
+void PointCloudViewer::setPointOpacity(int opacityPercent)
+{
+    const float clampedOpacity = clampUnit(static_cast<float>(opacityPercent) / 100.0f);
+    if (qFuzzyCompare(visualizationOptions_.pointOpacity, clampedOpacity)) {
+        return;
+    }
+
+    visualizationOptions_.pointOpacity = clampedOpacity;
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
 void PointCloudViewer::setColorMode(int colorModeIndex)
 {
     switch (colorModeIndex) {
@@ -715,6 +841,47 @@ void PointCloudViewer::setBackgroundColor(const QColor& color)
 
     visualizationOptions_.backgroundColor = color;
     applyClearColor();
+    if (hasPointCloud()) {
+        rebuildScene();
+    }
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setDepthCueStrength(int strengthPercent)
+{
+    const float clampedStrength = clampUnit(static_cast<float>(strengthPercent) / 100.0f);
+    if (qFuzzyCompare(visualizationOptions_.depthCueStrength, clampedStrength)) {
+        return;
+    }
+
+    visualizationOptions_.depthCueStrength = clampedStrength;
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setEdlStrength(int strengthPercent)
+{
+    const float clampedStrength = clampUnit(static_cast<float>(strengthPercent) / 100.0f);
+    if (qFuzzyCompare(visualizationOptions_.edlStrength, clampedStrength)) {
+        return;
+    }
+
+    visualizationOptions_.edlStrength = clampedStrength;
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setUseRoundSplats(bool enabled)
+{
+    if (visualizationOptions_.useRoundSplats == enabled) {
+        return;
+    }
+
+    visualizationOptions_.useRoundSplats = enabled;
+    rebuildScene();
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -836,6 +1003,12 @@ void PointCloudViewer::changeEvent(QEvent* event)
     }
 }
 
+void PointCloudViewer::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+    positionAxisIndicator();
+}
+
 void PointCloudViewer::createStatusPanel()
 {
     statusPanel_ = new QFrame(this);
@@ -852,8 +1025,14 @@ void PointCloudViewer::createStatusPanel()
     detailLabel_->setObjectName(QStringLiteral("viewerDetailLabel"));
     detailLabel_->setWordWrap(true);
 
+    cursorLabel_ = new QLabel(statusPanel_);
+    cursorLabel_->setObjectName(QStringLiteral("viewerCursorLabel"));
+    cursorLabel_->setWordWrap(true);
+    cursorLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
     statusLayout->addWidget(titleLabel_);
     statusLayout->addWidget(detailLabel_);
+    statusLayout->addWidget(cursorLabel_);
 }
 
 void PointCloudViewer::createMeasurementOverlayWidgets()
@@ -921,6 +1100,9 @@ void PointCloudViewer::updateFooter()
         updateMessage(
             tr("Ready for point cloud inspection"),
             tr("Open a LAS or LAZ file. Left drag orbits, middle or right drag pans, and the mouse wheel zooms."));
+        if (cursorLabel_ != nullptr) {
+            cursorLabel_->setText(tr("Cursor Point: N/A"));
+        }
         return;
     }
 
@@ -945,7 +1127,23 @@ void PointCloudViewer::updateFooter()
         }
     }
 
+    detail += tr(" | Opacity %1% | Depth Cue %2 | EDL-style %3")
+        .arg(QLocale().toString(percentFromUnit(visualizationOptions_.pointOpacity)))
+        .arg(QLocale().toString(percentFromUnit(visualizationOptions_.depthCueStrength)))
+        .arg(QLocale().toString(percentFromUnit(visualizationOptions_.edlStrength)));
+
+    if (visualizationOptions_.useRoundSplats) {
+        detail += tr(" | Round splats");
+    }
+
     updateMessage(title, detail);
+
+    if (cursorLabel_ != nullptr) {
+        cursorLabel_->setText(
+            hoveredPointValid_
+                ? tr("Cursor Point: %1").arg(formatTriplet(hoveredPoint_.x, hoveredPoint_.y, hoveredPoint_.z))
+                : tr("Cursor Point: N/A"));
+    }
 }
 
 void PointCloudViewer::updateMessage(const QString& title, const QString& detail)
@@ -1065,7 +1263,59 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
     emit measurementChanged();
 }
 
-bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint) const
+void PointCloudViewer::handleSceneHover(const QPointF& localPos)
+{
+    if (!hasPointCloud()) {
+        clearHoveredPoint();
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    const bool timeReady =
+        lastHoverQueryTime_.time_since_epoch().count() == 0
+        || std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHoverQueryTime_).count() >= 24;
+    const bool movedEnough =
+        std::hypot(localPos.x() - lastHoverQueryPosition_.x(), localPos.y() - lastHoverQueryPosition_.y()) >= 2.0;
+
+    if (!timeReady && !movedEnough) {
+        return;
+    }
+
+    lastHoverQueryTime_ = now;
+    lastHoverQueryPosition_ = localPos;
+
+    PointRecord pickedPoint;
+    if (pickPointAtScreenPosition(localPos, &pickedPoint, kHoverPickTolerancePixels)) {
+        updateHoveredPoint(&pickedPoint);
+    } else {
+        clearHoveredPoint();
+    }
+}
+
+void PointCloudViewer::clearHoveredPoint()
+{
+    lastHoverQueryTime_ = {};
+    if (!hoveredPointValid_) {
+        return;
+    }
+
+    hoveredPointValid_ = false;
+    updateFooter();
+}
+
+void PointCloudViewer::updateHoveredPoint(const PointRecord* hoveredPoint)
+{
+    if (hoveredPoint == nullptr) {
+        clearHoveredPoint();
+        return;
+    }
+
+    hoveredPoint_ = *hoveredPoint;
+    hoveredPointValid_ = true;
+    updateFooter();
+}
+
+bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels) const
 {
     if (pickedPoint == nullptr || !hasPointCloud() || osgWidget_ == nullptr) {
         return false;
@@ -1085,7 +1335,7 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
     const double devicePixelRatio = osgWidget_->devicePixelRatioF();
     const double clickX = localPos.x() * devicePixelRatio;
     const double clickY = (static_cast<double>(osgWidget_->height()) - localPos.y()) * devicePixelRatio;
-    const double tolerance = 14.0 * devicePixelRatio;
+    const double tolerance = static_cast<double>(tolerancePixels) * devicePixelRatio;
     const double toleranceSquared = tolerance * tolerance;
 
     bool found = false;
@@ -1268,6 +1518,53 @@ void PointCloudViewer::refreshMeasurementOverlay()
     }
 }
 
+void PointCloudViewer::updateAxisIndicator()
+{
+    if (axisIndicatorOverlay_ == nullptr || osgWidget_ == nullptr) {
+        return;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr) {
+        return;
+    }
+
+    const osg::Matrixd viewMatrix = viewer->getCamera()->getViewMatrix();
+    const osg::Vec3d xView = osg::Matrixd::transform3x3(osg::Vec3d(1.0, 0.0, 0.0), viewMatrix);
+    const osg::Vec3d yView = osg::Matrixd::transform3x3(osg::Vec3d(0.0, 1.0, 0.0), viewMatrix);
+    const osg::Vec3d zView = osg::Matrixd::transform3x3(osg::Vec3d(0.0, 0.0, 1.0), viewMatrix);
+
+    const auto toOverlayDirection = [](const osg::Vec3d& viewVector) {
+        QPointF direction(viewVector.x(), -viewVector.y());
+        const qreal length = std::hypot(direction.x(), direction.y());
+        if (length <= 0.0001) {
+            return QPointF(0.0, 0.0);
+        }
+        const qreal scale = 32.0 / length;
+        return QPointF(direction.x() * scale, direction.y() * scale);
+    };
+
+    auto* axisIndicatorOverlay = static_cast<AxisIndicatorOverlay*>(axisIndicatorOverlay_);
+    axisIndicatorOverlay->setAxisDirections({
+        toOverlayDirection(xView),
+        toOverlayDirection(yView),
+        toOverlayDirection(zView)
+    });
+    positionAxisIndicator();
+}
+
+void PointCloudViewer::positionAxisIndicator()
+{
+    if (axisIndicatorOverlay_ == nullptr || osgWidget_ == nullptr) {
+        return;
+    }
+
+    axisIndicatorOverlay_->move(
+        std::max(12, osgWidget_->width() - axisIndicatorOverlay_->width() - 14),
+        14);
+    axisIndicatorOverlay_->raise();
+}
+
 void PointCloudViewer::positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const
 {
     if (label == nullptr || osgWidget_ == nullptr) {
@@ -1311,4 +1608,5 @@ void PointCloudViewer::retranslateUi()
 {
     updateFooter();
     updateMeasurementOverlayWidgets();
+    updateAxisIndicator();
 }

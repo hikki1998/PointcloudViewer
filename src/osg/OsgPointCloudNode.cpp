@@ -4,21 +4,122 @@
 
 #include <QColor>
 
+#include <osg/BlendFunc>
 #include <osg/Geode>
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/LineWidth>
 #include <osg/Point>
+#include <osg/Program>
+#include <osg/Shader>
 #include <osg/StateSet>
 #include <osg/Array>
+#include <osg/Uniform>
 
 #include "pointcloud/PointCloudData.h"
 
 namespace
 {
+#if !defined(GL_POINT_SPRITE)
+#define GL_POINT_SPRITE 0x8861
+#endif
+
 osg::Vec4 toOsgColor(const QColor& color)
 {
     return osg::Vec4(color.redF(), color.greenF(), color.blueF(), 1.0f);
+}
+
+float clampUnit(float value)
+{
+    return std::clamp(value, 0.0f, 1.0f);
+}
+
+osg::Program* buildPointCloudProgram()
+{
+    static const char* kVertexShaderSource = R"(
+        #version 120
+
+        varying vec4 vPointColor;
+        varying float vViewDepth;
+
+        void main()
+        {
+            vec4 viewPosition = gl_ModelViewMatrix * gl_Vertex;
+            gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+            vPointColor = gl_Color;
+            vViewDepth = max(0.0, -viewPosition.z);
+        }
+    )";
+
+    static const char* kFragmentShaderSource = R"(
+        #version 120
+
+        uniform float uPointOpacity;
+        uniform float uDepthCueStrength;
+        uniform float uEdlStrength;
+        uniform float uUseRoundSplats;
+        uniform vec3 uBackgroundColor;
+
+        varying vec4 vPointColor;
+        varying float vViewDepth;
+
+        void main()
+        {
+            vec2 centeredCoord = gl_PointCoord * 2.0 - vec2(1.0, 1.0);
+            float radialDistance = length(centeredCoord);
+            if (uUseRoundSplats > 0.5 && radialDistance > 1.0) {
+                discard;
+            }
+
+            float dome = clamp(1.0 - dot(centeredCoord, centeredCoord), 0.0, 1.0);
+            float splatAlpha = uUseRoundSplats > 0.5 ? smoothstep(0.0, 0.22, dome) : 1.0;
+            float rim = smoothstep(0.15, 1.0, radialDistance);
+            float edlShade = 1.0 - clamp(uEdlStrength, 0.0, 1.0) * rim * 0.65;
+
+            float depthCue = exp(-clamp(uDepthCueStrength, 0.0, 1.0) * vViewDepth * 0.0035);
+            depthCue = clamp(depthCue, 0.28, 1.0);
+
+            vec3 shadedColor = vPointColor.rgb * edlShade;
+            shadedColor = mix(uBackgroundColor, shadedColor, depthCue);
+
+            float alpha = clamp(vPointColor.a * clamp(uPointOpacity, 0.0, 1.0) * splatAlpha, 0.0, 1.0);
+            if (alpha <= 0.01) {
+                discard;
+            }
+
+            gl_FragColor = vec4(shadedColor, alpha);
+        }
+    )";
+
+    osg::ref_ptr<osg::Program> program = new osg::Program();
+    program->addShader(new osg::Shader(osg::Shader::VERTEX, kVertexShaderSource));
+    program->addShader(new osg::Shader(osg::Shader::FRAGMENT, kFragmentShaderSource));
+    return program.release();
+}
+
+void applyPointCloudShaderState(osg::StateSet* stateSet, const PointCloudVisualizationOptions& visualizationOptions)
+{
+    if (stateSet == nullptr) {
+        return;
+    }
+
+    stateSet->setAttributeAndModes(buildPointCloudProgram(), osg::StateAttribute::ON);
+    stateSet->setAttributeAndModes(
+        new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA),
+        osg::StateAttribute::ON);
+    stateSet->addUniform(new osg::Uniform("uPointOpacity", clampUnit(visualizationOptions.pointOpacity)));
+    stateSet->addUniform(new osg::Uniform("uDepthCueStrength", clampUnit(visualizationOptions.depthCueStrength)));
+    stateSet->addUniform(new osg::Uniform("uEdlStrength", clampUnit(visualizationOptions.edlStrength)));
+    stateSet->addUniform(new osg::Uniform("uUseRoundSplats", visualizationOptions.useRoundSplats ? 1.0f : 0.0f));
+
+    osg::Vec4 backgroundColor = toOsgColor(visualizationOptions.backgroundColor);
+    stateSet->addUniform(new osg::Uniform(
+        "uBackgroundColor",
+        osg::Vec3(backgroundColor.r(), backgroundColor.g(), backgroundColor.b())));
+
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    stateSet->setMode(GL_POINT_SPRITE, osg::StateAttribute::ON);
+    stateSet->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
 }
 
 osg::Vec4 blendColor(const QColor& first, const QColor& second, float factor)
@@ -102,7 +203,7 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     osg::ref_ptr<osg::Point> point = new osg::Point(visualizationOptions.pointSize);
     stateSet->setAttributeAndModes(point.get(), osg::StateAttribute::ON);
     stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
-    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    applyPointCloudShaderState(stateSet, visualizationOptions);
 
     return geode;
 }

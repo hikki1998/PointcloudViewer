@@ -23,6 +23,7 @@ class QLabel;
 class QObject;
 class QPlainTextEdit;
 class QPushButton;
+class QSlider;
 class QSpinBox;
 class QTabWidget;
 class QToolButton;
@@ -109,6 +110,9 @@ private:
     void persistThemeSettings() const;
     void updateNavigationHelpText();
     void updateMeasurementPanel();
+    QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
+    void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
+    void updateVisualizationTooltips();
     void applyLanguage(UiLanguage language);
 
     PointCloudViewer* viewer_ = nullptr;
@@ -151,12 +155,24 @@ private:
     QLabel* measurementDistanceValueLabel_ = nullptr;
     QLabel* measurementDeltaZValueLabel_ = nullptr;
 
-    QSpinBox* pointSizeSpinBox_ = nullptr;
+    QWidget* pointSizeControl_ = nullptr;
+    QWidget* pointOpacityControl_ = nullptr;
+    QWidget* depthCueControl_ = nullptr;
+    QWidget* edlStrengthControl_ = nullptr;
+    QSlider* pointSizeSlider_ = nullptr;
+    QSlider* pointOpacitySlider_ = nullptr;
+    QSlider* depthCueSlider_ = nullptr;
+    QSlider* edlStrengthSlider_ = nullptr;
+    QLabel* pointSizeValueLabel_ = nullptr;
+    QLabel* pointOpacityValueLabel_ = nullptr;
+    QLabel* depthCueValueLabel_ = nullptr;
+    QLabel* edlStrengthValueLabel_ = nullptr;
     QComboBox* colorModeComboBox_ = nullptr;
     QPushButton* pointColorButton_ = nullptr;
     QPushButton* backgroundColorButton_ = nullptr;
     QPushButton* measurementToggleButton_ = nullptr;
     QPushButton* measurementClearButton_ = nullptr;
+    QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
     QCheckBox* invertOrbitCheckBox_ = nullptr;

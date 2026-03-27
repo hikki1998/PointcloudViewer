@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include <QColor>
 #include <QPointF>
 #include <QString>
@@ -19,6 +21,7 @@ class QLabel;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QResizeEvent;
 class QWheelEvent;
 
 namespace osg
@@ -66,6 +69,7 @@ protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
+    void leaveEvent(QEvent* event) override;
 
     void mousePressEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
@@ -76,6 +80,8 @@ protected:
 
 signals:
     void sceneClicked(const QPointF& localPos);
+    void sceneHovered(const QPointF& localPos);
+    void sceneHoverEnded();
     void frameRendered();
 
 private:
@@ -126,10 +132,14 @@ public:
 
 public slots:
     void setPointSize(int pointSize);
+    void setPointOpacity(int opacityPercent);
     void setColorMode(int colorModeIndex);
     void setColorMode(PointCloudColorMode colorMode);
     void setSingleColor(const QColor& color);
     void setBackgroundColor(const QColor& color);
+    void setDepthCueStrength(int strengthPercent);
+    void setEdlStrength(int strengthPercent);
+    void setUseRoundSplats(bool enabled);
     void setShowAxes(bool showAxes);
     void setShowBoundingBox(bool showBoundingBox);
     void resetView();
@@ -152,6 +162,7 @@ signals:
 
 private:
     void changeEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     void createStatusPanel();
     void createMeasurementOverlayWidgets();
     void rebuildScene();
@@ -160,11 +171,16 @@ private:
     void applyClearColor();
     void applyViewPreset(PointCloudViewPreset viewPreset);
     void handleSceneClick(const QPointF& localPos);
-    bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint) const;
+    void handleSceneHover(const QPointF& localPos);
+    void clearHoveredPoint();
+    void updateHoveredPoint(const PointRecord* hoveredPoint);
+    bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels = 14.0f) const;
     osg::ref_ptr<osg::Node> buildMeasurementOverlay() const;
     QPointF projectPointToViewport(const PointRecord& point, bool* visible) const;
     void refreshMeasurementOverlay();
     void updateMeasurementOverlayWidgets();
+    void updateAxisIndicator();
+    void positionAxisIndicator();
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
     void resetMeasurementState(bool notifyChange = true);
     void retranslateUi();
@@ -172,9 +188,11 @@ private:
     QGridLayout* layout_ = nullptr;
     QLabel* titleLabel_ = nullptr;
     QLabel* detailLabel_ = nullptr;
+    QLabel* cursorLabel_ = nullptr;
     QLabel* measurementStartOverlayLabel_ = nullptr;
     QLabel* measurementEndOverlayLabel_ = nullptr;
     QLabel* measurementSummaryOverlayLabel_ = nullptr;
+    QWidget* axisIndicatorOverlay_ = nullptr;
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
 
@@ -184,6 +202,10 @@ private:
     InteractionOptions interactionOptions_;
     bool measurementEnabled_ = false;
     MeasurementResult measurementResult_;
+    bool hoveredPointValid_ = false;
+    PointRecord hoveredPoint_;
+    QPointF lastHoverQueryPosition_;
+    std::chrono::steady_clock::time_point lastHoverQueryTime_{};
 
     osg::ref_ptr<osg::Group> rootGroup_;
     osg::ref_ptr<osg::Node> pointCloudNode_;
