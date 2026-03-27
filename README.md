@@ -2,6 +2,12 @@
 
 基于 Qt 5.15、OpenSceneGraph 和 LASlib 的桌面点云查看器，支持加载 `.las/.laz` 数据并进行基础浏览、配色和相机切换。
 
+当前版本还包含一组更接近测绘点云软件的显示与交互能力，包括：
+- 点透明度、深度雾化、EDL 风格增强、圆形 splat
+- 视图右上角 `X+ / Y+ / Z+` 坐标轴指示
+- 鼠标悬停点坐标显示
+- 两点量测覆盖层
+
 ## 目录
 
 - `src/`：应用源码
@@ -29,6 +35,22 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
+.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+```
+
+## 开发快速入口
+
+如果是第一次进入这个仓库，建议按下面顺序读取：
+
+1. `PROJECT_CONTEXT.md`：快速了解模块职责、当前功能和验证路径
+2. `AGENTS.md`：仓库内开发约定
+3. `src/gui/MainWindow.cpp`、`src/gui/PointCloudViewer.cpp`：大多数 UI/交互修改的入口
+4. `src/osg/OsgPointCloudNode.cpp`、`src/osg/PointCloudVisualization.h`：渲染和显示参数入口
+
+常用验证命令：
+
+```powershell
+cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
 .\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 
