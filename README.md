@@ -29,13 +29,14 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
-.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\test_pointcloud.las
+.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 
 ## 测试数据
 
 ```powershell
 python .\test_data\create_test_las.py
+python .\test_data\create_sampled_las.py <source.las> .\test_data\ezhou_powerline_sample.las --target-points 12000
 ```
 
 ## 依赖
