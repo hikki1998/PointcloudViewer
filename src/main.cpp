@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QFont>
 #include <QSurfaceFormat>
+#include <QTranslator>
 
 #include "QtnRibbonStyle.h"
 
@@ -34,7 +35,10 @@ int main(int argc, char* argv[])
     ribbonStyle->setAnimationEnabled(false);
     app.setStyle(ribbonStyle);
 
-    MainWindow mainWindow;
+    QTranslator appTranslator;
+    QTranslator qtTranslator;
+
+    MainWindow mainWindow(&appTranslator, &qtTranslator);
     mainWindow.show();
 
     return app.exec();

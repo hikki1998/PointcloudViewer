@@ -442,6 +442,36 @@ set(HEADERS
     src/osg/OsgPointCloudNode.h
 )
 
+set(APP_TRANSLATION_SOURCES
+    translations/lasviewer_zh_CN.ts
+)
+
+find_program(QT_LRELEASE_EXECUTABLE
+    NAMES lrelease lrelease.exe
+    HINTS "${QT_ROOT}/bin"
+)
+
+set(GENERATED_APP_TRANSLATIONS)
+if(QT_LRELEASE_EXECUTABLE)
+    foreach(app_translation_source IN LISTS APP_TRANSLATION_SOURCES)
+        get_filename_component(app_translation_name "${app_translation_source}" NAME_WE)
+        set(app_translation_output "${CMAKE_CURRENT_BINARY_DIR}/translations/${app_translation_name}.qm")
+        add_custom_command(
+            OUTPUT "${app_translation_output}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/translations"
+            COMMAND "${QT_LRELEASE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/${app_translation_source}" -qm "${app_translation_output}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${app_translation_source}"
+            COMMENT "Generating translation ${app_translation_name}.qm"
+            VERBATIM
+        )
+        list(APPEND GENERATED_APP_TRANSLATIONS "${app_translation_output}")
+    endforeach()
+
+    add_custom_target(lasviewer_translations ALL DEPENDS ${GENERATED_APP_TRANSLATIONS})
+else()
+    message(WARNING "Qt lrelease was not found. Application translation files will not be generated.")
+endif()
+
 set(COMMON_SOURCES
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
@@ -778,7 +808,37 @@ function(deploy_qt_runtime target_name use_qtitan)
     endif()
 endfunction()
 
+function(deploy_translation_runtime target_name)
+    if(NOT WIN32)
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/translations"
+        COMMENT "Deploying translation runtime files"
+    )
+
+    foreach(app_translation_file IN LISTS GENERATED_APP_TRANSLATIONS)
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${app_translation_file}"
+            "$<TARGET_FILE_DIR:${target_name}>/translations"
+        )
+    endforeach()
+
+    if(EXISTS "${QT_ROOT}/translations/qt_zh_CN.qm")
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_ROOT}/translations/qt_zh_CN.qm"
+            "$<TARGET_FILE_DIR:${target_name}>/translations"
+        )
+    endif()
+endfunction()
+
 configure_las_viewer_target(${PROJECT_NAME} TRUE)
+if(TARGET lasviewer_translations)
+    add_dependencies(${PROJECT_NAME} lasviewer_translations)
+endif()
 
 add_executable(LASViewerSmokeTest
     examples/viewer_smoke_test.cpp
@@ -794,6 +854,7 @@ if(WIN32)
 deploy_osg_runtime(${PROJECT_NAME})
 deploy_qt_runtime(${PROJECT_NAME} TRUE)
 deploy_runtime_dependencies(${PROJECT_NAME} TRUE)
+deploy_translation_runtime(${PROJECT_NAME})
 deploy_osg_runtime(LASViewerSmokeTest)
 deploy_qt_runtime(LASViewerSmokeTest FALSE)
 deploy_runtime_dependencies(LASViewerSmokeTest FALSE)

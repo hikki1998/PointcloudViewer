@@ -6,9 +6,12 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
+#include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
+#include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QFileDialog>
@@ -18,6 +21,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLinearGradient>
+#include <QLibraryInfo>
 #include <QLocale>
 #include <QMimeData>
 #include <QPainter>
@@ -27,6 +31,7 @@
 #include <QDropEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -34,7 +39,9 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QToolButton>
+#include <QTranslator>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWindow>
@@ -82,7 +89,9 @@ enum class RibbonGlyph
     ThemeColorful,
     ThemeWhite,
     ThemeDarkGray,
-    Log
+    Log,
+    Measure,
+    Language
 };
 
 enum class WindowControlGlyph
@@ -110,13 +119,43 @@ QString colorModeName(PointCloudColorMode colorMode)
 {
     switch (colorMode) {
     case PointCloudColorMode::Elevation:
-        return QStringLiteral("Elevation ramp");
+        return QCoreApplication::translate("MainWindow", "Elevation ramp");
     case PointCloudColorMode::SingleColor:
-        return QStringLiteral("Single color");
+        return QCoreApplication::translate("MainWindow", "Single color");
     case PointCloudColorMode::Rgb:
     default:
-        return QStringLiteral("RGB");
+        return QCoreApplication::translate("MainWindow", "RGB");
     }
+}
+
+QString measurementPointText(const MeasurementResult& measurementResult, bool useStartPoint)
+{
+    const bool hasPoint = useStartPoint ? measurementResult.hasStartPoint : measurementResult.hasEndPoint;
+    if (!hasPoint) {
+        return QCoreApplication::translate("MainWindow", "Not set");
+    }
+
+    const PointRecord& point = useStartPoint ? measurementResult.startPoint : measurementResult.endPoint;
+    return formatTriplet(point.x, point.y, point.z);
+}
+
+QString languageCodeFor(MainWindow::UiLanguage language)
+{
+    switch (language) {
+    case MainWindow::UiLanguage::Chinese:
+        return QStringLiteral("zh_CN");
+    case MainWindow::UiLanguage::English:
+    default:
+        return QStringLiteral("en");
+    }
+}
+
+MainWindow::UiLanguage defaultLanguageFromLocale()
+{
+    const QString localeName = QLocale::system().name().toLower();
+    return localeName.startsWith(QStringLiteral("zh"))
+        ? MainWindow::UiLanguage::Chinese
+        : MainWindow::UiLanguage::English;
 }
 
 bool isSupportedPointCloudFile(const QString& filePath)
@@ -315,6 +354,19 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 12.0, 2.8, 2.8));
         painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 17.0, 2.8, 2.8));
         break;
+    case RibbonGlyph::Measure:
+        painter.drawEllipse(QRectF(r.left() + 3.0, r.top() + 7.0, 6.0, 6.0));
+        painter.drawEllipse(QRectF(r.right() - 9.0, r.bottom() - 9.0, 6.0, 6.0));
+        painter.setPen(QPen(kRibbonAccentColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.left() + 8.0, r.top() + 12.0), QPointF(r.right() - 6.0, r.bottom() - 6.0));
+        break;
+    case RibbonGlyph::Language:
+        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 4.0, 18.0, 18.0));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 4.0), QPointF(r.center().x(), r.bottom() + 4.0));
+        painter.drawLine(QPointF(r.left() + 4.0, r.center().y()), QPointF(r.right() + 4.0, r.center().y()));
+        painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 90 * 16, 180 * 16);
+        painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 270 * 16, 180 * 16);
+        break;
     }
 
     return QIcon(pixmap);
@@ -355,17 +407,20 @@ QIcon createWindowControlIcon(WindowControlGlyph glyph, const QColor& color)
 }
 }
 
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QWidget* parent)
     : Qtitan::RibbonMainWindow(parent)
+    , appTranslator_(appTranslator)
+    , qtTranslator_(qtTranslator)
 {
     setWindowFlag(Qt::FramelessWindowHint, true);
     setWindowFlag(Qt::WindowMinimizeButtonHint, true);
     setWindowFlag(Qt::WindowMaximizeButtonHint, true);
     setWindowFlag(Qt::WindowCloseButtonHint, true);
-    setWindowTitle(QStringLiteral("LAS Point Cloud Viewer"));
     resize(1520, 920);
     setMinimumSize(960, 640);
     setAcceptDrops(true);
+
+    loadLanguageSettings();
 
     viewer_ = new PointCloudViewer(this);
     setCentralWidget(viewer_);
@@ -375,16 +430,29 @@ MainWindow::MainWindow(QWidget* parent)
     createInspectorPanel();
     createLogDock();
     createStatusBar();
+    setDockNestingEnabled(true);
+    setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     loadInteractionSettings();
+    loadVisualizationSettings();
     createConnections();
-
-    if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
-        updateWindowChromePalette(ribbonStyle->getTheme());
-    }
+    applyLanguage(currentLanguage_);
+    loadThemeSettings();
+    loadWindowSettings();
 
     syncUiFromViewer();
     updateNavigationHelpText();
-    showUserMessage(LogLevel::Info, QStringLiteral("Ready. Open or drag a LAS/LAZ file to begin."), 4000);
+    showUserMessage(LogLevel::Info, tr("Ready. Open or drag a LAS/LAZ file to begin."), 4000);
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    persistVisualizationSettings();
+    persistInteractionSettings();
+    persistLanguageSettings();
+    persistThemeSettings();
+    persistWindowSettings();
+    Qtitan::RibbonMainWindow::closeEvent(event);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
@@ -455,8 +523,14 @@ void MainWindow::changeEvent(QEvent* event)
 {
     Qtitan::RibbonMainWindow::changeEvent(event);
 
-    if (event != nullptr && event->type() == QEvent::WindowStateChange) {
+    if (event == nullptr) {
+        return;
+    }
+
+    if (event->type() == QEvent::WindowStateChange) {
         updateWindowControlButtons();
+    } else if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
     }
 }
 
@@ -583,10 +657,26 @@ void MainWindow::createActions()
     themeActionGroup_->addAction(themeWhiteAction_);
     themeActionGroup_->addAction(themeDarkGrayAction_);
 
+    measureAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Measure"), this);
+    measureAction_->setCheckable(true);
+
+    clearMeasurementAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Measure"), this);
+
     showLogAction_ = new QAction(createRibbonIcon(RibbonGlyph::Log), tr("Log"), this);
     showLogAction_->setCheckable(true);
-    showLogAction_->setChecked(true);
+    showLogAction_->setChecked(false);
     showLogAction_->setToolTip(tr("Show or hide the log panel"));
+
+    languageActionGroup_ = new QActionGroup(this);
+    languageActionGroup_->setExclusive(true);
+
+    languageEnglishAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), QStringLiteral("English"), this);
+    languageEnglishAction_->setCheckable(true);
+    languageChineseAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), QStringLiteral("\u4e2d\u6587"), this);
+    languageChineseAction_->setCheckable(true);
+
+    languageActionGroup_->addAction(languageEnglishAction_);
+    languageActionGroup_->addAction(languageChineseAction_);
 }
 
 void MainWindow::createRibbon()
@@ -596,6 +686,13 @@ void MainWindow::createRibbon()
     ribbonBar_->setFrameThemeEnabled(false);
     ribbonBar_->setTitleBarVisible(false);
     ribbonBar_->showQuickAccess(true);
+    ribbonBar_->setStyleSheet(QStringLiteral(
+        "QAbstractButton {"
+        "color: #1f2937;"
+        "}"
+        "QAbstractButton:checked, QAbstractButton:pressed {"
+        "color: #f8fafc;"
+        "}"));
     ribbonBar_->installEventFilter(this);
     setRibbonBar(ribbonBar_);
     createWindowControls();
@@ -603,38 +700,47 @@ void MainWindow::createRibbon()
     ribbonBar_->quickAccessBar()->addAction(openAction_);
     ribbonBar_->quickAccessBar()->addAction(fitSceneAction_);
     ribbonBar_->quickAccessBar()->addAction(showAxesAction_);
+    ribbonBar_->quickAccessBar()->addAction(measureAction_);
 
-    Qtitan::RibbonPage* homePage = ribbonBar_->addPage(tr("Home"));
-    Qtitan::RibbonGroup* dataGroup = homePage->addGroup(tr("Dataset"));
-    dataGroup->addAction(openAction_, Qt::ToolButtonTextUnderIcon);
-    dataGroup->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
-    dataGroup->addAction(exitAction_, Qt::ToolButtonTextUnderIcon);
+    homePage_ = ribbonBar_->addPage(tr("Home"));
+    datasetRibbonGroup_ = homePage_->addGroup(tr("Dataset"));
+    datasetRibbonGroup_->addAction(openAction_, Qt::ToolButtonTextUnderIcon);
+    datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
+    datasetRibbonGroup_->addAction(exitAction_, Qt::ToolButtonTextUnderIcon);
 
-    Qtitan::RibbonGroup* viewGroup = homePage->addGroup(tr("Camera"));
-    viewGroup->addAction(fitSceneAction_, Qt::ToolButtonTextUnderIcon);
-    viewGroup->addAction(topViewAction_, Qt::ToolButtonTextUnderIcon);
-    viewGroup->addAction(frontViewAction_, Qt::ToolButtonTextUnderIcon);
-    viewGroup->addAction(rightViewAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_ = homePage_->addGroup(tr("Camera"));
+    cameraRibbonGroup_->addAction(fitSceneAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(topViewAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(frontViewAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(rightViewAction_, Qt::ToolButtonTextUnderIcon);
 
-    Qtitan::RibbonGroup* sceneGroup = homePage->addGroup(tr("Scene Guides"));
-    sceneGroup->addAction(showAxesAction_, Qt::ToolButtonTextUnderIcon);
-    sceneGroup->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
-    sceneGroup->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
-    sceneGroup->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_ = homePage_->addGroup(tr("Scene Guides"));
+    sceneRibbonGroup_->addAction(showAxesAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
 
-    Qtitan::RibbonGroup* workspaceGroup = homePage->addGroup(tr("Workspace"));
-    workspaceGroup->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
+    measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
 
-    Qtitan::RibbonPage* appearancePage = ribbonBar_->addPage(tr("Appearance"));
-    Qtitan::RibbonGroup* colorGroup = appearancePage->addGroup(tr("Point Colors"));
-    colorGroup->addAction(rgbColorAction_, Qt::ToolButtonTextUnderIcon);
-    colorGroup->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
-    colorGroup->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
+    workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
+    workspaceRibbonGroup_->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
 
-    Qtitan::RibbonGroup* themeGroup = appearancePage->addGroup(tr("Office Theme"));
-    themeGroup->addAction(themeColorfulAction_, Qt::ToolButtonTextUnderIcon);
-    themeGroup->addAction(themeWhiteAction_, Qt::ToolButtonTextUnderIcon);
-    themeGroup->addAction(themeDarkGrayAction_, Qt::ToolButtonTextUnderIcon);
+    appearancePage_ = ribbonBar_->addPage(tr("Appearance"));
+    colorRibbonGroup_ = appearancePage_->addGroup(tr("Point Colors"));
+    colorRibbonGroup_->addAction(rgbColorAction_, Qt::ToolButtonTextUnderIcon);
+    colorRibbonGroup_->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
+    colorRibbonGroup_->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
+
+    themeRibbonGroup_ = appearancePage_->addGroup(tr("Office Theme"));
+    themeRibbonGroup_->addAction(themeColorfulAction_, Qt::ToolButtonTextUnderIcon);
+    themeRibbonGroup_->addAction(themeWhiteAction_, Qt::ToolButtonTextUnderIcon);
+    themeRibbonGroup_->addAction(themeDarkGrayAction_, Qt::ToolButtonTextUnderIcon);
+
+    languageRibbonGroup_ = appearancePage_->addGroup(tr("Language"));
+    languageRibbonGroup_->addAction(languageEnglishAction_, Qt::ToolButtonTextUnderIcon);
+    languageRibbonGroup_->addAction(languageChineseAction_, Qt::ToolButtonTextUnderIcon);
 }
 
 void MainWindow::createWindowControls()
@@ -680,22 +786,44 @@ void MainWindow::createInspectorPanel()
     inspectorDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     inspectorDock_->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
 
-    auto* panel = new QWidget(inspectorDock_);
-    auto* panelLayout = new QVBoxLayout(panel);
-    panelLayout->setContentsMargins(14, 14, 14, 14);
-    panelLayout->setSpacing(12);
+    inspectorTabWidget_ = new QTabWidget(inspectorDock_);
+    inspectorTabWidget_->setObjectName(QStringLiteral("sceneInspectorTabs"));
+    inspectorTabWidget_->setDocumentMode(true);
+    inspectorTabWidget_->setMovable(false);
 
-    auto* datasetGroupBox = new QGroupBox(tr("Dataset Summary"), panel);
-    auto* datasetLayout = new QFormLayout(datasetGroupBox);
-    datasetLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    datasetLayout->setFormAlignment(Qt::AlignTop);
+    auto createTabPage = [this](const QString& objectName) {
+        auto* scrollArea = new QScrollArea(inspectorTabWidget_);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-    datasetNameValueLabel_ = new QLabel(datasetGroupBox);
-    datasetPathValueLabel_ = new QLabel(datasetGroupBox);
-    datasetPointsValueLabel_ = new QLabel(datasetGroupBox);
-    datasetBoundsValueLabel_ = new QLabel(datasetGroupBox);
-    datasetExtentValueLabel_ = new QLabel(datasetGroupBox);
-    datasetColorValueLabel_ = new QLabel(datasetGroupBox);
+        auto* page = new QWidget(scrollArea);
+        page->setObjectName(objectName);
+        auto* pageLayout = new QVBoxLayout(page);
+        pageLayout->setContentsMargins(14, 14, 14, 14);
+        pageLayout->setSpacing(12);
+        pageLayout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        scrollArea->setWidget(page);
+        return qMakePair(scrollArea, pageLayout);
+    };
+
+    auto overviewTab = createTabPage(QStringLiteral("sceneInspectorOverviewPage"));
+    auto renderingTab = createTabPage(QStringLiteral("sceneInspectorRenderingPage"));
+    auto measurementTab = createTabPage(QStringLiteral("sceneInspectorMeasurementPage"));
+    auto navigationTab = createTabPage(QStringLiteral("sceneInspectorNavigationPage"));
+
+    datasetGroupBox_ = new QGroupBox(tr("Dataset Summary"), overviewTab.first);
+    datasetLayout_ = new QFormLayout(datasetGroupBox_);
+    datasetLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    datasetLayout_->setFormAlignment(Qt::AlignTop);
+
+    datasetNameValueLabel_ = new QLabel(datasetGroupBox_);
+    datasetPathValueLabel_ = new QLabel(datasetGroupBox_);
+    datasetPointsValueLabel_ = new QLabel(datasetGroupBox_);
+    datasetBoundsValueLabel_ = new QLabel(datasetGroupBox_);
+    datasetExtentValueLabel_ = new QLabel(datasetGroupBox_);
+    datasetColorValueLabel_ = new QLabel(datasetGroupBox_);
 
     const QList<QLabel*> datasetLabels = {
         datasetNameValueLabel_,
@@ -710,62 +838,131 @@ void MainWindow::createInspectorPanel()
         label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     }
 
-    datasetLayout->addRow(tr("Name"), datasetNameValueLabel_);
-    datasetLayout->addRow(tr("Path"), datasetPathValueLabel_);
-    datasetLayout->addRow(tr("Points"), datasetPointsValueLabel_);
-    datasetLayout->addRow(tr("Bounds"), datasetBoundsValueLabel_);
-    datasetLayout->addRow(tr("Extent"), datasetExtentValueLabel_);
-    datasetLayout->addRow(tr("Color Source"), datasetColorValueLabel_);
+    datasetLayout_->addRow(tr("Name"), datasetNameValueLabel_);
+    datasetLayout_->addRow(tr("Path"), datasetPathValueLabel_);
+    datasetLayout_->addRow(tr("Points"), datasetPointsValueLabel_);
+    datasetLayout_->addRow(tr("Bounds"), datasetBoundsValueLabel_);
+    datasetLayout_->addRow(tr("Extent"), datasetExtentValueLabel_);
+    datasetLayout_->addRow(tr("Color Source"), datasetColorValueLabel_);
 
-    auto* renderingGroupBox = new QGroupBox(tr("Rendering Controls"), panel);
-    auto* renderingLayout = new QFormLayout(renderingGroupBox);
-    renderingLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    renderingLayout->setFormAlignment(Qt::AlignTop);
+    renderingGroupBox_ = new QGroupBox(tr("Rendering Controls"), renderingTab.first);
+    renderingLayout_ = new QFormLayout(renderingGroupBox_);
+    renderingLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    renderingLayout_->setFormAlignment(Qt::AlignTop);
 
-    pointSizeSpinBox_ = new QSpinBox(renderingGroupBox);
+    pointSizeSpinBox_ = new QSpinBox(renderingGroupBox_);
     pointSizeSpinBox_->setRange(1, 12);
     pointSizeSpinBox_->setSuffix(tr(" px"));
 
-    colorModeComboBox_ = new QComboBox(renderingGroupBox);
+    colorModeComboBox_ = new QComboBox(renderingGroupBox_);
     colorModeComboBox_->addItem(tr("RGB"));
     colorModeComboBox_->addItem(tr("Elevation Ramp"));
     colorModeComboBox_->addItem(tr("Single Color"));
 
-    pointColorButton_ = new QPushButton(tr("Pick Color"), renderingGroupBox);
-    backgroundColorButton_ = new QPushButton(tr("Pick Background"), renderingGroupBox);
+    pointColorButton_ = new QPushButton(tr("Pick Color"), renderingGroupBox_);
+    backgroundColorButton_ = new QPushButton(tr("Pick Background"), renderingGroupBox_);
 
-    axesCheckBox_ = new QCheckBox(tr("Show XYZ axes"), renderingGroupBox);
-    boundingBoxCheckBox_ = new QCheckBox(tr("Show bounding box"), renderingGroupBox);
+    axesCheckBox_ = new QCheckBox(tr("Show XYZ axes"), renderingGroupBox_);
+    boundingBoxCheckBox_ = new QCheckBox(tr("Show bounding box"), renderingGroupBox_);
 
-    renderingLayout->addRow(tr("Point Size"), pointSizeSpinBox_);
-    renderingLayout->addRow(tr("Color Mode"), colorModeComboBox_);
-    renderingLayout->addRow(tr("Single Color"), pointColorButton_);
-    renderingLayout->addRow(tr("Background"), backgroundColorButton_);
-    renderingLayout->addRow(QString(), axesCheckBox_);
-    renderingLayout->addRow(QString(), boundingBoxCheckBox_);
+    renderingLayout_->addRow(tr("Point Size"), pointSizeSpinBox_);
+    renderingLayout_->addRow(tr("Color Mode"), colorModeComboBox_);
+    renderingLayout_->addRow(tr("Single Color"), pointColorButton_);
+    renderingLayout_->addRow(tr("Background"), backgroundColorButton_);
+    renderingLayout_->addRow(QString(), axesCheckBox_);
+    renderingLayout_->addRow(QString(), boundingBoxCheckBox_);
 
-    auto* tipsGroupBox = new QGroupBox(tr("Navigation"), panel);
-    auto* tipsLayout = new QVBoxLayout(tipsGroupBox);
-    navigationTipsLabel_ = new QLabel(tipsGroupBox);
+    measurementGroupBox_ = new QGroupBox(tr("Measurement"), measurementTab.first);
+    measurementLayout_ = new QFormLayout(measurementGroupBox_);
+    measurementLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    measurementLayout_->setFormAlignment(Qt::AlignTop);
+
+    measurementToggleButton_ = new QPushButton(tr("Start Measurement"), measurementGroupBox_);
+    measurementClearButton_ = new QPushButton(tr("Clear Measurement"), measurementGroupBox_);
+    measurementStartValueLabel_ = new QLabel(measurementGroupBox_);
+    measurementEndValueLabel_ = new QLabel(measurementGroupBox_);
+    measurementDistanceValueLabel_ = new QLabel(measurementGroupBox_);
+    measurementDeltaZValueLabel_ = new QLabel(measurementGroupBox_);
+
+    const QList<QLabel*> measurementLabels = {
+        measurementStartValueLabel_,
+        measurementEndValueLabel_,
+        measurementDistanceValueLabel_,
+        measurementDeltaZValueLabel_
+    };
+    for (QLabel* label : measurementLabels) {
+        label->setWordWrap(true);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    }
+
+    measurementLayout_->addRow(QString(), measurementToggleButton_);
+    measurementLayout_->addRow(QString(), measurementClearButton_);
+    measurementLayout_->addRow(tr("Start Point"), measurementStartValueLabel_);
+    measurementLayout_->addRow(tr("End Point"), measurementEndValueLabel_);
+    measurementLayout_->addRow(tr("3D Distance"), measurementDistanceValueLabel_);
+    measurementLayout_->addRow(tr("Height Delta"), measurementDeltaZValueLabel_);
+
+    navigationGroupBox_ = new QGroupBox(tr("Navigation"), navigationTab.first);
+    auto* tipsLayout = new QVBoxLayout(navigationGroupBox_);
+    navigationTipsLabel_ = new QLabel(navigationGroupBox_);
     navigationTipsLabel_->setWordWrap(true);
     tipsLayout->addWidget(navigationTipsLabel_);
 
-    invertOrbitCheckBox_ = new QCheckBox(tr("Invert orbit drag"), tipsGroupBox);
-    invertPanCheckBox_ = new QCheckBox(tr("Invert pan drag"), tipsGroupBox);
-    invertWheelCheckBox_ = new QCheckBox(tr("Invert wheel zoom"), tipsGroupBox);
-    tipsLayout->addWidget(invertOrbitCheckBox_);
-    tipsLayout->addWidget(invertPanCheckBox_);
-    tipsLayout->addWidget(invertWheelCheckBox_);
+    auto* navigationToggleContainer = new QWidget(navigationGroupBox_);
+    navigationToggleLayout_ = new QFormLayout(navigationToggleContainer);
+    navigationToggleLayout_->setContentsMargins(0, 0, 0, 0);
+    navigationToggleLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    navigationToggleLayout_->setFormAlignment(Qt::AlignTop);
 
-    panelLayout->addWidget(datasetGroupBox);
-    panelLayout->addWidget(renderingGroupBox);
-    panelLayout->addWidget(tipsGroupBox);
-    panelLayout->addStretch(1);
+    invertOrbitCheckBox_ = new QCheckBox(tr("Invert orbit drag"), navigationToggleContainer);
+    invertPanCheckBox_ = new QCheckBox(tr("Invert pan drag"), navigationToggleContainer);
+    invertWheelCheckBox_ = new QCheckBox(tr("Invert wheel zoom"), navigationToggleContainer);
+    navigationToggleLayout_->addRow(QString(), invertOrbitCheckBox_);
+    navigationToggleLayout_->addRow(QString(), invertPanCheckBox_);
+    navigationToggleLayout_->addRow(QString(), invertWheelCheckBox_);
+    tipsLayout->addWidget(navigationToggleContainer);
 
-    panel->setStyleSheet(
+    overviewTab.second->addWidget(datasetGroupBox_);
+    overviewTab.second->addStretch(1);
+    renderingTab.second->addWidget(renderingGroupBox_);
+    renderingTab.second->addStretch(1);
+    measurementTab.second->addWidget(measurementGroupBox_);
+    measurementTab.second->addStretch(1);
+    navigationTab.second->addWidget(navigationGroupBox_);
+    navigationTab.second->addStretch(1);
+
+    inspectorTabWidget_->addTab(overviewTab.first, QString());
+    inspectorTabWidget_->addTab(renderingTab.first, QString());
+    inspectorTabWidget_->addTab(measurementTab.first, QString());
+    inspectorTabWidget_->addTab(navigationTab.first, QString());
+
+    inspectorTabWidget_->setStyleSheet(
         "QWidget {"
         "background-color: #f6f8fb;"
         "color: #1f2937;"
+        "}"
+        "QTabWidget::pane {"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 10px;"
+        "top: -1px;"
+        "}"
+        "QTabBar::tab {"
+        "background-color: #eef2f7;"
+        "border: 1px solid #d6dde8;"
+        "border-bottom: none;"
+        "border-top-left-radius: 8px;"
+        "border-top-right-radius: 8px;"
+        "padding: 8px 14px;"
+        "margin-right: 4px;"
+        "color: #475569;"
+        "font-weight: 600;"
+        "}"
+        "QTabBar::tab:selected {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "}"
+        "QTabBar::tab:hover:!selected {"
+        "background-color: #e2e8f0;"
         "}"
         "QLabel {"
         "color: #1f2937;"
@@ -789,8 +986,34 @@ void MainWindow::createInspectorPanel()
         "background-color: #ffffff;"
         "border: 1px solid #cbd5e1;"
         "border-radius: 6px;"
-        "padding: 6px 10px;"
+        "min-height: 32px;"
+        "padding: 4px 10px;"
         "color: #111827;"
+        "}"
+        "QComboBox {"
+        "padding-right: 30px;"
+        "}"
+        "QSpinBox {"
+        "padding-right: 20px;"
+        "}"
+        "QComboBox::drop-down {"
+        "subcontrol-origin: padding;"
+        "subcontrol-position: top right;"
+        "width: 24px;"
+        "border: none;"
+        "}"
+        "QSpinBox::up-button, QSpinBox::down-button {"
+        "width: 18px;"
+        "border: none;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "padding: 4px 0;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #111827;"
+        "}"
+        "QComboBox QAbstractItemView::item {"
+        "min-height: 24px;"
+        "padding: 4px 10px;"
         "}"
         "QPushButton:hover, QComboBox:hover, QSpinBox:hover {"
         "border-color: #94a3b8;"
@@ -799,7 +1022,7 @@ void MainWindow::createInspectorPanel()
         "color: #1f2937;"
         "}");
 
-    inspectorDock_->setWidget(panel);
+    inspectorDock_->setWidget(inspectorTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
 }
 
@@ -807,11 +1030,15 @@ void MainWindow::createLogDock()
 {
     logDock_ = new QDockWidget(tr("Application Log"), this);
     logDock_->setObjectName(QStringLiteral("applicationLogDock"));
-    logDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    logDock_->setAllowedAreas(
+        Qt::BottomDockWidgetArea
+        | Qt::TopDockWidgetArea);
     logDock_->setFeatures(
         QDockWidget::DockWidgetClosable
         | QDockWidget::DockWidgetMovable
         | QDockWidget::DockWidgetFloatable);
+    logDock_->setMinimumHeight(140);
+    logDock_->setMaximumHeight(260);
 
     logTextEdit_ = new QPlainTextEdit(logDock_);
     logTextEdit_->setReadOnly(true);
@@ -828,6 +1055,7 @@ void MainWindow::createLogDock()
 
     logDock_->setWidget(logTextEdit_);
     addDockWidget(Qt::BottomDockWidgetArea, logDock_);
+    logDock_->hide();
 }
 
 void MainWindow::createStatusBar()
@@ -839,6 +1067,143 @@ void MainWindow::createStatusBar()
         "color: #334155;"
         "border-top: 1px solid #d6dde8;"
         "}"));
+}
+
+void MainWindow::retranslateUi()
+{
+    setWindowTitle(tr("LAS Point Cloud Viewer"));
+
+    openAction_->setText(tr("Open"));
+    openAction_->setToolTip(tr("Open a LAS or LAZ dataset"));
+    clearAction_->setText(tr("Clear"));
+    clearAction_->setToolTip(tr("Clear the current scene"));
+    exitAction_->setText(tr("Exit"));
+    fitSceneAction_->setText(tr("Fit Scene"));
+    fitSceneAction_->setToolTip(tr("Reset to a fitted isometric view"));
+    topViewAction_->setText(tr("Top"));
+    frontViewAction_->setText(tr("Front"));
+    rightViewAction_->setText(tr("Right"));
+    showAxesAction_->setText(tr("Axes"));
+    showBoundingBoxAction_->setText(tr("Bounds"));
+    darkBackgroundAction_->setText(tr("Dark"));
+    lightBackgroundAction_->setText(tr("Light"));
+    rgbColorAction_->setText(tr("RGB"));
+    elevationColorAction_->setText(tr("Elevation"));
+    singleColorAction_->setText(tr("Single"));
+    themeColorfulAction_->setText(tr("Colorful"));
+    themeWhiteAction_->setText(tr("White"));
+    themeDarkGrayAction_->setText(tr("Dark Gray"));
+    measureAction_->setText(tr("Measure"));
+    clearMeasurementAction_->setText(tr("Clear Measure"));
+    showLogAction_->setText(tr("Log"));
+    showLogAction_->setToolTip(tr("Show or hide the log panel"));
+    languageEnglishAction_->setText(QStringLiteral("English"));
+    languageChineseAction_->setText(QStringLiteral("\u4e2d\u6587"));
+
+    if (homePage_ != nullptr) {
+        homePage_->setTitle(tr("Home"));
+    }
+    if (appearancePage_ != nullptr) {
+        appearancePage_->setTitle(tr("Appearance"));
+    }
+    if (datasetRibbonGroup_ != nullptr) {
+        datasetRibbonGroup_->setTitle(tr("Dataset"));
+    }
+    if (cameraRibbonGroup_ != nullptr) {
+        cameraRibbonGroup_->setTitle(tr("Camera"));
+    }
+    if (sceneRibbonGroup_ != nullptr) {
+        sceneRibbonGroup_->setTitle(tr("Scene Guides"));
+    }
+    if (measureRibbonGroup_ != nullptr) {
+        measureRibbonGroup_->setTitle(tr("Measure"));
+    }
+    if (workspaceRibbonGroup_ != nullptr) {
+        workspaceRibbonGroup_->setTitle(tr("Workspace"));
+    }
+    if (colorRibbonGroup_ != nullptr) {
+        colorRibbonGroup_->setTitle(tr("Point Colors"));
+    }
+    if (themeRibbonGroup_ != nullptr) {
+        themeRibbonGroup_->setTitle(tr("Office Theme"));
+    }
+    if (languageRibbonGroup_ != nullptr) {
+        languageRibbonGroup_->setTitle(tr("Language"));
+    }
+
+    if (inspectorDock_ != nullptr) {
+        inspectorDock_->setWindowTitle(tr("Scene Inspector"));
+    }
+    if (logDock_ != nullptr) {
+        logDock_->setWindowTitle(tr("Application Log"));
+    }
+    if (inspectorTabWidget_ != nullptr) {
+        inspectorTabWidget_->setTabText(0, tr("Overview"));
+        inspectorTabWidget_->setTabText(1, tr("Rendering"));
+        inspectorTabWidget_->setTabText(2, tr("Measurement"));
+        inspectorTabWidget_->setTabText(3, tr("Navigation"));
+    }
+    if (datasetGroupBox_ != nullptr) {
+        datasetGroupBox_->setTitle(tr("Dataset Summary"));
+    }
+    if (renderingGroupBox_ != nullptr) {
+        renderingGroupBox_->setTitle(tr("Rendering Controls"));
+    }
+    if (measurementGroupBox_ != nullptr) {
+        measurementGroupBox_->setTitle(tr("Measurement"));
+    }
+    if (navigationGroupBox_ != nullptr) {
+        navigationGroupBox_->setTitle(tr("Navigation"));
+    }
+
+    auto setFieldLabel = [](QFormLayout* layout, QWidget* field, const QString& text) {
+        if (layout == nullptr || field == nullptr) {
+            return;
+        }
+        if (auto* label = qobject_cast<QLabel*>(layout->labelForField(field))) {
+            label->setText(text);
+        }
+    };
+
+    setFieldLabel(datasetLayout_, datasetNameValueLabel_, tr("Name"));
+    setFieldLabel(datasetLayout_, datasetPathValueLabel_, tr("Path"));
+    setFieldLabel(datasetLayout_, datasetPointsValueLabel_, tr("Points"));
+    setFieldLabel(datasetLayout_, datasetBoundsValueLabel_, tr("Bounds"));
+    setFieldLabel(datasetLayout_, datasetExtentValueLabel_, tr("Extent"));
+    setFieldLabel(datasetLayout_, datasetColorValueLabel_, tr("Color Source"));
+
+    setFieldLabel(renderingLayout_, pointSizeSpinBox_, tr("Point Size"));
+    setFieldLabel(renderingLayout_, colorModeComboBox_, tr("Color Mode"));
+    setFieldLabel(renderingLayout_, pointColorButton_, tr("Single Color"));
+    setFieldLabel(renderingLayout_, backgroundColorButton_, tr("Background"));
+    pointSizeSpinBox_->setSuffix(tr(" px"));
+    colorModeComboBox_->setItemText(0, tr("RGB"));
+    colorModeComboBox_->setItemText(1, tr("Elevation Ramp"));
+    colorModeComboBox_->setItemText(2, tr("Single Color"));
+    axesCheckBox_->setText(tr("Show XYZ axes"));
+    boundingBoxCheckBox_->setText(tr("Show bounding box"));
+
+    setFieldLabel(measurementLayout_, measurementStartValueLabel_, tr("Start Point"));
+    setFieldLabel(measurementLayout_, measurementEndValueLabel_, tr("End Point"));
+    setFieldLabel(measurementLayout_, measurementDistanceValueLabel_, tr("3D Distance"));
+    setFieldLabel(measurementLayout_, measurementDeltaZValueLabel_, tr("Height Delta"));
+
+    invertOrbitCheckBox_->setText(tr("Invert orbit drag"));
+    invertPanCheckBox_->setText(tr("Invert pan drag"));
+    invertWheelCheckBox_->setText(tr("Invert wheel zoom"));
+
+    if (viewer_ != nullptr) {
+        setColorButtonAppearance(pointColorButton_, viewer_->visualizationOptions().singleColor, tr("Pick Color"));
+        setColorButtonAppearance(backgroundColorButton_, viewer_->visualizationOptions().backgroundColor, tr("Pick Background"));
+    }
+    updateWindowControlButtons();
+    updateDatasetPanel();
+    updateNavigationHelpText();
+    updateMeasurementPanel();
+    updateActionState();
+    if (viewer_ != nullptr) {
+        viewer_->update();
+    }
 }
 
 void MainWindow::createConnections()
@@ -864,6 +1229,8 @@ void MainWindow::createConnections()
     connect(themeColorfulAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016Colorful); });
     connect(themeWhiteAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016White); });
     connect(themeDarkGrayAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016DarkGray); });
+    connect(measureAction_, &QAction::toggled, viewer_, &PointCloudViewer::setMeasurementEnabled);
+    connect(clearMeasurementAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearMeasurement);
 
     connect(pointSizeSpinBox_, qOverload<int>(&QSpinBox::valueChanged), viewer_, &PointCloudViewer::setPointSize);
     connect(
@@ -878,17 +1245,35 @@ void MainWindow::createConnections()
     connect(invertOrbitCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertOrbitDrag);
     connect(invertPanCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertPanDrag);
     connect(invertWheelCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setInvertWheelZoom);
+    connect(measurementToggleButton_, &QPushButton::clicked, this, [this]() {
+        viewer_->setMeasurementEnabled(!viewer_->measurementEnabled());
+    });
+    connect(measurementClearButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearMeasurement);
+    connect(languageEnglishAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::English); });
+    connect(languageChineseAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::Chinese); });
 
     connect(showLogAction_, &QAction::toggled, this, [this](bool visible) {
         if (logDock_ != nullptr) {
-            logDock_->setVisible(visible);
+            if (visible) {
+                logDock_->show();
+                resizeDocks({logDock_}, {190}, Qt::Vertical);
+            } else {
+                logDock_->hide();
+            }
+            persistWindowSettings();
         }
     });
     connect(logDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
         if (showLogAction_ != nullptr && showLogAction_->isChecked() != visible) {
             showLogAction_->setChecked(visible);
         }
+        persistWindowSettings();
     });
+    if (inspectorTabWidget_ != nullptr) {
+        connect(inspectorTabWidget_, &QTabWidget::currentChanged, this, [this](int) {
+            persistWindowSettings();
+        });
+    }
 
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         syncUiFromViewer();
@@ -898,11 +1283,23 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
     });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { syncUiFromViewer(); });
+    connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { persistVisualizationSettings(); });
     connect(viewer_, &PointCloudViewer::interactionOptionsChanged, this, [this]() {
         persistInteractionSettings();
         syncUiFromViewer();
         updateNavigationHelpText();
         showUserMessage(LogLevel::Info, tr("Navigation preferences updated."), 2500);
+    });
+    connect(viewer_, &PointCloudViewer::measurementChanged, this, [this]() {
+        syncUiFromViewer();
+        updateMeasurementPanel();
+    });
+    connect(viewer_, &PointCloudViewer::measurementModeChanged, this, [this]() {
+        syncUiFromViewer();
+        updateMeasurementPanel();
+    });
+    connect(viewer_, &PointCloudViewer::measurementMessage, this, [this](const QString& message, bool error) {
+        showUserMessage(error ? LogLevel::Error : LogLevel::Info, message, error ? 4000 : 3000);
     });
 }
 
@@ -973,6 +1370,7 @@ void MainWindow::applyOfficeTheme(Qtitan::RibbonStyle::Theme theme)
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
         ribbonStyle->setTheme(theme);
         updateWindowChromePalette(theme);
+        persistThemeSettings();
         syncUiFromViewer();
         showUserMessage(LogLevel::Info, tr("Theme updated."), 2500);
     }
@@ -1109,10 +1507,15 @@ bool MainWindow::isInteractiveRibbonWidget(const QWidget* widget) const
         if (isWindowControlWidget(current)) {
             return true;
         }
+        const QString className = QString::fromLatin1(current->metaObject()->className());
         if (qobject_cast<const QAbstractButton*>(current) != nullptr
             || qobject_cast<const QComboBox*>(current) != nullptr
             || qobject_cast<const QAbstractSpinBox*>(current) != nullptr
-            || qobject_cast<const QTabBar*>(current) != nullptr) {
+            || qobject_cast<const QTabBar*>(current) != nullptr
+            || className.contains(QStringLiteral("RibbonTab"), Qt::CaseInsensitive)
+            || className.contains(QStringLiteral("RibbonPage"), Qt::CaseInsensitive)
+            || className.contains(QStringLiteral("QuickAccess"), Qt::CaseInsensitive)
+            || className.contains(QStringLiteral("SystemButton"), Qt::CaseInsensitive)) {
             return true;
         }
         current = current->parentWidget();
@@ -1154,6 +1557,9 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker colorfulThemeBlocker(themeColorfulAction_);
         const QSignalBlocker whiteThemeBlocker(themeWhiteAction_);
         const QSignalBlocker darkThemeBlocker(themeDarkGrayAction_);
+        const QSignalBlocker measurementActionBlocker(measureAction_);
+        const QSignalBlocker englishLanguageBlocker(languageEnglishAction_);
+        const QSignalBlocker chineseLanguageBlocker(languageChineseAction_);
 
         pointSizeSpinBox_->setValue(static_cast<int>(options.pointSize));
         colorModeComboBox_->setCurrentIndex(static_cast<int>(options.colorMode));
@@ -1168,6 +1574,9 @@ void MainWindow::syncUiFromViewer()
         rgbColorAction_->setChecked(options.colorMode == PointCloudColorMode::Rgb);
         elevationColorAction_->setChecked(options.colorMode == PointCloudColorMode::Elevation);
         singleColorAction_->setChecked(options.colorMode == PointCloudColorMode::SingleColor);
+        measureAction_->setChecked(viewer_->measurementEnabled());
+        languageEnglishAction_->setChecked(currentLanguage_ == UiLanguage::English);
+        languageChineseAction_->setChecked(currentLanguage_ == UiLanguage::Chinese);
 
         if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
             themeColorfulAction_->setChecked(ribbonStyle->getTheme() == Qtitan::RibbonStyle::Office2016Colorful);
@@ -1180,6 +1589,7 @@ void MainWindow::syncUiFromViewer()
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
     updateNavigationHelpText();
     updateDatasetPanel();
+    updateMeasurementPanel();
     updateActionState();
 }
 
@@ -1225,6 +1635,10 @@ void MainWindow::updateActionState()
     topViewAction_->setEnabled(hasPointCloud);
     frontViewAction_->setEnabled(hasPointCloud);
     rightViewAction_->setEnabled(hasPointCloud);
+    measureAction_->setEnabled(hasPointCloud);
+    clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
+    measurementToggleButton_->setEnabled(hasPointCloud);
+    measurementClearButton_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const
@@ -1303,6 +1717,111 @@ void MainWindow::persistInteractionSettings() const
     settings.setValue(QStringLiteral("interaction/invertWheelZoom"), options.invertWheelZoom);
 }
 
+void MainWindow::loadVisualizationSettings()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    QSettings settings;
+    const PointCloudVisualizationOptions defaults = viewer_->visualizationOptions();
+    viewer_->setPointSize(settings.value(QStringLiteral("visualization/pointSize"), defaults.pointSize).toInt());
+    viewer_->setColorMode(settings.value(QStringLiteral("visualization/colorMode"), static_cast<int>(defaults.colorMode)).toInt());
+    viewer_->setSingleColor(settings.value(QStringLiteral("visualization/singleColor"), defaults.singleColor).value<QColor>());
+    viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
+    viewer_->setShowAxes(settings.value(QStringLiteral("visualization/showAxes"), defaults.showAxes).toBool());
+    viewer_->setShowBoundingBox(settings.value(QStringLiteral("visualization/showBoundingBox"), defaults.showBoundingBox).toBool());
+}
+
+void MainWindow::persistVisualizationSettings() const
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    QSettings settings;
+    const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
+    settings.setValue(QStringLiteral("visualization/pointSize"), options.pointSize);
+    settings.setValue(QStringLiteral("visualization/colorMode"), static_cast<int>(options.colorMode));
+    settings.setValue(QStringLiteral("visualization/singleColor"), options.singleColor);
+    settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
+    settings.setValue(QStringLiteral("visualization/showAxes"), options.showAxes);
+    settings.setValue(QStringLiteral("visualization/showBoundingBox"), options.showBoundingBox);
+}
+
+void MainWindow::loadLanguageSettings()
+{
+    QSettings settings;
+    const QString storedLanguage = settings.value(QStringLiteral("ui/language")).toString();
+    if (storedLanguage == QStringLiteral("zh_CN")) {
+        currentLanguage_ = UiLanguage::Chinese;
+    } else if (storedLanguage == QStringLiteral("en")) {
+        currentLanguage_ = UiLanguage::English;
+    } else {
+        currentLanguage_ = defaultLanguageFromLocale();
+    }
+}
+
+void MainWindow::persistLanguageSettings() const
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("ui/language"), languageCodeFor(currentLanguage_));
+}
+
+void MainWindow::loadWindowSettings()
+{
+    QSettings settings;
+    const QByteArray geometry = settings.value(QStringLiteral("window/geometry")).toByteArray();
+    if (!geometry.isEmpty()) {
+        restoreGeometry(geometry);
+    }
+    if (settings.value(QStringLiteral("window/maximized"), false).toBool()) {
+        showMaximized();
+    }
+
+    const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
+    if (inspectorTabWidget_ != nullptr) {
+        inspectorTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/inspectorTab"), 0).toInt());
+    }
+    if (showLogAction_ != nullptr) {
+        showLogAction_->setChecked(showLog);
+    }
+    if (logDock_ != nullptr) {
+        logDock_->setVisible(showLog);
+    }
+}
+
+void MainWindow::persistWindowSettings() const
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("window/geometry"), saveGeometry());
+    settings.setValue(QStringLiteral("window/maximized"), isMaximized());
+    settings.setValue(QStringLiteral("window/showLog"), logDock_ != nullptr && logDock_->isVisible());
+    settings.setValue(
+        QStringLiteral("window/inspectorTab"),
+        inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
+}
+
+void MainWindow::loadThemeSettings()
+{
+    const int storedTheme = QSettings().value(
+        QStringLiteral("ui/theme"),
+        static_cast<int>(Qtitan::RibbonStyle::Office2016Colorful)).toInt();
+
+    if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
+        const auto theme = static_cast<Qtitan::RibbonStyle::Theme>(storedTheme);
+        ribbonStyle->setTheme(theme);
+        updateWindowChromePalette(theme);
+    }
+}
+
+void MainWindow::persistThemeSettings() const
+{
+    if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
+        QSettings().setValue(QStringLiteral("ui/theme"), static_cast<int>(ribbonStyle->getTheme()));
+    }
+}
+
 void MainWindow::updateNavigationHelpText()
 {
     if (navigationTipsLabel_ == nullptr || viewer_ == nullptr) {
@@ -1311,9 +1830,57 @@ void MainWindow::updateNavigationHelpText()
 
     const InteractionOptions& options = viewer_->interactionOptions();
     navigationTipsLabel_->setText(tr(
-        "Left drag orbits (%1), right drag pans (%2), and the mouse wheel zooms (%3). "
+        "Left drag orbits (%1), middle or right drag pans (%2), and the mouse wheel zooms (%3). "
         "Use the toggles below to match your preferred interaction direction.")
         .arg(options.invertOrbitDrag ? tr("inverted") : tr("normal"))
         .arg(options.invertPanDrag ? tr("inverted") : tr("normal"))
         .arg(options.invertWheelZoom ? tr("inverted") : tr("normal")));
+}
+
+void MainWindow::updateMeasurementPanel()
+{
+    if (viewer_ == nullptr || measurementToggleButton_ == nullptr || measurementClearButton_ == nullptr) {
+        return;
+    }
+
+    const MeasurementResult& measurementResult = viewer_->measurementResult();
+    measurementToggleButton_->setText(
+        viewer_->measurementEnabled() ? tr("Stop Measurement") : tr("Start Measurement"));
+    measurementClearButton_->setText(tr("Clear Measurement"));
+
+    measurementStartValueLabel_->setText(measurementPointText(measurementResult, true));
+    measurementEndValueLabel_->setText(measurementPointText(measurementResult, false));
+    measurementDistanceValueLabel_->setText(
+        measurementResult.isComplete() ? formatCoordinate(measurementResult.distance3d) : tr("N/A"));
+    measurementDeltaZValueLabel_->setText(
+        measurementResult.isComplete() ? formatCoordinate(measurementResult.deltaZ) : tr("N/A"));
+}
+
+void MainWindow::applyLanguage(UiLanguage language)
+{
+    currentLanguage_ = language;
+
+    if (appTranslator_ != nullptr) {
+        qApp->removeTranslator(appTranslator_);
+        if (language == UiLanguage::Chinese) {
+            const QString translationDir = QCoreApplication::applicationDirPath() + QStringLiteral("/translations");
+            appTranslator_->load(QStringLiteral("lasviewer_zh_CN"), translationDir);
+            qApp->installTranslator(appTranslator_);
+        }
+    }
+
+    if (qtTranslator_ != nullptr) {
+        qApp->removeTranslator(qtTranslator_);
+        if (language == UiLanguage::Chinese) {
+            const QString deployedTranslationDir = QCoreApplication::applicationDirPath() + QStringLiteral("/translations");
+            const QString qtTranslationName = QStringLiteral("qt_zh_CN");
+            if (qtTranslator_->load(qtTranslationName, deployedTranslationDir)
+                || qtTranslator_->load(qtTranslationName, QLibraryInfo::location(QLibraryInfo::TranslationsPath))) {
+                qApp->installTranslator(qtTranslator_);
+            }
+        }
+    }
+
+    persistLanguageSettings();
+    retranslateUi();
 }
