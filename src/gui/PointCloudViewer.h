@@ -16,6 +16,7 @@
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 
+#include "domain/InspectionData.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/PointCloudData.h"
 
@@ -60,18 +61,18 @@ struct MeasurementResult
     }
 };
 
-struct TowerMarker
-{
-    QString name;
-    PointRecord point;
-};
-
 enum class TowerEditMode
 {
     None = 0,
     AddAfterLast,
     InsertBeforeSelected,
     MoveSelected
+};
+
+enum class IssueEditMode
+{
+    None = 0,
+    Add
 };
 
 class OsgWidget : public QOpenGLWidget, protected QOpenGLFunctions
@@ -158,10 +159,13 @@ public:
     const MeasurementResult& measurementResult() const;
     bool hasHoveredPoint() const;
     PointRecord hoveredPoint() const;
-    const QList<TowerMarker>& towerMarkers() const;
+    const QList<TowerRecord>& towerMarkers() const;
+    const QList<InspectionIssue>& inspectionIssues() const;
     int selectedTowerIndex() const;
+    int selectedIssueIndex() const;
     TowerEditMode towerEditMode() const;
     int towerEditTargetIndex() const;
+    IssueEditMode issueEditMode() const;
     bool focusOnPoint(const PointRecord& point, double distanceScale = 0.35);
 
 public slots:
@@ -187,8 +191,9 @@ public slots:
     bool addTowerMarker(const QString& name, const PointRecord& point);
     bool insertTowerMarker(int index, const QString& name, const PointRecord& point);
     bool addTowerMarkerFromHoveredPoint(const QString& name, QString* errorMessage = nullptr);
-    void setTowerMarkers(const QList<TowerMarker>& towerMarkers);
+    void setTowerMarkers(const QList<TowerRecord>& towerMarkers);
     bool setTowerMarkerName(int index, const QString& name);
+    bool setTowerRecord(int index, const TowerRecord& towerRecord);
     void setSelectedTowerIndex(int index);
     bool removeTowerMarker(int index);
     bool moveTowerMarker(int index, const PointRecord& point);
@@ -197,6 +202,14 @@ public slots:
     void beginTowerInsertMode(int beforeIndex);
     void beginTowerMoveMode(int towerIndex);
     void cancelTowerEditMode();
+    void setInspectionIssues(const QList<InspectionIssue>& issues);
+    bool addInspectionIssue(const InspectionIssue& issue);
+    bool updateInspectionIssue(int index, const InspectionIssue& issue);
+    bool removeInspectionIssue(int index);
+    void clearInspectionIssues();
+    void setSelectedIssueIndex(int index);
+    void beginIssueAddMode();
+    void cancelIssueEditMode();
 
 signals:
     void pointCloudLoaded();
@@ -210,6 +223,10 @@ signals:
     void selectedTowerChanged(int index);
     void towerEditModeChanged();
     void towerEditRequested(const PointRecord& point, int mode, int targetIndex);
+    void inspectionIssuesChanged();
+    void selectedIssueChanged(int index);
+    void issueEditModeChanged();
+    void issueEditRequested(const PointRecord& point);
 
 private:
     void changeEvent(QEvent* event) override;
@@ -228,13 +245,17 @@ private:
     void updateHoveredPoint(const PointRecord* hoveredPoint);
     bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels = 14.0f) const;
     int pickTowerMarkerAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
+    int pickInspectionIssueAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     osg::ref_ptr<osg::Node> buildMeasurementOverlay() const;
     osg::ref_ptr<osg::Node> buildTowerMarkersOverlay() const;
+    osg::ref_ptr<osg::Node> buildInspectionIssuesOverlay() const;
     QPointF projectPointToViewport(const PointRecord& point, bool* visible) const;
     void refreshMeasurementOverlay();
     void refreshTowerMarkersOverlay();
+    void refreshInspectionIssuesOverlay();
     void updateMeasurementOverlayWidgets();
     void updateTowerOverlayWidgets();
+    void updateInspectionIssueOverlayWidgets();
     void updateSceneClickCapture();
     void updateAxisIndicator();
     void positionAxisIndicator();
@@ -264,16 +285,21 @@ private:
     MeasurementResult measurementResult_;
     bool hoveredPointValid_ = false;
     PointRecord hoveredPoint_;
-    QList<TowerMarker> towerMarkers_;
+    QList<TowerRecord> towerMarkers_;
+    QList<InspectionIssue> inspectionIssues_;
     int selectedTowerIndex_ = -1;
+    int selectedIssueIndex_ = -1;
     TowerEditMode towerEditMode_ = TowerEditMode::None;
     int towerEditTargetIndex_ = -1;
+    IssueEditMode issueEditMode_ = IssueEditMode::None;
     QList<QLabel*> towerOverlayLabels_;
+    QList<QLabel*> issueOverlayLabels_;
     QPointF lastHoverQueryPosition_;
     std::chrono::steady_clock::time_point lastHoverQueryTime_{};
 
     osg::ref_ptr<osg::Group> rootGroup_;
     osg::ref_ptr<osg::Node> pointCloudNode_;
     osg::ref_ptr<osg::Node> towerMarkersNode_;
+    osg::ref_ptr<osg::Node> inspectionIssuesNode_;
     osg::ref_ptr<osg::Node> measurementOverlayNode_;
 };

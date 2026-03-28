@@ -79,6 +79,8 @@
 #include "QtnRibbonPage.h"
 #include "QtnRibbonQuickAccessBar.h"
 
+#include "domain/InspectionData.h"
+#include "domain/InspectionReportExporter.h"
 #include "gui/PointCloudViewer.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/PointCloudData.h"
@@ -808,6 +810,14 @@ void MainWindow::createActions()
     showTowerXAction_->setCheckable(true);
     showTowerYAction_->setCheckable(true);
     showTowerZAction_->setCheckable(true);
+    startIssueMarkAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Mark Issue"), this);
+    startIssueMarkAction_->setToolTip(tr("Click a point in the view to add an inspection issue"));
+    cancelIssueToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Issue Tool"), this);
+    focusIssueAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Current Issue"), this);
+    removeIssueAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Current Issue"), this);
+    clearIssuesAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Issues"), this);
+    exportIssuesCsvAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Issues CSV"), this);
+    exportInspectionReportAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Inspection Report"), this);
 
     showLogAction_ = new QAction(createRibbonIcon(RibbonGlyph::Log), tr("Log"), this);
     showLogAction_->setCheckable(true);
@@ -877,6 +887,8 @@ void MainWindow::createRibbon()
 
     workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
     workspaceRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
+    workspaceRibbonGroup_->addAction(startIssueMarkAction_, Qt::ToolButtonTextUnderIcon);
+    workspaceRibbonGroup_->addAction(exportInspectionReportAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
 
     towerPage_ = ribbonBar_->addPage(tr("Tower"));
@@ -1081,6 +1093,7 @@ void MainWindow::createInspectorPanel()
 
     auto overviewTab = createTabPage(QStringLiteral("sceneInspectorOverviewPage"));
     auto towerTab = createTabPage(QStringLiteral("sceneInspectorTowerPage"));
+    auto issueTab = createTabPage(QStringLiteral("sceneInspectorIssuePage"));
     auto renderingTab = createTabPage(QStringLiteral("sceneInspectorRenderingPage"));
     auto measurementTab = createTabPage(QStringLiteral("sceneInspectorMeasurementPage"));
     auto navigationTab = createTabPage(QStringLiteral("sceneInspectorNavigationPage"));
@@ -1190,6 +1203,136 @@ void MainWindow::createInspectorPanel()
     towerLayout->addWidget(towerToolStatusLabel_);
     towerLayout->addWidget(towerTableWidget_, 1);
 
+    towerDetailsGroupBox_ = new QGroupBox(tr("Selected Tower Details"), towerPanel);
+    towerDetailsLayout_ = new QFormLayout(towerDetailsGroupBox_);
+    towerDetailsLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    towerDetailsLayout_->setFormAlignment(Qt::AlignTop);
+    towerCodeEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerLineNameEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerVoltageLevelEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerStructureTypeEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerInspectionDateEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerStatusEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerNotesEdit_ = new QPlainTextEdit(towerDetailsGroupBox_);
+    towerNotesEdit_->setMaximumHeight(96);
+    towerDetailsLayout_->addRow(tr("Code"), towerCodeEdit_);
+    towerDetailsLayout_->addRow(tr("Line"), towerLineNameEdit_);
+    towerDetailsLayout_->addRow(tr("Voltage"), towerVoltageLevelEdit_);
+    towerDetailsLayout_->addRow(tr("Tower Type"), towerStructureTypeEdit_);
+    towerDetailsLayout_->addRow(tr("Inspection Date"), towerInspectionDateEdit_);
+    towerDetailsLayout_->addRow(tr("Tower Status"), towerStatusEdit_);
+    towerDetailsLayout_->addRow(tr("Notes"), towerNotesEdit_);
+    towerLayout->addWidget(towerDetailsGroupBox_);
+
+    auto* issueToolbarHost = new QWidget(issueTab.first);
+    auto* issueToolbarHostLayout = new QHBoxLayout(issueToolbarHost);
+    issueToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
+    issueToolbarHostLayout->setSpacing(8);
+
+    issueToolBar_ = new QToolBar(issueToolbarHost);
+    issueToolBar_->setIconSize(QSize(16, 16));
+    issueToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    issueToolBar_->setMovable(false);
+    issueToolBar_->setFloatable(false);
+    issueToolBar_->addAction(startIssueMarkAction_);
+    issueToolBar_->addAction(cancelIssueToolAction_);
+    issueToolBar_->addSeparator();
+    issueToolBar_->addAction(focusIssueAction_);
+    issueToolBar_->addAction(removeIssueAction_);
+    issueToolBar_->addAction(clearIssuesAction_);
+    issueToolBar_->addSeparator();
+    issueToolBar_->addAction(exportIssuesCsvAction_);
+    issueToolBar_->addAction(exportInspectionReportAction_);
+
+    issueActionsMenu_ = new QMenu(issueToolbarHost);
+    issueActionsMenu_->addAction(startIssueMarkAction_);
+    issueActionsMenu_->addAction(cancelIssueToolAction_);
+    issueActionsMenu_->addSeparator();
+    issueActionsMenu_->addAction(focusIssueAction_);
+    issueActionsMenu_->addAction(removeIssueAction_);
+    issueActionsMenu_->addAction(clearIssuesAction_);
+    issueActionsMenu_->addSeparator();
+    issueActionsMenu_->addAction(exportIssuesCsvAction_);
+    issueActionsMenu_->addAction(exportInspectionReportAction_);
+
+    issueMenuButton_ = new QToolButton(issueToolbarHost);
+    issueMenuButton_->setPopupMode(QToolButton::InstantPopup);
+    issueMenuButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    issueMenuButton_->setMenu(issueActionsMenu_);
+
+    issueToolbarHostLayout->addWidget(issueToolBar_, 1);
+    issueToolbarHostLayout->addWidget(issueMenuButton_, 0);
+
+    auto* issuePanel = new QWidget(issueTab.first);
+    auto* issueLayout = new QVBoxLayout(issuePanel);
+    issueLayout->setContentsMargins(0, 0, 0, 0);
+    issueLayout->setSpacing(8);
+
+    issueCountValueLabel_ = new QLabel(issuePanel);
+    issueCountValueLabel_->setWordWrap(true);
+    issueToolStatusLabel_ = new QLabel(issuePanel);
+    issueToolStatusLabel_->setWordWrap(true);
+
+    issueTableWidget_ = new QTableWidget(issuePanel);
+    issueTableWidget_->setColumnCount(6);
+    issueTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    issueTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    issueTableWidget_->setAlternatingRowColors(true);
+    issueTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    issueTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Title"), tr("Severity"), tr("Status"), tr("Tower"), tr("Category") });
+    issueTableWidget_->verticalHeader()->setVisible(false);
+    issueTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    issueTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+
+    issueDetailsGroupBox_ = new QGroupBox(tr("Selected Issue Details"), issuePanel);
+    issueDetailsLayout_ = new QFormLayout(issueDetailsGroupBox_);
+    issueDetailsLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    issueDetailsLayout_->setFormAlignment(Qt::AlignTop);
+    issueTitleEdit_ = new QLineEdit(issueDetailsGroupBox_);
+    issueCategoryComboBox_ = new QComboBox(issueDetailsGroupBox_);
+    issueCategoryComboBox_->setEditable(true);
+    issueCategoryComboBox_->addItems({ tr("Vegetation"), tr("Insulator"), tr("Tower Body"), tr("Channel Risk"), tr("Other") });
+    issueSeverityComboBox_ = new QComboBox(issueDetailsGroupBox_);
+    issueStatusComboBox_ = new QComboBox(issueDetailsGroupBox_);
+    issueRelatedTowerComboBox_ = new QComboBox(issueDetailsGroupBox_);
+    issueImagePathEdit_ = new QLineEdit(issueDetailsGroupBox_);
+    issueDescriptionEdit_ = new QPlainTextEdit(issueDetailsGroupBox_);
+    issueDescriptionEdit_->setMaximumHeight(110);
+    issueLocationValueLabel_ = new QLabel(issueDetailsGroupBox_);
+    issueLocationValueLabel_->setWordWrap(true);
+    issueCreatedAtValueLabel_ = new QLabel(issueDetailsGroupBox_);
+    issueCreatedAtValueLabel_->setWordWrap(true);
+    issueSeverityComboBox_->addItems({
+        issueSeverityDisplayName(IssueSeverity::Info),
+        issueSeverityDisplayName(IssueSeverity::Minor),
+        issueSeverityDisplayName(IssueSeverity::Major),
+        issueSeverityDisplayName(IssueSeverity::Critical)
+    });
+    issueStatusComboBox_->addItems({
+        issueStatusDisplayName(IssueStatus::Open),
+        issueStatusDisplayName(IssueStatus::Monitoring),
+        issueStatusDisplayName(IssueStatus::Resolved)
+    });
+    issueDetailsLayout_->addRow(tr("Title"), issueTitleEdit_);
+    issueDetailsLayout_->addRow(tr("Category"), issueCategoryComboBox_);
+    issueDetailsLayout_->addRow(tr("Severity"), issueSeverityComboBox_);
+    issueDetailsLayout_->addRow(tr("Issue Status"), issueStatusComboBox_);
+    issueDetailsLayout_->addRow(tr("Related Tower"), issueRelatedTowerComboBox_);
+    issueDetailsLayout_->addRow(tr("Image Path"), issueImagePathEdit_);
+    issueDetailsLayout_->addRow(tr("Location"), issueLocationValueLabel_);
+    issueDetailsLayout_->addRow(tr("Created At"), issueCreatedAtValueLabel_);
+    issueDetailsLayout_->addRow(tr("Description"), issueDescriptionEdit_);
+
+    issueLayout->addWidget(issueCountValueLabel_);
+    issueLayout->addWidget(issueToolStatusLabel_);
+    issueLayout->addWidget(issueTableWidget_, 1);
+    issueLayout->addWidget(issueDetailsGroupBox_);
+
     renderingGroupBox_ = new QGroupBox(tr("Rendering Controls"), renderingTab.first);
     renderingLayout_ = new QFormLayout(renderingGroupBox_);
     renderingLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -1277,6 +1420,8 @@ void MainWindow::createInspectorPanel()
     overviewTab.second->addStretch(1);
     towerTab.second->addWidget(towerToolbarHost);
     towerTab.second->addWidget(towerPanel, 1);
+    issueTab.second->addWidget(issueToolbarHost);
+    issueTab.second->addWidget(issuePanel, 1);
     renderingTab.second->addWidget(renderingGroupBox_);
     renderingTab.second->addStretch(1);
     measurementTab.second->addWidget(measurementGroupBox_);
@@ -1286,6 +1431,7 @@ void MainWindow::createInspectorPanel()
 
     inspectorTabWidget_->addTab(overviewTab.first, QString());
     inspectorTabWidget_->addTab(towerTab.first, QString());
+    inspectorTabWidget_->addTab(issueTab.first, QString());
     inspectorTabWidget_->addTab(renderingTab.first, QString());
     inspectorTabWidget_->addTab(measurementTab.first, QString());
     inspectorTabWidget_->addTab(navigationTab.first, QString());
@@ -1601,6 +1747,14 @@ void MainWindow::retranslateUi()
     showTowerXAction_->setText(tr("Show X"));
     showTowerYAction_->setText(tr("Show Y"));
     showTowerZAction_->setText(tr("Show Z"));
+    startIssueMarkAction_->setText(tr("Mark Issue"));
+    startIssueMarkAction_->setToolTip(tr("Click a point in the view to add an inspection issue"));
+    cancelIssueToolAction_->setText(tr("Cancel Issue Tool"));
+    focusIssueAction_->setText(tr("Focus Current Issue"));
+    removeIssueAction_->setText(tr("Remove Current Issue"));
+    clearIssuesAction_->setText(tr("Clear Issues"));
+    exportIssuesCsvAction_->setText(tr("Export Issues CSV"));
+    exportInspectionReportAction_->setText(tr("Export Inspection Report"));
     showLogAction_->setText(tr("Log"));
     showLogAction_->setToolTip(tr("Show or hide the log panel"));
     languageEnglishAction_->setText(QStringLiteral("English"));
@@ -1655,9 +1809,10 @@ void MainWindow::retranslateUi()
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setTabText(0, tr("Overview"));
         inspectorTabWidget_->setTabText(1, tr("Tower"));
-        inspectorTabWidget_->setTabText(2, tr("Rendering"));
-        inspectorTabWidget_->setTabText(3, tr("Measurement"));
-        inspectorTabWidget_->setTabText(4, tr("Navigation"));
+        inspectorTabWidget_->setTabText(2, tr("Issues"));
+        inspectorTabWidget_->setTabText(3, tr("Rendering"));
+        inspectorTabWidget_->setTabText(4, tr("Measurement"));
+        inspectorTabWidget_->setTabText(5, tr("Navigation"));
     }
     if (datasetGroupBox_ != nullptr) {
         datasetGroupBox_->setTitle(tr("Dataset Summary"));
@@ -1668,8 +1823,14 @@ void MainWindow::retranslateUi()
     if (towerTableWidget_ != nullptr) {
         towerTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Name"), QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") });
     }
+    if (issueTableWidget_ != nullptr) {
+        issueTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Title"), tr("Severity"), tr("Status"), tr("Tower"), tr("Category") });
+    }
     if (towerMenuButton_ != nullptr) {
         towerMenuButton_->setText(tr("Menu"));
+    }
+    if (issueMenuButton_ != nullptr) {
+        issueMenuButton_->setText(tr("Menu"));
     }
     if (renderingGroupBox_ != nullptr) {
         renderingGroupBox_->setTitle(tr("Rendering Controls"));
@@ -1679,6 +1840,15 @@ void MainWindow::retranslateUi()
     }
     if (navigationGroupBox_ != nullptr) {
         navigationGroupBox_->setTitle(tr("Navigation"));
+    }
+    if (towerDetailsGroupBox_ != nullptr) {
+        towerDetailsGroupBox_->setTitle(tr("Selected Tower Details"));
+    }
+    if (issueDetailsGroupBox_ != nullptr) {
+        issueDetailsGroupBox_->setTitle(tr("Selected Issue Details"));
+    }
+    if (projectSearchEdit_ != nullptr) {
+        projectSearchEdit_->setPlaceholderText(tr("Filter datasets or folders"));
     }
 
     auto setFieldLabel = [](QFormLayout* layout, QWidget* field, const QString& text) {
@@ -1696,6 +1866,40 @@ void MainWindow::retranslateUi()
     setFieldLabel(datasetLayout_, datasetBoundsValueLabel_, tr("Bounds"));
     setFieldLabel(datasetLayout_, datasetExtentValueLabel_, tr("Extent"));
     setFieldLabel(datasetLayout_, datasetColorValueLabel_, tr("Color Source"));
+    setFieldLabel(towerDetailsLayout_, towerCodeEdit_, tr("Code"));
+    setFieldLabel(towerDetailsLayout_, towerLineNameEdit_, tr("Line"));
+    setFieldLabel(towerDetailsLayout_, towerVoltageLevelEdit_, tr("Voltage"));
+    setFieldLabel(towerDetailsLayout_, towerStructureTypeEdit_, tr("Tower Type"));
+    setFieldLabel(towerDetailsLayout_, towerInspectionDateEdit_, tr("Inspection Date"));
+    setFieldLabel(towerDetailsLayout_, towerStatusEdit_, tr("Tower Status"));
+    setFieldLabel(towerDetailsLayout_, towerNotesEdit_, tr("Notes"));
+    setFieldLabel(issueDetailsLayout_, issueTitleEdit_, tr("Title"));
+    setFieldLabel(issueDetailsLayout_, issueCategoryComboBox_, tr("Category"));
+    setFieldLabel(issueDetailsLayout_, issueSeverityComboBox_, tr("Severity"));
+    setFieldLabel(issueDetailsLayout_, issueStatusComboBox_, tr("Issue Status"));
+    setFieldLabel(issueDetailsLayout_, issueRelatedTowerComboBox_, tr("Related Tower"));
+    setFieldLabel(issueDetailsLayout_, issueImagePathEdit_, tr("Image Path"));
+    setFieldLabel(issueDetailsLayout_, issueLocationValueLabel_, tr("Location"));
+    setFieldLabel(issueDetailsLayout_, issueCreatedAtValueLabel_, tr("Created At"));
+    setFieldLabel(issueDetailsLayout_, issueDescriptionEdit_, tr("Description"));
+    if (issueCategoryComboBox_ != nullptr && issueCategoryComboBox_->count() >= 5) {
+        issueCategoryComboBox_->setItemText(0, tr("Vegetation"));
+        issueCategoryComboBox_->setItemText(1, tr("Insulator"));
+        issueCategoryComboBox_->setItemText(2, tr("Tower Body"));
+        issueCategoryComboBox_->setItemText(3, tr("Channel Risk"));
+        issueCategoryComboBox_->setItemText(4, tr("Other"));
+    }
+    if (issueSeverityComboBox_ != nullptr && issueSeverityComboBox_->count() >= 4) {
+        issueSeverityComboBox_->setItemText(0, issueSeverityDisplayName(IssueSeverity::Info));
+        issueSeverityComboBox_->setItemText(1, issueSeverityDisplayName(IssueSeverity::Minor));
+        issueSeverityComboBox_->setItemText(2, issueSeverityDisplayName(IssueSeverity::Major));
+        issueSeverityComboBox_->setItemText(3, issueSeverityDisplayName(IssueSeverity::Critical));
+    }
+    if (issueStatusComboBox_ != nullptr && issueStatusComboBox_->count() >= 3) {
+        issueStatusComboBox_->setItemText(0, issueStatusDisplayName(IssueStatus::Open));
+        issueStatusComboBox_->setItemText(1, issueStatusDisplayName(IssueStatus::Monitoring));
+        issueStatusComboBox_->setItemText(2, issueStatusDisplayName(IssueStatus::Resolved));
+    }
 
     setFieldLabel(renderingLayout_, pointSizeControl_, tr("Point Size"));
     setFieldLabel(renderingLayout_, pointOpacityControl_, tr("Point Opacity"));
@@ -2021,6 +2225,185 @@ void MainWindow::createConnections()
 
         updateTowerPanel();
     });
+    const auto commitTowerDetails = [this]() {
+        if (updatingTowerDetails_ || viewer_ == nullptr) {
+            return;
+        }
+
+        const int selectedTowerIndex = viewer_->selectedTowerIndex();
+        if (selectedTowerIndex < 0 || selectedTowerIndex >= viewer_->towerMarkers().size()) {
+            return;
+        }
+
+        TowerRecord towerRecord = viewer_->towerMarkers().at(selectedTowerIndex);
+        towerRecord.code = towerCodeEdit_->text().trimmed();
+        towerRecord.lineName = towerLineNameEdit_->text().trimmed();
+        towerRecord.voltageLevel = towerVoltageLevelEdit_->text().trimmed();
+        towerRecord.structureType = towerStructureTypeEdit_->text().trimmed();
+        towerRecord.inspectionDate = towerInspectionDateEdit_->text().trimmed();
+        towerRecord.status = towerStatusEdit_->text().trimmed();
+        towerRecord.notes = towerNotesEdit_->toPlainText().trimmed();
+        if (viewer_->setTowerRecord(selectedTowerIndex, towerRecord)) {
+            updateTowerPanel();
+        }
+    };
+    connect(towerCodeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerLineNameEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerVoltageLevelEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerStructureTypeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerInspectionDateEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerStatusEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerNotesEdit_, &QPlainTextEdit::textChanged, this, commitTowerDetails);
+
+    const auto beginIssueMarking = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before marking issues."), 3000);
+            return;
+        }
+
+        viewer_->beginIssueAddMode();
+        if (inspectorTabWidget_ != nullptr) {
+            inspectorTabWidget_->setCurrentIndex(2);
+        }
+        updateIssuePanel();
+        showUserMessage(LogLevel::Info, tr("Issue marking enabled. Click a point in the view to add an issue, or right-click to cancel."), 4500);
+    };
+    const auto cancelIssueTool = [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        viewer_->cancelIssueEditMode();
+        updateIssuePanel();
+        showUserMessage(LogLevel::Info, tr("Issue tool cancelled."), 2500);
+    };
+    const auto focusSelectedIssue = [this]() {
+        if (viewer_ == nullptr || issueTableWidget_ == nullptr) {
+            return;
+        }
+
+        const int currentRow = issueTableWidget_->currentRow();
+        if (currentRow < 0 || currentRow >= viewer_->inspectionIssues().size()) {
+            return;
+        }
+
+        viewer_->focusOnPoint(viewer_->inspectionIssues().at(currentRow).point, 0.2);
+    };
+    const auto removeSelectedIssue = [this]() {
+        if (viewer_ == nullptr || issueTableWidget_ == nullptr) {
+            return;
+        }
+
+        if (viewer_->removeInspectionIssue(issueTableWidget_->currentRow())) {
+            updateIssuePanel();
+            showUserMessage(LogLevel::Info, tr("Inspection issue removed."), 2500);
+        }
+    };
+    const auto clearAllIssues = [this]() {
+        if (viewer_ == nullptr || viewer_->inspectionIssues().isEmpty()) {
+            return;
+        }
+
+        viewer_->clearInspectionIssues();
+        updateIssuePanel();
+        showUserMessage(LogLevel::Info, tr("Inspection issues cleared."), 2500);
+    };
+    const auto exportIssuesCsv = [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        const QString filePath = QFileDialog::getSaveFileName(
+            this,
+            tr("Export Issues CSV"),
+            QStringLiteral("inspection_issues.csv"),
+            tr("CSV Files (*.csv)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+
+        QString errorMessage;
+        if (!InspectionReportExporter::exportIssuesCsv(filePath, viewer_->inspectionIssues(), &errorMessage)) {
+            showUserMessage(LogLevel::Error, errorMessage, 5000);
+            return;
+        }
+        showUserMessage(LogLevel::Info, tr("Issue CSV exported: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    };
+    const auto exportInspectionReport = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            return;
+        }
+
+        const QString filePath = QFileDialog::getSaveFileName(
+            this,
+            tr("Export Inspection Report"),
+            QStringLiteral("inspection_report.html"),
+            tr("HTML Files (*.html)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+
+        QString errorMessage;
+        const QString projectName = currentProjectFilePath_.isEmpty()
+            ? tr("Current Project")
+            : QFileInfo(currentProjectFilePath_).completeBaseName();
+        if (!InspectionReportExporter::exportProjectHtml(
+                filePath,
+                projectName,
+                viewer_->currentFilePaths(),
+                viewer_->towerMarkers(),
+                viewer_->inspectionIssues(),
+                &errorMessage)) {
+            showUserMessage(LogLevel::Error, errorMessage, 5000);
+            return;
+        }
+
+        showUserMessage(LogLevel::Info, tr("Inspection report exported: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    };
+    connect(startIssueMarkAction_, &QAction::triggered, this, beginIssueMarking);
+    connect(cancelIssueToolAction_, &QAction::triggered, this, cancelIssueTool);
+    connect(focusIssueAction_, &QAction::triggered, this, focusSelectedIssue);
+    connect(removeIssueAction_, &QAction::triggered, this, removeSelectedIssue);
+    connect(clearIssuesAction_, &QAction::triggered, this, clearAllIssues);
+    connect(exportIssuesCsvAction_, &QAction::triggered, this, exportIssuesCsv);
+    connect(exportInspectionReportAction_, &QAction::triggered, this, exportInspectionReport);
+    connect(issueTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
+        if (viewer_ != nullptr) {
+            viewer_->setSelectedIssueIndex(currentRow);
+        }
+        updateActionState();
+        updateIssuePanel();
+    });
+    const auto commitIssueDetails = [this]() {
+        if (updatingIssueDetails_ || viewer_ == nullptr) {
+            return;
+        }
+
+        const int selectedIssueIndex = viewer_->selectedIssueIndex();
+        if (selectedIssueIndex < 0 || selectedIssueIndex >= viewer_->inspectionIssues().size()) {
+            return;
+        }
+
+        InspectionIssue issue = viewer_->inspectionIssues().at(selectedIssueIndex);
+        issue.title = issueTitleEdit_->text().trimmed();
+        issue.category = issueCategoryComboBox_->currentText().trimmed();
+        issue.severity = static_cast<IssueSeverity>(issueSeverityComboBox_->currentIndex());
+        issue.status = static_cast<IssueStatus>(issueStatusComboBox_->currentIndex());
+        issue.relatedTowerIndex = issueRelatedTowerComboBox_->currentData().toInt();
+        issue.relatedTowerName = issueRelatedTowerComboBox_->currentText().trimmed();
+        issue.imagePath = issueImagePathEdit_->text().trimmed();
+        issue.description = issueDescriptionEdit_->toPlainText().trimmed();
+        if (viewer_->updateInspectionIssue(selectedIssueIndex, issue)) {
+            updateIssuePanel();
+        }
+    };
+    connect(issueTitleEdit_, &QLineEdit::editingFinished, this, commitIssueDetails);
+    connect(issueCategoryComboBox_, &QComboBox::editTextChanged, this, [commitIssueDetails](const QString&) { commitIssueDetails(); });
+    connect(issueSeverityComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
+    connect(issueStatusComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
+    connect(issueRelatedTowerComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
+    connect(issueImagePathEdit_, &QLineEdit::editingFinished, this, commitIssueDetails);
+    connect(issueDescriptionEdit_, &QPlainTextEdit::textChanged, this, commitIssueDetails);
     connect(projectSearchEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
         refreshProjectTreeFilter();
     });
@@ -2158,6 +2541,52 @@ void MainWindow::createConnections()
                 : tr("Tower marker added."),
             mode == TowerEditMode::AddAfterLast ? 3500 : 2500);
     });
+    connect(viewer_, &PointCloudViewer::inspectionIssuesChanged, this, [this]() {
+        syncUiFromViewer();
+        updateIssuePanel();
+    });
+    connect(viewer_, &PointCloudViewer::selectedIssueChanged, this, [this](int index) {
+        if (issueTableWidget_ != nullptr && issueTableWidget_->currentRow() != index) {
+            const QSignalBlocker blocker(issueTableWidget_);
+            if (index >= 0) {
+                issueTableWidget_->setCurrentCell(index, 1);
+            } else {
+                issueTableWidget_->clearSelection();
+                issueTableWidget_->setCurrentItem(nullptr);
+            }
+        }
+        updateActionState();
+        updateIssuePanel();
+    });
+    connect(viewer_, &PointCloudViewer::issueEditModeChanged, this, [this]() {
+        updateIssuePanel();
+        updateActionState();
+    });
+    connect(viewer_, &PointCloudViewer::issueEditRequested, this, [this](const PointRecord& point) {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        InspectionIssue issue;
+        issue.id = issueDefaultId();
+        issue.title = nextDefaultIssueTitle();
+        issue.category = tr("Other");
+        issue.severity = IssueSeverity::Major;
+        issue.status = IssueStatus::Open;
+        issue.point = point;
+        issue.relatedTowerIndex = viewer_->selectedTowerIndex();
+        if (issue.relatedTowerIndex >= 0 && issue.relatedTowerIndex < viewer_->towerMarkers().size()) {
+            issue.relatedTowerName = viewer_->towerMarkers().at(issue.relatedTowerIndex).name;
+        }
+        issue.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
+        if (viewer_->addInspectionIssue(issue)) {
+            if (inspectorTabWidget_ != nullptr) {
+                inspectorTabWidget_->setCurrentIndex(2);
+            }
+            updateIssuePanel();
+            showUserMessage(LogLevel::Info, tr("Inspection issue added. Continue clicking points to add more, or right-click to cancel."), 3500);
+        }
+    });
     connect(viewer_, &PointCloudViewer::measurementMessage, this, [this](const QString& message, bool error) {
         showUserMessage(error ? LogLevel::Error : LogLevel::Info, message, error ? 4000 : 3000);
     });
@@ -2280,20 +2709,24 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     QList<TowerMarker> towerMarkers;
     const QJsonArray towersArray = projectObject.value(QStringLiteral("towerMarkers")).toArray();
     for (const QJsonValue& towerValue : towersArray) {
-        const QJsonObject towerObject = towerValue.toObject();
-        const QString towerName = towerObject.value(QStringLiteral("name")).toString().trimmed();
-        if (towerName.isEmpty()) {
+        const TowerRecord towerRecord = towerRecordFromJson(towerValue.toObject());
+        if (towerRecord.name.isEmpty()) {
             continue;
         }
-
-        TowerMarker towerMarker;
-        towerMarker.name = towerName;
-        towerMarker.point.x = static_cast<float>(towerObject.value(QStringLiteral("x")).toDouble());
-        towerMarker.point.y = static_cast<float>(towerObject.value(QStringLiteral("y")).toDouble());
-        towerMarker.point.z = static_cast<float>(towerObject.value(QStringLiteral("z")).toDouble());
-        towerMarkers.append(towerMarker);
+        towerMarkers.append(towerRecord);
     }
     viewer_->setTowerMarkers(towerMarkers);
+
+    QList<InspectionIssue> inspectionIssues;
+    const QJsonArray issuesArray = projectObject.value(QStringLiteral("inspectionIssues")).toArray();
+    for (const QJsonValue& issueValue : issuesArray) {
+        const InspectionIssue issue = inspectionIssueFromJson(issueValue.toObject());
+        if (issue.title.trimmed().isEmpty()) {
+            continue;
+        }
+        inspectionIssues.append(issue);
+    }
+    viewer_->setInspectionIssues(inspectionIssues);
 
     currentProjectFilePath_ = filePath;
     setTowerEditingEnabled(false);
@@ -2337,12 +2770,12 @@ bool MainWindow::saveProjectFile(const QString& filePath)
 
     QJsonArray towersArray;
     for (const TowerMarker& towerMarker : viewer_->towerMarkers()) {
-        towersArray.append(QJsonObject {
-            { QStringLiteral("name"), towerMarker.name },
-            { QStringLiteral("x"), towerMarker.point.x },
-            { QStringLiteral("y"), towerMarker.point.y },
-            { QStringLiteral("z"), towerMarker.point.z }
-        });
+        towersArray.append(towerRecordToJson(towerMarker));
+    }
+
+    QJsonArray inspectionIssuesArray;
+    for (const InspectionIssue& issue : viewer_->inspectionIssues()) {
+        inspectionIssuesArray.append(inspectionIssueToJson(issue));
     }
 
     QJsonArray pointCloudFilesArray;
@@ -2357,7 +2790,8 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
         { QStringLiteral("visualization"), visualizationObject },
         { QStringLiteral("interaction"), interactionObject },
-        { QStringLiteral("towerMarkers"), towersArray }
+        { QStringLiteral("towerMarkers"), towersArray },
+        { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
     };
 
     QFile file(filePath);
@@ -2491,13 +2925,17 @@ void MainWindow::removeSelectedDataset()
     }
 
     const QList<TowerMarker> towerMarkers = viewer_->towerMarkers();
+    const QList<InspectionIssue> inspectionIssues = viewer_->inspectionIssues();
     const int selectedTowerIndex = viewer_->selectedTowerIndex();
+    const int selectedIssueIndex = viewer_->selectedIssueIndex();
     QString errorMessage;
     if (viewer_->loadPointCloudFiles(remainingFilePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
         setTowerEditingEnabled(false);
         viewer_->setTowerMarkers(towerMarkers);
+        viewer_->setInspectionIssues(inspectionIssues);
         viewer_->setSelectedTowerIndex(selectedTowerIndex);
+        viewer_->setSelectedIssueIndex(selectedIssueIndex);
         syncUiFromViewer();
         showUserMessage(LogLevel::Info, tr("Dataset removed from the project."), 3000);
     } else {
@@ -2770,6 +3208,7 @@ void MainWindow::syncUiFromViewer()
     updateDatasetPanel();
     updateMeasurementPanel();
     updateTowerPanel();
+    updateIssuePanel();
     updateActionState();
 }
 
@@ -2816,6 +3255,9 @@ void MainWindow::updateActionState()
     const bool hasTowerMarkers = viewer_ != nullptr && !viewer_->towerMarkers().isEmpty();
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
     const bool towerToolActive = viewer_ != nullptr && viewer_->towerEditMode() != TowerEditMode::None;
+    const bool hasIssues = viewer_ != nullptr && !viewer_->inspectionIssues().isEmpty();
+    const bool hasIssueSelection = viewer_ != nullptr && viewer_->selectedIssueIndex() >= 0;
+    const bool issueToolActive = viewer_ != nullptr && viewer_->issueEditMode() != IssueEditMode::None;
     const bool hasDatasetSelection = !selectedDatasetPath().isEmpty();
     openProjectAction_->setEnabled(true);
     saveProjectAction_->setEnabled(hasPointCloud);
@@ -2844,6 +3286,13 @@ void MainWindow::updateActionState()
     removeTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
     clearTowersAction_->setEnabled(hasTowerMarkers && towerEditingEnabled_ && !towerToolActive);
     cancelTowerToolAction_->setEnabled(towerEditingEnabled_ && towerToolActive);
+    startIssueMarkAction_->setEnabled(hasPointCloud && !issueToolActive);
+    cancelIssueToolAction_->setEnabled(issueToolActive);
+    focusIssueAction_->setEnabled(hasIssueSelection);
+    removeIssueAction_->setEnabled(hasIssueSelection);
+    clearIssuesAction_->setEnabled(hasIssues);
+    exportIssuesCsvAction_->setEnabled(hasIssues);
+    exportInspectionReportAction_->setEnabled(hasPointCloud && (hasTowerMarkers || hasIssues));
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const
@@ -3285,6 +3734,8 @@ void MainWindow::updateTowerPanel()
     } else {
         towerTableWidget_->clearSelection();
     }
+
+    updateTowerDetailEditor();
 }
 
 QString MainWindow::nextDefaultTowerName() const
@@ -3306,6 +3757,166 @@ QString MainWindow::nextDefaultTowerName() const
         }
         ++towerIndex;
     }
+}
+
+QString MainWindow::nextDefaultIssueTitle() const
+{
+    if (viewer_ == nullptr) {
+        return QString();
+    }
+
+    std::set<QString> existingTitles;
+    for (const InspectionIssue& issue : viewer_->inspectionIssues()) {
+        existingTitles.insert(issue.title.trimmed());
+    }
+
+    int issueIndex = 1;
+    while (true) {
+        const QString candidate = tr("Issue %1").arg(QLocale().toString(issueIndex));
+        if (existingTitles.find(candidate) == existingTitles.end()) {
+            return candidate;
+        }
+        ++issueIndex;
+    }
+}
+
+void MainWindow::updateTowerDetailEditor()
+{
+    if (viewer_ == nullptr || towerCodeEdit_ == nullptr) {
+        return;
+    }
+
+    updatingTowerDetails_ = true;
+    const QList<TowerRecord>& towers = viewer_->towerMarkers();
+    const int selectedTowerIndex = viewer_->selectedTowerIndex();
+    const bool hasSelection = selectedTowerIndex >= 0 && selectedTowerIndex < towers.size();
+
+    const TowerRecord towerRecord = hasSelection ? towers.at(selectedTowerIndex) : TowerRecord();
+    towerCodeEdit_->setText(towerRecord.code);
+    towerLineNameEdit_->setText(towerRecord.lineName);
+    towerVoltageLevelEdit_->setText(towerRecord.voltageLevel);
+    towerStructureTypeEdit_->setText(towerRecord.structureType);
+    towerInspectionDateEdit_->setText(towerRecord.inspectionDate);
+    towerStatusEdit_->setText(towerRecord.status);
+    towerNotesEdit_->setPlainText(towerRecord.notes);
+
+    const QList<QWidget*> editors = {
+        towerCodeEdit_,
+        towerLineNameEdit_,
+        towerVoltageLevelEdit_,
+        towerStructureTypeEdit_,
+        towerInspectionDateEdit_,
+        towerStatusEdit_,
+        towerNotesEdit_
+    };
+    for (QWidget* editor : editors) {
+        if (editor != nullptr) {
+            editor->setEnabled(hasSelection && towerEditingEnabled_);
+        }
+    }
+    updatingTowerDetails_ = false;
+}
+
+void MainWindow::updateIssuePanel()
+{
+    if (viewer_ == nullptr || issueTableWidget_ == nullptr || issueCountValueLabel_ == nullptr || issueToolStatusLabel_ == nullptr) {
+        return;
+    }
+
+    const QList<InspectionIssue>& issues = viewer_->inspectionIssues();
+    issueCountValueLabel_->setText(
+        issues.isEmpty()
+            ? tr("No inspection issues yet. Use the toolbar above to mark one from the point cloud.")
+            : tr("%1 inspection issue(s)").arg(QLocale().toString(issues.size())));
+    issueToolStatusLabel_->setText(
+        viewer_->issueEditMode() == IssueEditMode::Add
+            ? tr("Issue tool: click points in the view continuously to add inspection issues. Right-click to cancel the tool.")
+            : tr("Select an issue to edit its business details, focus the scene, or export reports."));
+
+    const int selectedRow = viewer_->selectedIssueIndex();
+    const QSignalBlocker blocker(issueTableWidget_);
+    issueTableWidget_->setRowCount(0);
+    for (int issueIndex = 0; issueIndex < issues.size(); ++issueIndex) {
+        const InspectionIssue& issue = issues.at(issueIndex);
+        issueTableWidget_->insertRow(issueIndex);
+
+        auto* indexItem = new QTableWidgetItem(QLocale().toString(issueIndex + 1));
+        indexItem->setFlags((indexItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        indexItem->setTextAlignment(Qt::AlignCenter);
+        issueTableWidget_->setItem(issueIndex, 0, indexItem);
+
+        auto* titleItem = new QTableWidgetItem(issue.title);
+        titleItem->setFlags((titleItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        issueTableWidget_->setItem(issueIndex, 1, titleItem);
+
+        const QStringList rowValues = {
+            issueSeverityDisplayName(issue.severity),
+            issueStatusDisplayName(issue.status),
+            issue.relatedTowerName,
+            issue.category
+        };
+        for (int valueIndex = 0; valueIndex < rowValues.size(); ++valueIndex) {
+            auto* valueItem = new QTableWidgetItem(rowValues.at(valueIndex));
+            valueItem->setFlags((valueItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+            issueTableWidget_->setItem(issueIndex, valueIndex + 2, valueItem);
+        }
+    }
+
+    if (issueTableWidget_->rowCount() > 0 && selectedRow >= 0) {
+        issueTableWidget_->setCurrentCell(std::clamp(selectedRow, 0, issueTableWidget_->rowCount() - 1), 1);
+    } else {
+        issueTableWidget_->clearSelection();
+    }
+
+    updateIssueDetailEditor();
+}
+
+void MainWindow::updateIssueDetailEditor()
+{
+    if (viewer_ == nullptr || issueTitleEdit_ == nullptr) {
+        return;
+    }
+
+    updatingIssueDetails_ = true;
+    const QList<InspectionIssue>& issues = viewer_->inspectionIssues();
+    const QList<TowerRecord>& towers = viewer_->towerMarkers();
+    const int selectedIssueIndex = viewer_->selectedIssueIndex();
+    const bool hasSelection = selectedIssueIndex >= 0 && selectedIssueIndex < issues.size();
+    const InspectionIssue issue = hasSelection ? issues.at(selectedIssueIndex) : InspectionIssue();
+
+    issueTitleEdit_->setText(issue.title);
+    issueCategoryComboBox_->setEditText(issue.category);
+    issueSeverityComboBox_->setCurrentIndex(static_cast<int>(issue.severity));
+    issueStatusComboBox_->setCurrentIndex(static_cast<int>(issue.status));
+    issueImagePathEdit_->setText(issue.imagePath);
+    issueDescriptionEdit_->setPlainText(issue.description);
+    issueLocationValueLabel_->setText(
+        hasSelection ? formatTriplet(issue.point.x, issue.point.y, issue.point.z) : tr("N/A"));
+    issueCreatedAtValueLabel_->setText(hasSelection ? issue.createdAt : tr("N/A"));
+
+    issueRelatedTowerComboBox_->clear();
+    issueRelatedTowerComboBox_->addItem(tr("None"), -1);
+    for (int towerIndex = 0; towerIndex < towers.size(); ++towerIndex) {
+        issueRelatedTowerComboBox_->addItem(towers.at(towerIndex).name, towerIndex);
+    }
+    const int relatedTowerOption = issueRelatedTowerComboBox_->findData(issue.relatedTowerIndex);
+    issueRelatedTowerComboBox_->setCurrentIndex(relatedTowerOption >= 0 ? relatedTowerOption : 0);
+
+    const QList<QWidget*> editors = {
+        issueTitleEdit_,
+        issueCategoryComboBox_,
+        issueSeverityComboBox_,
+        issueStatusComboBox_,
+        issueRelatedTowerComboBox_,
+        issueImagePathEdit_,
+        issueDescriptionEdit_
+    };
+    for (QWidget* editor : editors) {
+        if (editor != nullptr) {
+            editor->setEnabled(hasSelection);
+        }
+    }
+    updatingIssueDetails_ = false;
 }
 
 void MainWindow::setTowerEditingEnabled(bool enabled)

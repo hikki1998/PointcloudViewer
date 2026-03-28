@@ -131,10 +131,14 @@ private:
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
     void updateTowerPanel();
+    void updateIssuePanel();
+    void updateTowerDetailEditor();
+    void updateIssueDetailEditor();
     QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
     void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
     void updateVisualizationTooltips();
     QString nextDefaultTowerName() const;
+    QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
     void setTowerEditingEnabled(bool enabled);
     void applyLanguage(UiLanguage language);
@@ -170,6 +174,10 @@ private:
     QFormLayout* measurementLayout_ = nullptr;
     QGroupBox* navigationGroupBox_ = nullptr;
     QFormLayout* navigationToggleLayout_ = nullptr;
+    QGroupBox* towerDetailsGroupBox_ = nullptr;
+    QFormLayout* towerDetailsLayout_ = nullptr;
+    QGroupBox* issueDetailsGroupBox_ = nullptr;
+    QFormLayout* issueDetailsLayout_ = nullptr;
 
     QLabel* datasetNameValueLabel_ = nullptr;
     QLabel* datasetPathValueLabel_ = nullptr;
@@ -183,6 +191,10 @@ private:
     QLabel* measurementDeltaZValueLabel_ = nullptr;
     QLabel* towerCountValueLabel_ = nullptr;
     QLabel* towerToolStatusLabel_ = nullptr;
+    QLabel* issueCountValueLabel_ = nullptr;
+    QLabel* issueToolStatusLabel_ = nullptr;
+    QLabel* issueLocationValueLabel_ = nullptr;
+    QLabel* issueCreatedAtValueLabel_ = nullptr;
 
     QWidget* pointSizeControl_ = nullptr;
     QWidget* pointOpacityControl_ = nullptr;
@@ -211,11 +223,29 @@ private:
     QLineEdit* projectSearchEdit_ = nullptr;
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
+    QTableWidget* issueTableWidget_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
+    QToolBar* issueToolBar_ = nullptr;
     QToolButton* towerMenuButton_ = nullptr;
     QMenu* towerActionsMenu_ = nullptr;
+    QToolButton* issueMenuButton_ = nullptr;
+    QMenu* issueActionsMenu_ = nullptr;
     QPlainTextEdit* logTextEdit_ = nullptr;
+    QLineEdit* towerCodeEdit_ = nullptr;
+    QLineEdit* towerLineNameEdit_ = nullptr;
+    QLineEdit* towerVoltageLevelEdit_ = nullptr;
+    QLineEdit* towerStructureTypeEdit_ = nullptr;
+    QLineEdit* towerInspectionDateEdit_ = nullptr;
+    QLineEdit* towerStatusEdit_ = nullptr;
+    QPlainTextEdit* towerNotesEdit_ = nullptr;
+    QLineEdit* issueTitleEdit_ = nullptr;
+    QComboBox* issueCategoryComboBox_ = nullptr;
+    QComboBox* issueSeverityComboBox_ = nullptr;
+    QComboBox* issueStatusComboBox_ = nullptr;
+    QComboBox* issueRelatedTowerComboBox_ = nullptr;
+    QLineEdit* issueImagePathEdit_ = nullptr;
+    QPlainTextEdit* issueDescriptionEdit_ = nullptr;
     QWidget* windowControlsWidget_ = nullptr;
     QToolButton* minimizeButton_ = nullptr;
     QToolButton* maximizeButton_ = nullptr;
@@ -261,6 +291,13 @@ private:
     QAction* showTowerXAction_ = nullptr;
     QAction* showTowerYAction_ = nullptr;
     QAction* showTowerZAction_ = nullptr;
+    QAction* startIssueMarkAction_ = nullptr;
+    QAction* cancelIssueToolAction_ = nullptr;
+    QAction* focusIssueAction_ = nullptr;
+    QAction* removeIssueAction_ = nullptr;
+    QAction* clearIssuesAction_ = nullptr;
+    QAction* exportIssuesCsvAction_ = nullptr;
+    QAction* exportInspectionReportAction_ = nullptr;
     QAction* showLogAction_ = nullptr;
     QAction* languageEnglishAction_ = nullptr;
     QAction* languageChineseAction_ = nullptr;
@@ -270,4 +307,6 @@ private:
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
     bool towerEditingEnabled_ = false;
+    bool updatingTowerDetails_ = false;
+    bool updatingIssueDetails_ = false;
 };

@@ -1,6 +1,7 @@
 #include "gui/PointCloudViewer.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFrame>
@@ -287,7 +288,7 @@ osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& meas
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerMarker>& towerMarkers)
+osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerRecord>& towerMarkers)
 {
     if (towerMarkers.isEmpty()) {
         return nullptr;
@@ -315,6 +316,53 @@ osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerMarker>& towerM
     stateSet->setAttributeAndModes(new osg::Point(12.0f), osg::StateAttribute::ON);
     applyMeasurementForegroundState(stateSet);
 
+    return geode;
+}
+
+osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>& issues)
+{
+    if (issues.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+
+    for (const InspectionIssue& issue : issues) {
+        vertices->push_back(osg::Vec3(issue.point.x, issue.point.y, issue.point.z));
+
+        osg::Vec4 color(0.93f, 0.27f, 0.27f, 1.0f);
+        switch (issue.severity) {
+        case IssueSeverity::Info:
+            color = osg::Vec4(0.29f, 0.60f, 0.94f, 1.0f);
+            break;
+        case IssueSeverity::Minor:
+            color = osg::Vec4(0.98f, 0.76f, 0.24f, 1.0f);
+            break;
+        case IssueSeverity::Major:
+            color = osg::Vec4(0.96f, 0.49f, 0.20f, 1.0f);
+            break;
+        case IssueSeverity::Critical:
+        default:
+            color = osg::Vec4(0.86f, 0.16f, 0.16f, 1.0f);
+            break;
+        }
+        colors->push_back(color);
+    }
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setAttributeAndModes(new osg::Point(13.0f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
     return geode;
 }
 }
@@ -690,6 +738,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
         updateMeasurementOverlayWidgets();
         updateTowerOverlayWidgets();
+        updateInspectionIssueOverlayWidgets();
         updateAxisIndicator();
     });
 
@@ -767,6 +816,9 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     selectedTowerIndex_ = -1;
     towerEditMode_ = TowerEditMode::None;
     towerEditTargetIndex_ = -1;
+    inspectionIssues_.clear();
+    selectedIssueIndex_ = -1;
+    issueEditMode_ = IssueEditMode::None;
     updateSceneClickCapture();
     resetMeasurementState(false);
 
@@ -793,6 +845,9 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     emit selectedTowerChanged(selectedTowerIndex_);
     emit towerEditModeChanged();
     emit towerMarkersChanged();
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit issueEditModeChanged();
+    emit inspectionIssuesChanged();
     return true;
 }
 
@@ -890,6 +945,9 @@ void PointCloudViewer::clearPointCloud()
     selectedTowerIndex_ = -1;
     towerEditMode_ = TowerEditMode::None;
     towerEditTargetIndex_ = -1;
+    inspectionIssues_.clear();
+    selectedIssueIndex_ = -1;
+    issueEditMode_ = IssueEditMode::None;
     updateSceneClickCapture();
     resetMeasurementState(false);
 
@@ -899,8 +957,10 @@ void PointCloudViewer::clearPointCloud()
 
     pointCloudNode_ = nullptr;
     towerMarkersNode_ = nullptr;
+    inspectionIssuesNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
     updateTowerOverlayWidgets();
+    updateInspectionIssueOverlayWidgets();
     updateMessage(
         tr("Scene cleared"),
         tr("Open one or more LAS or LAZ files to continue."));
@@ -914,6 +974,9 @@ void PointCloudViewer::clearPointCloud()
     emit selectedTowerChanged(selectedTowerIndex_);
     emit towerEditModeChanged();
     emit towerMarkersChanged();
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit issueEditModeChanged();
+    emit inspectionIssuesChanged();
 }
 
 bool PointCloudViewer::hasPointCloud() const
@@ -966,14 +1029,24 @@ PointRecord PointCloudViewer::hoveredPoint() const
     return hoveredPoint_;
 }
 
-const QList<TowerMarker>& PointCloudViewer::towerMarkers() const
+const QList<TowerRecord>& PointCloudViewer::towerMarkers() const
 {
     return towerMarkers_;
+}
+
+const QList<InspectionIssue>& PointCloudViewer::inspectionIssues() const
+{
+    return inspectionIssues_;
 }
 
 int PointCloudViewer::selectedTowerIndex() const
 {
     return selectedTowerIndex_;
+}
+
+int PointCloudViewer::selectedIssueIndex() const
+{
+    return selectedIssueIndex_;
 }
 
 TowerEditMode PointCloudViewer::towerEditMode() const
@@ -984,6 +1057,11 @@ TowerEditMode PointCloudViewer::towerEditMode() const
 int PointCloudViewer::towerEditTargetIndex() const
 {
     return towerEditTargetIndex_;
+}
+
+IssueEditMode PointCloudViewer::issueEditMode() const
+{
+    return issueEditMode_;
 }
 
 void PointCloudViewer::setPointSize(int pointSize)
@@ -1229,7 +1307,9 @@ void PointCloudViewer::updateSceneClickCapture()
     const bool sceneClickEnabled =
         measurementEnabled_
         || towerEditMode_ != TowerEditMode::None
-        || !towerMarkers_.isEmpty();
+        || issueEditMode_ != IssueEditMode::None
+        || !towerMarkers_.isEmpty()
+        || !inspectionIssues_.isEmpty();
     osgWidget_->setSceneClickModeEnabled(sceneClickEnabled);
 }
 
@@ -1245,7 +1325,7 @@ bool PointCloudViewer::insertTowerMarker(int index, const QString& name, const P
         return false;
     }
 
-    TowerMarker towerMarker;
+    TowerRecord towerMarker;
     towerMarker.name = trimmedName;
     towerMarker.point = point;
     towerMarkers_.insert(index, towerMarker);
@@ -1277,7 +1357,7 @@ bool PointCloudViewer::addTowerMarkerFromHoveredPoint(const QString& name, QStri
     return true;
 }
 
-void PointCloudViewer::setTowerMarkers(const QList<TowerMarker>& towerMarkers)
+void PointCloudViewer::setTowerMarkers(const QList<TowerRecord>& towerMarkers)
 {
     towerMarkers_ = towerMarkers;
     selectedTowerIndex_ = towerMarkers_.isEmpty() ? -1 : std::clamp(selectedTowerIndex_, 0, towerMarkers_.size() - 1);
@@ -1309,6 +1389,19 @@ bool PointCloudViewer::setTowerMarkerName(int index, const QString& name)
     return true;
 }
 
+bool PointCloudViewer::setTowerRecord(int index, const TowerRecord& towerRecord)
+{
+    if (index < 0 || index >= towerMarkers_.size() || towerRecord.name.trimmed().isEmpty()) {
+        return false;
+    }
+
+    towerMarkers_[index] = towerRecord;
+    towerMarkers_[index].name = towerRecord.name.trimmed();
+    refreshTowerMarkersOverlay();
+    emit towerMarkersChanged();
+    return true;
+}
+
 void PointCloudViewer::setSelectedTowerIndex(int index)
 {
     const int normalizedIndex = (index >= 0 && index < towerMarkers_.size()) ? index : -1;
@@ -1317,8 +1410,11 @@ void PointCloudViewer::setSelectedTowerIndex(int index)
     }
 
     selectedTowerIndex_ = normalizedIndex;
+    selectedIssueIndex_ = -1;
     refreshTowerMarkersOverlay();
+    refreshInspectionIssuesOverlay();
     emit selectedTowerChanged(selectedTowerIndex_);
+    emit selectedIssueChanged(selectedIssueIndex_);
 }
 
 bool PointCloudViewer::removeTowerMarker(int index)
@@ -1376,6 +1472,7 @@ void PointCloudViewer::beginTowerAddMode()
 {
     towerEditMode_ = TowerEditMode::AddAfterLast;
     towerEditTargetIndex_ = -1;
+    cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
     } else {
@@ -1391,8 +1488,10 @@ void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
     }
 
     selectedTowerIndex_ = beforeIndex;
+    selectedIssueIndex_ = -1;
     towerEditMode_ = TowerEditMode::InsertBeforeSelected;
     towerEditTargetIndex_ = beforeIndex;
+    cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
     } else {
@@ -1410,8 +1509,10 @@ void PointCloudViewer::beginTowerMoveMode(int towerIndex)
     }
 
     selectedTowerIndex_ = towerIndex;
+    selectedIssueIndex_ = -1;
     towerEditMode_ = TowerEditMode::MoveSelected;
     towerEditTargetIndex_ = towerIndex;
+    cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
     } else {
@@ -1432,6 +1533,131 @@ void PointCloudViewer::cancelTowerEditMode()
     towerEditTargetIndex_ = -1;
     updateSceneClickCapture();
     emit towerEditModeChanged();
+}
+
+void PointCloudViewer::setInspectionIssues(const QList<InspectionIssue>& issues)
+{
+    inspectionIssues_ = issues;
+    selectedIssueIndex_ = inspectionIssues_.isEmpty() ? -1 : std::clamp(selectedIssueIndex_, 0, inspectionIssues_.size() - 1);
+    updateSceneClickCapture();
+    refreshInspectionIssuesOverlay();
+    updateFooter();
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit inspectionIssuesChanged();
+}
+
+bool PointCloudViewer::addInspectionIssue(const InspectionIssue& issue)
+{
+    if (issue.title.trimmed().isEmpty()) {
+        return false;
+    }
+
+    InspectionIssue normalizedIssue = issue;
+    normalizedIssue.id = normalizedIssue.id.trimmed().isEmpty() ? issueDefaultId() : normalizedIssue.id.trimmed();
+    normalizedIssue.title = normalizedIssue.title.trimmed();
+    if (normalizedIssue.createdAt.trimmed().isEmpty()) {
+        normalizedIssue.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
+    }
+    inspectionIssues_.append(normalizedIssue);
+    selectedIssueIndex_ = inspectionIssues_.size() - 1;
+    selectedTowerIndex_ = -1;
+    updateSceneClickCapture();
+    refreshInspectionIssuesOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit inspectionIssuesChanged();
+    return true;
+}
+
+bool PointCloudViewer::updateInspectionIssue(int index, const InspectionIssue& issue)
+{
+    if (index < 0 || index >= inspectionIssues_.size() || issue.title.trimmed().isEmpty()) {
+        return false;
+    }
+
+    InspectionIssue normalizedIssue = issue;
+    normalizedIssue.id = normalizedIssue.id.trimmed().isEmpty() ? issueDefaultId() : normalizedIssue.id.trimmed();
+    normalizedIssue.title = normalizedIssue.title.trimmed();
+    if (normalizedIssue.createdAt.trimmed().isEmpty()) {
+        normalizedIssue.createdAt = inspectionIssues_.at(index).createdAt;
+    }
+    inspectionIssues_[index] = normalizedIssue;
+    refreshInspectionIssuesOverlay();
+    emit inspectionIssuesChanged();
+    return true;
+}
+
+bool PointCloudViewer::removeInspectionIssue(int index)
+{
+    if (index < 0 || index >= inspectionIssues_.size()) {
+        return false;
+    }
+
+    inspectionIssues_.removeAt(index);
+    selectedIssueIndex_ = inspectionIssues_.isEmpty() ? -1 : std::clamp(index, 0, inspectionIssues_.size() - 1);
+    updateSceneClickCapture();
+    refreshInspectionIssuesOverlay();
+    updateFooter();
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit inspectionIssuesChanged();
+    return true;
+}
+
+void PointCloudViewer::clearInspectionIssues()
+{
+    if (inspectionIssues_.isEmpty()) {
+        return;
+    }
+
+    inspectionIssues_.clear();
+    selectedIssueIndex_ = -1;
+    cancelIssueEditMode();
+    updateSceneClickCapture();
+    refreshInspectionIssuesOverlay();
+    updateFooter();
+    emit selectedIssueChanged(selectedIssueIndex_);
+    emit inspectionIssuesChanged();
+}
+
+void PointCloudViewer::setSelectedIssueIndex(int index)
+{
+    const int normalizedIndex = (index >= 0 && index < inspectionIssues_.size()) ? index : -1;
+    if (selectedIssueIndex_ == normalizedIndex) {
+        return;
+    }
+
+    selectedIssueIndex_ = normalizedIndex;
+    if (selectedIssueIndex_ >= 0) {
+        selectedTowerIndex_ = -1;
+        emit selectedTowerChanged(selectedTowerIndex_);
+    }
+    refreshInspectionIssuesOverlay();
+    refreshTowerMarkersOverlay();
+    emit selectedIssueChanged(selectedIssueIndex_);
+}
+
+void PointCloudViewer::beginIssueAddMode()
+{
+    issueEditMode_ = IssueEditMode::Add;
+    cancelTowerEditMode();
+    if (measurementEnabled_) {
+        setMeasurementEnabled(false);
+    } else {
+        updateSceneClickCapture();
+    }
+    emit issueEditModeChanged();
+}
+
+void PointCloudViewer::cancelIssueEditMode()
+{
+    if (issueEditMode_ == IssueEditMode::None) {
+        return;
+    }
+
+    issueEditMode_ = IssueEditMode::None;
+    updateSceneClickCapture();
+    emit issueEditModeChanged();
 }
 
 bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceScale)
@@ -1560,6 +1786,7 @@ void PointCloudViewer::rebuildScene()
     rootGroup_->removeChildren(0, rootGroup_->getNumChildren());
     pointCloudNode_ = nullptr;
     towerMarkersNode_ = nullptr;
+    inspectionIssuesNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
 
     if (!hasPointCloud()) {
@@ -1567,6 +1794,7 @@ void PointCloudViewer::rebuildScene()
             osgWidget_->update();
         }
         updateTowerOverlayWidgets();
+        updateInspectionIssueOverlayWidgets();
         updateMeasurementOverlayWidgets();
         return;
     }
@@ -1577,6 +1805,7 @@ void PointCloudViewer::rebuildScene()
     }
 
     refreshTowerMarkersOverlay();
+    refreshInspectionIssuesOverlay();
     refreshMeasurementOverlay();
 }
 
@@ -1604,6 +1833,7 @@ void PointCloudViewer::updateFooter()
         .arg(visualizationOptions_.showAxes ? tr("on") : tr("off"))
         .arg(visualizationOptions_.showBoundingBox ? tr("on") : tr("off"));
     detail += tr(" | Towers %1").arg(QLocale().toString(towerMarkers_.size()));
+    detail += tr(" | Issues %1").arg(QLocale().toString(inspectionIssues_.size()));
 
     if (measurementEnabled_) {
         if (measurementResult_.isComplete()) {
@@ -1616,6 +1846,10 @@ void PointCloudViewer::updateFooter()
         } else {
             detail += tr(" | Measurement: pick the first point");
         }
+    }
+
+    if (issueEditMode_ == IssueEditMode::Add) {
+        detail += tr(" | Issue marking: click a point to add an issue, right-click to cancel");
     }
 
     detail += tr(" | Opacity %1% | Depth Cue %2 | EDL-style %3")
@@ -1716,11 +1950,21 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
 
 void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 {
-    if (towerEditMode_ == TowerEditMode::None && !measurementEnabled_ && towerMarkers_.isEmpty()) {
+    if (towerEditMode_ == TowerEditMode::None
+        && issueEditMode_ == IssueEditMode::None
+        && !measurementEnabled_
+        && towerMarkers_.isEmpty()
+        && inspectionIssues_.isEmpty()) {
         return;
     }
 
-    if (towerEditMode_ == TowerEditMode::None && !measurementEnabled_) {
+    if (towerEditMode_ == TowerEditMode::None && issueEditMode_ == IssueEditMode::None && !measurementEnabled_) {
+        const int pickedIssueIndex = pickInspectionIssueAtScreenPosition(localPos);
+        if (pickedIssueIndex >= 0) {
+            setSelectedIssueIndex(pickedIssueIndex);
+            return;
+        }
+
         setSelectedTowerIndex(pickTowerMarkerAtScreenPosition(localPos));
         return;
     }
@@ -1741,6 +1985,11 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
             emit towerEditModeChanged();
         }
         emit towerEditRequested(pickedPoint, static_cast<int>(requestedMode), targetIndex);
+        return;
+    }
+
+    if (issueEditMode_ == IssueEditMode::Add) {
+        emit issueEditRequested(pickedPoint);
         return;
     }
 
@@ -1766,6 +2015,12 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
 {
     Q_UNUSED(localPos);
+
+    if (issueEditMode_ == IssueEditMode::Add) {
+        cancelIssueEditMode();
+        emit measurementMessage(tr("Issue marking cancelled."), false);
+        return;
+    }
 
     if (!measurementEnabled_) {
         return;
@@ -1947,6 +2202,59 @@ int PointCloudViewer::pickTowerMarkerAtScreenPosition(const QPointF& localPos, f
     return bestIndex;
 }
 
+int PointCloudViewer::pickInspectionIssueAtScreenPosition(const QPointF& localPos, float tolerancePixels) const
+{
+    if (inspectionIssues_.isEmpty() || osgWidget_ == nullptr) {
+        return -1;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr || viewer->getCamera()->getViewport() == nullptr) {
+        return -1;
+    }
+
+    osg::Camera* camera = viewer->getCamera();
+    const osg::Matrixd worldToWindow =
+        camera->getViewMatrix() *
+        camera->getProjectionMatrix() *
+        camera->getViewport()->computeWindowMatrix();
+
+    const double devicePixelRatio = osgWidget_->devicePixelRatioF();
+    const double clickX = localPos.x() * devicePixelRatio;
+    const double clickY = (static_cast<double>(osgWidget_->height()) - localPos.y()) * devicePixelRatio;
+    const double tolerance = static_cast<double>(tolerancePixels) * devicePixelRatio;
+    const double toleranceSquared = tolerance * tolerance;
+
+    int bestIndex = -1;
+    double bestDistanceSquared = toleranceSquared;
+    double bestDepth = std::numeric_limits<double>::max();
+
+    for (int issueIndex = 0; issueIndex < inspectionIssues_.size(); ++issueIndex) {
+        const InspectionIssue& issue = inspectionIssues_.at(issueIndex);
+        const osg::Vec3d projected = osg::Vec3d(issue.point.x, issue.point.y, issue.point.z) * worldToWindow;
+        if (projected.z() < 0.0 || projected.z() > 1.0) {
+            continue;
+        }
+
+        const double dx = projected.x() - clickX;
+        const double dy = projected.y() - clickY;
+        const double distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > bestDistanceSquared) {
+            continue;
+        }
+
+        if (bestIndex < 0
+            || distanceSquared < bestDistanceSquared - 0.001
+            || (std::abs(distanceSquared - bestDistanceSquared) <= 0.001 && projected.z() < bestDepth)) {
+            bestIndex = issueIndex;
+            bestDistanceSquared = distanceSquared;
+            bestDepth = projected.z();
+        }
+    }
+
+    return bestIndex;
+}
+
 osg::ref_ptr<osg::Node> PointCloudViewer::buildMeasurementOverlay() const
 {
     if (!measurementResult_.hasStartPoint) {
@@ -1975,6 +2283,16 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildTowerMarkersOverlay() const
     }
 
     osg::ref_ptr<osg::Geode> markersGeode = buildTowerMarkersGeode(towerMarkers_);
+    return markersGeode.release();
+}
+
+osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionIssuesOverlay() const
+{
+    if (inspectionIssues_.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Geode> markersGeode = buildInspectionIssuesGeode(inspectionIssues_);
     return markersGeode.release();
 }
 
@@ -2149,6 +2467,76 @@ void PointCloudViewer::updateTowerOverlayWidgets()
     }
 }
 
+void PointCloudViewer::updateInspectionIssueOverlayWidgets()
+{
+    if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    while (issueOverlayLabels_.size() < inspectionIssues_.size()) {
+        auto* label = new QLabel(osgWidget_);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        label->hide();
+        issueOverlayLabels_.append(label);
+    }
+
+    for (int issueIndex = 0; issueIndex < issueOverlayLabels_.size(); ++issueIndex) {
+        QLabel* label = issueOverlayLabels_.at(issueIndex);
+        if (label == nullptr) {
+            continue;
+        }
+
+        if (issueIndex >= inspectionIssues_.size()) {
+            label->hide();
+            continue;
+        }
+
+        bool pointVisible = false;
+        const InspectionIssue& issue = inspectionIssues_.at(issueIndex);
+        const QPointF anchor = projectPointToViewport(issue.point, &pointVisible);
+        if (!pointVisible) {
+            label->hide();
+            continue;
+        }
+
+        QString backgroundColor = QStringLiteral("rgba(153, 27, 27, 220)");
+        QString borderColor = QStringLiteral("rgba(252, 165, 165, 180)");
+        switch (issue.severity) {
+        case IssueSeverity::Info:
+            backgroundColor = QStringLiteral("rgba(30, 64, 175, 220)");
+            borderColor = QStringLiteral("rgba(147, 197, 253, 190)");
+            break;
+        case IssueSeverity::Minor:
+            backgroundColor = QStringLiteral("rgba(161, 98, 7, 220)");
+            borderColor = QStringLiteral("rgba(253, 230, 138, 190)");
+            break;
+        case IssueSeverity::Major:
+            backgroundColor = QStringLiteral("rgba(194, 65, 12, 220)");
+            borderColor = QStringLiteral("rgba(253, 186, 116, 190)");
+            break;
+        case IssueSeverity::Critical:
+        default:
+            break;
+        }
+
+        const bool isSelected = issueIndex == selectedIssueIndex_;
+        label->setText(issue.title);
+        label->setStyleSheet(QStringLiteral(
+            "QLabel {"
+            "background-color: %1;"
+            "color: #fff7ed;"
+            "border: 1px solid %2;"
+            "border-radius: 8px;"
+            "padding: 4px 8px;"
+            "font-size: 12px;"
+            "font-weight: 600;"
+            "}").arg(
+                isSelected ? QStringLiteral("rgba(126, 34, 206, 230)") : backgroundColor,
+                isSelected ? QStringLiteral("rgba(233, 213, 255, 220)") : borderColor));
+        positionOverlayLabel(label, anchor, QPoint(14, 16));
+    }
+}
+
 void PointCloudViewer::refreshMeasurementOverlay()
 {
     if (rootGroup_.valid() && measurementOverlayNode_.valid()) {
@@ -2184,6 +2572,26 @@ void PointCloudViewer::refreshTowerMarkersOverlay()
     }
 
     updateTowerOverlayWidgets();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
+void PointCloudViewer::refreshInspectionIssuesOverlay()
+{
+    if (rootGroup_.valid() && inspectionIssuesNode_.valid()) {
+        rootGroup_->removeChild(inspectionIssuesNode_.get());
+        inspectionIssuesNode_ = nullptr;
+    }
+
+    if (rootGroup_.valid() && !inspectionIssues_.isEmpty()) {
+        inspectionIssuesNode_ = buildInspectionIssuesOverlay();
+        if (inspectionIssuesNode_.valid()) {
+            rootGroup_->addChild(inspectionIssuesNode_.get());
+        }
+    }
+
+    updateInspectionIssueOverlayWidgets();
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }

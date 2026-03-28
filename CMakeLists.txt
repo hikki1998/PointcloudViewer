@@ -433,6 +433,8 @@ endif()
 
 set(SOURCES
     src/main.cpp
+    src/domain/InspectionData.cpp
+    src/domain/InspectionReportExporter.cpp
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
@@ -441,6 +443,8 @@ set(SOURCES
 )
 
 set(HEADERS
+    src/domain/InspectionData.h
+    src/domain/InspectionReportExporter.h
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
     src/pointcloud/LasReader.h
@@ -480,6 +484,7 @@ else()
 endif()
 
 set(COMMON_SOURCES
+    src/domain/InspectionData.cpp
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
@@ -487,6 +492,7 @@ set(COMMON_SOURCES
 )
 
 set(COMMON_HEADERS
+    src/domain/InspectionData.h
     src/gui/PointCloudViewer.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
