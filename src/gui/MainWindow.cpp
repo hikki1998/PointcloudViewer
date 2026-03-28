@@ -7,11 +7,13 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
@@ -19,6 +21,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHash>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QJsonArray>
@@ -27,6 +30,7 @@
 #include <QLabel>
 #include <QLinearGradient>
 #include <QLibraryInfo>
+#include <QLineEdit>
 #include <QLocale>
 #include <QMenu>
 #include <QMimeData>
@@ -38,6 +42,7 @@
 #include <QFile>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QGuiApplication>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
@@ -50,6 +55,9 @@
 #include <QTableWidget>
 #include <QTableWidgetItem>
 #include <QTabWidget>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QTreeWidgetItemIterator>
 #include <QToolButton>
 #include <QToolBar>
 #include <QTranslator>
@@ -84,6 +92,8 @@ const QColor kWindowChromeDark(51, 65, 85);
 const QColor kRibbonGlyphColor(28, 64, 111);
 const QColor kRibbonAccentColor(59, 130, 246);
 constexpr int kWindowResizeBorder = 8;
+constexpr int kProjectTreeItemTypeRole = Qt::UserRole;
+constexpr int kProjectTreeFilePathRole = Qt::UserRole + 1;
 
 enum class RibbonGlyph
 {
@@ -183,6 +193,25 @@ bool isSupportedPointCloudFile(const QString& filePath)
 
     const QString suffix = fileInfo.suffix().toLower();
     return suffix == QStringLiteral("las") || suffix == QStringLiteral("laz");
+}
+
+QString datasetPathSummary(const QStringList& filePaths)
+{
+    if (filePaths.isEmpty()) {
+        return QString();
+    }
+
+    QStringList lines;
+    const int visibleCount = std::min(4, filePaths.size());
+    for (int index = 0; index < visibleCount; ++index) {
+        lines.append(filePaths.at(index));
+    }
+    if (filePaths.size() > visibleCount) {
+        lines.append(
+            QCoreApplication::translate("MainWindow", "... and %1 more")
+                .arg(QLocale().toString(filePaths.size() - visibleCount)));
+    }
+    return lines.join(QLatin1Char('\n'));
 }
 
 QString projectRelativePathFor(const QString& projectFilePath, const QString& targetFilePath)
@@ -500,12 +529,16 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
 
     createActions();
     createRibbon();
+    createProjectDock();
     createInspectorPanel();
     createLogDock();
     createStatusBar();
     setDockNestingEnabled(true);
     setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    if (projectDock_ != nullptr && inspectorDock_ != nullptr) {
+        resizeDocks({ projectDock_, inspectorDock_ }, { 320, 380 }, Qt::Horizontal);
+    }
     loadInteractionSettings();
     loadVisualizationSettings();
     createConnections();
@@ -515,7 +548,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
 
     syncUiFromViewer();
     updateNavigationHelpText();
-    showUserMessage(LogLevel::Info, tr("Ready. Open or drag a LAS/LAZ file to begin."), 4000);
+    showUserMessage(LogLevel::Info, tr("Ready. Open, add, or drag LAS/LAZ files to begin."), 4000);
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
@@ -549,6 +582,7 @@ void MainWindow::dropEvent(QDropEvent* event)
         return;
     }
 
+    QStringList filePaths;
     const QList<QUrl> urls = event->mimeData()->urls();
     for (const QUrl& url : urls) {
         if (!url.isLocalFile()) {
@@ -560,7 +594,15 @@ void MainWindow::dropEvent(QDropEvent* event)
             continue;
         }
 
-        if (loadPointCloudFile(filePath)) {
+        filePaths.append(filePath);
+    }
+
+    if (!filePaths.isEmpty()) {
+        const bool hasExistingPointCloud = viewer_ != nullptr && viewer_->hasPointCloud();
+        const bool handled = hasExistingPointCloud
+            ? appendPointCloudFiles(filePaths)
+            : loadPointCloudFiles(filePaths);
+        if (handled) {
             event->acceptProposedAction();
         }
         return;
@@ -678,7 +720,19 @@ void MainWindow::createActions()
 {
     openAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Open"), this);
     openAction_->setShortcut(QKeySequence::Open);
-    openAction_->setToolTip(tr("Open a LAS or LAZ dataset"));
+    openAction_->setToolTip(tr("Open one or more LAS or LAZ datasets"));
+    addPointCloudAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Add LAS Files"), this);
+    addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
+    removeDatasetAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Selected Dataset"), this);
+    removeDatasetAction_->setToolTip(tr("Remove the selected LAS or LAZ dataset from the project"));
+    locateDatasetAction_ = new QAction(style()->standardIcon(QStyle::SP_DirOpenIcon), tr("Open Folder"), this);
+    locateDatasetAction_->setToolTip(tr("Open the folder that contains the selected dataset"));
+    copyDatasetPathAction_ = new QAction(style()->standardIcon(QStyle::SP_FileDialogDetailedView), tr("Copy Path"), this);
+    copyDatasetPathAction_->setToolTip(tr("Copy the full path of the selected dataset"));
+    expandProjectTreeAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowDown), tr("Expand All"), this);
+    expandProjectTreeAction_->setToolTip(tr("Expand the project explorer tree"));
+    collapseProjectTreeAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowUp), tr("Collapse All"), this);
+    collapseProjectTreeAction_->setToolTip(tr("Collapse the project explorer tree"));
 
     openProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Open Project"), this);
     saveProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Project"), this);
@@ -739,11 +793,13 @@ void MainWindow::createActions()
 
     clearMeasurementAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Measure"), this);
 
+    startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
+    finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
     addTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Click To Add Tower"), this);
-    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Insert Before Selected"), this);
-    moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Move Selected Tower"), this);
-    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Selected Tower"), this);
-    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Selected Tower"), this);
+    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Insert Before Current"), this);
+    moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Move Current Tower"), this);
+    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Current Tower"), this);
+    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Current Tower"), this);
     clearTowersAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Tower Markers"), this);
     cancelTowerToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Tower Tool"), this);
     showTowerXAction_ = new QAction(tr("Show X"), this);
@@ -797,6 +853,7 @@ void MainWindow::createRibbon()
     homePage_ = ribbonBar_->addPage(tr("Home"));
     datasetRibbonGroup_ = homePage_->addGroup(tr("Dataset"));
     datasetRibbonGroup_->addAction(openAction_, Qt::ToolButtonTextUnderIcon);
+    datasetRibbonGroup_->addAction(addPointCloudAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(openProjectAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(saveProjectAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
@@ -823,14 +880,9 @@ void MainWindow::createRibbon()
     workspaceRibbonGroup_->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
 
     towerPage_ = ribbonBar_->addPage(tr("Tower"));
-    towerRibbonGroup_ = towerPage_->addGroup(tr("Tower Markers"));
-    towerRibbonGroup_->addAction(addTowerAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(insertTowerAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(moveTowerAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(focusTowerAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(removeTowerAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(clearTowersAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(cancelTowerToolAction_, Qt::ToolButtonTextUnderIcon);
+    towerRibbonGroup_ = towerPage_->addGroup(tr("Tower Editing"));
+    towerRibbonGroup_->addAction(startTowerEditAction_, Qt::ToolButtonTextUnderIcon);
+    towerRibbonGroup_->addAction(finishTowerEditAction_, Qt::ToolButtonTextUnderIcon);
 
     appearancePage_ = ribbonBar_->addPage(tr("Appearance"));
     colorRibbonGroup_ = appearancePage_->addGroup(tr("Point Colors"));
@@ -883,6 +935,120 @@ void MainWindow::createWindowControls()
 
     ribbonBar_->setCornerWidget(windowControlsWidget_, Qt::TopRightCorner);
     updateWindowControlButtons();
+}
+
+void MainWindow::createProjectDock()
+{
+    projectDock_ = new QDockWidget(tr("Project Explorer"), this);
+    projectDock_->setObjectName(QStringLiteral("projectExplorerDock"));
+    projectDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    projectDock_->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    projectDock_->setMinimumWidth(280);
+
+    auto* projectDockContents = new QWidget(projectDock_);
+    projectDockContents->setObjectName(QStringLiteral("projectExplorerSurface"));
+    auto* projectDockLayout = new QVBoxLayout(projectDockContents);
+    projectDockLayout->setContentsMargins(12, 12, 12, 12);
+    projectDockLayout->setSpacing(10);
+
+    projectSearchEdit_ = new QLineEdit(projectDockContents);
+    projectSearchEdit_->setObjectName(QStringLiteral("projectExplorerSearch"));
+    projectSearchEdit_->setClearButtonEnabled(true);
+
+    projectToolBar_ = new QToolBar(projectDockContents);
+    projectToolBar_->setObjectName(QStringLiteral("projectExplorerToolBar"));
+    projectToolBar_->setIconSize(QSize(16, 16));
+    projectToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    projectToolBar_->setMovable(false);
+    projectToolBar_->setFloatable(false);
+    projectToolBar_->addAction(openAction_);
+    projectToolBar_->addAction(addPointCloudAction_);
+    projectToolBar_->addAction(removeDatasetAction_);
+    projectToolBar_->addSeparator();
+    projectToolBar_->addAction(locateDatasetAction_);
+    projectToolBar_->addAction(copyDatasetPathAction_);
+    projectToolBar_->addSeparator();
+    projectToolBar_->addAction(expandProjectTreeAction_);
+    projectToolBar_->addAction(collapseProjectTreeAction_);
+
+    projectTreeWidget_ = new QTreeWidget(projectDockContents);
+    projectTreeWidget_->setObjectName(QStringLiteral("projectExplorerTree"));
+    projectTreeWidget_->setColumnCount(1);
+    projectTreeWidget_->setHeaderHidden(true);
+    projectTreeWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    projectTreeWidget_->setAlternatingRowColors(false);
+    projectTreeWidget_->setRootIsDecorated(true);
+    projectTreeWidget_->setUniformRowHeights(true);
+    projectTreeWidget_->setAnimated(true);
+    projectTreeWidget_->setIndentation(18);
+    projectTreeWidget_->setFrameShape(QFrame::NoFrame);
+    projectTreeWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    projectDockLayout->addWidget(projectSearchEdit_);
+    projectDockLayout->addWidget(projectToolBar_);
+    projectDockLayout->addWidget(projectTreeWidget_, 1);
+
+    projectDockContents->setStyleSheet(QStringLiteral(
+        "QWidget#projectExplorerSurface {"
+        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f8fafc, stop:1 #eef4fb);"
+        "border: none;"
+        "}"
+        "QLineEdit#projectExplorerSearch {"
+        "background: rgba(255, 255, 255, 0.92);"
+        "border: 1px solid #d6dee9;"
+        "border-radius: 10px;"
+        "padding: 8px 12px;"
+        "color: #0f172a;"
+        "selection-background-color: #bfdbfe;"
+        "}"
+        "QLineEdit#projectExplorerSearch:focus {"
+        "border-color: #60a5fa;"
+        "}"
+        "QToolBar#projectExplorerToolBar {"
+        "background: rgba(255, 255, 255, 0.7);"
+        "border: 1px solid #d8e0ea;"
+        "border-radius: 10px;"
+        "padding: 4px;"
+        "spacing: 4px;"
+        "}"
+        "QToolBar#projectExplorerToolBar QToolButton {"
+        "background: transparent;"
+        "border: none;"
+        "border-radius: 8px;"
+        "padding: 6px 10px;"
+        "color: #1e293b;"
+        "}"
+        "QToolBar#projectExplorerToolBar QToolButton:hover {"
+        "background: rgba(219, 234, 254, 0.95);"
+        "}"
+        "QToolBar#projectExplorerToolBar QToolButton:pressed,"
+        "QToolBar#projectExplorerToolBar QToolButton:checked {"
+        "background: #2563eb;"
+        "color: #eff6ff;"
+        "}"
+        "QTreeWidget#projectExplorerTree {"
+        "background: rgba(255, 255, 255, 0.84);"
+        "border: 1px solid #d8e0ea;"
+        "border-radius: 12px;"
+        "padding: 8px 6px;"
+        "color: #0f172a;"
+        "outline: none;"
+        "}"
+        "QTreeWidget#projectExplorerTree::item {"
+        "min-height: 28px;"
+        "padding: 4px 8px;"
+        "border-radius: 8px;"
+        "}"
+        "QTreeWidget#projectExplorerTree::item:hover {"
+        "background: rgba(219, 234, 254, 0.85);"
+        "}"
+        "QTreeWidget#projectExplorerTree::item:selected {"
+        "background: #2563eb;"
+        "color: #eff6ff;"
+        "}"));
+
+    projectDock_->setWidget(projectDockContents);
+    addDockWidget(Qt::LeftDockWidgetArea, projectDock_);
 }
 
 void MainWindow::createInspectorPanel()
@@ -1181,6 +1347,20 @@ void MainWindow::createInspectorPanel()
         "QLabel {"
         "color: #1f2937;"
         "}"
+        "QTreeWidget {"
+        "background-color: #ffffff;"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 8px;"
+        "alternate-background-color: #f8fbff;"
+        "padding: 4px;"
+        "}"
+        "QTreeWidget::item {"
+        "padding: 4px 6px;"
+        "}"
+        "QTreeWidget::item:selected {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
         "QGroupBox {"
         "font-weight: 600;"
         "background-color: #ffffff;"
@@ -1373,7 +1553,19 @@ void MainWindow::retranslateUi()
     setWindowTitle(tr("LAS Point Cloud Viewer"));
 
     openAction_->setText(tr("Open"));
-    openAction_->setToolTip(tr("Open a LAS or LAZ dataset"));
+    openAction_->setToolTip(tr("Open one or more LAS or LAZ datasets"));
+    addPointCloudAction_->setText(tr("Add LAS Files"));
+    addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
+    removeDatasetAction_->setText(tr("Remove Selected Dataset"));
+    removeDatasetAction_->setToolTip(tr("Remove the selected LAS or LAZ dataset from the project"));
+    locateDatasetAction_->setText(tr("Open Folder"));
+    locateDatasetAction_->setToolTip(tr("Open the folder that contains the selected dataset"));
+    copyDatasetPathAction_->setText(tr("Copy Path"));
+    copyDatasetPathAction_->setToolTip(tr("Copy the full path of the selected dataset"));
+    expandProjectTreeAction_->setText(tr("Expand All"));
+    expandProjectTreeAction_->setToolTip(tr("Expand the project explorer tree"));
+    collapseProjectTreeAction_->setText(tr("Collapse All"));
+    collapseProjectTreeAction_->setToolTip(tr("Collapse the project explorer tree"));
     openProjectAction_->setText(tr("Open Project"));
     saveProjectAction_->setText(tr("Save Project"));
     saveProjectAsAction_->setText(tr("Save Project As"));
@@ -1397,11 +1589,13 @@ void MainWindow::retranslateUi()
     themeDarkGrayAction_->setText(tr("Dark Gray"));
     measureAction_->setText(tr("Measure"));
     clearMeasurementAction_->setText(tr("Clear Measure"));
+    startTowerEditAction_->setText(tr("Start Editing"));
+    finishTowerEditAction_->setText(tr("Finish Editing"));
     addTowerAction_->setText(tr("Click To Add Tower"));
-    insertTowerAction_->setText(tr("Insert Before Selected"));
-    moveTowerAction_->setText(tr("Move Selected Tower"));
-    focusTowerAction_->setText(tr("Focus Selected Tower"));
-    removeTowerAction_->setText(tr("Remove Selected Tower"));
+    insertTowerAction_->setText(tr("Insert Before Current"));
+    moveTowerAction_->setText(tr("Move Current Tower"));
+    focusTowerAction_->setText(tr("Focus Current Tower"));
+    removeTowerAction_->setText(tr("Remove Current Tower"));
     clearTowersAction_->setText(tr("Clear Tower Markers"));
     cancelTowerToolAction_->setText(tr("Cancel Tower Tool"));
     showTowerXAction_->setText(tr("Show X"));
@@ -1437,7 +1631,7 @@ void MainWindow::retranslateUi()
         workspaceRibbonGroup_->setTitle(tr("Workspace"));
     }
     if (towerRibbonGroup_ != nullptr) {
-        towerRibbonGroup_->setTitle(tr("Tower Markers"));
+        towerRibbonGroup_->setTitle(tr("Tower Editing"));
     }
     if (colorRibbonGroup_ != nullptr) {
         colorRibbonGroup_->setTitle(tr("Point Colors"));
@@ -1449,6 +1643,9 @@ void MainWindow::retranslateUi()
         languageRibbonGroup_->setTitle(tr("Language"));
     }
 
+    if (projectDock_ != nullptr) {
+        projectDock_->setWindowTitle(tr("Project Explorer"));
+    }
     if (inspectorDock_ != nullptr) {
         inspectorDock_->setWindowTitle(tr("Scene Inspector"));
     }
@@ -1464,6 +1661,9 @@ void MainWindow::retranslateUi()
     }
     if (datasetGroupBox_ != nullptr) {
         datasetGroupBox_->setTitle(tr("Dataset Summary"));
+    }
+    if (projectSearchEdit_ != nullptr) {
+        projectSearchEdit_->setPlaceholderText(tr("Filter datasets or folders"));
     }
     if (towerTableWidget_ != nullptr) {
         towerTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Name"), QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") });
@@ -1533,6 +1733,7 @@ void MainWindow::retranslateUi()
         setColorButtonAppearance(backgroundColorButton_, viewer_->visualizationOptions().backgroundColor, tr("Pick Background"));
     }
     updateWindowControlButtons();
+    rebuildProjectTree();
     updateDatasetPanel();
     updateNavigationHelpText();
     updateMeasurementPanel();
@@ -1546,6 +1747,43 @@ void MainWindow::retranslateUi()
 void MainWindow::createConnections()
 {
     connect(openAction_, &QAction::triggered, this, [this]() { openPointCloud(); });
+    connect(addPointCloudAction_, &QAction::triggered, this, [this]() { addPointCloudFiles(); });
+    connect(removeDatasetAction_, &QAction::triggered, this, [this]() { removeSelectedDataset(); });
+    connect(locateDatasetAction_, &QAction::triggered, this, [this]() {
+        const QString datasetPath = selectedDatasetPath();
+        if (datasetPath.isEmpty()) {
+            return;
+        }
+
+        const QString folderPath = QFileInfo(datasetPath).absolutePath();
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath))) {
+            showUserMessage(LogLevel::Warning, tr("Unable to open the dataset folder."), 3000);
+        }
+    });
+    connect(copyDatasetPathAction_, &QAction::triggered, this, [this]() {
+        const QString datasetPath = selectedDatasetPath();
+        if (datasetPath.isEmpty()) {
+            return;
+        }
+
+        if (QGuiApplication::clipboard() != nullptr) {
+            QGuiApplication::clipboard()->setText(datasetPath);
+            showUserMessage(LogLevel::Info, tr("Dataset path copied."), 2000);
+        }
+    });
+    connect(expandProjectTreeAction_, &QAction::triggered, this, [this]() {
+        if (projectTreeWidget_ != nullptr) {
+            projectTreeWidget_->expandAll();
+        }
+    });
+    connect(collapseProjectTreeAction_, &QAction::triggered, this, [this]() {
+        if (projectTreeWidget_ != nullptr) {
+            projectTreeWidget_->collapseAll();
+            if (projectTreeWidget_->topLevelItemCount() > 0) {
+                projectTreeWidget_->topLevelItem(0)->setExpanded(true);
+            }
+        }
+    });
     connect(openProjectAction_, &QAction::triggered, this, [this]() { openProject(); });
     connect(saveProjectAction_, &QAction::triggered, this, [this]() { saveProject(); });
     connect(saveProjectAsAction_, &QAction::triggered, this, [this]() { saveProjectAs(); });
@@ -1607,6 +1845,10 @@ void MainWindow::createConnections()
     connect(measurementClearButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearMeasurement);
 
     const auto beginAddTower = [this]() {
+        if (!towerEditingEnabled_) {
+            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
+            return;
+        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before adding tower markers."), 3000);
             return;
@@ -1616,36 +1858,46 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Tower add mode enabled. Click points continuously to add tower markers, or cancel the tool when finished."), 4500);
     };
     const auto beginInsertTower = [this]() {
+        if (!towerEditingEnabled_) {
+            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
+            return;
+        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before inserting tower markers."), 3000);
             return;
         }
 
-        const int currentRow = towerTableWidget_ != nullptr ? towerTableWidget_->currentRow() : -1;
+        const int currentRow = viewer_ != nullptr ? viewer_->selectedTowerIndex() : -1;
         if (currentRow < 0 || currentRow >= viewer_->towerMarkers().size()) {
-            showUserMessage(LogLevel::Warning, tr("Select a tower marker before inserting a new one."), 3000);
+            showUserMessage(LogLevel::Warning, tr("Select the current tower before inserting a new one."), 3000);
             return;
         }
 
+        viewer_->setSelectedTowerIndex(currentRow);
         viewer_->beginTowerInsertMode(currentRow);
         updateTowerPanel();
-        showUserMessage(LogLevel::Info, tr("Click a point in the view to insert a tower marker before the selected one."), 4000);
+        showUserMessage(LogLevel::Info, tr("Click a point in the view to insert a tower marker before the current one."), 4000);
     };
     const auto beginMoveTower = [this]() {
+        if (!towerEditingEnabled_) {
+            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
+            return;
+        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before moving tower markers."), 3000);
             return;
         }
 
-        const int currentRow = towerTableWidget_ != nullptr ? towerTableWidget_->currentRow() : -1;
+        const int currentRow = viewer_ != nullptr ? viewer_->selectedTowerIndex() : -1;
         if (currentRow < 0 || currentRow >= viewer_->towerMarkers().size()) {
-            showUserMessage(LogLevel::Warning, tr("Select a tower marker before moving it."), 3000);
+            showUserMessage(LogLevel::Warning, tr("Select the current tower before moving it."), 3000);
             return;
         }
 
+        viewer_->setSelectedTowerIndex(currentRow);
         viewer_->beginTowerMoveMode(currentRow);
         updateTowerPanel();
-        showUserMessage(LogLevel::Info, tr("Click a point in the view to move the selected tower marker."), 4000);
+        showUserMessage(LogLevel::Info, tr("Click a point in the view to move the current tower marker."), 4000);
     };
     const auto focusSelectedTower = [this]() {
         if (viewer_ == nullptr || towerTableWidget_ == nullptr) {
@@ -1660,6 +1912,10 @@ void MainWindow::createConnections()
         viewer_->focusOnPoint(viewer_->towerMarkers().at(currentRow).point);
     };
     const auto removeSelectedTower = [this]() {
+        if (!towerEditingEnabled_) {
+            showUserMessage(LogLevel::Warning, tr("Start tower editing before removing tower markers."), 3000);
+            return;
+        }
         if (viewer_ == nullptr || towerTableWidget_ == nullptr) {
             return;
         }
@@ -1673,6 +1929,10 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Tower marker removed."), 2500);
     };
     const auto clearAllTowers = [this]() {
+        if (!towerEditingEnabled_) {
+            showUserMessage(LogLevel::Warning, tr("Start tower editing before clearing tower markers."), 3000);
+            return;
+        }
         if (viewer_ == nullptr || viewer_->towerMarkers().isEmpty()) {
             return;
         }
@@ -1690,7 +1950,25 @@ void MainWindow::createConnections()
         updateTowerPanel();
         showUserMessage(LogLevel::Info, tr("Tower tool cancelled."), 2500);
     };
+    const auto startTowerEditing = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before editing tower markers."), 3000);
+            return;
+        }
 
+        setTowerEditingEnabled(true);
+        if (inspectorTabWidget_ != nullptr) {
+            inspectorTabWidget_->setCurrentIndex(1);
+        }
+        showUserMessage(LogLevel::Info, tr("Tower editing started. Use the tools in the right dock to add, insert, move, rename, or remove tower markers."), 4500);
+    };
+    const auto finishTowerEditing = [this]() {
+        setTowerEditingEnabled(false);
+        showUserMessage(LogLevel::Info, tr("Tower editing finished."), 2500);
+    };
+
+    connect(startTowerEditAction_, &QAction::triggered, this, startTowerEditing);
+    connect(finishTowerEditAction_, &QAction::triggered, this, finishTowerEditing);
     connect(addTowerAction_, &QAction::triggered, this, beginAddTower);
     connect(insertTowerAction_, &QAction::triggered, this, beginInsertTower);
     connect(moveTowerAction_, &QAction::triggered, this, beginMoveTower);
@@ -1725,6 +2003,11 @@ void MainWindow::createConnections()
             return;
         }
 
+        if (!towerEditingEnabled_) {
+            updateTowerPanel();
+            return;
+        }
+
         QTableWidgetItem* item = towerTableWidget_->item(row, column);
         if (item == nullptr) {
             return;
@@ -1737,6 +2020,40 @@ void MainWindow::createConnections()
         }
 
         updateTowerPanel();
+    });
+    connect(projectSearchEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
+        refreshProjectTreeFilter();
+    });
+    connect(projectTreeWidget_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem*, QTreeWidgetItem*) {
+        updateActionState();
+    });
+    connect(projectTreeWidget_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
+        if (item == nullptr || item->data(0, kProjectTreeItemTypeRole).toString() != QStringLiteral("dataset")) {
+            return;
+        }
+
+        locateDatasetAction_->trigger();
+    });
+    connect(projectTreeWidget_, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        if (projectTreeWidget_ == nullptr) {
+            return;
+        }
+
+        if (QTreeWidgetItem* item = projectTreeWidget_->itemAt(pos)) {
+            projectTreeWidget_->setCurrentItem(item);
+        }
+
+        QMenu menu(projectTreeWidget_);
+        menu.addAction(openAction_);
+        menu.addAction(addPointCloudAction_);
+        menu.addAction(removeDatasetAction_);
+        menu.addSeparator();
+        menu.addAction(locateDatasetAction_);
+        menu.addAction(copyDatasetPathAction_);
+        menu.addSeparator();
+        menu.addAction(expandProjectTreeAction_);
+        menu.addAction(collapseProjectTreeAction_);
+        menu.exec(projectTreeWidget_->viewport()->mapToGlobal(pos));
     });
     connect(languageEnglishAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::English); });
     connect(languageChineseAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::Chinese); });
@@ -1768,6 +2085,7 @@ void MainWindow::createConnections()
         syncUiFromViewer();
     });
     connect(viewer_, &PointCloudViewer::pointCloudCleared, this, [this]() {
+        setTowerEditingEnabled(false);
         syncUiFromViewer();
         showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
     });
@@ -1911,16 +2229,29 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     const QJsonObject projectObject = document.object();
-    const QString pointCloudFilePath = resolveProjectPath(
-        filePath,
-        projectObject.value(QStringLiteral("pointCloudFilePath")).toString());
-    if (pointCloudFilePath.isEmpty()) {
-        showUserMessage(LogLevel::Error, tr("Project file does not contain a point cloud path."), 5000);
+    QStringList pointCloudFilePaths;
+    const QJsonArray pointCloudFilesArray = projectObject.value(QStringLiteral("pointCloudFilePaths")).toArray();
+    for (const QJsonValue& pathValue : pointCloudFilesArray) {
+        const QString resolvedPath = resolveProjectPath(filePath, pathValue.toString());
+        if (!resolvedPath.isEmpty()) {
+            pointCloudFilePaths.append(resolvedPath);
+        }
+    }
+    if (pointCloudFilePaths.isEmpty()) {
+        const QString legacyPointCloudPath = resolveProjectPath(
+            filePath,
+            projectObject.value(QStringLiteral("pointCloudFilePath")).toString());
+        if (!legacyPointCloudPath.isEmpty()) {
+            pointCloudFilePaths.append(legacyPointCloudPath);
+        }
+    }
+    if (pointCloudFilePaths.isEmpty()) {
+        showUserMessage(LogLevel::Error, tr("Project file does not contain any point cloud paths."), 5000);
         return false;
     }
 
     QString errorMessage;
-    if (!viewer_->loadPointCloud(pointCloudFilePath, &errorMessage)) {
+    if (!viewer_->loadPointCloudFiles(pointCloudFilePaths, &errorMessage)) {
         syncUiFromViewer();
         showUserMessage(LogLevel::Error, errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage, 6000);
         return false;
@@ -1965,6 +2296,7 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     viewer_->setTowerMarkers(towerMarkers);
 
     currentProjectFilePath_ = filePath;
+    setTowerEditingEnabled(false);
     const QString languageCode = projectObject.value(QStringLiteral("language")).toString();
     if (languageCode == QStringLiteral("zh_CN")) {
         applyLanguage(UiLanguage::Chinese);
@@ -2013,9 +2345,15 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         });
     }
 
+    QJsonArray pointCloudFilesArray;
+    for (const QString& pointCloudFilePath : viewer_->currentFilePaths()) {
+        pointCloudFilesArray.append(projectRelativePathFor(filePath, pointCloudFilePath));
+    }
+
     QJsonObject projectObject {
-        { QStringLiteral("version"), 1 },
-        { QStringLiteral("pointCloudFilePath"), projectRelativePathFor(filePath, viewer_->currentFilePath()) },
+        { QStringLiteral("version"), 2 },
+        { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
+        { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
         { QStringLiteral("visualization"), visualizationObject },
         { QStringLiteral("interaction"), interactionObject },
@@ -2031,36 +2369,64 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented));
     file.close();
     currentProjectFilePath_ = filePath;
+    rebuildProjectTree();
     showUserMessage(LogLevel::Info, tr("Project saved: %1").arg(QFileInfo(filePath).fileName()), 3000);
     return true;
 }
 
 void MainWindow::openPointCloud()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
+    const QStringList filePaths = QFileDialog::getOpenFileNames(
         this,
-        tr("Open LAS Point Cloud"),
+        tr("Open LAS Point Clouds"),
         QString(),
         tr("LAS Files (*.las *.laz);;All Files (*.*)"));
 
-    if (filePath.isEmpty()) {
+    if (filePaths.isEmpty()) {
         showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
         return;
     }
 
-    loadPointCloudFile(filePath);
+    loadPointCloudFiles(filePaths);
+}
+
+void MainWindow::addPointCloudFiles()
+{
+    const QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        tr("Add LAS Point Clouds"),
+        QString(),
+        tr("LAS Files (*.las *.laz);;All Files (*.*)"));
+
+    if (filePaths.isEmpty()) {
+        showUserMessage(LogLevel::Info, tr("Add datasets cancelled."), 2000);
+        return;
+    }
+
+    appendPointCloudFiles(filePaths);
 }
 
 bool MainWindow::loadPointCloudFile(const QString& filePath)
 {
+    return loadPointCloudFiles(QStringList { filePath });
+}
+
+bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
     QString errorMessage;
-    if (viewer_->loadPointCloud(filePath, &errorMessage)) {
+    if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
-        const QFileInfo fileInfo(filePath);
-        showUserMessage(
-            LogLevel::Info,
-            tr("Loaded %1. %2").arg(fileInfo.fileName(), errorMessage),
-            4000);
+        setTowerEditingEnabled(false);
+        const QString successMessage = filePaths.size() == 1
+            ? tr("Loaded %1. %2").arg(QFileInfo(filePaths.constFirst()).fileName(), errorMessage)
+            : tr("Loaded %1 datasets. %2")
+                  .arg(QLocale().toString(filePaths.size()))
+                  .arg(errorMessage);
+        showUserMessage(LogLevel::Info, successMessage, 4500);
         return true;
     }
 
@@ -2072,10 +2438,75 @@ bool MainWindow::loadPointCloudFile(const QString& filePath)
     return false;
 }
 
+bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+    QString errorMessage;
+    if (!viewer_->appendPointCloudFiles(filePaths, &errorMessage)) {
+        syncUiFromViewer();
+        showUserMessage(
+            LogLevel::Error,
+            errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage,
+            6000);
+        return false;
+    }
+
+    currentProjectFilePath_.clear();
+    setTowerEditingEnabled(false);
+    syncUiFromViewer();
+    showUserMessage(
+        LogLevel::Info,
+        errorMessage.isEmpty() ? tr("Datasets added.") : errorMessage,
+        4500);
+    return true;
+}
+
 void MainWindow::clearPointCloud()
 {
     currentProjectFilePath_.clear();
+    setTowerEditingEnabled(false);
     viewer_->clearPointCloud();
+}
+
+void MainWindow::removeSelectedDataset()
+{
+    if (viewer_ == nullptr || projectTreeWidget_ == nullptr) {
+        return;
+    }
+
+    const QString datasetPath = selectedDatasetPath();
+    if (datasetPath.isEmpty()) {
+        showUserMessage(LogLevel::Warning, tr("Select a dataset in the project tree before removing it."), 3000);
+        return;
+    }
+    QStringList remainingFilePaths = viewer_->currentFilePaths();
+    remainingFilePaths.removeAll(datasetPath);
+
+    if (remainingFilePaths.isEmpty()) {
+        clearPointCloud();
+        showUserMessage(LogLevel::Info, tr("Dataset removed. The project is now empty."), 3000);
+        return;
+    }
+
+    const QList<TowerMarker> towerMarkers = viewer_->towerMarkers();
+    const int selectedTowerIndex = viewer_->selectedTowerIndex();
+    QString errorMessage;
+    if (viewer_->loadPointCloudFiles(remainingFilePaths, &errorMessage)) {
+        currentProjectFilePath_.clear();
+        setTowerEditingEnabled(false);
+        viewer_->setTowerMarkers(towerMarkers);
+        viewer_->setSelectedTowerIndex(selectedTowerIndex);
+        syncUiFromViewer();
+        showUserMessage(LogLevel::Info, tr("Dataset removed from the project."), 3000);
+    } else {
+        syncUiFromViewer();
+        showUserMessage(
+            LogLevel::Error,
+            errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage,
+            6000);
+    }
 }
 
 void MainWindow::choosePointColor()
@@ -2335,6 +2766,7 @@ void MainWindow::syncUiFromViewer()
     setColorButtonAppearance(pointColorButton_, options.singleColor, tr("Pick Color"));
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
     updateNavigationHelpText();
+    rebuildProjectTree();
     updateDatasetPanel();
     updateMeasurementPanel();
     updateTowerPanel();
@@ -2346,7 +2778,7 @@ void MainWindow::updateDatasetPanel()
     const PointCloudData* pointCloudData = viewer_->pointCloudData();
     if (pointCloudData == nullptr) {
         datasetNameValueLabel_->setText(tr("No dataset loaded"));
-        datasetPathValueLabel_->setText(tr("Open or drag a LAS/LAZ file into the window."));
+        datasetPathValueLabel_->setText(tr("Open, add, or drag LAS/LAZ files into the window."));
         datasetPointsValueLabel_->setText(QStringLiteral("0"));
         datasetBoundsValueLabel_->setText(tr("N/A"));
         datasetExtentValueLabel_->setText(tr("N/A"));
@@ -2354,12 +2786,15 @@ void MainWindow::updateDatasetPanel()
         return;
     }
 
-    const QFileInfo fileInfo(viewer_->currentFilePath());
+    const QStringList filePaths = viewer_->currentFilePaths();
     const PointRecord& minBounds = pointCloudData->minBounds();
     const PointRecord& maxBounds = pointCloudData->maxBounds();
 
-    datasetNameValueLabel_->setText(fileInfo.fileName());
-    datasetPathValueLabel_->setText(viewer_->currentFilePath());
+    datasetNameValueLabel_->setText(
+        filePaths.size() == 1
+            ? QFileInfo(filePaths.constFirst()).fileName()
+            : tr("%1 datasets").arg(QLocale().toString(filePaths.size())));
+    datasetPathValueLabel_->setText(datasetPathSummary(filePaths));
     datasetPointsValueLabel_->setText(QLocale().toString(static_cast<qlonglong>(pointCloudData->size())));
     datasetBoundsValueLabel_->setText(
         tr("Min (%1)\nMax (%2)")
@@ -2381,9 +2816,16 @@ void MainWindow::updateActionState()
     const bool hasTowerMarkers = viewer_ != nullptr && !viewer_->towerMarkers().isEmpty();
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
     const bool towerToolActive = viewer_ != nullptr && viewer_->towerEditMode() != TowerEditMode::None;
+    const bool hasDatasetSelection = !selectedDatasetPath().isEmpty();
     openProjectAction_->setEnabled(true);
     saveProjectAction_->setEnabled(hasPointCloud);
     saveProjectAsAction_->setEnabled(hasPointCloud);
+    addPointCloudAction_->setEnabled(true);
+    removeDatasetAction_->setEnabled(hasPointCloud && hasDatasetSelection);
+    locateDatasetAction_->setEnabled(hasDatasetSelection);
+    copyDatasetPathAction_->setEnabled(hasDatasetSelection);
+    expandProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
+    collapseProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
     clearAction_->setEnabled(hasPointCloud);
     fitSceneAction_->setEnabled(hasPointCloud);
     topViewAction_->setEnabled(hasPointCloud);
@@ -2393,13 +2835,15 @@ void MainWindow::updateActionState()
     clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
     measurementToggleButton_->setEnabled(hasPointCloud);
     measurementClearButton_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
-    addTowerAction_->setEnabled(hasPointCloud && !towerToolActive);
-    insertTowerAction_->setEnabled(hasTowerSelection && !towerToolActive);
-    moveTowerAction_->setEnabled(hasTowerSelection && !towerToolActive);
+    startTowerEditAction_->setEnabled(hasPointCloud && !towerEditingEnabled_);
+    finishTowerEditAction_->setEnabled(towerEditingEnabled_);
+    addTowerAction_->setEnabled(hasPointCloud && towerEditingEnabled_ && !towerToolActive);
+    insertTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
+    moveTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
     focusTowerAction_->setEnabled(hasTowerSelection);
-    removeTowerAction_->setEnabled(hasTowerSelection && !towerToolActive);
-    clearTowersAction_->setEnabled(hasTowerMarkers && !towerToolActive);
-    cancelTowerToolAction_->setEnabled(towerToolActive);
+    removeTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
+    clearTowersAction_->setEnabled(hasTowerMarkers && towerEditingEnabled_ && !towerToolActive);
+    cancelTowerToolAction_->setEnabled(towerEditingEnabled_ && towerToolActive);
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const
@@ -2625,6 +3069,145 @@ void MainWindow::updateMeasurementPanel()
         measurementResult.isComplete() ? formatCoordinate(measurementResult.deltaZ) : tr("N/A"));
 }
 
+void MainWindow::rebuildProjectTree()
+{
+    if (projectTreeWidget_ == nullptr || viewer_ == nullptr) {
+        return;
+    }
+
+    const QString previousDatasetPath = selectedDatasetPath();
+    const QSignalBlocker blocker(projectTreeWidget_);
+    projectTreeWidget_->clear();
+
+    auto* projectRoot = new QTreeWidgetItem(projectTreeWidget_, QStringList {
+        currentProjectFilePath_.isEmpty()
+            ? tr("Current Project")
+            : QFileInfo(currentProjectFilePath_).fileName()
+    });
+    projectRoot->setData(0, kProjectTreeItemTypeRole, QStringLiteral("project"));
+    projectRoot->setIcon(0, style()->standardIcon(QStyle::SP_DriveHDIcon));
+
+    auto* datasetsRoot = new QTreeWidgetItem(projectRoot, QStringList {
+        tr("Datasets (%1)").arg(QLocale().toString(viewer_->currentFilePaths().size()))
+    });
+    datasetsRoot->setData(0, kProjectTreeItemTypeRole, QStringLiteral("datasets"));
+    datasetsRoot->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+
+    QHash<QString, QTreeWidgetItem*> directoryItems;
+    directoryItems.insert(QString(), datasetsRoot);
+    QTreeWidgetItem* selectedItem = nullptr;
+
+    for (const QString& filePath : viewer_->currentFilePaths()) {
+        const QFileInfo fileInfo(filePath);
+        const QString absoluteFilePath = fileInfo.absoluteFilePath();
+        const QString directoryPath = QDir::fromNativeSeparators(fileInfo.absolutePath());
+        const QStringList segments = directoryPath.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+
+        QString cumulativePath;
+        QTreeWidgetItem* parentItem = datasetsRoot;
+        for (const QString& segment : segments) {
+            cumulativePath = cumulativePath.isEmpty()
+                ? segment
+                : cumulativePath + QLatin1Char('/') + segment;
+
+            QTreeWidgetItem* folderItem = directoryItems.value(cumulativePath, nullptr);
+            if (folderItem == nullptr) {
+                folderItem = new QTreeWidgetItem(parentItem, QStringList { segment });
+                folderItem->setData(0, kProjectTreeItemTypeRole, QStringLiteral("folder"));
+                folderItem->setToolTip(0, QDir::toNativeSeparators(cumulativePath));
+                folderItem->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+                directoryItems.insert(cumulativePath, folderItem);
+            }
+            parentItem = folderItem;
+        }
+
+        auto* datasetItem = new QTreeWidgetItem(parentItem, QStringList { fileInfo.fileName() });
+        datasetItem->setData(0, kProjectTreeItemTypeRole, QStringLiteral("dataset"));
+        datasetItem->setData(0, kProjectTreeFilePathRole, absoluteFilePath);
+        datasetItem->setToolTip(0, absoluteFilePath);
+        datasetItem->setIcon(0, style()->standardIcon(QStyle::SP_FileIcon));
+
+        if (!previousDatasetPath.isEmpty() && previousDatasetPath.compare(absoluteFilePath, Qt::CaseInsensitive) == 0) {
+            selectedItem = datasetItem;
+        }
+    }
+
+    projectRoot->setExpanded(true);
+    datasetsRoot->setExpanded(true);
+    projectTreeWidget_->expandToDepth(1);
+
+    if (selectedItem == nullptr) {
+        QTreeWidgetItemIterator it(projectTreeWidget_);
+        while (*it != nullptr) {
+            if ((*it)->data(0, kProjectTreeItemTypeRole).toString() == QStringLiteral("dataset")) {
+                selectedItem = *it;
+                break;
+            }
+            ++it;
+        }
+    }
+
+    projectTreeWidget_->setCurrentItem(selectedItem != nullptr ? selectedItem : datasetsRoot);
+    refreshProjectTreeFilter();
+}
+
+void MainWindow::refreshProjectTreeFilter()
+{
+    if (projectTreeWidget_ == nullptr) {
+        return;
+    }
+
+    const QString filterText = projectSearchEdit_ != nullptr ? projectSearchEdit_->text().trimmed() : QString();
+    const auto updateItemVisibility = [&filterText](auto&& self, QTreeWidgetItem* item) -> bool {
+        if (item == nullptr) {
+            return false;
+        }
+
+        bool hasVisibleChild = false;
+        for (int childIndex = 0; childIndex < item->childCount(); ++childIndex) {
+            hasVisibleChild = self(self, item->child(childIndex)) || hasVisibleChild;
+        }
+
+        const QString itemText = item->text(0) + QLatin1Char('\n') + item->toolTip(0);
+        const bool matchesSelf =
+            filterText.isEmpty()
+            || itemText.contains(filterText, Qt::CaseInsensitive);
+        const QString itemType = item->data(0, kProjectTreeItemTypeRole).toString();
+        const bool forceVisible = itemType == QStringLiteral("project") || itemType == QStringLiteral("datasets");
+        const bool visible = forceVisible || matchesSelf || hasVisibleChild;
+        item->setHidden(!visible);
+        if (!filterText.isEmpty() && visible && item->childCount() > 0) {
+            item->setExpanded(true);
+        }
+        return visible;
+    };
+
+    for (int rootIndex = 0; rootIndex < projectTreeWidget_->topLevelItemCount(); ++rootIndex) {
+        updateItemVisibility(updateItemVisibility, projectTreeWidget_->topLevelItem(rootIndex));
+    }
+
+    if (QTreeWidgetItem* currentItem = projectTreeWidget_->currentItem();
+        currentItem != nullptr && currentItem->isHidden()) {
+        projectTreeWidget_->setCurrentItem(nullptr);
+    }
+
+    updateActionState();
+}
+
+QString MainWindow::selectedDatasetPath() const
+{
+    if (projectTreeWidget_ == nullptr || projectTreeWidget_->currentItem() == nullptr) {
+        return QString();
+    }
+
+    const QTreeWidgetItem* currentItem = projectTreeWidget_->currentItem();
+    if (currentItem->data(0, kProjectTreeItemTypeRole).toString() != QStringLiteral("dataset")) {
+        return QString();
+    }
+
+    return currentItem->data(0, kProjectTreeFilePathRole).toString();
+}
+
 void MainWindow::updateTowerPanel()
 {
     if (viewer_ == nullptr || towerTableWidget_ == nullptr || towerCountValueLabel_ == nullptr || towerToolStatusLabel_ == nullptr) {
@@ -2642,19 +3225,30 @@ void MainWindow::updateTowerPanel()
         towerToolStatusLabel_->setText(tr("Tower tool: click points in the view continuously to add tower markers. Cancel the tool when finished."));
         break;
     case TowerEditMode::InsertBeforeSelected:
-        towerToolStatusLabel_->setText(tr("Tower tool: click a point in the view to insert a tower marker before the selected one."));
+        towerToolStatusLabel_->setText(
+            tr("Tower tool: click a point in the view to insert a tower marker before current tower #%1.")
+                .arg(QLocale().toString(viewer_->towerEditTargetIndex() + 1)));
         break;
     case TowerEditMode::MoveSelected:
-        towerToolStatusLabel_->setText(tr("Tower tool: click a point in the view to move the selected tower marker."));
+        towerToolStatusLabel_->setText(
+            tr("Tower tool: click a point in the view to move current tower #%1.")
+                .arg(QLocale().toString(viewer_->towerEditTargetIndex() + 1)));
         break;
     case TowerEditMode::None:
     default:
-        towerToolStatusLabel_->setText(tr("Tower tool idle. Select a tower marker to focus, move, remove, or insert before it."));
+        towerToolStatusLabel_->setText(
+            towerEditingEnabled_
+                ? tr("Tower editing active. Select the current tower, then use the toolbar above to insert, move, rename, focus, or remove it.")
+                : tr("Tower editing is off. Use the Ribbon to start editing before changing tower markers."));
         break;
     }
 
     const int selectedRow = viewer_->selectedTowerIndex();
     const QSignalBlocker blocker(towerTableWidget_);
+    towerTableWidget_->setEditTriggers(static_cast<QAbstractItemView::EditTriggers>(
+        towerEditingEnabled_
+            ? (QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed)
+            : QAbstractItemView::NoEditTriggers));
     towerTableWidget_->setRowCount(0);
     for (int towerIndex = 0; towerIndex < towerMarkers.size(); ++towerIndex) {
         const TowerMarker& towerMarker = towerMarkers.at(towerIndex);
@@ -2666,7 +3260,11 @@ void MainWindow::updateTowerPanel()
         towerTableWidget_->setItem(towerIndex, 0, indexItem);
 
         auto* nameItem = new QTableWidgetItem(towerMarker.name);
-        nameItem->setFlags(nameItem->flags() | Qt::ItemIsEditable);
+        if (towerEditingEnabled_) {
+            nameItem->setFlags(nameItem->flags() | Qt::ItemIsEditable);
+        } else {
+            nameItem->setFlags((nameItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        }
         towerTableWidget_->setItem(towerIndex, 1, nameItem);
 
         const QStringList coordinateTexts = {
@@ -2708,6 +3306,21 @@ QString MainWindow::nextDefaultTowerName() const
         }
         ++towerIndex;
     }
+}
+
+void MainWindow::setTowerEditingEnabled(bool enabled)
+{
+    if (towerEditingEnabled_ == enabled) {
+        return;
+    }
+
+    towerEditingEnabled_ = enabled;
+    if (!towerEditingEnabled_ && viewer_ != nullptr) {
+        viewer_->cancelTowerEditMode();
+    }
+
+    updateActionState();
+    updateTowerPanel();
 }
 
 void MainWindow::applyLanguage(UiLanguage language)

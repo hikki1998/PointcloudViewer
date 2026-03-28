@@ -189,6 +189,11 @@ osg::Vec4 measurementColorSecondary()
     return osg::Vec4(0.20f, 0.83f, 0.96f, 1.0f);
 }
 
+osg::Vec4 measurementColorIntermediate()
+{
+    return osg::Vec4(0.96f, 0.93f, 0.55f, 1.0f);
+}
+
 void applyMeasurementForegroundState(osg::StateSet* stateSet)
 {
     if (stateSet == nullptr) {
@@ -203,25 +208,27 @@ void applyMeasurementForegroundState(osg::StateSet* stateSet)
 
 osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(const MeasurementResult& measurementResult)
 {
-    if (!measurementResult.hasStartPoint) {
+    if (measurementResult.points.isEmpty()) {
         return nullptr;
     }
 
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
-    vertices->push_back(osg::Vec3(
-        measurementResult.startPoint.x,
-        measurementResult.startPoint.y,
-        measurementResult.startPoint.z));
-    colors->push_back(measurementColorPrimary());
-
-    if (measurementResult.hasEndPoint) {
+    for (int pointIndex = 0; pointIndex < measurementResult.points.size(); ++pointIndex) {
+        const PointRecord& point = measurementResult.points.at(pointIndex);
         vertices->push_back(osg::Vec3(
-            measurementResult.endPoint.x,
-            measurementResult.endPoint.y,
-            measurementResult.endPoint.z));
-        colors->push_back(measurementColorSecondary());
+            point.x,
+            point.y,
+            point.z));
+
+        if (pointIndex == 0) {
+            colors->push_back(measurementColorPrimary());
+        } else if (pointIndex == measurementResult.points.size() - 1) {
+            colors->push_back(measurementColorSecondary());
+        } else {
+            colors->push_back(measurementColorIntermediate());
+        }
     }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
@@ -243,31 +250,32 @@ osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(const MeasurementResult& m
 
 osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& measurementResult)
 {
-    if (!measurementResult.isComplete()) {
+    if (measurementResult.points.size() < 2) {
         return nullptr;
     }
 
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
-    vertices->push_back(osg::Vec3(
-        measurementResult.startPoint.x,
-        measurementResult.startPoint.y,
-        measurementResult.startPoint.z));
-    vertices->push_back(osg::Vec3(
-        measurementResult.endPoint.x,
-        measurementResult.endPoint.y,
-        measurementResult.endPoint.z));
+    for (int pointIndex = 0; pointIndex < measurementResult.points.size(); ++pointIndex) {
+        const PointRecord& point = measurementResult.points.at(pointIndex);
+        vertices->push_back(osg::Vec3(point.x, point.y, point.z));
 
-    colors->push_back(measurementColorPrimary());
-    colors->push_back(measurementColorSecondary());
+        if (pointIndex == 0) {
+            colors->push_back(measurementColorPrimary());
+        } else if (pointIndex == measurementResult.points.size() - 1) {
+            colors->push_back(measurementColorSecondary());
+        } else {
+            colors->push_back(measurementColorIntermediate());
+        }
+    }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
     geometry->setUseDisplayList(false);
     geometry->setUseVertexBufferObjects(true);
     geometry->setVertexArray(vertices.get());
     geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
-    geometry->addPrimitiveSet(new osg::DrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices->size())));
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(vertices->size())));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
     geode->addDrawable(geometry.get());
@@ -349,6 +357,8 @@ void OsgWidget::setSceneClickModeEnabled(bool enabled)
     leftButtonPressed_ = false;
     leftButtonDragDetected_ = false;
     leftButtonEventDispatched_ = false;
+    rightButtonPressed_ = false;
+    rightButtonDragDetected_ = false;
 }
 
 OsgWidget::~OsgWidget()
@@ -410,6 +420,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         lastPanEventPosition_ = event->localPos();
     } else if (event->button() == Qt::RightButton) {
         rightButtonPressed_ = true;
+        rightButtonDragDetected_ = false;
         rightButtonAnchor_ = event->localPos();
         lastPanCursorPosition_ = event->localPos();
         lastPanEventPosition_ = event->localPos();
@@ -439,6 +450,9 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         }
     } else {
         dispatchMouseButtonEvent(event->localPos(), event->button(), false);
+        if (sceneClickModeEnabled_ && event->button() == Qt::RightButton && !rightButtonDragDetected_) {
+            emit sceneSecondaryClicked(event->localPos());
+        }
     }
 
     if (event->button() == Qt::LeftButton) {
@@ -449,6 +463,7 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         middleButtonPressed_ = false;
     } else if (event->button() == Qt::RightButton) {
         rightButtonPressed_ = false;
+        rightButtonDragDetected_ = false;
     }
 
     update();
@@ -464,6 +479,12 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         const QPointF delta = event->localPos() - leftButtonAnchor_;
         if (std::hypot(delta.x(), delta.y()) > 4.0) {
             leftButtonDragDetected_ = true;
+        }
+    }
+    if (sceneClickModeEnabled_ && rightButtonPressed_) {
+        const QPointF delta = event->localPos() - rightButtonAnchor_;
+        if (std::hypot(delta.x(), delta.y()) > 4.0) {
+            rightButtonDragDetected_ = true;
         }
     }
 
@@ -663,6 +684,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
         "}");
 
     connect(osgWidget_, &OsgWidget::sceneClicked, this, &PointCloudViewer::handleSceneClick);
+    connect(osgWidget_, &OsgWidget::sceneSecondaryClicked, this, &PointCloudViewer::handleSceneSecondaryClick);
     connect(osgWidget_, &OsgWidget::sceneHovered, this, &PointCloudViewer::handleSceneHover);
     connect(osgWidget_, &OsgWidget::sceneHoverEnded, this, &PointCloudViewer::clearHoveredPoint);
     connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
@@ -687,11 +709,25 @@ PointCloudViewer::~PointCloudViewer()
 
 bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMessage)
 {
-    LasReader reader;
-    PointCloudData loadedPointCloud;
-    QString localError;
+    return loadPointCloudFiles(QStringList { filePath }, errorMessage);
+}
 
-    if (!reader.read(filePath, &loadedPointCloud, &localError)) {
+bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
+{
+    LasReader reader;
+    QString localError;
+    PointCloudData loadedPointCloud;
+    QStringList normalizedFilePaths;
+
+    for (const QString& filePath : filePaths) {
+        const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
+        if (!absolutePath.isEmpty() && !normalizedFilePaths.contains(absolutePath, Qt::CaseInsensitive)) {
+            normalizedFilePaths.append(absolutePath);
+        }
+    }
+
+    if (normalizedFilePaths.isEmpty()) {
+        localError = tr("No point cloud files were specified.");
         updateMessage(tr("Open failed"), localError);
         if (errorMessage != nullptr) {
             *errorMessage = localError;
@@ -699,17 +735,31 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
         return false;
     }
 
-    if (loadedPointCloud.empty()) {
-        localError = tr("Point cloud file is empty.");
-        updateMessage(tr("Open failed"), localError);
-        if (errorMessage != nullptr) {
-            *errorMessage = localError;
+    for (const QString& filePath : normalizedFilePaths) {
+        PointCloudData datasetPointCloud;
+        if (!reader.read(filePath, &datasetPointCloud, &localError)) {
+            updateMessage(tr("Open failed"), localError);
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
         }
-        return false;
+
+        if (datasetPointCloud.empty()) {
+            localError = tr("Point cloud file is empty: %1").arg(QFileInfo(filePath).fileName());
+            updateMessage(tr("Open failed"), localError);
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
+        }
+
+        loadedPointCloud.append(datasetPointCloud);
     }
 
     currentPointCloud_ = std::move(loadedPointCloud);
-    currentFilePath_ = filePath;
+    currentFilePath_ = normalizedFilePaths.constFirst();
+    currentFilePaths_ = normalizedFilePaths;
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
@@ -729,8 +779,12 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
     updateFooter();
 
     if (errorMessage != nullptr) {
-        *errorMessage = tr("Loaded point cloud with %1 points.")
-            .arg(formatPointCount(currentPointCloud_.size()));
+        *errorMessage = normalizedFilePaths.size() == 1
+            ? tr("Loaded point cloud with %1 points.")
+                  .arg(formatPointCount(currentPointCloud_.size()))
+            : tr("Loaded %1 datasets with %2 points.")
+                  .arg(QLocale().toString(normalizedFilePaths.size()))
+                  .arg(formatPointCount(currentPointCloud_.size()));
     }
 
     emit pointCloudLoaded();
@@ -742,10 +796,93 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
     return true;
 }
 
+bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
+{
+    if (!hasPointCloud()) {
+        return loadPointCloudFiles(filePaths, errorMessage);
+    }
+
+    LasReader reader;
+    QString localError;
+    PointCloudData appendedPointCloud;
+    QStringList newFilePaths;
+
+    for (const QString& filePath : filePaths) {
+        const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
+        if (absolutePath.isEmpty()) {
+            continue;
+        }
+        if (currentFilePaths_.contains(absolutePath, Qt::CaseInsensitive)
+            || newFilePaths.contains(absolutePath, Qt::CaseInsensitive)) {
+            continue;
+        }
+        newFilePaths.append(absolutePath);
+    }
+
+    if (newFilePaths.isEmpty()) {
+        localError = tr("All selected datasets are already loaded.");
+        if (errorMessage != nullptr) {
+            *errorMessage = localError;
+        }
+        return true;
+    }
+
+    for (const QString& filePath : newFilePaths) {
+        PointCloudData datasetPointCloud;
+        if (!reader.read(filePath, &datasetPointCloud, &localError)) {
+            updateMessage(tr("Add failed"), localError);
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
+        }
+
+        if (datasetPointCloud.empty()) {
+            localError = tr("Point cloud file is empty: %1").arg(QFileInfo(filePath).fileName());
+            updateMessage(tr("Add failed"), localError);
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
+        }
+
+        appendedPointCloud.append(datasetPointCloud);
+    }
+
+    currentPointCloud_.append(appendedPointCloud);
+    currentFilePaths_.append(newFilePaths);
+    if (currentFilePath_.isEmpty()) {
+        currentFilePath_ = currentFilePaths_.constFirst();
+    }
+    hoveredPointValid_ = false;
+    lastHoverQueryPosition_ = QPointF();
+    lastHoverQueryTime_ = {};
+
+    rebuildScene();
+    updateFooter();
+
+    if (errorMessage != nullptr) {
+        *errorMessage = newFilePaths.size() == 1
+            ? tr("Added %1. Total datasets: %2, total points: %3.")
+                  .arg(QFileInfo(newFilePaths.constFirst()).fileName())
+                  .arg(QLocale().toString(currentFilePaths_.size()))
+                  .arg(formatPointCount(currentPointCloud_.size()))
+            : tr("Added %1 datasets. Total datasets: %2, total points: %3.")
+                  .arg(QLocale().toString(newFilePaths.size()))
+                  .arg(QLocale().toString(currentFilePaths_.size()))
+                  .arg(formatPointCount(currentPointCloud_.size()));
+    }
+
+    emit pointCloudLoaded();
+    emit visualizationOptionsChanged();
+    return true;
+}
+
 void PointCloudViewer::clearPointCloud()
 {
     currentPointCloud_.clear();
     currentFilePath_.clear();
+    currentFilePaths_.clear();
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
@@ -766,7 +903,7 @@ void PointCloudViewer::clearPointCloud()
     updateTowerOverlayWidgets();
     updateMessage(
         tr("Scene cleared"),
-        tr("Open a LAS or LAZ file to continue."));
+        tr("Open one or more LAS or LAZ files to continue."));
 
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
@@ -787,6 +924,11 @@ bool PointCloudViewer::hasPointCloud() const
 QString PointCloudViewer::currentFilePath() const
 {
     return currentFilePath_;
+}
+
+QStringList PointCloudViewer::currentFilePaths() const
+{
+    return currentFilePaths_;
 }
 
 const PointCloudData* PointCloudViewer::pointCloudData() const
@@ -837,6 +979,11 @@ int PointCloudViewer::selectedTowerIndex() const
 TowerEditMode PointCloudViewer::towerEditMode() const
 {
     return towerEditMode_;
+}
+
+int PointCloudViewer::towerEditTargetIndex() const
+{
+    return towerEditTargetIndex_;
 }
 
 void PointCloudViewer::setPointSize(int pointSize)
@@ -1056,7 +1203,7 @@ void PointCloudViewer::setMeasurementEnabled(bool enabled)
         emit measurementMessage(tr("Measurement mode disabled."), false);
     } else {
         resetMeasurementState();
-        emit measurementMessage(tr("Measurement mode enabled. Click the first point."), false);
+        emit measurementMessage(tr("Measurement mode enabled. Click points to measure, and right-click to undo the last point."), false);
     }
 
     updateFooter();
@@ -1243,6 +1390,7 @@ void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
         return;
     }
 
+    selectedTowerIndex_ = beforeIndex;
     towerEditMode_ = TowerEditMode::InsertBeforeSelected;
     towerEditTargetIndex_ = beforeIndex;
     if (measurementEnabled_) {
@@ -1250,6 +1398,8 @@ void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
     } else {
         updateSceneClickCapture();
     }
+    refreshTowerMarkersOverlay();
+    emit selectedTowerChanged(selectedTowerIndex_);
     emit towerEditModeChanged();
 }
 
@@ -1259,6 +1409,7 @@ void PointCloudViewer::beginTowerMoveMode(int towerIndex)
         return;
     }
 
+    selectedTowerIndex_ = towerIndex;
     towerEditMode_ = TowerEditMode::MoveSelected;
     towerEditTargetIndex_ = towerIndex;
     if (measurementEnabled_) {
@@ -1266,6 +1417,8 @@ void PointCloudViewer::beginTowerMoveMode(int towerIndex)
     } else {
         updateSceneClickCapture();
     }
+    refreshTowerMarkersOverlay();
+    emit selectedTowerChanged(selectedTowerIndex_);
     emit towerEditModeChanged();
 }
 
@@ -1432,7 +1585,7 @@ void PointCloudViewer::updateFooter()
     if (!hasPointCloud()) {
         updateMessage(
             tr("Ready for point cloud inspection"),
-            tr("Open a LAS or LAZ file. Left drag orbits, middle or right drag pans, and the mouse wheel zooms."));
+            tr("Open one or more LAS or LAZ files. Left drag orbits, middle or right drag pans, and the mouse wheel zooms."));
         if (cursorLabel_ != nullptr) {
             cursorLabel_->setText(tr("Cursor Point: N/A"));
         }
@@ -1440,9 +1593,12 @@ void PointCloudViewer::updateFooter()
     }
 
     const QFileInfo fileInfo(currentFilePath_);
-    const QString title = fileInfo.fileName().isEmpty() ? currentFilePath_ : fileInfo.fileName();
-    QString detail = tr("%1 points | %2 | %3 px | Axes %4 | Bounds %5")
+    const QString title = currentFilePaths_.size() > 1
+        ? tr("%1 datasets loaded").arg(QLocale().toString(currentFilePaths_.size()))
+        : (fileInfo.fileName().isEmpty() ? currentFilePath_ : fileInfo.fileName());
+    QString detail = tr("%1 points | Datasets %2 | %3 | %4 px | Axes %5 | Bounds %6")
         .arg(formatPointCount(currentPointCloud_.size()))
+        .arg(QLocale().toString(currentFilePaths_.size()))
         .arg(colorModeLabel(visualizationOptions_.colorMode))
         .arg(QLocale().toString(static_cast<int>(visualizationOptions_.pointSize)))
         .arg(visualizationOptions_.showAxes ? tr("on") : tr("off"))
@@ -1451,11 +1607,12 @@ void PointCloudViewer::updateFooter()
 
     if (measurementEnabled_) {
         if (measurementResult_.isComplete()) {
-            detail += tr(" | Measure %1 | ΔZ %2")
+            detail += tr(" | Measure %1 over %2 pts | ΔZ %3")
                 .arg(formatCoordinate(measurementResult_.distance3d))
+                .arg(QLocale().toString(measurementResult_.pointCount()))
                 .arg(formatCoordinate(measurementResult_.deltaZ));
         } else if (measurementResult_.hasStartPoint) {
-            detail += tr(" | Measurement: pick the second point");
+            detail += tr(" | Measurement: pick the next point, right-click to undo");
         } else {
             detail += tr(" | Measurement: pick the first point");
         }
@@ -1587,24 +1744,15 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
         return;
     }
 
-    if (!measurementResult_.hasStartPoint || measurementResult_.isComplete()) {
-        measurementResult_ = MeasurementResult();
-        measurementResult_.hasStartPoint = true;
-        measurementResult_.startPoint = pickedPoint;
-        emit measurementMessage(tr("First point selected. Click the second point."), false);
+    measurementResult_.points.append(pickedPoint);
+    recalculateMeasurementResult();
+
+    if (measurementResult_.pointCount() == 1) {
+        emit measurementMessage(tr("First point selected. Click the next point to continue measuring."), false);
     } else {
-        measurementResult_.hasEndPoint = true;
-        measurementResult_.endPoint = pickedPoint;
-
-        const double dx = static_cast<double>(measurementResult_.endPoint.x - measurementResult_.startPoint.x);
-        const double dy = static_cast<double>(measurementResult_.endPoint.y - measurementResult_.startPoint.y);
-        const double dz = static_cast<double>(measurementResult_.endPoint.z - measurementResult_.startPoint.z);
-
-        measurementResult_.distance3d = static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz));
-        measurementResult_.deltaZ = measurementResult_.endPoint.z - measurementResult_.startPoint.z;
-
         emit measurementMessage(
-            tr("Measured distance %1 with height delta %2.")
+            tr("Measured %1 segment(s), total distance %2, height delta %3. Right-click to undo the last point.")
+                .arg(QLocale().toString(measurementResult_.pointCount() - 1))
                 .arg(formatCoordinate(measurementResult_.distance3d))
                 .arg(formatCoordinate(measurementResult_.deltaZ)),
             false);
@@ -1613,6 +1761,32 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
     refreshMeasurementOverlay();
     updateFooter();
     emit measurementChanged();
+}
+
+void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
+{
+    Q_UNUSED(localPos);
+
+    if (!measurementEnabled_) {
+        return;
+    }
+
+    if (!undoLastMeasurementPoint()) {
+        emit measurementMessage(tr("No measurement point to undo."), true);
+        return;
+    }
+
+    if (measurementResult_.pointCount() >= 2) {
+        emit measurementMessage(
+            tr("Measurement point removed. %1 segment(s) remain, total distance %2.")
+                .arg(QLocale().toString(measurementResult_.pointCount() - 1))
+                .arg(formatCoordinate(measurementResult_.distance3d)),
+            false);
+    } else if (measurementResult_.hasStartPoint) {
+        emit measurementMessage(tr("Measurement point removed. Click the next point to continue measuring."), false);
+    } else {
+        emit measurementMessage(tr("Measurement points cleared."), false);
+    }
 }
 
 void PointCloudViewer::handleSceneHover(const QPointF& localPos)
@@ -1862,7 +2036,7 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
         }
     };
 
-    if (osgWidget_ == nullptr || !measurementResult_.hasStartPoint) {
+    if (osgWidget_ == nullptr || measurementResult_.points.isEmpty()) {
         hideAllLabels();
         return;
     }
@@ -1870,7 +2044,7 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
     bool startVisible = false;
     const QPointF startPoint = projectPointToViewport(measurementResult_.startPoint, &startVisible);
     if (measurementStartOverlayLabel_ != nullptr && startVisible) {
-        measurementStartOverlayLabel_->setText(tr("A"));
+        measurementStartOverlayLabel_->setText(QStringLiteral("1"));
         positionOverlayLabel(measurementStartOverlayLabel_, startPoint, QPoint(14, -18));
     } else if (measurementStartOverlayLabel_ != nullptr) {
         measurementStartOverlayLabel_->hide();
@@ -1889,7 +2063,7 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
     bool endVisible = false;
     const QPointF endPoint = projectPointToViewport(measurementResult_.endPoint, &endVisible);
     if (measurementEndOverlayLabel_ != nullptr && endVisible) {
-        measurementEndOverlayLabel_->setText(tr("B"));
+        measurementEndOverlayLabel_->setText(QLocale().toString(measurementResult_.pointCount()));
         positionOverlayLabel(measurementEndOverlayLabel_, endPoint, QPoint(14, -18));
     } else if (measurementEndOverlayLabel_ != nullptr) {
         measurementEndOverlayLabel_->hide();
@@ -1903,7 +2077,8 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
     }
 
     measurementSummaryOverlayLabel_->setText(
-        tr("3D %1 | Height %2")
+        tr("%1 pts | 3D %2 | Height %3")
+            .arg(QLocale().toString(measurementResult_.pointCount()))
             .arg(formatCoordinate(measurementResult_.distance3d))
             .arg(formatCoordinate(measurementResult_.deltaZ)));
 
@@ -2083,9 +2258,55 @@ void PointCloudViewer::positionOverlayLabel(QLabel* label, const QPointF& anchor
     label->raise();
 }
 
+void PointCloudViewer::recalculateMeasurementResult()
+{
+    measurementResult_.hasStartPoint = !measurementResult_.points.isEmpty();
+    measurementResult_.hasEndPoint = measurementResult_.points.size() >= 2;
+    measurementResult_.distance3d = 0.0f;
+    measurementResult_.deltaZ = 0.0f;
+
+    if (!measurementResult_.hasStartPoint) {
+        measurementResult_.startPoint = PointRecord();
+        measurementResult_.endPoint = PointRecord();
+        return;
+    }
+
+    measurementResult_.startPoint = measurementResult_.points.constFirst();
+    measurementResult_.endPoint = measurementResult_.points.constLast();
+
+    if (!measurementResult_.hasEndPoint) {
+        return;
+    }
+
+    for (int pointIndex = 1; pointIndex < measurementResult_.points.size(); ++pointIndex) {
+        const PointRecord& previousPoint = measurementResult_.points.at(pointIndex - 1);
+        const PointRecord& currentPoint = measurementResult_.points.at(pointIndex);
+        const double dx = static_cast<double>(currentPoint.x - previousPoint.x);
+        const double dy = static_cast<double>(currentPoint.y - previousPoint.y);
+        const double dz = static_cast<double>(currentPoint.z - previousPoint.z);
+        measurementResult_.distance3d += static_cast<float>(std::sqrt(dx * dx + dy * dy + dz * dz));
+    }
+
+    measurementResult_.deltaZ = measurementResult_.endPoint.z - measurementResult_.startPoint.z;
+}
+
+bool PointCloudViewer::undoLastMeasurementPoint()
+{
+    if (measurementResult_.points.isEmpty()) {
+        return false;
+    }
+
+    measurementResult_.points.removeLast();
+    recalculateMeasurementResult();
+    refreshMeasurementOverlay();
+    updateFooter();
+    emit measurementChanged();
+    return true;
+}
+
 void PointCloudViewer::resetMeasurementState(bool notifyChange)
 {
-    const bool hadMeasurement = measurementResult_.hasStartPoint || measurementResult_.hasEndPoint;
+    const bool hadMeasurement = !measurementResult_.points.isEmpty();
     measurementResult_ = MeasurementResult();
 
     if (hasPointCloud()) {

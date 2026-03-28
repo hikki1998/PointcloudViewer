@@ -24,6 +24,7 @@ public:
     void clear();
     void reserve(std::size_t count);
     void addPoint(float x, float y, float z, std::uint8_t r = 255, std::uint8_t g = 255, std::uint8_t b = 255, std::uint8_t a = 255);
+    void append(const PointCloudData& other);
 
     [[nodiscard]] bool empty() const;
     [[nodiscard]] std::size_t size() const;

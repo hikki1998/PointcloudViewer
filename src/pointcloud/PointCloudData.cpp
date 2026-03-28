@@ -36,6 +36,20 @@ void PointCloudData::addPoint(float x, float y, float z, std::uint8_t r, std::ui
     updateBounds(point);
 }
 
+void PointCloudData::append(const PointCloudData& other)
+{
+    if (other.empty()) {
+        return;
+    }
+
+    points_.reserve(points_.size() + other.points_.size());
+    for (const PointRecord& point : other.points_) {
+        points_.push_back(point);
+        hasColor_ = hasColor_ || point.r != 255 || point.g != 255 || point.b != 255;
+        updateBounds(point);
+    }
+}
+
 bool PointCloudData::empty() const
 {
     return points_.empty();

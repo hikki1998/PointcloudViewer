@@ -6,6 +6,7 @@
 #include <QList>
 #include <QPointF>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 #include <QGridLayout>
 #include <QOpenGLWidget>
@@ -40,6 +41,7 @@ struct InteractionOptions
 
 struct MeasurementResult
 {
+    QList<PointRecord> points;
     bool hasStartPoint = false;
     bool hasEndPoint = false;
     PointRecord startPoint;
@@ -47,9 +49,14 @@ struct MeasurementResult
     float distance3d = 0.0f;
     float deltaZ = 0.0f;
 
+    [[nodiscard]] int pointCount() const
+    {
+        return points.size();
+    }
+
     [[nodiscard]] bool isComplete() const
     {
-        return hasStartPoint && hasEndPoint;
+        return points.size() >= 2;
     }
 };
 
@@ -95,6 +102,7 @@ protected:
 
 signals:
     void sceneClicked(const QPointF& localPos);
+    void sceneSecondaryClicked(const QPointF& localPos);
     void sceneHovered(const QPointF& localPos);
     void sceneHoverEnded();
     void frameRendered();
@@ -117,6 +125,7 @@ private:
     bool rightButtonPressed_ = false;
     bool leftButtonDragDetected_ = false;
     bool leftButtonEventDispatched_ = false;
+    bool rightButtonDragDetected_ = false;
     QPointF leftButtonAnchor_;
     QPointF middleButtonAnchor_;
     QPointF rightButtonAnchor_;
@@ -135,10 +144,13 @@ public:
     ~PointCloudViewer() override;
 
     bool loadPointCloud(const QString& filePath, QString* errorMessage = nullptr);
+    bool loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
+    bool appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     void clearPointCloud();
 
     bool hasPointCloud() const;
     QString currentFilePath() const;
+    QStringList currentFilePaths() const;
     const PointCloudData* pointCloudData() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
     const InteractionOptions& interactionOptions() const;
@@ -149,6 +161,7 @@ public:
     const QList<TowerMarker>& towerMarkers() const;
     int selectedTowerIndex() const;
     TowerEditMode towerEditMode() const;
+    int towerEditTargetIndex() const;
     bool focusOnPoint(const PointRecord& point, double distanceScale = 0.35);
 
 public slots:
@@ -209,6 +222,7 @@ private:
     void applyClearColor();
     void applyViewPreset(PointCloudViewPreset viewPreset);
     void handleSceneClick(const QPointF& localPos);
+    void handleSceneSecondaryClick(const QPointF& localPos);
     void handleSceneHover(const QPointF& localPos);
     void clearHoveredPoint();
     void updateHoveredPoint(const PointRecord* hoveredPoint);
@@ -225,6 +239,8 @@ private:
     void updateAxisIndicator();
     void positionAxisIndicator();
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
+    void recalculateMeasurementResult();
+    bool undoLastMeasurementPoint();
     void resetMeasurementState(bool notifyChange = true);
     void retranslateUi();
 
@@ -241,6 +257,7 @@ private:
 
     PointCloudData currentPointCloud_;
     QString currentFilePath_;
+    QStringList currentFilePaths_;
     PointCloudVisualizationOptions visualizationOptions_;
     InteractionOptions interactionOptions_;
     bool measurementEnabled_ = false;

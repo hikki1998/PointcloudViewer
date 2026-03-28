@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColor>
+#include <QStringList>
 #include <QStyle>
 
 #include "QtnRibbonMainWindow.h"
@@ -20,6 +21,7 @@ class QFormLayout;
 class QGroupBox;
 class QIcon;
 class QLabel;
+class QLineEdit;
 class QObject;
 class QPlainTextEdit;
 class QPushButton;
@@ -29,6 +31,8 @@ class QMenu;
 class QTabWidget;
 class QTableWidget;
 class QTableWidgetItem;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QToolButton;
 class QToolBar;
 class QTranslator;
@@ -78,19 +82,24 @@ private:
     void createActions();
     void createRibbon();
     void createWindowControls();
+    void createProjectDock();
     void createInspectorPanel();
     void createLogDock();
     void createStatusBar();
     void createConnections();
     void retranslateUi();
     void openPointCloud();
+    void addPointCloudFiles();
     void openProject();
     void saveProject();
     void saveProjectAs();
     bool loadPointCloudFile(const QString& filePath);
+    bool loadPointCloudFiles(const QStringList& filePaths);
+    bool appendPointCloudFiles(const QStringList& filePaths);
     bool loadProjectFile(const QString& filePath);
     bool saveProjectFile(const QString& filePath);
     void clearPointCloud();
+    void removeSelectedDataset();
     void choosePointColor();
     void chooseBackgroundColor();
     void applyOfficeTheme(Qtitan::RibbonStyle::Theme theme);
@@ -119,15 +128,20 @@ private:
     void persistThemeSettings() const;
     void updateNavigationHelpText();
     void updateMeasurementPanel();
+    void rebuildProjectTree();
+    void refreshProjectTreeFilter();
     void updateTowerPanel();
     QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
     void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
     void updateVisualizationTooltips();
     QString nextDefaultTowerName() const;
+    QString selectedDatasetPath() const;
+    void setTowerEditingEnabled(bool enabled);
     void applyLanguage(UiLanguage language);
 
     PointCloudViewer* viewer_ = nullptr;
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
+    QDockWidget* projectDock_ = nullptr;
     QDockWidget* inspectorDock_ = nullptr;
     QDockWidget* logDock_ = nullptr;
     QTabWidget* inspectorTabWidget_ = nullptr;
@@ -194,7 +208,10 @@ private:
     QCheckBox* invertPanCheckBox_ = nullptr;
     QCheckBox* invertWheelCheckBox_ = nullptr;
     QLabel* navigationTipsLabel_ = nullptr;
+    QLineEdit* projectSearchEdit_ = nullptr;
+    QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
+    QToolBar* projectToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
     QToolButton* towerMenuButton_ = nullptr;
     QMenu* towerActionsMenu_ = nullptr;
@@ -205,6 +222,12 @@ private:
     QToolButton* closeButton_ = nullptr;
 
     QAction* openAction_ = nullptr;
+    QAction* addPointCloudAction_ = nullptr;
+    QAction* removeDatasetAction_ = nullptr;
+    QAction* locateDatasetAction_ = nullptr;
+    QAction* copyDatasetPathAction_ = nullptr;
+    QAction* expandProjectTreeAction_ = nullptr;
+    QAction* collapseProjectTreeAction_ = nullptr;
     QAction* openProjectAction_ = nullptr;
     QAction* saveProjectAction_ = nullptr;
     QAction* saveProjectAsAction_ = nullptr;
@@ -226,6 +249,8 @@ private:
     QAction* themeDarkGrayAction_ = nullptr;
     QAction* measureAction_ = nullptr;
     QAction* clearMeasurementAction_ = nullptr;
+    QAction* startTowerEditAction_ = nullptr;
+    QAction* finishTowerEditAction_ = nullptr;
     QAction* addTowerAction_ = nullptr;
     QAction* insertTowerAction_ = nullptr;
     QAction* moveTowerAction_ = nullptr;
@@ -244,4 +269,5 @@ private:
     QActionGroup* themeActionGroup_ = nullptr;
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
+    bool towerEditingEnabled_ = false;
 };
