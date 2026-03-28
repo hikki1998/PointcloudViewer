@@ -1,12 +1,16 @@
 # LAS Point Cloud Viewer
 
-基于 Qt 5.15、OpenSceneGraph 和 LASlib 的桌面点云查看器，支持加载 `.las/.laz` 数据并进行基础浏览、配色和相机切换。
+基于 Qt 5.15、OpenSceneGraph 和 LASlib 的桌面点云查看器，支持加载一个或多个 `.las/.laz` 数据，并围绕电力巡检/通道检查场景提供浏览、标注、量测和剖面分析能力。
 
 当前版本还包含一组更接近测绘点云软件的显示与交互能力，包括：
 - 点透明度、深度雾化、EDL 风格增强、圆形 splat
 - 视图右上角 `X+ / Y+ / Z+` 坐标轴指示
 - 鼠标悬停点坐标显示
-- 两点量测覆盖层
+- 多点连续量测、右键回退和量测覆盖层
+- 净空阈值分析、分段明细表、净空 CSV 导出
+- 底部档距剖面视图，支持预警分段高亮和杆塔/隐患叠加
+- 杆塔编辑、业务属性维护和隐患台账
+- 多数据集工程管理、项目树和工程文件保存/加载
 
 ## 目录
 
@@ -45,7 +49,8 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 1. `PROJECT_CONTEXT.md`：快速了解模块职责、当前功能和验证路径
 2. `AGENTS.md`：仓库内开发约定
 3. `src/gui/MainWindow.cpp`、`src/gui/PointCloudViewer.cpp`：大多数 UI/交互修改的入口
-4. `src/osg/OsgPointCloudNode.cpp`、`src/osg/PointCloudVisualization.h`：渲染和显示参数入口
+4. `src/domain/InspectionData.*`、`src/domain/ClearanceAnalysis.*`、`src/gui/ProfilePlotWidget.*`：业务模型、净空分析和剖面图入口
+5. `src/osg/OsgPointCloudNode.cpp`、`src/osg/PointCloudVisualization.h`：渲染和显示参数入口
 
 常用验证命令：
 

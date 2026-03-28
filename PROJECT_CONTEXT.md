@@ -1,12 +1,15 @@
 # Project Context
 
 ## What This Repo Is
-这是一个基于 Qt 5.15、OpenSceneGraph 和 LASlib 的 Windows 桌面点云查看器。当前重点不是通用 GIS 能力，而是点云浏览、测绘风格显示、量测和较稳定的本地构建体验。
+这是一个基于 Qt 5.15、OpenSceneGraph 和 LASlib 的 Windows 桌面点云查看器。当前重点不是通用 GIS 能力，而是电力巡检/通道检查场景下的点云浏览、业务标注、量测分析和较稳定的本地构建体验。
 
 ## Fast Orientation
 - 入口：`src/main.cpp`
 - 主窗口与 Ribbon：`src/gui/MainWindow.cpp`
 - 视图交互、量测、悬停拾取、状态栏：`src/gui/PointCloudViewer.cpp`
+- 巡检业务模型：`src/domain/InspectionData.*`
+- 净空分析与导出：`src/domain/ClearanceAnalysis.*`、`src/domain/ClearanceReportExporter.*`
+- 剖面投影与绘制：`src/domain/ProfileMarkerProjection.*`、`src/gui/ProfilePlotWidget.*`
 - 点云显示参数模型：`src/osg/PointCloudVisualization.h`
 - 点云渲染与 shader：`src/osg/OsgPointCloudNode.cpp`
 - LAS/LAZ 读取：`src/pointcloud/LasReader.cpp`
@@ -14,19 +17,27 @@
 - 构建与部署逻辑：`CMakeLists.txt`
 
 ## Current User-Facing Features
-- 加载 `.las/.laz`
+- 加载一个或多个 `.las/.laz`
+- 左侧 `Project Explorer` 目录树，支持搜索、展开折叠、定位文件夹、复制路径
+- 工程打开/保存/另存为，持久化多数据集、显示参数、语言、杆塔和隐患台账
 - RGB、高程渐变、单色显示
 - 点大小、透明度、深度雾化、EDL 风格增强、圆形 splat
 - 顶视、前视、右视、适配视图
 - 右上角坐标轴指示器，显示 `X+ / Y+ / Z+`
 - 鼠标悬停点坐标显示
-- 两点量测和覆盖层标注
+- 多点连续量测，右键回退点，视图覆盖层显示量测路径
+- 净空分析阈值、分段明细表、净空 CSV 导出
+- 底部档距剖面 dock，支持预警分段高亮，并叠加附近杆塔/隐患点
+- 杆塔编辑：连续添加、前插、移动、表格改名、业务属性维护
+- 隐患台账：连续点选标注、列表管理、详情编辑、CSV/HTML 导出
 - 中英文界面，其中中文翻译已接入构建和部署
 
 ## File Responsibilities
 ### `src/gui/MainWindow.*`
 - Ribbon 动作
+- 左右/底部 dock 组织
 - 检查器面板和渲染控制
+- 项目树、杆塔表、隐患表、量测面板、剖面面板接线
 - 设置持久化
 - 语言切换
 - 与 `PointCloudViewer` 的信号槽连接
@@ -36,8 +47,26 @@
 - 相机操纵器
 - 点点击/悬停拾取
 - 状态栏信息
-- 量测逻辑
+- 多点量测逻辑
+- 杆塔/隐患拾取与覆盖层
 - 右上角坐标轴覆盖层
+
+### `src/domain/InspectionData.*`
+- 杆塔业务属性和隐患台账模型
+- 工程文件序列化所需的 JSON 转换
+
+### `src/domain/ClearanceAnalysis.*`
+- 量测路径转净空分段结果
+- 水平距离、三维距离、里程、阈值预警统计
+
+### `src/domain/ProfileMarkerProjection.*`
+- 将杆塔/隐患投影到当前量测剖面
+- 供剖面图叠加业务标记使用
+
+### `src/gui/ProfilePlotWidget.*`
+- 量测剖面绘制
+- 预警分段高亮
+- 杆塔/隐患投影标记绘制
 
 ### `src/osg/OsgPointCloudNode.cpp`
 - 点云几何构建
@@ -80,7 +109,9 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 ## Common Pitfalls
 - 新增显示参数时，只改 UI 不改渲染层会导致控件无效。
 - 新增 UI 文本但不更新 `.ts/.qm` 会出现漏翻译。
-- 改相机或拾取逻辑后，最好同时验证缩放、悬停坐标、量测点选。
+- 改相机或拾取逻辑后，最好同时验证缩放、悬停坐标、量测点选、杆塔/隐患选择。
+- 改工程文件结构后，要同时检查旧工程兼容和新字段保存加载。
+- 改量测逻辑后，要同时检查量测表格、剖面 dock 和导出结果是否一致。
 - CMake 依赖 Windows 和本地 Qt 路径，排查构建问题时优先看 `CMakeLists.txt` 和 `out/build/CMakeCache.txt`。
 
 ## What To Read For Typical Tasks
@@ -92,6 +123,16 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 - “修 UI 或交互”：
   - `src/gui/MainWindow.cpp`
   - `src/gui/PointCloudViewer.cpp`
+- “修电力巡检业务功能”：
+  - `src/domain/InspectionData.*`
+  - `src/gui/MainWindow.cpp`
+  - `src/gui/PointCloudViewer.cpp`
+- “修净空分析或剖面图”：
+  - `src/domain/ClearanceAnalysis.*`
+  - `src/domain/ClearanceReportExporter.*`
+  - `src/domain/ProfileMarkerProjection.*`
+  - `src/gui/ProfilePlotWidget.*`
+  - `src/gui/MainWindow.cpp`
 - “修翻译”：
   - `translations/lasviewer_zh_CN.ts`
   - `src/gui/MainWindow.cpp`

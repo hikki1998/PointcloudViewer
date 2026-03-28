@@ -13,6 +13,7 @@
 
 ## Project Structure
 - `src/gui/`：主窗口、Ribbon、检查器面板、OSG 嵌入视图、量测和状态栏。
+- `src/domain/`：杆塔/隐患业务模型、净空分析、导出和剖面投影。
 - `src/pointcloud/`：LAS/LAZ 读取、点云数据结构、包围盒等基础模型。
 - `src/osg/`：OSG 场景节点、点云渲染、着色参数接入。
 - `examples/`：开发者用示例和 smoke test，可执行验证逻辑集中在这里。
@@ -41,11 +42,15 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 - 涉及 UI、翻译、渲染、点选、量测、构建脚本时，默认至少做一次构建验证；如果改动影响显示结果，优先再跑 smoke test。
 
 ## Current Product State
-- 当前应用支持加载 `.las/.laz`、基础浏览、视角预设、RGB/高程/单色配色。
+- 当前应用支持加载多个 `.las/.laz`、基础浏览、视角预设、RGB/高程/单色配色。
 - 渲染控制已包含 `Point Size`、`Point Opacity`、`Depth Cue`、`EDL-style Shading`、`Round splats`。
+- 左侧有独立 `Project Explorer`，支持多数据集项目树管理。
 - 视图右上角有 `X+ / Y+ / Z+` 坐标轴指示器。
 - 底部信息栏会显示鼠标当前指向点的坐标。
-- 支持两点量测，并在视图中显示量测覆盖层。
+- 支持多点连续量测、右键回退，并在视图中显示量测覆盖层。
+- 支持净空分析阈值、分段明细表、净空 CSV 导出和底部档距剖面视图。
+- 支持杆塔编辑、杆塔业务属性维护、隐患台账和巡检报告导出。
+- 工程文件会保存多数据集、显示参数、杆塔和隐患业务数据。
 - 中文翻译需要保持完整，新增 UI 文本后要同步更新 [translations/lasviewer_zh_CN.ts](/E:/code/VibeCodingProject/las_pointcloud_viewer/translations/lasviewer_zh_CN.ts)。
 
 ## Coding Conventions
@@ -62,6 +67,14 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 - 加 viewer 状态、拾取、悬停、量测、状态栏显示：
   - [src/gui/PointCloudViewer.h](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/gui/PointCloudViewer.h)
   - [src/gui/PointCloudViewer.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/gui/PointCloudViewer.cpp)
+- 加巡检业务模型、净空分析、导出：
+  - `src/domain/InspectionData.*`
+  - `src/domain/ClearanceAnalysis.*`
+  - `src/domain/ClearanceReportExporter.*`
+  - `src/domain/ProfileMarkerProjection.*`
+- 改剖面图和量测明细：
+  - `src/gui/ProfilePlotWidget.*`
+  - [src/gui/MainWindow.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/gui/MainWindow.cpp)
 - 改点云显示、shader uniform、渲染表现：
   - [src/osg/OsgPointCloudNode.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/osg/OsgPointCloudNode.cpp)
   - [src/osg/PointCloudVisualization.h](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/osg/PointCloudVisualization.h)
