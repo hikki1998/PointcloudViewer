@@ -16,6 +16,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
+#include <QDoubleSpinBox>
 #include <QDragEnterEvent>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -79,9 +80,13 @@
 #include "QtnRibbonPage.h"
 #include "QtnRibbonQuickAccessBar.h"
 
+#include "domain/ClearanceAnalysis.h"
+#include "domain/ClearanceReportExporter.h"
 #include "domain/InspectionData.h"
 #include "domain/InspectionReportExporter.h"
+#include "domain/ProfileMarkerProjection.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/ProfilePlotWidget.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/PointCloudData.h"
 
@@ -533,6 +538,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     createRibbon();
     createProjectDock();
     createInspectorPanel();
+    createProfileDock();
     createLogDock();
     createStatusBar();
     setDockNestingEnabled(true);
@@ -542,6 +548,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
         resizeDocks({ projectDock_, inspectorDock_ }, { 320, 380 }, Qt::Horizontal);
     }
     loadInteractionSettings();
+    loadMeasurementSettings();
     loadVisualizationSettings();
     createConnections();
     applyLanguage(currentLanguage_);
@@ -557,6 +564,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
 {
     persistVisualizationSettings();
     persistInteractionSettings();
+    persistMeasurementSettings();
     persistLanguageSettings();
     persistThemeSettings();
     persistWindowSettings();
@@ -794,6 +802,10 @@ void MainWindow::createActions()
     measureAction_->setCheckable(true);
 
     clearMeasurementAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Measure"), this);
+    exportClearanceCsvAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Clearance CSV"), this);
+    showProfileDockAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Profile View"), this);
+    showProfileDockAction_->setCheckable(true);
+    showProfileDockAction_->setChecked(true);
 
     startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
     finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
@@ -884,6 +896,8 @@ void MainWindow::createRibbon()
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(showProfileDockAction_, Qt::ToolButtonTextUnderIcon);
 
     workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
     workspaceRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
@@ -1366,6 +1380,23 @@ void MainWindow::createInspectorPanel()
     renderingLayout_->addRow(QString(), axesCheckBox_);
     renderingLayout_->addRow(QString(), boundingBoxCheckBox_);
 
+    auto* measurementToolbarHost = new QWidget(measurementTab.first);
+    auto* measurementToolbarHostLayout = new QHBoxLayout(measurementToolbarHost);
+    measurementToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
+    measurementToolbarHostLayout->setSpacing(8);
+
+    measurementToolBar_ = new QToolBar(measurementToolbarHost);
+    measurementToolBar_->setIconSize(QSize(16, 16));
+    measurementToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    measurementToolBar_->setMovable(false);
+    measurementToolBar_->setFloatable(false);
+    measurementToolBar_->addAction(measureAction_);
+    measurementToolBar_->addAction(clearMeasurementAction_);
+    measurementToolBar_->addSeparator();
+    measurementToolBar_->addAction(exportClearanceCsvAction_);
+    measurementToolBar_->addAction(showProfileDockAction_);
+    measurementToolbarHostLayout->addWidget(measurementToolBar_, 1);
+
     measurementGroupBox_ = new QGroupBox(tr("Measurement"), measurementTab.first);
     measurementLayout_ = new QFormLayout(measurementGroupBox_);
     measurementLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
@@ -1376,13 +1407,17 @@ void MainWindow::createInspectorPanel()
     measurementStartValueLabel_ = new QLabel(measurementGroupBox_);
     measurementEndValueLabel_ = new QLabel(measurementGroupBox_);
     measurementDistanceValueLabel_ = new QLabel(measurementGroupBox_);
+    measurementHorizontalDistanceValueLabel_ = new QLabel(measurementGroupBox_);
     measurementDeltaZValueLabel_ = new QLabel(measurementGroupBox_);
+    measurementSegmentsValueLabel_ = new QLabel(measurementGroupBox_);
 
     const QList<QLabel*> measurementLabels = {
         measurementStartValueLabel_,
         measurementEndValueLabel_,
         measurementDistanceValueLabel_,
-        measurementDeltaZValueLabel_
+        measurementHorizontalDistanceValueLabel_,
+        measurementDeltaZValueLabel_,
+        measurementSegmentsValueLabel_
     };
     for (QLabel* label : measurementLabels) {
         label->setWordWrap(true);
@@ -1394,7 +1429,75 @@ void MainWindow::createInspectorPanel()
     measurementLayout_->addRow(tr("Start Point"), measurementStartValueLabel_);
     measurementLayout_->addRow(tr("End Point"), measurementEndValueLabel_);
     measurementLayout_->addRow(tr("3D Distance"), measurementDistanceValueLabel_);
+    measurementLayout_->addRow(tr("Horizontal Distance"), measurementHorizontalDistanceValueLabel_);
     measurementLayout_->addRow(tr("Height Delta"), measurementDeltaZValueLabel_);
+    measurementLayout_->addRow(tr("Path Segments"), measurementSegmentsValueLabel_);
+
+    clearanceGroupBox_ = new QGroupBox(tr("Clearance Analysis"), measurementTab.first);
+    clearanceLayout_ = new QFormLayout(clearanceGroupBox_);
+    clearanceLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    clearanceLayout_->setFormAlignment(Qt::AlignTop);
+
+    clearanceThresholdSpinBox_ = new QDoubleSpinBox(clearanceGroupBox_);
+    clearanceThresholdSpinBox_->setRange(0.0, 1000000.0);
+    clearanceThresholdSpinBox_->setDecimals(2);
+    clearanceThresholdSpinBox_->setSingleStep(0.5);
+    clearanceThresholdSpinBox_->setKeyboardTracking(false);
+
+    clearanceShortestValueLabel_ = new QLabel(clearanceGroupBox_);
+    clearanceWarningCountValueLabel_ = new QLabel(clearanceGroupBox_);
+    clearanceStatusValueLabel_ = new QLabel(clearanceGroupBox_);
+    clearanceStatusValueLabel_->setWordWrap(true);
+
+    for (QLabel* label : { clearanceShortestValueLabel_, clearanceWarningCountValueLabel_, clearanceStatusValueLabel_ }) {
+        label->setWordWrap(true);
+        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    }
+
+    clearanceLayout_->addRow(tr("Warning Threshold"), clearanceThresholdSpinBox_);
+    clearanceLayout_->addRow(tr("Shortest Segment"), clearanceShortestValueLabel_);
+    clearanceLayout_->addRow(tr("Warning Segments"), clearanceWarningCountValueLabel_);
+    clearanceLayout_->addRow(tr("Status"), clearanceStatusValueLabel_);
+
+    clearanceSegmentsGroupBox_ = new QGroupBox(tr("Path Segment Details"), measurementTab.first);
+    auto* clearanceSegmentsLayout = new QVBoxLayout(clearanceSegmentsGroupBox_);
+    clearanceSegmentsLayout->setContentsMargins(12, 12, 12, 12);
+    clearanceSegmentsLayout->setSpacing(8);
+
+    clearanceSegmentsSummaryLabel_ = new QLabel(clearanceSegmentsGroupBox_);
+    clearanceSegmentsSummaryLabel_->setWordWrap(true);
+    clearanceSegmentsSummaryLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    clearanceSegmentsTableWidget_ = new QTableWidget(clearanceSegmentsGroupBox_);
+    clearanceSegmentsTableWidget_->setColumnCount(8);
+    clearanceSegmentsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    clearanceSegmentsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    clearanceSegmentsTableWidget_->setAlternatingRowColors(true);
+    clearanceSegmentsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    clearanceSegmentsTableWidget_->setHorizontalHeaderLabels({
+        tr("Segment"),
+        tr("From"),
+        tr("To"),
+        tr("Chainage"),
+        tr("Horizontal"),
+        tr("3D"),
+        tr("dZ"),
+        tr("Status")
+    });
+    clearanceSegmentsTableWidget_->verticalHeader()->setVisible(false);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
+    clearanceSegmentsTableWidget_->setMinimumHeight(220);
+
+    clearanceSegmentsLayout->addWidget(clearanceSegmentsSummaryLabel_);
+    clearanceSegmentsLayout->addWidget(clearanceSegmentsTableWidget_, 1);
 
     navigationGroupBox_ = new QGroupBox(tr("Navigation"), navigationTab.first);
     auto* tipsLayout = new QVBoxLayout(navigationGroupBox_);
@@ -1424,7 +1527,10 @@ void MainWindow::createInspectorPanel()
     issueTab.second->addWidget(issuePanel, 1);
     renderingTab.second->addWidget(renderingGroupBox_);
     renderingTab.second->addStretch(1);
+    measurementTab.second->addWidget(measurementToolbarHost);
     measurementTab.second->addWidget(measurementGroupBox_);
+    measurementTab.second->addWidget(clearanceGroupBox_);
+    measurementTab.second->addWidget(clearanceSegmentsGroupBox_);
     measurementTab.second->addStretch(1);
     navigationTab.second->addWidget(navigationGroupBox_);
     navigationTab.second->addStretch(1);
@@ -1522,7 +1628,7 @@ void MainWindow::createInspectorPanel()
         "color: #334155;"
         "background-color: #f6f8fb;"
         "}"
-        "QPushButton, QComboBox, QSpinBox {"
+        "QPushButton, QComboBox, QSpinBox, QDoubleSpinBox {"
         "background-color: #ffffff;"
         "border: 1px solid #cbd5e1;"
         "border-radius: 6px;"
@@ -1533,7 +1639,7 @@ void MainWindow::createInspectorPanel()
         "QComboBox {"
         "padding-right: 30px;"
         "}"
-        "QSpinBox {"
+        "QSpinBox, QDoubleSpinBox {"
         "padding-right: 20px;"
         "}"
         "QComboBox::drop-down {"
@@ -1542,7 +1648,7 @@ void MainWindow::createInspectorPanel()
         "width: 24px;"
         "border: none;"
         "}"
-        "QSpinBox::up-button, QSpinBox::down-button {"
+        "QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {"
         "width: 18px;"
         "border: none;"
         "}"
@@ -1555,7 +1661,7 @@ void MainWindow::createInspectorPanel()
         "min-height: 24px;"
         "padding: 4px 10px;"
         "}"
-        "QPushButton:hover, QComboBox:hover, QSpinBox:hover {"
+        "QPushButton:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {"
         "border-color: #94a3b8;"
         "}"
         "QCheckBox {"
@@ -1564,6 +1670,60 @@ void MainWindow::createInspectorPanel()
 
     inspectorDock_->setWidget(inspectorTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
+}
+
+void MainWindow::createProfileDock()
+{
+    profileDock_ = new QDockWidget(tr("Span Profile"), this);
+    profileDock_->setObjectName(QStringLiteral("spanProfileDock"));
+    profileDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    profileDock_->setFeatures(
+        QDockWidget::DockWidgetClosable
+        | QDockWidget::DockWidgetMovable
+        | QDockWidget::DockWidgetFloatable);
+    profileDock_->setMinimumHeight(220);
+
+    auto* profileSurface = new QWidget(profileDock_);
+    profileSurface->setObjectName(QStringLiteral("spanProfileSurface"));
+    auto* profileLayout = new QVBoxLayout(profileSurface);
+    profileLayout->setContentsMargins(12, 12, 12, 12);
+    profileLayout->setSpacing(8);
+
+    auto* titleLabel = new QLabel(tr("Measured corridor profile"), profileSurface);
+    titleLabel->setObjectName(QStringLiteral("spanProfileTitleLabel"));
+    titleLabel->setStyleSheet(QStringLiteral(
+        "QLabel#spanProfileTitleLabel {"
+        "font-size: 14px;"
+        "font-weight: 600;"
+        "color: #0f172a;"
+        "}"));
+
+    auto* subtitleLabel = new QLabel(
+        tr("The profile updates from the current measurement path, highlights clearance segments below the threshold, and overlays nearby towers and issues."),
+        profileSurface);
+    subtitleLabel->setObjectName(QStringLiteral("spanProfileSubtitleLabel"));
+    subtitleLabel->setWordWrap(true);
+    subtitleLabel->setStyleSheet(QStringLiteral("color: #64748b;"));
+
+    profilePlotWidget_ = new ProfilePlotWidget(profileSurface);
+    profilePlotWidget_->setObjectName(QStringLiteral("spanProfilePlotWidget"));
+    profilePlotWidget_->setStyleSheet(QStringLiteral(
+        "ProfilePlotWidget#spanProfilePlotWidget {"
+        "background: transparent;"
+        "}"));
+
+    profileLayout->addWidget(titleLabel);
+    profileLayout->addWidget(subtitleLabel);
+    profileLayout->addWidget(profilePlotWidget_, 1);
+
+    profileSurface->setStyleSheet(QStringLiteral(
+        "QWidget#spanProfileSurface {"
+        "background-color: #eef4fb;"
+        "border-top: 1px solid #d7e2f0;"
+        "}"));
+
+    profileDock_->setWidget(profileSurface);
+    addDockWidget(Qt::BottomDockWidgetArea, profileDock_);
 }
 
 void MainWindow::createLogDock()
@@ -1735,6 +1895,9 @@ void MainWindow::retranslateUi()
     themeDarkGrayAction_->setText(tr("Dark Gray"));
     measureAction_->setText(tr("Measure"));
     clearMeasurementAction_->setText(tr("Clear Measure"));
+    exportClearanceCsvAction_->setText(tr("Export Clearance CSV"));
+    showProfileDockAction_->setText(tr("Profile View"));
+    showProfileDockAction_->setToolTip(tr("Show or hide the span profile dock"));
     startTowerEditAction_->setText(tr("Start Editing"));
     finishTowerEditAction_->setText(tr("Finish Editing"));
     addTowerAction_->setText(tr("Click To Add Tower"));
@@ -1803,6 +1966,9 @@ void MainWindow::retranslateUi()
     if (inspectorDock_ != nullptr) {
         inspectorDock_->setWindowTitle(tr("Scene Inspector"));
     }
+    if (profileDock_ != nullptr) {
+        profileDock_->setWindowTitle(tr("Span Profile"));
+    }
     if (logDock_ != nullptr) {
         logDock_->setWindowTitle(tr("Application Log"));
     }
@@ -1837,6 +2003,12 @@ void MainWindow::retranslateUi()
     }
     if (measurementGroupBox_ != nullptr) {
         measurementGroupBox_->setTitle(tr("Measurement"));
+    }
+    if (clearanceGroupBox_ != nullptr) {
+        clearanceGroupBox_->setTitle(tr("Clearance Analysis"));
+    }
+    if (clearanceSegmentsGroupBox_ != nullptr) {
+        clearanceSegmentsGroupBox_->setTitle(tr("Path Segment Details"));
     }
     if (navigationGroupBox_ != nullptr) {
         navigationGroupBox_->setTitle(tr("Navigation"));
@@ -1923,14 +2095,48 @@ void MainWindow::retranslateUi()
     setFieldLabel(measurementLayout_, measurementStartValueLabel_, tr("Start Point"));
     setFieldLabel(measurementLayout_, measurementEndValueLabel_, tr("End Point"));
     setFieldLabel(measurementLayout_, measurementDistanceValueLabel_, tr("3D Distance"));
+    setFieldLabel(measurementLayout_, measurementHorizontalDistanceValueLabel_, tr("Horizontal Distance"));
     setFieldLabel(measurementLayout_, measurementDeltaZValueLabel_, tr("Height Delta"));
+    setFieldLabel(measurementLayout_, measurementSegmentsValueLabel_, tr("Path Segments"));
+    setFieldLabel(clearanceLayout_, clearanceThresholdSpinBox_, tr("Warning Threshold"));
+    setFieldLabel(clearanceLayout_, clearanceShortestValueLabel_, tr("Shortest Segment"));
+    setFieldLabel(clearanceLayout_, clearanceWarningCountValueLabel_, tr("Warning Segments"));
+    setFieldLabel(clearanceLayout_, clearanceStatusValueLabel_, tr("Status"));
+    if (clearanceSegmentsSummaryLabel_ != nullptr) {
+        clearanceSegmentsSummaryLabel_->setText(tr("Add at least two measured points to list corridor segments and export clearance details."));
+    }
+    if (clearanceSegmentsTableWidget_ != nullptr) {
+        clearanceSegmentsTableWidget_->setHorizontalHeaderLabels({
+            tr("Segment"),
+            tr("From"),
+            tr("To"),
+            tr("Chainage"),
+            tr("Horizontal"),
+            tr("3D"),
+            tr("dZ"),
+            tr("Status")
+        });
+    }
     measurementToggleButton_->setText(
         viewer_ != nullptr && viewer_->measurementEnabled() ? tr("Stop Measurement") : tr("Start Measurement"));
     measurementClearButton_->setText(tr("Clear Measurement"));
+    if (clearanceThresholdSpinBox_ != nullptr) {
+        clearanceThresholdSpinBox_->setSuffix(tr(" m"));
+        clearanceThresholdSpinBox_->setSpecialValueText(tr("Disabled"));
+    }
 
     invertOrbitCheckBox_->setText(tr("Invert orbit drag"));
     invertPanCheckBox_->setText(tr("Invert pan drag"));
     invertWheelCheckBox_->setText(tr("Invert wheel zoom"));
+
+    if (profileDock_ != nullptr) {
+        if (auto* titleLabel = profileDock_->findChild<QLabel*>(QStringLiteral("spanProfileTitleLabel"))) {
+            titleLabel->setText(tr("Measured corridor profile"));
+        }
+        if (auto* subtitleLabel = profileDock_->findChild<QLabel*>(QStringLiteral("spanProfileSubtitleLabel"))) {
+            subtitleLabel->setText(tr("The profile updates from the current measurement path, highlights clearance segments below the threshold, and overlays nearby towers and issues."));
+        }
+    }
 
     if (viewer_ != nullptr) {
         setColorButtonAppearance(pointColorButton_, viewer_->visualizationOptions().singleColor, tr("Pick Color"));
@@ -2013,6 +2219,41 @@ void MainWindow::createConnections()
     connect(themeDarkGrayAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016DarkGray); });
     connect(measureAction_, &QAction::toggled, viewer_, &PointCloudViewer::setMeasurementEnabled);
     connect(clearMeasurementAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearMeasurement);
+    connect(exportClearanceCsvAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        const ClearanceAnalysisResult analysisResult = analyzeClearancePath(
+            viewer_->measurementResult().points,
+            static_cast<float>(clearanceWarningThresholdMeters_));
+        if (!analysisResult.isValid()) {
+            showUserMessage(LogLevel::Warning, tr("Add at least two measured points before exporting clearance details."), 3000);
+            return;
+        }
+
+        const QString filePath = QFileDialog::getSaveFileName(
+            this,
+            tr("Export Clearance CSV"),
+            QStringLiteral("clearance_segments.csv"),
+            tr("CSV Files (*.csv)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+
+        QString errorMessage;
+        if (!ClearanceReportExporter::exportSegmentsCsv(filePath, analysisResult, &errorMessage)) {
+            showUserMessage(LogLevel::Error, errorMessage, 5000);
+            return;
+        }
+
+        showUserMessage(LogLevel::Info, tr("Clearance CSV exported: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    });
+    connect(showProfileDockAction_, &QAction::toggled, this, [this](bool visible) {
+        if (profileDock_ != nullptr && profileDock_->isVisible() != visible) {
+            profileDock_->setVisible(visible);
+        }
+    });
 
     connect(pointSizeSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointSize);
     connect(pointOpacitySlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointOpacity);
@@ -2047,6 +2288,16 @@ void MainWindow::createConnections()
         viewer_->setMeasurementEnabled(!viewer_->measurementEnabled());
     });
     connect(measurementClearButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearMeasurement);
+    connect(clearanceThresholdSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
+        clearanceWarningThresholdMeters_ = value;
+        persistMeasurementSettings();
+        updateMeasurementPanel();
+    });
+    connect(clearanceSegmentsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
+        if (profilePlotWidget_ != nullptr) {
+            profilePlotWidget_->setSelectedSegmentIndex(currentRow);
+        }
+    });
 
     const auto beginAddTower = [this]() {
         if (!towerEditingEnabled_) {
@@ -2458,6 +2709,12 @@ void MainWindow::createConnections()
         }
         persistWindowSettings();
     });
+    connect(profileDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (showProfileDockAction_ != nullptr && showProfileDockAction_->isChecked() != visible) {
+            showProfileDockAction_->setChecked(visible);
+        }
+        persistWindowSettings();
+    });
     if (inspectorTabWidget_ != nullptr) {
         connect(inspectorTabWidget_, &QTabWidget::currentChanged, this, [this](int) {
             persistWindowSettings();
@@ -2490,6 +2747,7 @@ void MainWindow::createConnections()
     });
     connect(viewer_, &PointCloudViewer::towerMarkersChanged, this, [this]() {
         syncUiFromViewer();
+        updateMeasurementPanel();
         updateTowerPanel();
     });
     connect(viewer_, &PointCloudViewer::selectedTowerChanged, this, [this](int index) {
@@ -2503,6 +2761,7 @@ void MainWindow::createConnections()
             }
         }
         updateActionState();
+        updateMeasurementPanel();
         updateTowerPanel();
     });
     connect(viewer_, &PointCloudViewer::towerEditModeChanged, this, [this]() {
@@ -2543,6 +2802,7 @@ void MainWindow::createConnections()
     });
     connect(viewer_, &PointCloudViewer::inspectionIssuesChanged, this, [this]() {
         syncUiFromViewer();
+        updateMeasurementPanel();
         updateIssuePanel();
     });
     connect(viewer_, &PointCloudViewer::selectedIssueChanged, this, [this](int index) {
@@ -2556,6 +2816,7 @@ void MainWindow::createConnections()
             }
         }
         updateActionState();
+        updateMeasurementPanel();
         updateIssuePanel();
     });
     connect(viewer_, &PointCloudViewer::issueEditModeChanged, this, [this]() {
@@ -2706,6 +2967,13 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     interactionOptions.invertWheelZoom = interactionObject.value(QStringLiteral("invertWheelZoom")).toBool(interactionOptions.invertWheelZoom);
     viewer_->setInteractionOptions(interactionOptions);
 
+    const QJsonObject measurementObject = projectObject.value(QStringLiteral("measurement")).toObject();
+    clearanceWarningThresholdMeters_ = measurementObject.value(QStringLiteral("clearanceThresholdMeters")).toDouble(clearanceWarningThresholdMeters_);
+    if (clearanceThresholdSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(clearanceThresholdSpinBox_);
+        clearanceThresholdSpinBox_->setValue(clearanceWarningThresholdMeters_);
+    }
+
     QList<TowerMarker> towerMarkers;
     const QJsonArray towersArray = projectObject.value(QStringLiteral("towerMarkers")).toArray();
     for (const QJsonValue& towerValue : towersArray) {
@@ -2768,6 +3036,10 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("invertWheelZoom"), viewer_->interactionOptions().invertWheelZoom }
     };
 
+    QJsonObject measurementObject {
+        { QStringLiteral("clearanceThresholdMeters"), clearanceWarningThresholdMeters_ }
+    };
+
     QJsonArray towersArray;
     for (const TowerMarker& towerMarker : viewer_->towerMarkers()) {
         towersArray.append(towerRecordToJson(towerMarker));
@@ -2784,12 +3056,13 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     QJsonObject projectObject {
-        { QStringLiteral("version"), 2 },
+        { QStringLiteral("version"), 3 },
         { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
         { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
         { QStringLiteral("visualization"), visualizationObject },
         { QStringLiteral("interaction"), interactionObject },
+        { QStringLiteral("measurement"), measurementObject },
         { QStringLiteral("towerMarkers"), towersArray },
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
     };
@@ -3275,8 +3548,15 @@ void MainWindow::updateActionState()
     rightViewAction_->setEnabled(hasPointCloud);
     measureAction_->setEnabled(hasPointCloud);
     clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
+    exportClearanceCsvAction_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
+    showProfileDockAction_->setEnabled(true);
+    showProfileDockAction_->setChecked(profileDock_ != nullptr && profileDock_->isVisible());
     measurementToggleButton_->setEnabled(hasPointCloud);
     measurementClearButton_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
+    clearanceThresholdSpinBox_->setEnabled(hasPointCloud);
+    if (clearanceSegmentsTableWidget_ != nullptr) {
+        clearanceSegmentsTableWidget_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
+    }
     startTowerEditAction_->setEnabled(hasPointCloud && !towerEditingEnabled_);
     finishTowerEditAction_->setEnabled(towerEditingEnabled_);
     addTowerAction_->setEnabled(hasPointCloud && towerEditingEnabled_ && !towerToolActive);
@@ -3371,6 +3651,25 @@ void MainWindow::persistInteractionSettings() const
     settings.setValue(QStringLiteral("interaction/invertWheelZoom"), options.invertWheelZoom);
 }
 
+void MainWindow::loadMeasurementSettings()
+{
+    QSettings settings;
+    clearanceWarningThresholdMeters_ = settings.value(
+        QStringLiteral("measurement/clearanceThresholdMeters"),
+        clearanceWarningThresholdMeters_).toDouble();
+
+    if (clearanceThresholdSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(clearanceThresholdSpinBox_);
+        clearanceThresholdSpinBox_->setValue(clearanceWarningThresholdMeters_);
+    }
+}
+
+void MainWindow::persistMeasurementSettings() const
+{
+    QSettings settings;
+    settings.setValue(QStringLiteral("measurement/clearanceThresholdMeters"), clearanceWarningThresholdMeters_);
+}
+
 void MainWindow::loadVisualizationSettings()
 {
     if (viewer_ == nullptr) {
@@ -3442,14 +3741,21 @@ void MainWindow::loadWindowSettings()
     }
 
     const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
+    const bool showProfile = settings.value(QStringLiteral("window/showProfile"), true).toBool();
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/inspectorTab"), 0).toInt());
     }
     if (showLogAction_ != nullptr) {
         showLogAction_->setChecked(showLog);
     }
+    if (showProfileDockAction_ != nullptr) {
+        showProfileDockAction_->setChecked(showProfile);
+    }
     if (logDock_ != nullptr) {
         logDock_->setVisible(showLog);
+    }
+    if (profileDock_ != nullptr) {
+        profileDock_->setVisible(showProfile);
     }
 }
 
@@ -3459,6 +3765,7 @@ void MainWindow::persistWindowSettings() const
     settings.setValue(QStringLiteral("window/geometry"), saveGeometry());
     settings.setValue(QStringLiteral("window/maximized"), isMaximized());
     settings.setValue(QStringLiteral("window/showLog"), logDock_ != nullptr && logDock_->isVisible());
+    settings.setValue(QStringLiteral("window/showProfile"), profileDock_ != nullptr && profileDock_->isVisible());
     settings.setValue(
         QStringLiteral("window/inspectorTab"),
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
@@ -3506,6 +3813,9 @@ void MainWindow::updateMeasurementPanel()
     }
 
     const MeasurementResult& measurementResult = viewer_->measurementResult();
+    const ClearanceAnalysisResult clearanceAnalysis = analyzeClearancePath(
+        measurementResult.points,
+        static_cast<float>(clearanceWarningThresholdMeters_));
     measurementToggleButton_->setText(
         viewer_->measurementEnabled() ? tr("Stop Measurement") : tr("Start Measurement"));
     measurementClearButton_->setText(tr("Clear Measurement"));
@@ -3514,8 +3824,157 @@ void MainWindow::updateMeasurementPanel()
     measurementEndValueLabel_->setText(measurementPointText(measurementResult, false));
     measurementDistanceValueLabel_->setText(
         measurementResult.isComplete() ? formatCoordinate(measurementResult.distance3d) : tr("N/A"));
+    measurementHorizontalDistanceValueLabel_->setText(
+        clearanceAnalysis.isValid() ? formatCoordinate(clearanceAnalysis.totalHorizontalDistance) : tr("N/A"));
     measurementDeltaZValueLabel_->setText(
         measurementResult.isComplete() ? formatCoordinate(measurementResult.deltaZ) : tr("N/A"));
+    measurementSegmentsValueLabel_->setText(
+        measurementResult.isComplete()
+            ? QLocale().toString(measurementResult.pointCount() - 1)
+            : QStringLiteral("0"));
+
+    QString clearanceStatusText = tr("Add at least two measured points to analyze corridor clearance.");
+    QString clearanceStatusStyle = QStringLiteral("color: #475569;");
+    if (!clearanceAnalysis.isValid()) {
+        clearanceShortestValueLabel_->setText(tr("N/A"));
+        clearanceWarningCountValueLabel_->setText(QStringLiteral("0"));
+    } else {
+        clearanceShortestValueLabel_->setText(formatCoordinate(clearanceAnalysis.minimumSegmentDistance));
+        clearanceWarningCountValueLabel_->setText(QLocale().toString(clearanceAnalysis.warningCount));
+
+        if (!clearanceAnalysis.thresholdEnabled()) {
+            clearanceStatusText = tr("Clearance threshold is disabled. Set a value above 0 m to enable warnings.");
+            clearanceStatusStyle = QStringLiteral("color: #475569;");
+        } else if (clearanceAnalysis.hasWarnings()) {
+            clearanceStatusText = tr("%1 segment(s) are below the clearance threshold of %2 m.")
+                .arg(QLocale().toString(clearanceAnalysis.warningCount))
+                .arg(formatCoordinate(static_cast<float>(clearanceWarningThresholdMeters_)));
+            clearanceStatusStyle = QStringLiteral("color: #b91c1c; font-weight: 600;");
+        } else {
+            clearanceStatusText = tr("All measured segments satisfy the clearance threshold of %1 m.")
+                .arg(formatCoordinate(static_cast<float>(clearanceWarningThresholdMeters_)));
+            clearanceStatusStyle = QStringLiteral("color: #15803d; font-weight: 600;");
+        }
+    }
+
+    clearanceStatusValueLabel_->setText(clearanceStatusText);
+    clearanceStatusValueLabel_->setStyleSheet(clearanceStatusStyle);
+    updateClearanceSegmentsTable(clearanceAnalysis);
+    if (profilePlotWidget_ != nullptr) {
+        profilePlotWidget_->setAnalysisResult(clearanceAnalysis);
+        profilePlotWidget_->setProfileMarkers(projectProfileMarkers(
+            clearanceAnalysis,
+            viewer_->towerMarkers(),
+            viewer_->selectedTowerIndex(),
+            viewer_->inspectionIssues(),
+            viewer_->selectedIssueIndex()));
+        profilePlotWidget_->setSelectedSegmentIndex(
+            clearanceSegmentsTableWidget_ != nullptr ? clearanceSegmentsTableWidget_->currentRow() : -1);
+    }
+}
+
+void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis)
+{
+    if (clearanceSegmentsSummaryLabel_ == nullptr || clearanceSegmentsTableWidget_ == nullptr) {
+        return;
+    }
+
+    const int previousRow = clearanceSegmentsTableWidget_->currentRow();
+    const QSignalBlocker blocker(clearanceSegmentsTableWidget_);
+    clearanceSegmentsTableWidget_->setRowCount(0);
+
+    if (!clearanceAnalysis.isValid()) {
+        clearanceSegmentsSummaryLabel_->setText(
+            tr("Add at least two measured points to list corridor segments and export clearance details."));
+        clearanceSegmentsTableWidget_->clearSelection();
+        return;
+    }
+
+    if (!clearanceAnalysis.thresholdEnabled()) {
+        clearanceSegmentsSummaryLabel_->setText(
+            tr("Listed %1 path segment(s). Set a warning threshold above 0 m to flag low-clearance spans.")
+                .arg(QLocale().toString(clearanceAnalysis.segments.size())));
+    } else if (clearanceAnalysis.hasWarnings()) {
+        clearanceSegmentsSummaryLabel_->setText(
+            tr("%1 segment(s) are below %2 m. Select a row to highlight it in the profile or export the full list.")
+                .arg(QLocale().toString(clearanceAnalysis.warningCount))
+                .arg(formatCoordinate(clearanceAnalysis.threshold)));
+    } else {
+        clearanceSegmentsSummaryLabel_->setText(
+            tr("All %1 segment(s) satisfy the current clearance threshold of %2 m.")
+                .arg(QLocale().toString(clearanceAnalysis.segments.size()))
+                .arg(formatCoordinate(clearanceAnalysis.threshold)));
+    }
+
+    int preferredRow = previousRow;
+    if (preferredRow < 0 || preferredRow >= clearanceAnalysis.segments.size()) {
+        preferredRow = 0;
+        for (int segmentIndex = 0; segmentIndex < clearanceAnalysis.segments.size(); ++segmentIndex) {
+            if (clearanceAnalysis.segments.at(segmentIndex).belowThreshold) {
+                preferredRow = segmentIndex;
+                break;
+            }
+        }
+    }
+
+    for (int segmentIndex = 0; segmentIndex < clearanceAnalysis.segments.size(); ++segmentIndex) {
+        const ClearanceSegment& segment = clearanceAnalysis.segments.at(segmentIndex);
+        clearanceSegmentsTableWidget_->insertRow(segmentIndex);
+
+        auto createReadOnlyItem = [](const QString& text, const QColor& color = QColor(), Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter) {
+            auto* item = new QTableWidgetItem(text);
+            item->setFlags((item->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+            item->setTextAlignment(alignment);
+            if (color.isValid()) {
+                item->setForeground(color);
+            }
+            return item;
+        };
+
+        const QColor statusColor = segment.belowThreshold ? QColor(185, 28, 28) : QColor(22, 101, 52);
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            0,
+            createReadOnlyItem(QLocale().toString(segmentIndex + 1), QColor(), Qt::AlignCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            1,
+            createReadOnlyItem(QLocale().toString(segment.startPointIndex + 1), QColor(), Qt::AlignCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            2,
+            createReadOnlyItem(QLocale().toString(segment.endPointIndex + 1), QColor(), Qt::AlignCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            3,
+            createReadOnlyItem(
+                tr("%1 - %2 m")
+                    .arg(formatCoordinate(segment.chainageStart))
+                    .arg(formatCoordinate(segment.chainageEnd))));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            4,
+            createReadOnlyItem(formatCoordinate(segment.horizontalDistance), QColor(), Qt::AlignRight | Qt::AlignVCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            5,
+            createReadOnlyItem(formatCoordinate(segment.distance3d), QColor(), Qt::AlignRight | Qt::AlignVCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            6,
+            createReadOnlyItem(formatCoordinate(segment.deltaZ), QColor(), Qt::AlignRight | Qt::AlignVCenter));
+        clearanceSegmentsTableWidget_->setItem(
+            segmentIndex,
+            7,
+            createReadOnlyItem(segment.belowThreshold ? tr("Warning") : tr("OK"), statusColor, Qt::AlignCenter));
+    }
+
+    if (clearanceSegmentsTableWidget_->rowCount() > 0) {
+        const int normalizedRow = std::max(0, std::min(preferredRow, clearanceSegmentsTableWidget_->rowCount() - 1));
+        clearanceSegmentsTableWidget_->setCurrentCell(normalizedRow, 0);
+    } else {
+        clearanceSegmentsTableWidget_->clearSelection();
+    }
 }
 
 void MainWindow::rebuildProjectTree()

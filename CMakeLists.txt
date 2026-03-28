@@ -433,20 +433,28 @@ endif()
 
 set(SOURCES
     src/main.cpp
+    src/domain/ClearanceAnalysis.cpp
+    src/domain/ClearanceReportExporter.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionReportExporter.cpp
+    src/domain/ProfileMarkerProjection.cpp
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
+    src/gui/ProfilePlotWidget.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
     src/osg/OsgPointCloudNode.cpp
 )
 
 set(HEADERS
+    src/domain/ClearanceAnalysis.h
+    src/domain/ClearanceReportExporter.h
     src/domain/InspectionData.h
     src/domain/InspectionReportExporter.h
+    src/domain/ProfileMarkerProjection.h
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
+    src/gui/ProfilePlotWidget.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
     src/osg/PointCloudVisualization.h

@@ -14,6 +14,7 @@ class QCheckBox;
 class QComboBox;
 class QCloseEvent;
 class QDockWidget;
+class QDoubleSpinBox;
 class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
@@ -46,6 +47,8 @@ class RibbonPage;
 }
 
 class PointCloudViewer;
+class ProfilePlotWidget;
+struct ClearanceAnalysisResult;
 
 class MainWindow final : public Qtitan::RibbonMainWindow
 {
@@ -84,6 +87,7 @@ private:
     void createWindowControls();
     void createProjectDock();
     void createInspectorPanel();
+    void createProfileDock();
     void createLogDock();
     void createStatusBar();
     void createConnections();
@@ -120,6 +124,8 @@ private:
     void persistVisualizationSettings() const;
     void loadInteractionSettings();
     void persistInteractionSettings() const;
+    void loadMeasurementSettings();
+    void persistMeasurementSettings() const;
     void loadLanguageSettings();
     void persistLanguageSettings() const;
     void loadWindowSettings();
@@ -128,6 +134,7 @@ private:
     void persistThemeSettings() const;
     void updateNavigationHelpText();
     void updateMeasurementPanel();
+    void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
     void updateTowerPanel();
@@ -147,6 +154,7 @@ private:
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
     QDockWidget* projectDock_ = nullptr;
     QDockWidget* inspectorDock_ = nullptr;
+    QDockWidget* profileDock_ = nullptr;
     QDockWidget* logDock_ = nullptr;
     QTabWidget* inspectorTabWidget_ = nullptr;
     QTranslator* appTranslator_ = nullptr;
@@ -172,6 +180,9 @@ private:
     QFormLayout* renderingLayout_ = nullptr;
     QGroupBox* measurementGroupBox_ = nullptr;
     QFormLayout* measurementLayout_ = nullptr;
+    QGroupBox* clearanceGroupBox_ = nullptr;
+    QFormLayout* clearanceLayout_ = nullptr;
+    QGroupBox* clearanceSegmentsGroupBox_ = nullptr;
     QGroupBox* navigationGroupBox_ = nullptr;
     QFormLayout* navigationToggleLayout_ = nullptr;
     QGroupBox* towerDetailsGroupBox_ = nullptr;
@@ -188,7 +199,13 @@ private:
     QLabel* measurementStartValueLabel_ = nullptr;
     QLabel* measurementEndValueLabel_ = nullptr;
     QLabel* measurementDistanceValueLabel_ = nullptr;
+    QLabel* measurementHorizontalDistanceValueLabel_ = nullptr;
     QLabel* measurementDeltaZValueLabel_ = nullptr;
+    QLabel* measurementSegmentsValueLabel_ = nullptr;
+    QLabel* clearanceShortestValueLabel_ = nullptr;
+    QLabel* clearanceWarningCountValueLabel_ = nullptr;
+    QLabel* clearanceStatusValueLabel_ = nullptr;
+    QLabel* clearanceSegmentsSummaryLabel_ = nullptr;
     QLabel* towerCountValueLabel_ = nullptr;
     QLabel* towerToolStatusLabel_ = nullptr;
     QLabel* issueCountValueLabel_ = nullptr;
@@ -213,6 +230,7 @@ private:
     QPushButton* backgroundColorButton_ = nullptr;
     QPushButton* measurementToggleButton_ = nullptr;
     QPushButton* measurementClearButton_ = nullptr;
+    QDoubleSpinBox* clearanceThresholdSpinBox_ = nullptr;
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
@@ -224,9 +242,12 @@ private:
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
     QTableWidget* issueTableWidget_ = nullptr;
+    QTableWidget* clearanceSegmentsTableWidget_ = nullptr;
+    QToolBar* measurementToolBar_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
     QToolBar* issueToolBar_ = nullptr;
+    ProfilePlotWidget* profilePlotWidget_ = nullptr;
     QToolButton* towerMenuButton_ = nullptr;
     QMenu* towerActionsMenu_ = nullptr;
     QToolButton* issueMenuButton_ = nullptr;
@@ -279,6 +300,8 @@ private:
     QAction* themeDarkGrayAction_ = nullptr;
     QAction* measureAction_ = nullptr;
     QAction* clearMeasurementAction_ = nullptr;
+    QAction* exportClearanceCsvAction_ = nullptr;
+    QAction* showProfileDockAction_ = nullptr;
     QAction* startTowerEditAction_ = nullptr;
     QAction* finishTowerEditAction_ = nullptr;
     QAction* addTowerAction_ = nullptr;
@@ -307,6 +330,7 @@ private:
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
     bool towerEditingEnabled_ = false;
+    double clearanceWarningThresholdMeters_ = 10.0;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
 };
