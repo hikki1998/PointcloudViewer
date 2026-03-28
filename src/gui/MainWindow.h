@@ -25,8 +25,12 @@ class QPlainTextEdit;
 class QPushButton;
 class QSlider;
 class QSpinBox;
+class QMenu;
 class QTabWidget;
+class QTableWidget;
+class QTableWidgetItem;
 class QToolButton;
+class QToolBar;
 class QTranslator;
 class QWidget;
 
@@ -80,7 +84,12 @@ private:
     void createConnections();
     void retranslateUi();
     void openPointCloud();
+    void openProject();
+    void saveProject();
+    void saveProjectAs();
     bool loadPointCloudFile(const QString& filePath);
+    bool loadProjectFile(const QString& filePath);
+    bool saveProjectFile(const QString& filePath);
     void clearPointCloud();
     void choosePointColor();
     void chooseBackgroundColor();
@@ -110,9 +119,11 @@ private:
     void persistThemeSettings() const;
     void updateNavigationHelpText();
     void updateMeasurementPanel();
+    void updateTowerPanel();
     QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
     void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
     void updateVisualizationTooltips();
+    QString nextDefaultTowerName() const;
     void applyLanguage(UiLanguage language);
 
     PointCloudViewer* viewer_ = nullptr;
@@ -125,12 +136,14 @@ private:
     UiLanguage currentLanguage_ = UiLanguage::English;
 
     Qtitan::RibbonPage* homePage_ = nullptr;
+    Qtitan::RibbonPage* towerPage_ = nullptr;
     Qtitan::RibbonPage* appearancePage_ = nullptr;
     Qtitan::RibbonGroup* datasetRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* cameraRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* sceneRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* measureRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* colorRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* themeRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* languageRibbonGroup_ = nullptr;
@@ -154,6 +167,8 @@ private:
     QLabel* measurementEndValueLabel_ = nullptr;
     QLabel* measurementDistanceValueLabel_ = nullptr;
     QLabel* measurementDeltaZValueLabel_ = nullptr;
+    QLabel* towerCountValueLabel_ = nullptr;
+    QLabel* towerToolStatusLabel_ = nullptr;
 
     QWidget* pointSizeControl_ = nullptr;
     QWidget* pointOpacityControl_ = nullptr;
@@ -179,6 +194,10 @@ private:
     QCheckBox* invertPanCheckBox_ = nullptr;
     QCheckBox* invertWheelCheckBox_ = nullptr;
     QLabel* navigationTipsLabel_ = nullptr;
+    QTableWidget* towerTableWidget_ = nullptr;
+    QToolBar* towerToolBar_ = nullptr;
+    QToolButton* towerMenuButton_ = nullptr;
+    QMenu* towerActionsMenu_ = nullptr;
     QPlainTextEdit* logTextEdit_ = nullptr;
     QWidget* windowControlsWidget_ = nullptr;
     QToolButton* minimizeButton_ = nullptr;
@@ -186,6 +205,9 @@ private:
     QToolButton* closeButton_ = nullptr;
 
     QAction* openAction_ = nullptr;
+    QAction* openProjectAction_ = nullptr;
+    QAction* saveProjectAction_ = nullptr;
+    QAction* saveProjectAsAction_ = nullptr;
     QAction* clearAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* fitSceneAction_ = nullptr;
@@ -204,6 +226,16 @@ private:
     QAction* themeDarkGrayAction_ = nullptr;
     QAction* measureAction_ = nullptr;
     QAction* clearMeasurementAction_ = nullptr;
+    QAction* addTowerAction_ = nullptr;
+    QAction* insertTowerAction_ = nullptr;
+    QAction* moveTowerAction_ = nullptr;
+    QAction* focusTowerAction_ = nullptr;
+    QAction* removeTowerAction_ = nullptr;
+    QAction* clearTowersAction_ = nullptr;
+    QAction* cancelTowerToolAction_ = nullptr;
+    QAction* showTowerXAction_ = nullptr;
+    QAction* showTowerYAction_ = nullptr;
+    QAction* showTowerZAction_ = nullptr;
     QAction* showLogAction_ = nullptr;
     QAction* languageEnglishAction_ = nullptr;
     QAction* languageChineseAction_ = nullptr;
@@ -211,4 +243,5 @@ private:
     QActionGroup* colorModeActionGroup_ = nullptr;
     QActionGroup* themeActionGroup_ = nullptr;
     QActionGroup* languageActionGroup_ = nullptr;
+    QString currentProjectFilePath_;
 };

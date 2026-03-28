@@ -278,6 +278,37 @@ osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& meas
 
     return geode;
 }
+
+osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerMarker>& towerMarkers)
+{
+    if (towerMarkers.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+
+    for (const TowerMarker& towerMarker : towerMarkers) {
+        vertices->push_back(osg::Vec3(towerMarker.point.x, towerMarker.point.y, towerMarker.point.z));
+        colors->push_back(osg::Vec4(0.99f, 0.43f, 0.12f, 1.0f));
+    }
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setAttributeAndModes(new osg::Point(12.0f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+
+    return geode;
+}
 }
 
 OsgWidget::OsgWidget(QWidget* parent)
@@ -312,9 +343,9 @@ void OsgWidget::setInteractionOptions(const InteractionOptions& options)
     interactionOptions_ = options;
 }
 
-void OsgWidget::setMeasurementModeEnabled(bool enabled)
+void OsgWidget::setSceneClickModeEnabled(bool enabled)
 {
-    measurementModeEnabled_ = enabled;
+    sceneClickModeEnabled_ = enabled;
     leftButtonPressed_ = false;
     leftButtonDragDetected_ = false;
     leftButtonEventDispatched_ = false;
@@ -369,7 +400,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         leftButtonPressed_ = true;
         leftButtonAnchor_ = event->localPos();
         leftButtonDragDetected_ = false;
-        leftButtonEventDispatched_ = !measurementModeEnabled_;
+        leftButtonEventDispatched_ = !sceneClickModeEnabled_;
         lastOrbitCursorPosition_ = event->localPos();
         lastOrbitEventPosition_ = event->localPos();
     } else if (event->button() == Qt::MiddleButton) {
@@ -384,7 +415,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         lastPanEventPosition_ = event->localPos();
     }
 
-    if (measurementModeEnabled_ && event->button() == Qt::LeftButton) {
+    if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
         update();
         return;
     }
@@ -400,7 +431,7 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
-    if (measurementModeEnabled_ && event->button() == Qt::LeftButton) {
+    if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
         if (leftButtonEventDispatched_) {
             dispatchMouseButtonEvent(event->localPos(), event->button(), false);
         } else if (!leftButtonDragDetected_) {
@@ -429,7 +460,7 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         return;
     }
 
-    if (measurementModeEnabled_ && leftButtonPressed_) {
+    if (sceneClickModeEnabled_ && leftButtonPressed_) {
         const QPointF delta = event->localPos() - leftButtonAnchor_;
         if (std::hypot(delta.x(), delta.y()) > 4.0) {
             leftButtonDragDetected_ = true;
@@ -456,12 +487,12 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         lastOrbitEventPosition_ = adjustedPosition;
     }
 
-    if (measurementModeEnabled_ && leftButtonPressed_ && leftButtonDragDetected_ && !leftButtonEventDispatched_) {
+    if (sceneClickModeEnabled_ && leftButtonPressed_ && leftButtonDragDetected_ && !leftButtonEventDispatched_) {
         dispatchMouseButtonEvent(leftButtonAnchor_, Qt::LeftButton, true);
         leftButtonEventDispatched_ = true;
     }
 
-    if (!measurementModeEnabled_
+    if (!sceneClickModeEnabled_
         || (event->buttons() & Qt::LeftButton) == 0
         || !leftButtonPressed_
         || leftButtonEventDispatched_) {
@@ -636,6 +667,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::sceneHoverEnded, this, &PointCloudViewer::clearHoveredPoint);
     connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
         updateMeasurementOverlayWidgets();
+        updateTowerOverlayWidgets();
         updateAxisIndicator();
     });
 
@@ -681,6 +713,11 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
+    towerMarkers_.clear();
+    selectedTowerIndex_ = -1;
+    towerEditMode_ = TowerEditMode::None;
+    towerEditTargetIndex_ = -1;
+    updateSceneClickCapture();
     resetMeasurementState(false);
 
     if (!currentPointCloud_.hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
@@ -699,6 +736,9 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
     emit pointCloudLoaded();
     emit visualizationOptionsChanged();
     emit measurementChanged();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerEditModeChanged();
+    emit towerMarkersChanged();
     return true;
 }
 
@@ -709,6 +749,11 @@ void PointCloudViewer::clearPointCloud()
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
+    towerMarkers_.clear();
+    selectedTowerIndex_ = -1;
+    towerEditMode_ = TowerEditMode::None;
+    towerEditTargetIndex_ = -1;
+    updateSceneClickCapture();
     resetMeasurementState(false);
 
     if (rootGroup_.valid()) {
@@ -716,7 +761,9 @@ void PointCloudViewer::clearPointCloud()
     }
 
     pointCloudNode_ = nullptr;
+    towerMarkersNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
+    updateTowerOverlayWidgets();
     updateMessage(
         tr("Scene cleared"),
         tr("Open a LAS or LAZ file to continue."));
@@ -727,6 +774,9 @@ void PointCloudViewer::clearPointCloud()
 
     emit pointCloudCleared();
     emit measurementChanged();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerEditModeChanged();
+    emit towerMarkersChanged();
 }
 
 bool PointCloudViewer::hasPointCloud() const
@@ -762,6 +812,31 @@ bool PointCloudViewer::measurementEnabled() const
 const MeasurementResult& PointCloudViewer::measurementResult() const
 {
     return measurementResult_;
+}
+
+bool PointCloudViewer::hasHoveredPoint() const
+{
+    return hoveredPointValid_;
+}
+
+PointRecord PointCloudViewer::hoveredPoint() const
+{
+    return hoveredPoint_;
+}
+
+const QList<TowerMarker>& PointCloudViewer::towerMarkers() const
+{
+    return towerMarkers_;
+}
+
+int PointCloudViewer::selectedTowerIndex() const
+{
+    return selectedTowerIndex_;
+}
+
+TowerEditMode PointCloudViewer::towerEditMode() const
+{
+    return towerEditMode_;
 }
 
 void PointCloudViewer::setPointSize(int pointSize)
@@ -967,10 +1042,14 @@ void PointCloudViewer::setMeasurementEnabled(bool enabled)
         return;
     }
 
-    measurementEnabled_ = enabled;
-    if (osgWidget_ != nullptr) {
-        osgWidget_->setMeasurementModeEnabled(measurementEnabled_);
+    if (enabled && towerEditMode_ != TowerEditMode::None) {
+        towerEditMode_ = TowerEditMode::None;
+        towerEditTargetIndex_ = -1;
+        emit towerEditModeChanged();
     }
+
+    measurementEnabled_ = enabled;
+    updateSceneClickCapture();
 
     if (!measurementEnabled_) {
         resetMeasurementState();
@@ -992,6 +1071,257 @@ void PointCloudViewer::clearMeasurement()
         emit measurementMessage(tr("Measurement cleared."), false);
     }
     updateFooter();
+}
+
+void PointCloudViewer::updateSceneClickCapture()
+{
+    if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    const bool sceneClickEnabled =
+        measurementEnabled_
+        || towerEditMode_ != TowerEditMode::None
+        || !towerMarkers_.isEmpty();
+    osgWidget_->setSceneClickModeEnabled(sceneClickEnabled);
+}
+
+bool PointCloudViewer::addTowerMarker(const QString& name, const PointRecord& point)
+{
+    return insertTowerMarker(towerMarkers_.size(), name, point);
+}
+
+bool PointCloudViewer::insertTowerMarker(int index, const QString& name, const PointRecord& point)
+{
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty() || index < 0 || index > towerMarkers_.size()) {
+        return false;
+    }
+
+    TowerMarker towerMarker;
+    towerMarker.name = trimmedName;
+    towerMarker.point = point;
+    towerMarkers_.insert(index, towerMarker);
+    selectedTowerIndex_ = index;
+    updateSceneClickCapture();
+    refreshTowerMarkersOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerMarkersChanged();
+    return true;
+}
+
+bool PointCloudViewer::addTowerMarkerFromHoveredPoint(const QString& name, QString* errorMessage)
+{
+    if (!hoveredPointValid_) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Hover a point before adding a tower marker.");
+        }
+        return false;
+    }
+
+    if (!addTowerMarker(name, hoveredPoint_)) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Tower marker name cannot be empty.");
+        }
+        return false;
+    }
+
+    return true;
+}
+
+void PointCloudViewer::setTowerMarkers(const QList<TowerMarker>& towerMarkers)
+{
+    towerMarkers_ = towerMarkers;
+    selectedTowerIndex_ = towerMarkers_.isEmpty() ? -1 : std::clamp(selectedTowerIndex_, 0, towerMarkers_.size() - 1);
+    updateSceneClickCapture();
+    refreshTowerMarkersOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerMarkersChanged();
+}
+
+bool PointCloudViewer::setTowerMarkerName(int index, const QString& name)
+{
+    if (index < 0 || index >= towerMarkers_.size()) {
+        return false;
+    }
+
+    const QString trimmedName = name.trimmed();
+    if (trimmedName.isEmpty()) {
+        return false;
+    }
+
+    if (towerMarkers_[index].name == trimmedName) {
+        return true;
+    }
+
+    towerMarkers_[index].name = trimmedName;
+    refreshTowerMarkersOverlay();
+    emit towerMarkersChanged();
+    return true;
+}
+
+void PointCloudViewer::setSelectedTowerIndex(int index)
+{
+    const int normalizedIndex = (index >= 0 && index < towerMarkers_.size()) ? index : -1;
+    if (selectedTowerIndex_ == normalizedIndex) {
+        return;
+    }
+
+    selectedTowerIndex_ = normalizedIndex;
+    refreshTowerMarkersOverlay();
+    emit selectedTowerChanged(selectedTowerIndex_);
+}
+
+bool PointCloudViewer::removeTowerMarker(int index)
+{
+    if (index < 0 || index >= towerMarkers_.size()) {
+        return false;
+    }
+
+    towerMarkers_.removeAt(index);
+    if (towerMarkers_.isEmpty()) {
+        selectedTowerIndex_ = -1;
+    } else {
+        selectedTowerIndex_ = std::clamp(index, 0, towerMarkers_.size() - 1);
+    }
+    updateSceneClickCapture();
+    refreshTowerMarkersOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerMarkersChanged();
+    return true;
+}
+
+bool PointCloudViewer::moveTowerMarker(int index, const PointRecord& point)
+{
+    if (index < 0 || index >= towerMarkers_.size()) {
+        return false;
+    }
+
+    towerMarkers_[index].point = point;
+    selectedTowerIndex_ = index;
+    refreshTowerMarkersOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerMarkersChanged();
+    return true;
+}
+
+void PointCloudViewer::clearTowerMarkers()
+{
+    if (towerMarkers_.isEmpty()) {
+        return;
+    }
+
+    towerMarkers_.clear();
+    selectedTowerIndex_ = -1;
+    cancelTowerEditMode();
+    updateSceneClickCapture();
+    refreshTowerMarkersOverlay();
+    updateFooter();
+    emit selectedTowerChanged(selectedTowerIndex_);
+    emit towerMarkersChanged();
+}
+
+void PointCloudViewer::beginTowerAddMode()
+{
+    towerEditMode_ = TowerEditMode::AddAfterLast;
+    towerEditTargetIndex_ = -1;
+    if (measurementEnabled_) {
+        setMeasurementEnabled(false);
+    } else {
+        updateSceneClickCapture();
+    }
+    emit towerEditModeChanged();
+}
+
+void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
+{
+    if (beforeIndex < 0 || beforeIndex >= towerMarkers_.size()) {
+        return;
+    }
+
+    towerEditMode_ = TowerEditMode::InsertBeforeSelected;
+    towerEditTargetIndex_ = beforeIndex;
+    if (measurementEnabled_) {
+        setMeasurementEnabled(false);
+    } else {
+        updateSceneClickCapture();
+    }
+    emit towerEditModeChanged();
+}
+
+void PointCloudViewer::beginTowerMoveMode(int towerIndex)
+{
+    if (towerIndex < 0 || towerIndex >= towerMarkers_.size()) {
+        return;
+    }
+
+    towerEditMode_ = TowerEditMode::MoveSelected;
+    towerEditTargetIndex_ = towerIndex;
+    if (measurementEnabled_) {
+        setMeasurementEnabled(false);
+    } else {
+        updateSceneClickCapture();
+    }
+    emit towerEditModeChanged();
+}
+
+void PointCloudViewer::cancelTowerEditMode()
+{
+    if (towerEditMode_ == TowerEditMode::None) {
+        return;
+    }
+
+    towerEditMode_ = TowerEditMode::None;
+    towerEditTargetIndex_ = -1;
+    updateSceneClickCapture();
+    emit towerEditModeChanged();
+}
+
+bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceScale)
+{
+    if (!hasPointCloud() || osgWidget_ == nullptr) {
+        return false;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr) {
+        return false;
+    }
+
+    auto* manipulator = dynamic_cast<osgGA::TrackballManipulator*>(viewer->getCameraManipulator());
+    if (manipulator == nullptr) {
+        return false;
+    }
+
+    osg::Vec3d eye;
+    osg::Vec3d center;
+    osg::Vec3d up;
+    manipulator->getTransformation(eye, center, up);
+
+    osg::Vec3d offset = eye - center;
+    const double minFocusDistance = std::max({
+        static_cast<double>(currentPointCloud_.maxBounds().x - currentPointCloud_.minBounds().x),
+        static_cast<double>(currentPointCloud_.maxBounds().y - currentPointCloud_.minBounds().y),
+        static_cast<double>(currentPointCloud_.maxBounds().z - currentPointCloud_.minBounds().z),
+        2.0
+    }) * std::max(0.05, distanceScale);
+
+    if (offset.length2() < 1e-8) {
+        offset = osg::Vec3d(minFocusDistance, -minFocusDistance, minFocusDistance * 0.6);
+    } else {
+        offset.normalize();
+        offset *= std::max(minFocusDistance, (eye - center).length() * std::max(0.15, distanceScale));
+    }
+
+    const osg::Vec3d target(point.x, point.y, point.z);
+    manipulator->setHomePosition(target + offset, target, up.length2() < 1e-8 ? osg::Vec3d(0.0, 0.0, 1.0) : up);
+    manipulator->home(0.0);
+    osgWidget_->update();
+    return true;
 }
 
 void PointCloudViewer::changeEvent(QEvent* event)
@@ -1076,12 +1406,14 @@ void PointCloudViewer::rebuildScene()
 
     rootGroup_->removeChildren(0, rootGroup_->getNumChildren());
     pointCloudNode_ = nullptr;
+    towerMarkersNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
 
     if (!hasPointCloud()) {
         if (osgWidget_ != nullptr) {
             osgWidget_->update();
         }
+        updateTowerOverlayWidgets();
         updateMeasurementOverlayWidgets();
         return;
     }
@@ -1091,6 +1423,7 @@ void PointCloudViewer::rebuildScene()
         rootGroup_->addChild(pointCloudNode_.get());
     }
 
+    refreshTowerMarkersOverlay();
     refreshMeasurementOverlay();
 }
 
@@ -1114,6 +1447,7 @@ void PointCloudViewer::updateFooter()
         .arg(QLocale().toString(static_cast<int>(visualizationOptions_.pointSize)))
         .arg(visualizationOptions_.showAxes ? tr("on") : tr("off"))
         .arg(visualizationOptions_.showBoundingBox ? tr("on") : tr("off"));
+    detail += tr(" | Towers %1").arg(QLocale().toString(towerMarkers_.size()));
 
     if (measurementEnabled_) {
         if (measurementResult_.isComplete()) {
@@ -1225,13 +1559,31 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
 
 void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 {
-    if (!measurementEnabled_) {
+    if (towerEditMode_ == TowerEditMode::None && !measurementEnabled_ && towerMarkers_.isEmpty()) {
+        return;
+    }
+
+    if (towerEditMode_ == TowerEditMode::None && !measurementEnabled_) {
+        setSelectedTowerIndex(pickTowerMarkerAtScreenPosition(localPos));
         return;
     }
 
     PointRecord pickedPoint;
     if (!pickPointAtScreenPosition(localPos, &pickedPoint)) {
-        emit measurementMessage(tr("No point was found near the clicked position."), false);
+        emit measurementMessage(tr("No point was found near the clicked position."), true);
+        return;
+    }
+
+    if (towerEditMode_ != TowerEditMode::None) {
+        const TowerEditMode requestedMode = towerEditMode_;
+        const int targetIndex = towerEditTargetIndex_;
+        if (towerEditMode_ != TowerEditMode::AddAfterLast) {
+            towerEditMode_ = TowerEditMode::None;
+            towerEditTargetIndex_ = -1;
+            updateSceneClickCapture();
+            emit towerEditModeChanged();
+        }
+        emit towerEditRequested(pickedPoint, static_cast<int>(requestedMode), targetIndex);
         return;
     }
 
@@ -1368,6 +1720,59 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
     return found;
 }
 
+int PointCloudViewer::pickTowerMarkerAtScreenPosition(const QPointF& localPos, float tolerancePixels) const
+{
+    if (towerMarkers_.isEmpty() || osgWidget_ == nullptr) {
+        return -1;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr || viewer->getCamera()->getViewport() == nullptr) {
+        return -1;
+    }
+
+    osg::Camera* camera = viewer->getCamera();
+    const osg::Matrixd worldToWindow =
+        camera->getViewMatrix() *
+        camera->getProjectionMatrix() *
+        camera->getViewport()->computeWindowMatrix();
+
+    const double devicePixelRatio = osgWidget_->devicePixelRatioF();
+    const double clickX = localPos.x() * devicePixelRatio;
+    const double clickY = (static_cast<double>(osgWidget_->height()) - localPos.y()) * devicePixelRatio;
+    const double tolerance = static_cast<double>(tolerancePixels) * devicePixelRatio;
+    const double toleranceSquared = tolerance * tolerance;
+
+    int bestIndex = -1;
+    double bestDistanceSquared = toleranceSquared;
+    double bestDepth = std::numeric_limits<double>::max();
+
+    for (int towerIndex = 0; towerIndex < towerMarkers_.size(); ++towerIndex) {
+        const TowerMarker& towerMarker = towerMarkers_.at(towerIndex);
+        const osg::Vec3d projected = osg::Vec3d(towerMarker.point.x, towerMarker.point.y, towerMarker.point.z) * worldToWindow;
+        if (projected.z() < 0.0 || projected.z() > 1.0) {
+            continue;
+        }
+
+        const double dx = projected.x() - clickX;
+        const double dy = projected.y() - clickY;
+        const double distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > bestDistanceSquared) {
+            continue;
+        }
+
+        if (bestIndex < 0
+            || distanceSquared < bestDistanceSquared - 0.001
+            || (std::abs(distanceSquared - bestDistanceSquared) <= 0.001 && projected.z() < bestDepth)) {
+            bestIndex = towerIndex;
+            bestDistanceSquared = distanceSquared;
+            bestDepth = projected.z();
+        }
+    }
+
+    return bestIndex;
+}
+
 osg::ref_ptr<osg::Node> PointCloudViewer::buildMeasurementOverlay() const
 {
     if (!measurementResult_.hasStartPoint) {
@@ -1387,6 +1792,16 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildMeasurementOverlay() const
     }
 
     return overlay->getNumChildren() > 0 ? overlay.release() : nullptr;
+}
+
+osg::ref_ptr<osg::Node> PointCloudViewer::buildTowerMarkersOverlay() const
+{
+    if (towerMarkers_.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Geode> markersGeode = buildTowerMarkersGeode(towerMarkers_);
+    return markersGeode.release();
 }
 
 QPointF PointCloudViewer::projectPointToViewport(const PointRecord& point, bool* visible) const
@@ -1498,6 +1913,67 @@ void PointCloudViewer::updateMeasurementOverlayWidgets()
     positionOverlayLabel(measurementSummaryOverlayLabel_, summaryAnchor, QPoint(0, -34));
 }
 
+void PointCloudViewer::updateTowerOverlayWidgets()
+{
+    if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    while (towerOverlayLabels_.size() < towerMarkers_.size()) {
+        auto* label = new QLabel(osgWidget_);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        label->setStyleSheet(QStringLiteral(
+            "QLabel {"
+            "background-color: rgba(124, 45, 18, 220);"
+            "color: #fff7ed;"
+            "border: 1px solid rgba(251, 146, 60, 180);"
+            "border-radius: 8px;"
+            "padding: 4px 8px;"
+            "font-size: 12px;"
+            "font-weight: 600;"
+            "}"));
+        label->hide();
+        towerOverlayLabels_.append(label);
+    }
+
+    for (int towerIndex = 0; towerIndex < towerOverlayLabels_.size(); ++towerIndex) {
+        QLabel* label = towerOverlayLabels_.at(towerIndex);
+        if (label == nullptr) {
+            continue;
+        }
+
+        if (towerIndex >= towerMarkers_.size()) {
+            label->hide();
+            continue;
+        }
+
+        bool pointVisible = false;
+        const TowerMarker& towerMarker = towerMarkers_.at(towerIndex);
+        const QPointF anchor = projectPointToViewport(towerMarker.point, &pointVisible);
+        if (!pointVisible) {
+            label->hide();
+            continue;
+        }
+
+        label->setText(towerMarker.name);
+        const bool isSelected = towerIndex == selectedTowerIndex_;
+        label->setStyleSheet(QStringLiteral(
+            "QLabel {"
+            "background-color: %1;"
+            "color: %2;"
+            "border: 1px solid %3;"
+            "border-radius: 8px;"
+            "padding: 4px 8px;"
+            "font-size: 12px;"
+            "font-weight: 600;"
+            "}").arg(
+                isSelected ? QStringLiteral("rgba(180, 83, 9, 235)") : QStringLiteral("rgba(124, 45, 18, 220)"),
+                QStringLiteral("#fff7ed"),
+                isSelected ? QStringLiteral("rgba(253, 224, 71, 220)") : QStringLiteral("rgba(251, 146, 60, 180)")));
+        positionOverlayLabel(label, anchor, QPoint(14, -18));
+    }
+}
+
 void PointCloudViewer::refreshMeasurementOverlay()
 {
     if (rootGroup_.valid() && measurementOverlayNode_.valid()) {
@@ -1513,6 +1989,26 @@ void PointCloudViewer::refreshMeasurementOverlay()
     }
 
     updateMeasurementOverlayWidgets();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
+void PointCloudViewer::refreshTowerMarkersOverlay()
+{
+    if (rootGroup_.valid() && towerMarkersNode_.valid()) {
+        rootGroup_->removeChild(towerMarkersNode_.get());
+        towerMarkersNode_ = nullptr;
+    }
+
+    if (rootGroup_.valid() && !towerMarkers_.isEmpty()) {
+        towerMarkersNode_ = buildTowerMarkersOverlay();
+        if (towerMarkersNode_.valid()) {
+            rootGroup_->addChild(towerMarkersNode_.get());
+        }
+    }
+
+    updateTowerOverlayWidgets();
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }
