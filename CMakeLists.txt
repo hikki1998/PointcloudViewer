@@ -433,6 +433,7 @@ endif()
 
 set(SOURCES
     src/main.cpp
+    resources.qrc
     src/domain/AnalysisData.cpp
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp

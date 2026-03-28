@@ -1,6 +1,9 @@
 #include <QApplication>
 #include <QFont>
+#include <QIcon>
+#include <QSplashScreen>
 #include <QSurfaceFormat>
+#include <QTimer>
 #include <QTranslator>
 
 #include "QtnRibbonStyle.h"
@@ -38,8 +41,22 @@ int main(int argc, char* argv[])
     QTranslator appTranslator;
     QTranslator qtTranslator;
 
+    const QIcon appIcon(QStringLiteral(":/assets/icon/Icon.png"));
+    app.setWindowIcon(appIcon);
+
+    QPixmap splashPixmap(QStringLiteral(":/assets/icon/SplashPage.png"));
+    QSplashScreen splashScreen(splashPixmap);
+    splashScreen.setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    splashScreen.show();
+    app.processEvents();
+
     MainWindow mainWindow(&appTranslator, &qtTranslator);
-    mainWindow.show();
+    mainWindow.setWindowIcon(appIcon);
+
+    QTimer::singleShot(1500, [&]() {
+        mainWindow.show();
+        splashScreen.finish(&mainWindow);
+    });
 
     return app.exec();
 }
