@@ -433,11 +433,14 @@ endif()
 
 set(SOURCES
     src/main.cpp
+    src/domain/AnalysisData.cpp
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionReportExporter.cpp
     src/domain/ProfileMarkerProjection.cpp
+    src/domain/RuleBasedClearanceEngine.cpp
+    src/domain/VegetationRiskAnalysis.cpp
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
     src/gui/ProfilePlotWidget.cpp
@@ -447,11 +450,14 @@ set(SOURCES
 )
 
 set(HEADERS
+    src/domain/AnalysisData.h
     src/domain/ClearanceAnalysis.h
     src/domain/ClearanceReportExporter.h
     src/domain/InspectionData.h
     src/domain/InspectionReportExporter.h
     src/domain/ProfileMarkerProjection.h
+    src/domain/RuleBasedClearanceEngine.h
+    src/domain/VegetationRiskAnalysis.h
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
     src/gui/ProfilePlotWidget.h
@@ -492,7 +498,10 @@ else()
 endif()
 
 set(COMMON_SOURCES
+    src/domain/AnalysisData.cpp
     src/domain/InspectionData.cpp
+    src/domain/RuleBasedClearanceEngine.cpp
+    src/domain/VegetationRiskAnalysis.cpp
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
@@ -500,7 +509,10 @@ set(COMMON_SOURCES
 )
 
 set(COMMON_HEADERS
+    src/domain/AnalysisData.h
     src/domain/InspectionData.h
+    src/domain/RuleBasedClearanceEngine.h
+    src/domain/VegetationRiskAnalysis.h
     src/gui/PointCloudViewer.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h

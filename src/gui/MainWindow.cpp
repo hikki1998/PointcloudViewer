@@ -85,6 +85,8 @@
 #include "domain/InspectionData.h"
 #include "domain/InspectionReportExporter.h"
 #include "domain/ProfileMarkerProjection.h"
+#include "domain/RuleBasedClearanceEngine.h"
+#include "domain/VegetationRiskAnalysis.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfilePlotWidget.h"
 #include "osg/PointCloudVisualization.h"
@@ -101,6 +103,7 @@ const QColor kRibbonAccentColor(59, 130, 246);
 constexpr int kWindowResizeBorder = 8;
 constexpr int kProjectTreeItemTypeRole = Qt::UserRole;
 constexpr int kProjectTreeFilePathRole = Qt::UserRole + 1;
+constexpr int kProjectTreeResultIndexRole = Qt::UserRole + 2;
 
 enum class RibbonGlyph
 {
@@ -244,6 +247,36 @@ QString resolveProjectPath(const QString& projectFilePath, const QString& stored
     }
 
     return QFileInfo(QFileInfo(projectFilePath).absoluteDir(), storedPath).absoluteFilePath();
+}
+
+QColor analysisSeverityColor(AnalysisSeverity severity)
+{
+    switch (severity) {
+    case AnalysisSeverity::Advisory:
+        return QColor(217, 119, 6);
+    case AnalysisSeverity::Warning:
+        return QColor(220, 38, 38);
+    case AnalysisSeverity::Critical:
+        return QColor(127, 29, 29);
+    case AnalysisSeverity::None:
+    default:
+        return QColor(22, 101, 52);
+    }
+}
+
+IssueSeverity issueSeverityFromAnalysisSeverity(AnalysisSeverity severity)
+{
+    switch (severity) {
+    case AnalysisSeverity::Advisory:
+        return IssueSeverity::Minor;
+    case AnalysisSeverity::Warning:
+        return IssueSeverity::Major;
+    case AnalysisSeverity::Critical:
+        return IssueSeverity::Critical;
+    case AnalysisSeverity::None:
+    default:
+        return IssueSeverity::Info;
+    }
 }
 
 QJsonObject colorToJson(const QColor& color)
@@ -806,6 +839,12 @@ void MainWindow::createActions()
     showProfileDockAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Profile View"), this);
     showProfileDockAction_->setCheckable(true);
     showProfileDockAction_->setChecked(true);
+    analyzeVegetationRisksAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Analyze Risks"), this);
+    analyzeVegetationRisksAction_->setToolTip(tr("Analyze vegetation risks around the current measured corridor"));
+    focusVegetationRiskAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Current Risk"), this);
+    createIssueFromRiskAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Create Issue"), this);
+    createIssuesFromRisksAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Create All Issues"), this);
+    clearVegetationRisksAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Risks"), this);
 
     startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
     finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
@@ -896,6 +935,7 @@ void MainWindow::createRibbon()
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(analyzeVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(showProfileDockAction_, Qt::ToolButtonTextUnderIcon);
 
@@ -1110,6 +1150,7 @@ void MainWindow::createInspectorPanel()
     auto issueTab = createTabPage(QStringLiteral("sceneInspectorIssuePage"));
     auto renderingTab = createTabPage(QStringLiteral("sceneInspectorRenderingPage"));
     auto measurementTab = createTabPage(QStringLiteral("sceneInspectorMeasurementPage"));
+    auto analysisTab = createTabPage(QStringLiteral("sceneInspectorAnalysisPage"));
     auto navigationTab = createTabPage(QStringLiteral("sceneInspectorNavigationPage"));
 
     datasetGroupBox_ = new QGroupBox(tr("Dataset Summary"), overviewTab.first);
@@ -1454,9 +1495,20 @@ void MainWindow::createInspectorPanel()
         label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     }
 
-    clearanceLayout_->addRow(tr("Warning Threshold"), clearanceThresholdSpinBox_);
+    clearanceRulePresetComboBox_ = new QComboBox(clearanceGroupBox_);
+    clearanceRulePresetComboBox_->addItem(clearanceRulePresetDisplayName(ClearanceRulePreset::TransmissionCorridor), static_cast<int>(ClearanceRulePreset::TransmissionCorridor));
+    clearanceRulePresetComboBox_->addItem(clearanceRulePresetDisplayName(ClearanceRulePreset::DistributionCorridor), static_cast<int>(ClearanceRulePreset::DistributionCorridor));
+    clearanceRulePresetComboBox_->addItem(clearanceRulePresetDisplayName(ClearanceRulePreset::StructureApproach), static_cast<int>(ClearanceRulePreset::StructureApproach));
+    clearanceRulePresetComboBox_->addItem(clearanceRulePresetDisplayName(ClearanceRulePreset::Custom), static_cast<int>(ClearanceRulePreset::Custom));
+    clearanceRuleBandsValueLabel_ = new QLabel(clearanceGroupBox_);
+    clearanceRuleBandsValueLabel_->setWordWrap(true);
+    clearanceRuleBandsValueLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    clearanceLayout_->addRow(tr("Rule Preset"), clearanceRulePresetComboBox_);
+    clearanceLayout_->addRow(tr("Critical Threshold"), clearanceThresholdSpinBox_);
+    clearanceLayout_->addRow(tr("Risk Bands"), clearanceRuleBandsValueLabel_);
     clearanceLayout_->addRow(tr("Shortest Segment"), clearanceShortestValueLabel_);
-    clearanceLayout_->addRow(tr("Warning Segments"), clearanceWarningCountValueLabel_);
+    clearanceLayout_->addRow(tr("Risk Segments"), clearanceWarningCountValueLabel_);
     clearanceLayout_->addRow(tr("Status"), clearanceStatusValueLabel_);
 
     clearanceSegmentsGroupBox_ = new QGroupBox(tr("Path Segment Details"), measurementTab.first);
@@ -1499,6 +1551,94 @@ void MainWindow::createInspectorPanel()
     clearanceSegmentsLayout->addWidget(clearanceSegmentsSummaryLabel_);
     clearanceSegmentsLayout->addWidget(clearanceSegmentsTableWidget_, 1);
 
+    auto* analysisToolbarHost = new QWidget(analysisTab.first);
+    auto* analysisToolbarHostLayout = new QHBoxLayout(analysisToolbarHost);
+    analysisToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
+    analysisToolbarHostLayout->setSpacing(8);
+
+    analysisToolBar_ = new QToolBar(analysisToolbarHost);
+    analysisToolBar_->setIconSize(QSize(16, 16));
+    analysisToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    analysisToolBar_->setMovable(false);
+    analysisToolBar_->setFloatable(false);
+    analysisToolBar_->addAction(analyzeVegetationRisksAction_);
+    analysisToolBar_->addAction(focusVegetationRiskAction_);
+    analysisToolBar_->addSeparator();
+    analysisToolBar_->addAction(createIssueFromRiskAction_);
+    analysisToolBar_->addAction(createIssuesFromRisksAction_);
+    analysisToolBar_->addAction(clearVegetationRisksAction_);
+    analysisToolbarHostLayout->addWidget(analysisToolBar_, 1);
+
+    analysisParametersGroupBox_ = new QGroupBox(tr("Vegetation Risk Analysis"), analysisTab.first);
+    analysisParametersLayout_ = new QFormLayout(analysisParametersGroupBox_);
+    analysisParametersLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    analysisParametersLayout_->setFormAlignment(Qt::AlignTop);
+
+    vegetationSearchRadiusSpinBox_ = new QDoubleSpinBox(analysisParametersGroupBox_);
+    vegetationSearchRadiusSpinBox_->setRange(1.0, 1000000.0);
+    vegetationSearchRadiusSpinBox_->setDecimals(2);
+    vegetationSearchRadiusSpinBox_->setSingleStep(1.0);
+    vegetationSearchRadiusSpinBox_->setKeyboardTracking(false);
+
+    vegetationClusterGapSpinBox_ = new QDoubleSpinBox(analysisParametersGroupBox_);
+    vegetationClusterGapSpinBox_->setRange(0.5, 1000000.0);
+    vegetationClusterGapSpinBox_->setDecimals(2);
+    vegetationClusterGapSpinBox_->setSingleStep(0.5);
+    vegetationClusterGapSpinBox_->setKeyboardTracking(false);
+
+    vegetationClusterPointCountSpinBox_ = new QSpinBox(analysisParametersGroupBox_);
+    vegetationClusterPointCountSpinBox_->setRange(1, 999999);
+
+    preferVegetationClassificationCheckBox_ = new QCheckBox(tr("Prefer LAS vegetation classifications when available"), analysisParametersGroupBox_);
+
+    vegetationRiskCountValueLabel_ = new QLabel(analysisParametersGroupBox_);
+    vegetationRiskCountValueLabel_->setWordWrap(true);
+    vegetationRiskStatusValueLabel_ = new QLabel(analysisParametersGroupBox_);
+    vegetationRiskStatusValueLabel_->setWordWrap(true);
+    vegetationRiskSummaryLabel_ = new QLabel(analysisParametersGroupBox_);
+    vegetationRiskSummaryLabel_->setWordWrap(true);
+    vegetationRiskSummaryLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    analysisParametersLayout_->addRow(tr("Search Radius"), vegetationSearchRadiusSpinBox_);
+    analysisParametersLayout_->addRow(tr("Cluster Gap"), vegetationClusterGapSpinBox_);
+    analysisParametersLayout_->addRow(tr("Min Cluster Points"), vegetationClusterPointCountSpinBox_);
+    analysisParametersLayout_->addRow(QString(), preferVegetationClassificationCheckBox_);
+    analysisParametersLayout_->addRow(tr("Risk Count"), vegetationRiskCountValueLabel_);
+    analysisParametersLayout_->addRow(tr("Status"), vegetationRiskStatusValueLabel_);
+    analysisParametersLayout_->addRow(tr("Summary"), vegetationRiskSummaryLabel_);
+
+    vegetationRisksGroupBox_ = new QGroupBox(tr("Detected Risk Clusters"), analysisTab.first);
+    auto* vegetationRisksLayout = new QVBoxLayout(vegetationRisksGroupBox_);
+    vegetationRisksLayout->setContentsMargins(12, 12, 12, 12);
+    vegetationRisksLayout->setSpacing(8);
+
+    vegetationRisksTableWidget_ = new QTableWidget(vegetationRisksGroupBox_);
+    vegetationRisksTableWidget_->setColumnCount(7);
+    vegetationRisksTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    vegetationRisksTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    vegetationRisksTableWidget_->setAlternatingRowColors(true);
+    vegetationRisksTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    vegetationRisksTableWidget_->setHorizontalHeaderLabels({
+        tr("Index"),
+        tr("Title"),
+        tr("Severity"),
+        tr("Min Distance"),
+        tr("Chainage"),
+        tr("Tower"),
+        tr("Points")
+    });
+    vegetationRisksTableWidget_->verticalHeader()->setVisible(false);
+    vegetationRisksTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    vegetationRisksTableWidget_->setMinimumHeight(220);
+    vegetationRisksLayout->addWidget(vegetationRisksTableWidget_, 1);
+
     navigationGroupBox_ = new QGroupBox(tr("Navigation"), navigationTab.first);
     auto* tipsLayout = new QVBoxLayout(navigationGroupBox_);
     navigationTipsLabel_ = new QLabel(navigationGroupBox_);
@@ -1532,6 +1672,10 @@ void MainWindow::createInspectorPanel()
     measurementTab.second->addWidget(clearanceGroupBox_);
     measurementTab.second->addWidget(clearanceSegmentsGroupBox_);
     measurementTab.second->addStretch(1);
+    analysisTab.second->addWidget(analysisToolbarHost);
+    analysisTab.second->addWidget(analysisParametersGroupBox_);
+    analysisTab.second->addWidget(vegetationRisksGroupBox_, 1);
+    analysisTab.second->addStretch(1);
     navigationTab.second->addWidget(navigationGroupBox_);
     navigationTab.second->addStretch(1);
 
@@ -1540,6 +1684,7 @@ void MainWindow::createInspectorPanel()
     inspectorTabWidget_->addTab(issueTab.first, QString());
     inspectorTabWidget_->addTab(renderingTab.first, QString());
     inspectorTabWidget_->addTab(measurementTab.first, QString());
+    inspectorTabWidget_->addTab(analysisTab.first, QString());
     inspectorTabWidget_->addTab(navigationTab.first, QString());
 
     inspectorTabWidget_->setStyleSheet(
@@ -1898,6 +2043,12 @@ void MainWindow::retranslateUi()
     exportClearanceCsvAction_->setText(tr("Export Clearance CSV"));
     showProfileDockAction_->setText(tr("Profile View"));
     showProfileDockAction_->setToolTip(tr("Show or hide the span profile dock"));
+    analyzeVegetationRisksAction_->setText(tr("Analyze Risks"));
+    analyzeVegetationRisksAction_->setToolTip(tr("Analyze vegetation risks around the current measured corridor"));
+    focusVegetationRiskAction_->setText(tr("Focus Current Risk"));
+    createIssueFromRiskAction_->setText(tr("Create Issue"));
+    createIssuesFromRisksAction_->setText(tr("Create All Issues"));
+    clearVegetationRisksAction_->setText(tr("Clear Risks"));
     startTowerEditAction_->setText(tr("Start Editing"));
     finishTowerEditAction_->setText(tr("Finish Editing"));
     addTowerAction_->setText(tr("Click To Add Tower"));
@@ -1978,7 +2129,8 @@ void MainWindow::retranslateUi()
         inspectorTabWidget_->setTabText(2, tr("Issues"));
         inspectorTabWidget_->setTabText(3, tr("Rendering"));
         inspectorTabWidget_->setTabText(4, tr("Measurement"));
-        inspectorTabWidget_->setTabText(5, tr("Navigation"));
+        inspectorTabWidget_->setTabText(5, tr("Analysis"));
+        inspectorTabWidget_->setTabText(6, tr("Navigation"));
     }
     if (datasetGroupBox_ != nullptr) {
         datasetGroupBox_->setTitle(tr("Dataset Summary"));
@@ -2009,6 +2161,12 @@ void MainWindow::retranslateUi()
     }
     if (clearanceSegmentsGroupBox_ != nullptr) {
         clearanceSegmentsGroupBox_->setTitle(tr("Path Segment Details"));
+    }
+    if (analysisParametersGroupBox_ != nullptr) {
+        analysisParametersGroupBox_->setTitle(tr("Vegetation Risk Analysis"));
+    }
+    if (vegetationRisksGroupBox_ != nullptr) {
+        vegetationRisksGroupBox_->setTitle(tr("Detected Risk Clusters"));
     }
     if (navigationGroupBox_ != nullptr) {
         navigationGroupBox_->setTitle(tr("Navigation"));
@@ -2098,9 +2256,11 @@ void MainWindow::retranslateUi()
     setFieldLabel(measurementLayout_, measurementHorizontalDistanceValueLabel_, tr("Horizontal Distance"));
     setFieldLabel(measurementLayout_, measurementDeltaZValueLabel_, tr("Height Delta"));
     setFieldLabel(measurementLayout_, measurementSegmentsValueLabel_, tr("Path Segments"));
-    setFieldLabel(clearanceLayout_, clearanceThresholdSpinBox_, tr("Warning Threshold"));
+    setFieldLabel(clearanceLayout_, clearanceRulePresetComboBox_, tr("Rule Preset"));
+    setFieldLabel(clearanceLayout_, clearanceThresholdSpinBox_, tr("Critical Threshold"));
+    setFieldLabel(clearanceLayout_, clearanceRuleBandsValueLabel_, tr("Risk Bands"));
     setFieldLabel(clearanceLayout_, clearanceShortestValueLabel_, tr("Shortest Segment"));
-    setFieldLabel(clearanceLayout_, clearanceWarningCountValueLabel_, tr("Warning Segments"));
+    setFieldLabel(clearanceLayout_, clearanceWarningCountValueLabel_, tr("Risk Segments"));
     setFieldLabel(clearanceLayout_, clearanceStatusValueLabel_, tr("Status"));
     if (clearanceSegmentsSummaryLabel_ != nullptr) {
         clearanceSegmentsSummaryLabel_->setText(tr("Add at least two measured points to list corridor segments and export clearance details."));
@@ -2117,12 +2277,46 @@ void MainWindow::retranslateUi()
             tr("Status")
         });
     }
+    if (clearanceRulePresetComboBox_ != nullptr && clearanceRulePresetComboBox_->count() >= 4) {
+        clearanceRulePresetComboBox_->setItemText(0, clearanceRulePresetDisplayName(ClearanceRulePreset::TransmissionCorridor));
+        clearanceRulePresetComboBox_->setItemText(1, clearanceRulePresetDisplayName(ClearanceRulePreset::DistributionCorridor));
+        clearanceRulePresetComboBox_->setItemText(2, clearanceRulePresetDisplayName(ClearanceRulePreset::StructureApproach));
+        clearanceRulePresetComboBox_->setItemText(3, clearanceRulePresetDisplayName(ClearanceRulePreset::Custom));
+    }
     measurementToggleButton_->setText(
         viewer_ != nullptr && viewer_->measurementEnabled() ? tr("Stop Measurement") : tr("Start Measurement"));
     measurementClearButton_->setText(tr("Clear Measurement"));
     if (clearanceThresholdSpinBox_ != nullptr) {
         clearanceThresholdSpinBox_->setSuffix(tr(" m"));
         clearanceThresholdSpinBox_->setSpecialValueText(tr("Disabled"));
+    }
+    if (vegetationSearchRadiusSpinBox_ != nullptr) {
+        vegetationSearchRadiusSpinBox_->setSuffix(tr(" m"));
+    }
+    if (vegetationClusterGapSpinBox_ != nullptr) {
+        vegetationClusterGapSpinBox_->setSuffix(tr(" m"));
+    }
+    if (analysisParametersLayout_ != nullptr) {
+        setFieldLabel(analysisParametersLayout_, vegetationSearchRadiusSpinBox_, tr("Search Radius"));
+        setFieldLabel(analysisParametersLayout_, vegetationClusterGapSpinBox_, tr("Cluster Gap"));
+        setFieldLabel(analysisParametersLayout_, vegetationClusterPointCountSpinBox_, tr("Min Cluster Points"));
+        setFieldLabel(analysisParametersLayout_, vegetationRiskCountValueLabel_, tr("Risk Count"));
+        setFieldLabel(analysisParametersLayout_, vegetationRiskStatusValueLabel_, tr("Status"));
+        setFieldLabel(analysisParametersLayout_, vegetationRiskSummaryLabel_, tr("Summary"));
+    }
+    if (preferVegetationClassificationCheckBox_ != nullptr) {
+        preferVegetationClassificationCheckBox_->setText(tr("Prefer LAS vegetation classifications when available"));
+    }
+    if (vegetationRisksTableWidget_ != nullptr) {
+        vegetationRisksTableWidget_->setHorizontalHeaderLabels({
+            tr("Index"),
+            tr("Title"),
+            tr("Severity"),
+            tr("Min Distance"),
+            tr("Chainage"),
+            tr("Tower"),
+            tr("Points")
+        });
     }
 
     invertOrbitCheckBox_->setText(tr("Invert orbit drag"));
@@ -2242,7 +2436,10 @@ void MainWindow::createConnections()
         }
 
         QString errorMessage;
-        if (!ClearanceReportExporter::exportSegmentsCsv(filePath, analysisResult, &errorMessage)) {
+        const ClearanceRuleEvaluationResult ruleEvaluation = evaluateClearanceRules(
+            analysisResult,
+            { clearanceRulePreset_, static_cast<float>(clearanceWarningThresholdMeters_) });
+        if (!ClearanceReportExporter::exportSegmentsCsv(filePath, analysisResult, &ruleEvaluation, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -2253,6 +2450,111 @@ void MainWindow::createConnections()
         if (profileDock_ != nullptr && profileDock_->isVisible() != visible) {
             profileDock_->setVisible(visible);
         }
+    });
+    const auto analyzeCurrentVegetationRisks = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before running vegetation risk analysis."), 3000);
+            return;
+        }
+
+        const ClearanceAnalysisResult pathAnalysis = analyzeClearancePath(
+            viewer_->measurementResult().points,
+            static_cast<float>(clearanceWarningThresholdMeters_));
+        if (!pathAnalysis.isValid()) {
+            showUserMessage(LogLevel::Warning, tr("Add at least two measured points before analyzing corridor risks."), 3500);
+            return;
+        }
+
+        VegetationRiskAnalysisParameters parameters;
+        parameters.searchRadius = static_cast<float>(vegetationSearchRadiusMeters_);
+        parameters.criticalThreshold = static_cast<float>(clearanceWarningThresholdMeters_);
+        parameters.clusterGap = static_cast<float>(vegetationClusterGapMeters_);
+        parameters.minimumClusterPoints = vegetationClusterPointCount_;
+        parameters.preferVegetationClassification = preferVegetationClassification_;
+        parameters.preset = clearanceRulePreset_;
+
+        vegetationRiskResults_ = analyzeVegetationRisks(
+            *viewer_->pointCloudData(),
+            pathAnalysis,
+            viewer_->towerMarkers(),
+            parameters).records;
+        selectedVegetationRiskIndex_ = vegetationRiskResults_.isEmpty() ? -1 : 0;
+        updateVegetationRiskPanel();
+        rebuildProjectTree();
+        updateActionState();
+        if (inspectorTabWidget_ != nullptr) {
+            inspectorTabWidget_->setCurrentIndex(5);
+        }
+        showUserMessage(
+            LogLevel::Info,
+            vegetationRiskResults_.isEmpty()
+                ? tr("Vegetation risk analysis completed. No clusters were found near the current corridor.")
+                : tr("Vegetation risk analysis completed. %1 cluster(s) detected.")
+                    .arg(QLocale().toString(vegetationRiskResults_.size())),
+            4000);
+    };
+    const auto createIssueFromRisk = [this](int riskIndex) -> bool {
+        if (viewer_ == nullptr || riskIndex < 0 || riskIndex >= vegetationRiskResults_.size()) {
+            return false;
+        }
+
+        const VegetationRiskRecord& risk = vegetationRiskResults_.at(riskIndex);
+        InspectionIssue issue;
+        issue.id = issueDefaultId();
+        issue.title = risk.title.trimmed().isEmpty() ? nextDefaultIssueTitle() : risk.title;
+        issue.category = tr("Vegetation");
+        issue.severity = issueSeverityFromAnalysisSeverity(risk.severity);
+        issue.status = IssueStatus::Open;
+        issue.point = risk.point;
+        issue.relatedTowerIndex = risk.nearestTowerIndex;
+        issue.relatedTowerName = risk.nearestTowerName;
+        issue.description = tr("%1\nRule: %2\nMin distance: %3 m\nChainage: %4 - %5 m")
+            .arg(risk.notes)
+            .arg(risk.sourceRule)
+            .arg(formatCoordinate(risk.minimumDistance))
+            .arg(formatCoordinate(risk.chainageStart))
+            .arg(formatCoordinate(risk.chainageEnd));
+        issue.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
+        return viewer_->addInspectionIssue(issue);
+    };
+    connect(analyzeVegetationRisksAction_, &QAction::triggered, this, analyzeCurrentVegetationRisks);
+    connect(focusVegetationRiskAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr || selectedVegetationRiskIndex_ < 0 || selectedVegetationRiskIndex_ >= vegetationRiskResults_.size()) {
+            return;
+        }
+        viewer_->focusOnPoint(vegetationRiskResults_.at(selectedVegetationRiskIndex_).point);
+    });
+    connect(createIssueFromRiskAction_, &QAction::triggered, this, [this, createIssueFromRisk]() {
+        if (createIssueFromRisk(selectedVegetationRiskIndex_)) {
+            if (inspectorTabWidget_ != nullptr) {
+                inspectorTabWidget_->setCurrentIndex(2);
+            }
+            updateIssuePanel();
+            showUserMessage(LogLevel::Info, tr("Created an inspection issue from the selected vegetation risk."), 3000);
+        }
+    });
+    connect(createIssuesFromRisksAction_, &QAction::triggered, this, [this, createIssueFromRisk]() {
+        int createdCount = 0;
+        for (int riskIndex = 0; riskIndex < vegetationRiskResults_.size(); ++riskIndex) {
+            if (createIssueFromRisk(riskIndex)) {
+                ++createdCount;
+            }
+        }
+        updateIssuePanel();
+        showUserMessage(
+            LogLevel::Info,
+            createdCount <= 0
+                ? tr("No vegetation risks were converted into issues.")
+                : tr("Created %1 inspection issue(s) from vegetation risks.").arg(QLocale().toString(createdCount)),
+            3500);
+    });
+    connect(clearVegetationRisksAction_, &QAction::triggered, this, [this]() {
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
+        updateVegetationRiskPanel();
+        rebuildProjectTree();
+        updateActionState();
+        showUserMessage(LogLevel::Info, tr("Vegetation risk results cleared."), 2500);
     });
 
     connect(pointSizeSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointSize);
@@ -2293,10 +2595,41 @@ void MainWindow::createConnections()
         persistMeasurementSettings();
         updateMeasurementPanel();
     });
+    connect(clearanceRulePresetComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index < 0 || clearanceRulePresetComboBox_ == nullptr) {
+            return;
+        }
+        clearanceRulePreset_ = static_cast<ClearanceRulePreset>(clearanceRulePresetComboBox_->itemData(index).toInt());
+        persistMeasurementSettings();
+        updateMeasurementPanel();
+        updateVegetationRiskPanel();
+    });
+    connect(vegetationSearchRadiusSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
+        vegetationSearchRadiusMeters_ = value;
+        persistMeasurementSettings();
+        updateVegetationRiskPanel();
+    });
+    connect(vegetationClusterGapSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
+        vegetationClusterGapMeters_ = value;
+        persistMeasurementSettings();
+    });
+    connect(vegetationClusterPointCountSpinBox_, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
+        vegetationClusterPointCount_ = value;
+        persistMeasurementSettings();
+    });
+    connect(preferVegetationClassificationCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
+        preferVegetationClassification_ = checked;
+        persistMeasurementSettings();
+        updateVegetationRiskPanel();
+    });
     connect(clearanceSegmentsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
         if (profilePlotWidget_ != nullptr) {
             profilePlotWidget_->setSelectedSegmentIndex(currentRow);
         }
+    });
+    connect(vegetationRisksTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
+        selectedVegetationRiskIndex_ = (currentRow >= 0 && currentRow < vegetationRiskResults_.size()) ? currentRow : -1;
+        updateVegetationRiskPanel();
     });
 
     const auto beginAddTower = [this]() {
@@ -2658,15 +2991,27 @@ void MainWindow::createConnections()
     connect(projectSearchEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
         refreshProjectTreeFilter();
     });
-    connect(projectTreeWidget_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem*, QTreeWidgetItem*) {
+    connect(projectTreeWidget_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* currentItem, QTreeWidgetItem*) {
+        if (currentItem != nullptr && currentItem->data(0, kProjectTreeItemTypeRole).toString() == QStringLiteral("analysisResult")) {
+            const QVariant resultIndexValue = currentItem->data(0, kProjectTreeResultIndexRole);
+            const int resultIndex = resultIndexValue.isValid() ? resultIndexValue.toInt() : -1;
+            selectedVegetationRiskIndex_ = (resultIndex >= 0 && resultIndex < vegetationRiskResults_.size()) ? resultIndex : -1;
+            updateVegetationRiskPanel();
+        }
         updateActionState();
     });
     connect(projectTreeWidget_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
-        if (item == nullptr || item->data(0, kProjectTreeItemTypeRole).toString() != QStringLiteral("dataset")) {
+        if (item == nullptr) {
             return;
         }
-
-        locateDatasetAction_->trigger();
+        const QString itemType = item->data(0, kProjectTreeItemTypeRole).toString();
+        if (itemType == QStringLiteral("dataset")) {
+            locateDatasetAction_->trigger();
+            return;
+        }
+        if (itemType == QStringLiteral("analysisResult")) {
+            focusVegetationRiskAction_->trigger();
+        }
     });
     connect(projectTreeWidget_, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
         if (projectTreeWidget_ == nullptr) {
@@ -2738,17 +3083,26 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Navigation preferences updated."), 2500);
     });
     connect(viewer_, &PointCloudViewer::measurementChanged, this, [this]() {
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
         syncUiFromViewer();
         updateMeasurementPanel();
     });
     connect(viewer_, &PointCloudViewer::measurementModeChanged, this, [this]() {
+        if (!viewer_->measurementEnabled()) {
+            vegetationRiskResults_.clear();
+            selectedVegetationRiskIndex_ = -1;
+        }
         syncUiFromViewer();
         updateMeasurementPanel();
     });
     connect(viewer_, &PointCloudViewer::towerMarkersChanged, this, [this]() {
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
         syncUiFromViewer();
         updateMeasurementPanel();
         updateTowerPanel();
+        updateVegetationRiskPanel();
     });
     connect(viewer_, &PointCloudViewer::selectedTowerChanged, this, [this](int index) {
         if (towerTableWidget_ != nullptr && towerTableWidget_->currentRow() != index) {
@@ -2804,6 +3158,7 @@ void MainWindow::createConnections()
         syncUiFromViewer();
         updateMeasurementPanel();
         updateIssuePanel();
+        updateVegetationRiskPanel();
     });
     connect(viewer_, &PointCloudViewer::selectedIssueChanged, this, [this](int index) {
         if (issueTableWidget_ != nullptr && issueTableWidget_->currentRow() != index) {
@@ -2973,6 +3328,33 @@ bool MainWindow::loadProjectFile(const QString& filePath)
         const QSignalBlocker blocker(clearanceThresholdSpinBox_);
         clearanceThresholdSpinBox_->setValue(clearanceWarningThresholdMeters_);
     }
+    const QJsonObject analysisObject = projectObject.value(QStringLiteral("analysis")).toObject();
+    clearanceRulePreset_ = static_cast<ClearanceRulePreset>(analysisObject.value(QStringLiteral("clearanceRulePreset")).toInt(static_cast<int>(clearanceRulePreset_)));
+    vegetationSearchRadiusMeters_ = analysisObject.value(QStringLiteral("vegetationSearchRadiusMeters")).toDouble(vegetationSearchRadiusMeters_);
+    vegetationClusterGapMeters_ = analysisObject.value(QStringLiteral("vegetationClusterGapMeters")).toDouble(vegetationClusterGapMeters_);
+    vegetationClusterPointCount_ = analysisObject.value(QStringLiteral("vegetationClusterPointCount")).toInt(vegetationClusterPointCount_);
+    preferVegetationClassification_ = analysisObject.value(QStringLiteral("preferVegetationClassification")).toBool(preferVegetationClassification_);
+    if (clearanceRulePresetComboBox_ != nullptr) {
+        const QSignalBlocker blocker(clearanceRulePresetComboBox_);
+        const int presetIndex = clearanceRulePresetComboBox_->findData(static_cast<int>(clearanceRulePreset_));
+        clearanceRulePresetComboBox_->setCurrentIndex(presetIndex >= 0 ? presetIndex : 0);
+    }
+    if (vegetationSearchRadiusSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationSearchRadiusSpinBox_);
+        vegetationSearchRadiusSpinBox_->setValue(vegetationSearchRadiusMeters_);
+    }
+    if (vegetationClusterGapSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationClusterGapSpinBox_);
+        vegetationClusterGapSpinBox_->setValue(vegetationClusterGapMeters_);
+    }
+    if (vegetationClusterPointCountSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationClusterPointCountSpinBox_);
+        vegetationClusterPointCountSpinBox_->setValue(vegetationClusterPointCount_);
+    }
+    if (preferVegetationClassificationCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(preferVegetationClassificationCheckBox_);
+        preferVegetationClassificationCheckBox_->setChecked(preferVegetationClassification_);
+    }
 
     QList<TowerMarker> towerMarkers;
     const QJsonArray towersArray = projectObject.value(QStringLiteral("towerMarkers")).toArray();
@@ -2995,6 +3377,17 @@ bool MainWindow::loadProjectFile(const QString& filePath)
         inspectionIssues.append(issue);
     }
     viewer_->setInspectionIssues(inspectionIssues);
+
+    vegetationRiskResults_.clear();
+    const QJsonArray vegetationRisksArray = analysisObject.value(QStringLiteral("vegetationRisks")).toArray();
+    for (const QJsonValue& riskValue : vegetationRisksArray) {
+        const VegetationRiskRecord riskRecord = vegetationRiskRecordFromJson(riskValue.toObject());
+        if (riskRecord.title.trimmed().isEmpty()) {
+            continue;
+        }
+        vegetationRiskResults_.append(riskRecord);
+    }
+    selectedVegetationRiskIndex_ = vegetationRiskResults_.isEmpty() ? -1 : 0;
 
     currentProjectFilePath_ = filePath;
     setTowerEditingEnabled(false);
@@ -3039,6 +3432,13 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     QJsonObject measurementObject {
         { QStringLiteral("clearanceThresholdMeters"), clearanceWarningThresholdMeters_ }
     };
+    QJsonObject analysisObject {
+        { QStringLiteral("clearanceRulePreset"), static_cast<int>(clearanceRulePreset_) },
+        { QStringLiteral("vegetationSearchRadiusMeters"), vegetationSearchRadiusMeters_ },
+        { QStringLiteral("vegetationClusterGapMeters"), vegetationClusterGapMeters_ },
+        { QStringLiteral("vegetationClusterPointCount"), vegetationClusterPointCount_ },
+        { QStringLiteral("preferVegetationClassification"), preferVegetationClassification_ }
+    };
 
     QJsonArray towersArray;
     for (const TowerMarker& towerMarker : viewer_->towerMarkers()) {
@@ -3049,6 +3449,11 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     for (const InspectionIssue& issue : viewer_->inspectionIssues()) {
         inspectionIssuesArray.append(inspectionIssueToJson(issue));
     }
+    QJsonArray vegetationRisksArray;
+    for (const VegetationRiskRecord& riskRecord : vegetationRiskResults_) {
+        vegetationRisksArray.append(vegetationRiskRecordToJson(riskRecord));
+    }
+    analysisObject.insert(QStringLiteral("vegetationRisks"), vegetationRisksArray);
 
     QJsonArray pointCloudFilesArray;
     for (const QString& pointCloudFilePath : viewer_->currentFilePaths()) {
@@ -3056,13 +3461,14 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     QJsonObject projectObject {
-        { QStringLiteral("version"), 3 },
+        { QStringLiteral("version"), 4 },
         { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
         { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
         { QStringLiteral("visualization"), visualizationObject },
         { QStringLiteral("interaction"), interactionObject },
         { QStringLiteral("measurement"), measurementObject },
+        { QStringLiteral("analysis"), analysisObject },
         { QStringLiteral("towerMarkers"), towersArray },
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
     };
@@ -3128,6 +3534,8 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
     if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
         setTowerEditingEnabled(false);
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
         const QString successMessage = filePaths.size() == 1
             ? tr("Loaded %1. %2").arg(QFileInfo(filePaths.constFirst()).fileName(), errorMessage)
             : tr("Loaded %1 datasets. %2")
@@ -3162,6 +3570,8 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
 
     currentProjectFilePath_.clear();
     setTowerEditingEnabled(false);
+    vegetationRiskResults_.clear();
+    selectedVegetationRiskIndex_ = -1;
     syncUiFromViewer();
     showUserMessage(
         LogLevel::Info,
@@ -3174,6 +3584,8 @@ void MainWindow::clearPointCloud()
 {
     currentProjectFilePath_.clear();
     setTowerEditingEnabled(false);
+    vegetationRiskResults_.clear();
+    selectedVegetationRiskIndex_ = -1;
     viewer_->clearPointCloud();
 }
 
@@ -3209,6 +3621,8 @@ void MainWindow::removeSelectedDataset()
         viewer_->setInspectionIssues(inspectionIssues);
         viewer_->setSelectedTowerIndex(selectedTowerIndex);
         viewer_->setSelectedIssueIndex(selectedIssueIndex);
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
         syncUiFromViewer();
         showUserMessage(LogLevel::Info, tr("Dataset removed from the project."), 3000);
     } else {
@@ -3440,6 +3854,11 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker measurementActionBlocker(measureAction_);
         const QSignalBlocker englishLanguageBlocker(languageEnglishAction_);
         const QSignalBlocker chineseLanguageBlocker(languageChineseAction_);
+        const QSignalBlocker clearanceRulePresetBlocker(clearanceRulePresetComboBox_);
+        const QSignalBlocker vegetationSearchRadiusBlocker(vegetationSearchRadiusSpinBox_);
+        const QSignalBlocker vegetationClusterGapBlocker(vegetationClusterGapSpinBox_);
+        const QSignalBlocker vegetationClusterPointCountBlocker(vegetationClusterPointCountSpinBox_);
+        const QSignalBlocker preferVegetationClassificationBlocker(preferVegetationClassificationCheckBox_);
 
         pointSizeSlider_->setValue(static_cast<int>(options.pointSize));
         pointOpacitySlider_->setValue(static_cast<int>(std::lround(options.pointOpacity * 100.0f)));
@@ -3461,6 +3880,22 @@ void MainWindow::syncUiFromViewer()
         measureAction_->setChecked(viewer_->measurementEnabled());
         languageEnglishAction_->setChecked(currentLanguage_ == UiLanguage::English);
         languageChineseAction_->setChecked(currentLanguage_ == UiLanguage::Chinese);
+        if (clearanceRulePresetComboBox_ != nullptr) {
+            const int presetIndex = clearanceRulePresetComboBox_->findData(static_cast<int>(clearanceRulePreset_));
+            clearanceRulePresetComboBox_->setCurrentIndex(presetIndex >= 0 ? presetIndex : 0);
+        }
+        if (vegetationSearchRadiusSpinBox_ != nullptr) {
+            vegetationSearchRadiusSpinBox_->setValue(vegetationSearchRadiusMeters_);
+        }
+        if (vegetationClusterGapSpinBox_ != nullptr) {
+            vegetationClusterGapSpinBox_->setValue(vegetationClusterGapMeters_);
+        }
+        if (vegetationClusterPointCountSpinBox_ != nullptr) {
+            vegetationClusterPointCountSpinBox_->setValue(vegetationClusterPointCount_);
+        }
+        if (preferVegetationClassificationCheckBox_ != nullptr) {
+            preferVegetationClassificationCheckBox_->setChecked(preferVegetationClassification_);
+        }
 
         if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
             themeColorfulAction_->setChecked(ribbonStyle->getTheme() == Qtitan::RibbonStyle::Office2016Colorful);
@@ -3482,6 +3917,7 @@ void MainWindow::syncUiFromViewer()
     updateMeasurementPanel();
     updateTowerPanel();
     updateIssuePanel();
+    updateVegetationRiskPanel();
     updateActionState();
 }
 
@@ -3531,6 +3967,9 @@ void MainWindow::updateActionState()
     const bool hasIssues = viewer_ != nullptr && !viewer_->inspectionIssues().isEmpty();
     const bool hasIssueSelection = viewer_ != nullptr && viewer_->selectedIssueIndex() >= 0;
     const bool issueToolActive = viewer_ != nullptr && viewer_->issueEditMode() != IssueEditMode::None;
+    const bool hasVegetationRisks = !vegetationRiskResults_.isEmpty();
+    const bool hasVegetationRiskSelection = selectedVegetationRiskIndex_ >= 0 && selectedVegetationRiskIndex_ < vegetationRiskResults_.size();
+    const bool hasMeasuredCorridor = viewer_ != nullptr && viewer_->measurementResult().isComplete();
     const bool hasDatasetSelection = !selectedDatasetPath().isEmpty();
     openProjectAction_->setEnabled(true);
     saveProjectAction_->setEnabled(hasPointCloud);
@@ -3548,6 +3987,7 @@ void MainWindow::updateActionState()
     rightViewAction_->setEnabled(hasPointCloud);
     measureAction_->setEnabled(hasPointCloud);
     clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
+    analyzeVegetationRisksAction_->setEnabled(hasPointCloud && hasMeasuredCorridor);
     exportClearanceCsvAction_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
     showProfileDockAction_->setEnabled(true);
     showProfileDockAction_->setChecked(profileDock_ != nullptr && profileDock_->isVisible());
@@ -3573,6 +4013,10 @@ void MainWindow::updateActionState()
     clearIssuesAction_->setEnabled(hasIssues);
     exportIssuesCsvAction_->setEnabled(hasIssues);
     exportInspectionReportAction_->setEnabled(hasPointCloud && (hasTowerMarkers || hasIssues));
+    focusVegetationRiskAction_->setEnabled(hasVegetationRiskSelection);
+    createIssueFromRiskAction_->setEnabled(hasVegetationRiskSelection);
+    createIssuesFromRisksAction_->setEnabled(hasVegetationRisks);
+    clearVegetationRisksAction_->setEnabled(hasVegetationRisks);
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const
@@ -3657,10 +4101,46 @@ void MainWindow::loadMeasurementSettings()
     clearanceWarningThresholdMeters_ = settings.value(
         QStringLiteral("measurement/clearanceThresholdMeters"),
         clearanceWarningThresholdMeters_).toDouble();
+    clearanceRulePreset_ = static_cast<ClearanceRulePreset>(settings.value(
+        QStringLiteral("measurement/clearanceRulePreset"),
+        static_cast<int>(clearanceRulePreset_)).toInt());
+    vegetationSearchRadiusMeters_ = settings.value(
+        QStringLiteral("measurement/vegetationSearchRadiusMeters"),
+        vegetationSearchRadiusMeters_).toDouble();
+    vegetationClusterGapMeters_ = settings.value(
+        QStringLiteral("measurement/vegetationClusterGapMeters"),
+        vegetationClusterGapMeters_).toDouble();
+    vegetationClusterPointCount_ = settings.value(
+        QStringLiteral("measurement/vegetationClusterPointCount"),
+        vegetationClusterPointCount_).toInt();
+    preferVegetationClassification_ = settings.value(
+        QStringLiteral("measurement/preferVegetationClassification"),
+        preferVegetationClassification_).toBool();
 
     if (clearanceThresholdSpinBox_ != nullptr) {
         const QSignalBlocker blocker(clearanceThresholdSpinBox_);
         clearanceThresholdSpinBox_->setValue(clearanceWarningThresholdMeters_);
+    }
+    if (clearanceRulePresetComboBox_ != nullptr) {
+        const QSignalBlocker blocker(clearanceRulePresetComboBox_);
+        const int presetIndex = clearanceRulePresetComboBox_->findData(static_cast<int>(clearanceRulePreset_));
+        clearanceRulePresetComboBox_->setCurrentIndex(presetIndex >= 0 ? presetIndex : 0);
+    }
+    if (vegetationSearchRadiusSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationSearchRadiusSpinBox_);
+        vegetationSearchRadiusSpinBox_->setValue(vegetationSearchRadiusMeters_);
+    }
+    if (vegetationClusterGapSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationClusterGapSpinBox_);
+        vegetationClusterGapSpinBox_->setValue(vegetationClusterGapMeters_);
+    }
+    if (vegetationClusterPointCountSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(vegetationClusterPointCountSpinBox_);
+        vegetationClusterPointCountSpinBox_->setValue(vegetationClusterPointCount_);
+    }
+    if (preferVegetationClassificationCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(preferVegetationClassificationCheckBox_);
+        preferVegetationClassificationCheckBox_->setChecked(preferVegetationClassification_);
     }
 }
 
@@ -3668,6 +4148,11 @@ void MainWindow::persistMeasurementSettings() const
 {
     QSettings settings;
     settings.setValue(QStringLiteral("measurement/clearanceThresholdMeters"), clearanceWarningThresholdMeters_);
+    settings.setValue(QStringLiteral("measurement/clearanceRulePreset"), static_cast<int>(clearanceRulePreset_));
+    settings.setValue(QStringLiteral("measurement/vegetationSearchRadiusMeters"), vegetationSearchRadiusMeters_);
+    settings.setValue(QStringLiteral("measurement/vegetationClusterGapMeters"), vegetationClusterGapMeters_);
+    settings.setValue(QStringLiteral("measurement/vegetationClusterPointCount"), vegetationClusterPointCount_);
+    settings.setValue(QStringLiteral("measurement/preferVegetationClassification"), preferVegetationClassification_);
 }
 
 void MainWindow::loadVisualizationSettings()
@@ -3816,6 +4301,9 @@ void MainWindow::updateMeasurementPanel()
     const ClearanceAnalysisResult clearanceAnalysis = analyzeClearancePath(
         measurementResult.points,
         static_cast<float>(clearanceWarningThresholdMeters_));
+    const ClearanceRuleEvaluationResult ruleEvaluation = evaluateClearanceRules(
+        clearanceAnalysis,
+        { clearanceRulePreset_, static_cast<float>(clearanceWarningThresholdMeters_) });
     measurementToggleButton_->setText(
         viewer_->measurementEnabled() ? tr("Stop Measurement") : tr("Start Measurement"));
     measurementClearButton_->setText(tr("Clear Measurement"));
@@ -3835,24 +4323,45 @@ void MainWindow::updateMeasurementPanel()
 
     QString clearanceStatusText = tr("Add at least two measured points to analyze corridor clearance.");
     QString clearanceStatusStyle = QStringLiteral("color: #475569;");
+    if (clearanceRuleBandsValueLabel_ != nullptr) {
+        clearanceRuleBandsValueLabel_->setText(
+            ruleEvaluation.enabled()
+                ? tr("Advisory %1 m | Warning %2 m | Critical %3 m")
+                    .arg(formatCoordinate(ruleEvaluation.advisoryThreshold))
+                    .arg(formatCoordinate(ruleEvaluation.warningThreshold))
+                    .arg(formatCoordinate(ruleEvaluation.criticalThreshold))
+                : tr("Disabled"));
+    }
     if (!clearanceAnalysis.isValid()) {
         clearanceShortestValueLabel_->setText(tr("N/A"));
-        clearanceWarningCountValueLabel_->setText(QStringLiteral("0"));
+        clearanceWarningCountValueLabel_->setText(tr("0 / 0 / 0"));
     } else {
         clearanceShortestValueLabel_->setText(formatCoordinate(clearanceAnalysis.minimumSegmentDistance));
-        clearanceWarningCountValueLabel_->setText(QLocale().toString(clearanceAnalysis.warningCount));
+        clearanceWarningCountValueLabel_->setText(
+            tr("%1 / %2 / %3")
+                .arg(QLocale().toString(ruleEvaluation.advisoryCount))
+                .arg(QLocale().toString(ruleEvaluation.warningCount))
+                .arg(QLocale().toString(ruleEvaluation.criticalCount)));
 
-        if (!clearanceAnalysis.thresholdEnabled()) {
-            clearanceStatusText = tr("Clearance threshold is disabled. Set a value above 0 m to enable warnings.");
+        if (!ruleEvaluation.enabled()) {
+            clearanceStatusText = tr("Clearance threshold is disabled. Set a value above 0 m to enable risk bands.");
             clearanceStatusStyle = QStringLiteral("color: #475569;");
-        } else if (clearanceAnalysis.hasWarnings()) {
-            clearanceStatusText = tr("%1 segment(s) are below the clearance threshold of %2 m.")
-                .arg(QLocale().toString(clearanceAnalysis.warningCount))
-                .arg(formatCoordinate(static_cast<float>(clearanceWarningThresholdMeters_)));
+        } else if (ruleEvaluation.criticalCount > 0) {
+            clearanceStatusText = tr("%1 critical segment(s), %2 warning segment(s), and %3 advisory segment(s) were detected under %4.")
+                .arg(QLocale().toString(ruleEvaluation.criticalCount))
+                .arg(QLocale().toString(ruleEvaluation.warningCount))
+                .arg(QLocale().toString(ruleEvaluation.advisoryCount))
+                .arg(ruleEvaluation.presetLabel);
             clearanceStatusStyle = QStringLiteral("color: #b91c1c; font-weight: 600;");
+        } else if (ruleEvaluation.warningCount > 0 || ruleEvaluation.advisoryCount > 0) {
+            clearanceStatusText = tr("%1 warning segment(s) and %2 advisory segment(s) were detected under %3.")
+                .arg(QLocale().toString(ruleEvaluation.warningCount))
+                .arg(QLocale().toString(ruleEvaluation.advisoryCount))
+                .arg(ruleEvaluation.presetLabel);
+            clearanceStatusStyle = QStringLiteral("color: #b45309; font-weight: 600;");
         } else {
-            clearanceStatusText = tr("All measured segments satisfy the clearance threshold of %1 m.")
-                .arg(formatCoordinate(static_cast<float>(clearanceWarningThresholdMeters_)));
+            clearanceStatusText = tr("All measured segments stay outside the active %1 risk bands.")
+                .arg(ruleEvaluation.presetLabel);
             clearanceStatusStyle = QStringLiteral("color: #15803d; font-weight: 600;");
         }
     }
@@ -3862,6 +4371,7 @@ void MainWindow::updateMeasurementPanel()
     updateClearanceSegmentsTable(clearanceAnalysis);
     if (profilePlotWidget_ != nullptr) {
         profilePlotWidget_->setAnalysisResult(clearanceAnalysis);
+        profilePlotWidget_->setRuleEvaluation(ruleEvaluation);
         profilePlotWidget_->setProfileMarkers(projectProfileMarkers(
             clearanceAnalysis,
             viewer_->towerMarkers(),
@@ -3879,6 +4389,10 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
         return;
     }
 
+    const ClearanceRuleEvaluationResult ruleEvaluation = evaluateClearanceRules(
+        clearanceAnalysis,
+        { clearanceRulePreset_, static_cast<float>(clearanceWarningThresholdMeters_) });
+
     const int previousRow = clearanceSegmentsTableWidget_->currentRow();
     const QSignalBlocker blocker(clearanceSegmentsTableWidget_);
     clearanceSegmentsTableWidget_->setRowCount(0);
@@ -3890,27 +4404,30 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
         return;
     }
 
-    if (!clearanceAnalysis.thresholdEnabled()) {
+    if (!ruleEvaluation.enabled()) {
         clearanceSegmentsSummaryLabel_->setText(
-            tr("Listed %1 path segment(s). Set a warning threshold above 0 m to flag low-clearance spans.")
+            tr("Listed %1 path segment(s). Set a threshold above 0 m to enable electric-scene risk bands.")
                 .arg(QLocale().toString(clearanceAnalysis.segments.size())));
-    } else if (clearanceAnalysis.hasWarnings()) {
+    } else if (ruleEvaluation.criticalCount > 0 || ruleEvaluation.warningCount > 0 || ruleEvaluation.advisoryCount > 0) {
         clearanceSegmentsSummaryLabel_->setText(
-            tr("%1 segment(s) are below %2 m. Select a row to highlight it in the profile or export the full list.")
-                .arg(QLocale().toString(clearanceAnalysis.warningCount))
-                .arg(formatCoordinate(clearanceAnalysis.threshold)));
+            tr("%1 critical, %2 warning, %3 advisory segment(s) under %4. Select a row to highlight it in the profile or export the full list.")
+                .arg(QLocale().toString(ruleEvaluation.criticalCount))
+                .arg(QLocale().toString(ruleEvaluation.warningCount))
+                .arg(QLocale().toString(ruleEvaluation.advisoryCount))
+                .arg(ruleEvaluation.presetLabel));
     } else {
         clearanceSegmentsSummaryLabel_->setText(
-            tr("All %1 segment(s) satisfy the current clearance threshold of %2 m.")
+            tr("All %1 segment(s) stay outside the current %2 risk bands.")
                 .arg(QLocale().toString(clearanceAnalysis.segments.size()))
-                .arg(formatCoordinate(clearanceAnalysis.threshold)));
+                .arg(ruleEvaluation.presetLabel));
     }
 
     int preferredRow = previousRow;
     if (preferredRow < 0 || preferredRow >= clearanceAnalysis.segments.size()) {
         preferredRow = 0;
         for (int segmentIndex = 0; segmentIndex < clearanceAnalysis.segments.size(); ++segmentIndex) {
-            if (clearanceAnalysis.segments.at(segmentIndex).belowThreshold) {
+            if (segmentIndex < ruleEvaluation.segmentEvaluations.size()
+                && ruleEvaluation.segmentEvaluations.at(segmentIndex).severity != AnalysisSeverity::None) {
                 preferredRow = segmentIndex;
                 break;
             }
@@ -3919,6 +4436,9 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
 
     for (int segmentIndex = 0; segmentIndex < clearanceAnalysis.segments.size(); ++segmentIndex) {
         const ClearanceSegment& segment = clearanceAnalysis.segments.at(segmentIndex);
+        const ClearanceSegmentEvaluation evaluation = segmentIndex < ruleEvaluation.segmentEvaluations.size()
+            ? ruleEvaluation.segmentEvaluations.at(segmentIndex)
+            : ClearanceSegmentEvaluation();
         clearanceSegmentsTableWidget_->insertRow(segmentIndex);
 
         auto createReadOnlyItem = [](const QString& text, const QColor& color = QColor(), Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter) {
@@ -3931,7 +4451,7 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
             return item;
         };
 
-        const QColor statusColor = segment.belowThreshold ? QColor(185, 28, 28) : QColor(22, 101, 52);
+        const QColor statusColor = analysisSeverityColor(evaluation.severity);
         clearanceSegmentsTableWidget_->setItem(
             segmentIndex,
             0,
@@ -3966,7 +4486,7 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
         clearanceSegmentsTableWidget_->setItem(
             segmentIndex,
             7,
-            createReadOnlyItem(segment.belowThreshold ? tr("Warning") : tr("OK"), statusColor, Qt::AlignCenter));
+            createReadOnlyItem(evaluation.severityLabel, statusColor, Qt::AlignCenter));
     }
 
     if (clearanceSegmentsTableWidget_->rowCount() > 0) {
@@ -3974,6 +4494,70 @@ void MainWindow::updateClearanceSegmentsTable(const ClearanceAnalysisResult& cle
         clearanceSegmentsTableWidget_->setCurrentCell(normalizedRow, 0);
     } else {
         clearanceSegmentsTableWidget_->clearSelection();
+    }
+}
+
+void MainWindow::updateVegetationRiskPanel()
+{
+    if (vegetationRiskCountValueLabel_ == nullptr || vegetationRiskStatusValueLabel_ == nullptr || vegetationRisksTableWidget_ == nullptr) {
+        return;
+    }
+
+    const ClearanceAnalysisResult pathAnalysis = (viewer_ != nullptr)
+        ? analyzeClearancePath(viewer_->measurementResult().points, static_cast<float>(clearanceWarningThresholdMeters_))
+        : ClearanceAnalysisResult();
+    const bool pathReady = pathAnalysis.isValid();
+
+    vegetationRiskCountValueLabel_->setText(
+        vegetationRiskResults_.isEmpty()
+            ? tr("No vegetation risk clusters available.")
+            : tr("%1 vegetation risk cluster(s)").arg(QLocale().toString(vegetationRiskResults_.size())));
+    vegetationRiskStatusValueLabel_->setText(
+        !pathReady
+            ? tr("Measure a corridor path first, then run the analysis.")
+            : vegetationRiskResults_.isEmpty()
+                ? tr("Run analysis to scan points near the measured corridor and propose vegetation issues.")
+                : tr("Select a cluster to focus it in the scene or convert it into inspection issues."));
+    vegetationRiskSummaryLabel_->setText(
+        tr("Search radius %1 m | Cluster gap %2 m | Min cluster points %3 | Classification preference %4")
+            .arg(formatCoordinate(static_cast<float>(vegetationSearchRadiusMeters_)))
+            .arg(formatCoordinate(static_cast<float>(vegetationClusterGapMeters_)))
+            .arg(QLocale().toString(vegetationClusterPointCount_))
+            .arg(preferVegetationClassification_ ? tr("on") : tr("off")));
+
+    const QSignalBlocker blocker(vegetationRisksTableWidget_);
+    vegetationRisksTableWidget_->setRowCount(0);
+    for (int riskIndex = 0; riskIndex < vegetationRiskResults_.size(); ++riskIndex) {
+        const VegetationRiskRecord& risk = vegetationRiskResults_.at(riskIndex);
+        vegetationRisksTableWidget_->insertRow(riskIndex);
+
+        auto createReadOnlyItem = [](const QString& text, const QColor& color = QColor(), Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter) {
+            auto* item = new QTableWidgetItem(text);
+            item->setFlags((item->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+            item->setTextAlignment(alignment);
+            if (color.isValid()) {
+                item->setForeground(color);
+            }
+            return item;
+        };
+
+        const QColor severityColor = analysisSeverityColor(risk.severity);
+        vegetationRisksTableWidget_->setItem(riskIndex, 0, createReadOnlyItem(QLocale().toString(riskIndex + 1), QColor(), Qt::AlignCenter));
+        vegetationRisksTableWidget_->setItem(riskIndex, 1, createReadOnlyItem(risk.title));
+        vegetationRisksTableWidget_->setItem(riskIndex, 2, createReadOnlyItem(analysisSeverityDisplayName(risk.severity), severityColor, Qt::AlignCenter));
+        vegetationRisksTableWidget_->setItem(riskIndex, 3, createReadOnlyItem(formatCoordinate(risk.minimumDistance), QColor(), Qt::AlignRight | Qt::AlignVCenter));
+        vegetationRisksTableWidget_->setItem(riskIndex, 4, createReadOnlyItem(
+            tr("%1 - %2 m").arg(formatCoordinate(risk.chainageStart)).arg(formatCoordinate(risk.chainageEnd)),
+            QColor(),
+            Qt::AlignRight | Qt::AlignVCenter));
+        vegetationRisksTableWidget_->setItem(riskIndex, 5, createReadOnlyItem(risk.nearestTowerName.isEmpty() ? tr("N/A") : risk.nearestTowerName));
+        vegetationRisksTableWidget_->setItem(riskIndex, 6, createReadOnlyItem(QLocale().toString(risk.supportPointCount), QColor(), Qt::AlignCenter));
+    }
+
+    if (selectedVegetationRiskIndex_ >= 0 && selectedVegetationRiskIndex_ < vegetationRisksTableWidget_->rowCount()) {
+        vegetationRisksTableWidget_->setCurrentCell(selectedVegetationRiskIndex_, 1);
+    } else {
+        vegetationRisksTableWidget_->clearSelection();
     }
 }
 
@@ -4000,6 +4584,11 @@ void MainWindow::rebuildProjectTree()
     });
     datasetsRoot->setData(0, kProjectTreeItemTypeRole, QStringLiteral("datasets"));
     datasetsRoot->setIcon(0, style()->standardIcon(QStyle::SP_DirIcon));
+    auto* analysisRoot = new QTreeWidgetItem(projectRoot, QStringList {
+        tr("Analysis Results (%1)").arg(QLocale().toString(vegetationRiskResults_.size()))
+    });
+    analysisRoot->setData(0, kProjectTreeItemTypeRole, QStringLiteral("analysisRoot"));
+    analysisRoot->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogContentsView));
 
     QHash<QString, QTreeWidgetItem*> directoryItems;
     directoryItems.insert(QString(), datasetsRoot);
@@ -4040,8 +4629,20 @@ void MainWindow::rebuildProjectTree()
         }
     }
 
+    for (int riskIndex = 0; riskIndex < vegetationRiskResults_.size(); ++riskIndex) {
+        const VegetationRiskRecord& risk = vegetationRiskResults_.at(riskIndex);
+        auto* resultItem = new QTreeWidgetItem(analysisRoot, QStringList { risk.title });
+        resultItem->setData(0, kProjectTreeItemTypeRole, QStringLiteral("analysisResult"));
+        resultItem->setData(0, kProjectTreeResultIndexRole, riskIndex);
+        resultItem->setToolTip(0, tr("%1 | Min distance %2 m")
+            .arg(analysisSeverityDisplayName(risk.severity))
+            .arg(formatCoordinate(risk.minimumDistance)));
+        resultItem->setIcon(0, style()->standardIcon(QStyle::SP_MessageBoxWarning));
+    }
+
     projectRoot->setExpanded(true);
     datasetsRoot->setExpanded(true);
+    analysisRoot->setExpanded(true);
     projectTreeWidget_->expandToDepth(1);
 
     if (selectedItem == nullptr) {
@@ -4081,7 +4682,9 @@ void MainWindow::refreshProjectTreeFilter()
             filterText.isEmpty()
             || itemText.contains(filterText, Qt::CaseInsensitive);
         const QString itemType = item->data(0, kProjectTreeItemTypeRole).toString();
-        const bool forceVisible = itemType == QStringLiteral("project") || itemType == QStringLiteral("datasets");
+        const bool forceVisible = itemType == QStringLiteral("project")
+            || itemType == QStringLiteral("datasets")
+            || itemType == QStringLiteral("analysisRoot");
         const bool visible = forceVisible || matchesSelf || hasVisibleChild;
         item->setHidden(!visible);
         if (!filterText.isEmpty() && visible && item->childCount() > 0) {

@@ -7,6 +7,9 @@
 #include "QtnRibbonMainWindow.h"
 #include "QtnRibbonStyle.h"
 
+#include "domain/AnalysisData.h"
+#include "domain/RuleBasedClearanceEngine.h"
+
 class QAction;
 class QActionGroup;
 class QByteArray;
@@ -135,6 +138,7 @@ private:
     void updateNavigationHelpText();
     void updateMeasurementPanel();
     void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
+    void updateVegetationRiskPanel();
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
     void updateTowerPanel();
@@ -183,6 +187,9 @@ private:
     QGroupBox* clearanceGroupBox_ = nullptr;
     QFormLayout* clearanceLayout_ = nullptr;
     QGroupBox* clearanceSegmentsGroupBox_ = nullptr;
+    QGroupBox* analysisParametersGroupBox_ = nullptr;
+    QFormLayout* analysisParametersLayout_ = nullptr;
+    QGroupBox* vegetationRisksGroupBox_ = nullptr;
     QGroupBox* navigationGroupBox_ = nullptr;
     QFormLayout* navigationToggleLayout_ = nullptr;
     QGroupBox* towerDetailsGroupBox_ = nullptr;
@@ -206,6 +213,10 @@ private:
     QLabel* clearanceWarningCountValueLabel_ = nullptr;
     QLabel* clearanceStatusValueLabel_ = nullptr;
     QLabel* clearanceSegmentsSummaryLabel_ = nullptr;
+    QLabel* clearanceRuleBandsValueLabel_ = nullptr;
+    QLabel* vegetationRiskCountValueLabel_ = nullptr;
+    QLabel* vegetationRiskStatusValueLabel_ = nullptr;
+    QLabel* vegetationRiskSummaryLabel_ = nullptr;
     QLabel* towerCountValueLabel_ = nullptr;
     QLabel* towerToolStatusLabel_ = nullptr;
     QLabel* issueCountValueLabel_ = nullptr;
@@ -231,22 +242,29 @@ private:
     QPushButton* measurementToggleButton_ = nullptr;
     QPushButton* measurementClearButton_ = nullptr;
     QDoubleSpinBox* clearanceThresholdSpinBox_ = nullptr;
+    QComboBox* clearanceRulePresetComboBox_ = nullptr;
+    QDoubleSpinBox* vegetationSearchRadiusSpinBox_ = nullptr;
+    QDoubleSpinBox* vegetationClusterGapSpinBox_ = nullptr;
+    QSpinBox* vegetationClusterPointCountSpinBox_ = nullptr;
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
     QCheckBox* invertOrbitCheckBox_ = nullptr;
     QCheckBox* invertPanCheckBox_ = nullptr;
     QCheckBox* invertWheelCheckBox_ = nullptr;
+    QCheckBox* preferVegetationClassificationCheckBox_ = nullptr;
     QLabel* navigationTipsLabel_ = nullptr;
     QLineEdit* projectSearchEdit_ = nullptr;
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
     QTableWidget* issueTableWidget_ = nullptr;
     QTableWidget* clearanceSegmentsTableWidget_ = nullptr;
+    QTableWidget* vegetationRisksTableWidget_ = nullptr;
     QToolBar* measurementToolBar_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
     QToolBar* issueToolBar_ = nullptr;
+    QToolBar* analysisToolBar_ = nullptr;
     ProfilePlotWidget* profilePlotWidget_ = nullptr;
     QToolButton* towerMenuButton_ = nullptr;
     QMenu* towerActionsMenu_ = nullptr;
@@ -302,6 +320,11 @@ private:
     QAction* clearMeasurementAction_ = nullptr;
     QAction* exportClearanceCsvAction_ = nullptr;
     QAction* showProfileDockAction_ = nullptr;
+    QAction* analyzeVegetationRisksAction_ = nullptr;
+    QAction* focusVegetationRiskAction_ = nullptr;
+    QAction* createIssueFromRiskAction_ = nullptr;
+    QAction* createIssuesFromRisksAction_ = nullptr;
+    QAction* clearVegetationRisksAction_ = nullptr;
     QAction* startTowerEditAction_ = nullptr;
     QAction* finishTowerEditAction_ = nullptr;
     QAction* addTowerAction_ = nullptr;
@@ -331,6 +354,13 @@ private:
     QString currentProjectFilePath_;
     bool towerEditingEnabled_ = false;
     double clearanceWarningThresholdMeters_ = 10.0;
+    ClearanceRulePreset clearanceRulePreset_ = ClearanceRulePreset::TransmissionCorridor;
+    double vegetationSearchRadiusMeters_ = 20.0;
+    double vegetationClusterGapMeters_ = 8.0;
+    int vegetationClusterPointCount_ = 3;
+    bool preferVegetationClassification_ = true;
+    QList<VegetationRiskRecord> vegetationRiskResults_;
+    int selectedVegetationRiskIndex_ = -1;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
 };

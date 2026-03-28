@@ -84,7 +84,16 @@ bool LasReader::read(const QString& filePath, PointCloudData* output, QString* e
             r,
             g,
             b,
-            255);
+            255,
+            reader->point.get_intensity(),
+            reader->point.get_classification(),
+            reader->point.get_return_number(),
+            reader->point.get_number_of_returns(),
+            reader->point.have_gps_time ? reader->point.get_gps_time() : 0.0,
+            true,
+            true,
+            true,
+            reader->point.have_gps_time);
 
         ++loadedCount;
     }

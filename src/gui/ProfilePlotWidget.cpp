@@ -41,6 +41,12 @@ void ProfilePlotWidget::setAnalysisResult(const ClearanceAnalysisResult& analysi
     update();
 }
 
+void ProfilePlotWidget::setRuleEvaluation(const ClearanceRuleEvaluationResult& ruleEvaluation)
+{
+    ruleEvaluation_ = ruleEvaluation;
+    update();
+}
+
 void ProfilePlotWidget::setProfileMarkers(const QList<ProjectedProfileMarker>& profileMarkers)
 {
     profileMarkers_ = profileMarkers;
@@ -204,11 +210,34 @@ void ProfilePlotWidget::drawProfile(QPainter& painter, const QRectF& rect) const
             mapToPlot(selectedEnd.chainage, selectedEnd.point.z, rect));
     }
 
-    for (const ClearanceSegment& segment : analysisResult_.segments) {
+    for (int segmentIndex = 0; segmentIndex < analysisResult_.segments.size(); ++segmentIndex) {
+        const ClearanceSegment& segment = analysisResult_.segments.at(segmentIndex);
+        const ClearanceSegmentEvaluation evaluation = segmentIndex < ruleEvaluation_.segmentEvaluations.size()
+            ? ruleEvaluation_.segmentEvaluations.at(segmentIndex)
+            : ClearanceSegmentEvaluation();
         const ClearanceProfilePoint& startPoint = analysisResult_.profilePoints.at(segment.startPointIndex);
         const ClearanceProfilePoint& endPoint = analysisResult_.profilePoints.at(segment.endPointIndex);
-        const QColor segmentColor = segment.belowThreshold ? QColor(220, 38, 38) : QColor(37, 99, 235);
-        painter.setPen(QPen(segmentColor, segment.belowThreshold ? 3.2 : 2.4, Qt::SolidLine, Qt::RoundCap));
+        QColor segmentColor(37, 99, 235);
+        qreal segmentWidth = 2.4;
+        switch (evaluation.severity) {
+        case AnalysisSeverity::Advisory:
+            segmentColor = QColor(217, 119, 6);
+            segmentWidth = 2.8;
+            break;
+        case AnalysisSeverity::Warning:
+            segmentColor = QColor(220, 38, 38);
+            segmentWidth = 3.0;
+            break;
+        case AnalysisSeverity::Critical:
+            segmentColor = QColor(127, 29, 29);
+            segmentWidth = 3.3;
+            break;
+        case AnalysisSeverity::None:
+        default:
+            segmentColor = segment.belowThreshold ? QColor(220, 38, 38) : QColor(37, 99, 235);
+            break;
+        }
+        painter.setPen(QPen(segmentColor, segmentWidth, Qt::SolidLine, Qt::RoundCap));
         painter.drawLine(
             mapToPlot(startPoint.chainage, startPoint.point.z, rect),
             mapToPlot(endPoint.chainage, endPoint.point.z, rect));
@@ -322,14 +351,20 @@ void ProfilePlotWidget::drawSummary(QPainter& painter, const QRectF& rect) const
 {
     QString badgeText;
     QColor badgeColor(22, 163, 74);
-    if (!analysisResult_.thresholdEnabled()) {
+    if (!ruleEvaluation_.enabled()) {
         badgeText = tr("Threshold off");
         badgeColor = QColor(71, 85, 105);
-    } else if (analysisResult_.hasWarnings()) {
-        badgeText = tr("%1 warning segment(s)").arg(analysisResult_.warningCount);
+    } else if (ruleEvaluation_.criticalCount > 0) {
+        badgeText = tr("%1 critical segment(s)").arg(ruleEvaluation_.criticalCount);
+        badgeColor = QColor(127, 29, 29);
+    } else if (ruleEvaluation_.warningCount > 0) {
+        badgeText = tr("%1 warning segment(s)").arg(ruleEvaluation_.warningCount);
         badgeColor = QColor(220, 38, 38);
+    } else if (ruleEvaluation_.advisoryCount > 0) {
+        badgeText = tr("%1 advisory segment(s)").arg(ruleEvaluation_.advisoryCount);
+        badgeColor = QColor(217, 119, 6);
     } else {
-        badgeText = tr("All segments within threshold");
+        badgeText = tr("All segments outside risk bands");
     }
 
     const QRectF badgeRect(rect.right() - 190.0, rect.top() - 4.0, 182.0, 24.0);

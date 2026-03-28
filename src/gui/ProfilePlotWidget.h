@@ -5,6 +5,7 @@
 
 #include "domain/ClearanceAnalysis.h"
 #include "domain/ProfileMarkerProjection.h"
+#include "domain/RuleBasedClearanceEngine.h"
 
 class QPaintEvent;
 class QPainter;
@@ -17,6 +18,7 @@ public:
     explicit ProfilePlotWidget(QWidget* parent = nullptr);
 
     void setAnalysisResult(const ClearanceAnalysisResult& analysisResult);
+    void setRuleEvaluation(const ClearanceRuleEvaluationResult& ruleEvaluation);
     void setProfileMarkers(const QList<ProjectedProfileMarker>& profileMarkers);
     void setSelectedSegmentIndex(int selectedSegmentIndex);
 
@@ -37,6 +39,7 @@ private:
     void drawSummary(QPainter& painter, const QRectF& rect) const;
 
     ClearanceAnalysisResult analysisResult_;
+    ClearanceRuleEvaluationResult ruleEvaluation_;
     QList<ProjectedProfileMarker> profileMarkers_;
     int selectedSegmentIndex_ = -1;
 };
