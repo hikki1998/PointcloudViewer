@@ -32,6 +32,15 @@ public:
 
     void clear();
     void reserve(std::size_t count);
+    void appendPointFast(const PointRecord& point);
+    void finalizeImport(
+        const PointRecord& minBounds,
+        const PointRecord& maxBounds,
+        bool hasColor,
+        bool hasIntensity,
+        bool hasClassification,
+        bool hasReturnInfo,
+        bool hasGpsTime);
     void addPoint(
         float x,
         float y,

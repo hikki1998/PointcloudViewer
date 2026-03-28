@@ -1,6 +1,7 @@
 #include "osg/OsgPointCloudNode.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <QColor>
 
@@ -27,6 +28,15 @@ namespace
 osg::Vec4 toOsgColor(const QColor& color)
 {
     return osg::Vec4(color.redF(), color.greenF(), color.blueF(), 1.0f);
+}
+
+osg::Vec4ub toOsgColorBytes(const QColor& color)
+{
+    return osg::Vec4ub(
+        static_cast<unsigned char>(color.red()),
+        static_cast<unsigned char>(color.green()),
+        static_cast<unsigned char>(color.blue()),
+        255);
 }
 
 float clampUnit(float value)
@@ -122,19 +132,18 @@ void applyPointCloudShaderState(osg::StateSet* stateSet, const PointCloudVisuali
     stateSet->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
 }
 
-osg::Vec4 blendColor(const QColor& first, const QColor& second, float factor)
+QColor blendColor(const QColor& first, const QColor& second, float factor)
 {
     const float clampedFactor = std::clamp(factor, 0.0f, 1.0f);
     const float inverseFactor = 1.0f - clampedFactor;
 
-    return osg::Vec4(
-        first.redF() * inverseFactor + second.redF() * clampedFactor,
-        first.greenF() * inverseFactor + second.greenF() * clampedFactor,
-        first.blueF() * inverseFactor + second.blueF() * clampedFactor,
-        1.0f);
+    return QColor(
+        static_cast<int>(std::lround(first.red() * inverseFactor + second.red() * clampedFactor)),
+        static_cast<int>(std::lround(first.green() * inverseFactor + second.green() * clampedFactor)),
+        static_cast<int>(std::lround(first.blue() * inverseFactor + second.blue() * clampedFactor)));
 }
 
-osg::Vec4 colorForElevation(float normalizedHeight)
+QColor colorForElevation(float normalizedHeight)
 {
     const QColor lowColor(40, 110, 230);
     const QColor midColor(56, 201, 166);
@@ -147,7 +156,7 @@ osg::Vec4 colorForElevation(float normalizedHeight)
     return blendColor(midColor, highColor, (normalizedHeight - 0.5f) * 2.0f);
 }
 
-osg::Vec4 pointColor(
+osg::Vec4ub pointColor(
     const PointRecord& point,
     const PointCloudVisualizationOptions& visualizationOptions,
     float minZ,
@@ -157,17 +166,13 @@ osg::Vec4 pointColor(
     case PointCloudColorMode::Elevation:
     {
         const float normalizedHeight = heightSpan > 0.0f ? (point.z - minZ) / heightSpan : 0.5f;
-        return colorForElevation(normalizedHeight);
+        return toOsgColorBytes(colorForElevation(normalizedHeight));
     }
     case PointCloudColorMode::SingleColor:
-        return toOsgColor(visualizationOptions.singleColor);
+        return toOsgColorBytes(visualizationOptions.singleColor);
     case PointCloudColorMode::Rgb:
     default:
-        return osg::Vec4(
-            static_cast<float>(point.r) / 255.0f,
-            static_cast<float>(point.g) / 255.0f,
-            static_cast<float>(point.b) / 255.0f,
-            static_cast<float>(point.a) / 255.0f);
+        return osg::Vec4ub(point.r, point.g, point.b, point.a);
     }
 }
 
@@ -175,18 +180,21 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     const PointCloudData& pointCloudData,
     const PointCloudVisualizationOptions& visualizationOptions)
 {
+    const std::size_t pointCount = pointCloudData.size();
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
-    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+    osg::ref_ptr<osg::Vec4ubArray> colors = new osg::Vec4ubArray();
 
-    vertices->reserve(pointCloudData.size());
-    colors->reserve(pointCloudData.size());
+    vertices->resize(pointCount);
+    colors->resize(pointCount);
 
     const float minZ = pointCloudData.minBounds().z;
     const float heightSpan = std::max(0.0f, pointCloudData.maxBounds().z - minZ);
 
-    for (const PointRecord& point : pointCloudData.points()) {
-        vertices->push_back(osg::Vec3(point.x, point.y, point.z));
-        colors->push_back(pointColor(point, visualizationOptions, minZ, heightSpan));
+    const std::vector<PointRecord>& points = pointCloudData.points();
+    for (std::size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
+        const PointRecord& point = points[pointIndex];
+        (*vertices)[pointIndex].set(point.x, point.y, point.z);
+        (*colors)[pointIndex] = pointColor(point, visualizationOptions, minZ, heightSpan);
     }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
@@ -194,7 +202,7 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     geometry->setUseVertexBufferObjects(true);
     geometry->setVertexArray(vertices.get());
     geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
-    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(pointCount)));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
     geode->addDrawable(geometry.get());

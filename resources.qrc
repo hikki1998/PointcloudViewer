@@ -1,6 +1,6 @@
 <RCC>
     <qresource prefix="/assets">
-        <file>icon/Icon.png</file>
-        <file>icon/SplashPage.png</file>
+        <file alias="icon/software.png">Icon/software.PNG</file>
+        <file alias="icon/Splash.png">Icon/Splash.PNG</file>
     </qresource>
 </RCC>

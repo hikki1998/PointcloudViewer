@@ -95,6 +95,7 @@ E:\code\Qt5.15.2\5.15.2\msvc2019_64\bin\lupdate.exe src -ts translations\lasview
 
 ## Git Workflow
 - 用户说“提交”默认表示 `commit + push`。
+- 提交信息必须使用中文，除非用户明确要求英文。
 - 推送失败时，说明失败原因和最新本地提交号。
 - 在 `main` 上做强推、重写历史、reset 等不可逆操作前，先说明影响再执行。
 - 提交时只加入本次相关文件，尤其不要误带 `out/` 或本地大 LAS。

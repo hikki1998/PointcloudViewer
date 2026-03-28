@@ -1,10 +1,12 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 
 #include <QColor>
 #include <QList>
 #include <QPointF>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
@@ -16,6 +18,7 @@
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 
+#include "domain/DataManager.h"
 #include "domain/InspectionData.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/PointCloudData.h"
@@ -26,6 +29,7 @@ class QKeyEvent;
 class QMouseEvent;
 class QResizeEvent;
 class QWheelEvent;
+class QFrame;
 
 namespace osg
 {
@@ -148,11 +152,14 @@ public:
     bool loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     bool appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     void clearPointCloud();
+    void showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage);
 
     bool hasPointCloud() const;
+    bool hasLoadedPointClouds() const;
     QString currentFilePath() const;
     QStringList currentFilePaths() const;
     const PointCloudData* pointCloudData() const;
+    const QList<PointCloudDatasetInfo>& pointCloudDatasets() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
     const InteractionOptions& interactionOptions() const;
     bool measurementEnabled() const;
@@ -169,6 +176,12 @@ public:
     int towerEditTargetIndex() const;
     IssueEditMode issueEditMode() const;
     bool focusOnPoint(const PointRecord& point, double distanceScale = 0.35);
+    bool focusOnBounds(const PointRecord& minBounds, const PointRecord& maxBounds, double distanceScale = 1.0);
+    bool setPointCloudDatasetVisible(const QString& filePath, bool visible);
+    bool isInspectionIssueVisible(int index) const;
+    void setInspectionIssueVisible(int index, bool visible);
+    bool inspectionRouteVisible() const;
+    void setInspectionRouteVisible(bool visible);
 
 public slots:
     void setPointSize(int pointSize);
@@ -219,6 +232,9 @@ public slots:
 signals:
     void pointCloudLoaded();
     void pointCloudCleared();
+    void pointCloudLoadingStarted(const QString& message);
+    void pointCloudLoadingProgress(const QString& message, int value, int maximum);
+    void pointCloudLoadingFinished();
     void visualizationOptionsChanged();
     void interactionOptionsChanged();
     void measurementChanged();
@@ -240,7 +256,9 @@ private:
     void resizeEvent(QResizeEvent* event) override;
     void createStatusPanel();
     void createMeasurementOverlayWidgets();
+    void createWelcomeOverlay();
     void rebuildScene();
+    void rebuildMergedPointCloud();
     void updateFooter();
     void updateMessage(const QString& title, const QString& detail);
     void applyClearColor();
@@ -270,15 +288,27 @@ private:
     void updateAxisIndicator();
     void positionAxisIndicator();
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
+    void setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent);
+    void updateWelcomeOverlayVisibility();
+    void syncCurrentFilePath();
     void recalculateMeasurementResult();
     bool undoLastMeasurementPoint();
     void resetMeasurementState(bool notifyChange = true);
     void retranslateUi();
 
+    struct LoadedPointCloudDataset
+    {
+        PointCloudDatasetInfo info;
+        std::shared_ptr<PointCloudData> pointCloud;
+    };
+
     QGridLayout* layout_ = nullptr;
     QLabel* titleLabel_ = nullptr;
     QLabel* detailLabel_ = nullptr;
     QLabel* cursorLabel_ = nullptr;
+    QFrame* welcomeOverlay_ = nullptr;
+    QLabel* welcomeImageLabel_ = nullptr;
+    QLabel* welcomeStatusLabel_ = nullptr;
     QLabel* measurementStartOverlayLabel_ = nullptr;
     QLabel* measurementEndOverlayLabel_ = nullptr;
     QLabel* measurementSummaryOverlayLabel_ = nullptr;
@@ -286,11 +316,16 @@ private:
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
 
-    PointCloudData currentPointCloud_;
+    std::shared_ptr<PointCloudData> currentPointCloud_;
     QString currentFilePath_;
     QStringList currentFilePaths_;
+    QList<LoadedPointCloudDataset> loadedPointCloudDatasets_;
     PointCloudVisualizationOptions visualizationOptions_;
     InteractionOptions interactionOptions_;
+    bool pointCloudLoadingActive_ = false;
+    QString pointCloudLoadingTitle_;
+    QString pointCloudLoadingDetail_;
+    int pointCloudLoadingProgressPercent_ = -1;
     bool measurementEnabled_ = false;
     MeasurementResult measurementResult_;
     bool hoveredPointValid_ = false;
@@ -299,6 +334,8 @@ private:
     QList<InspectionIssue> inspectionIssues_;
     QList<PointRecord> inspectionRouteWaypoints_;
     QStringList inspectionRouteLabels_;
+    QSet<int> hiddenInspectionIssueIndices_;
+    bool inspectionRouteVisible_ = true;
     int selectedTowerIndex_ = -1;
     int selectedIssueIndex_ = -1;
     int selectedInspectionRouteWaypointIndex_ = -1;

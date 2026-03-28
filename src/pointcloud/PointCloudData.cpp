@@ -24,6 +24,29 @@ void PointCloudData::reserve(std::size_t count)
     points_.reserve(count);
 }
 
+void PointCloudData::appendPointFast(const PointRecord& point)
+{
+    points_.push_back(point);
+}
+
+void PointCloudData::finalizeImport(
+    const PointRecord& minBounds,
+    const PointRecord& maxBounds,
+    bool hasColor,
+    bool hasIntensity,
+    bool hasClassification,
+    bool hasReturnInfo,
+    bool hasGpsTime)
+{
+    minBounds_ = minBounds;
+    maxBounds_ = maxBounds;
+    hasColor_ = hasColor;
+    hasIntensity_ = hasIntensity;
+    hasClassification_ = hasClassification;
+    hasReturnInfo_ = hasReturnInfo;
+    hasGpsTime_ = hasGpsTime;
+}
+
 void PointCloudData::addPoint(
     float x,
     float y,
@@ -75,15 +98,26 @@ void PointCloudData::append(const PointCloudData& other)
         return;
     }
 
+    const bool wasEmpty = points_.empty();
     points_.reserve(points_.size() + other.points_.size());
-    for (const PointRecord& point : other.points_) {
-        points_.push_back(point);
-        hasColor_ = hasColor_ || point.r != 255 || point.g != 255 || point.b != 255;
-        hasIntensity_ = hasIntensity_ || point.hasIntensity;
-        hasClassification_ = hasClassification_ || point.hasClassification;
-        hasReturnInfo_ = hasReturnInfo_ || point.hasReturnInfo;
-        hasGpsTime_ = hasGpsTime_ || point.hasGpsTime;
-        updateBounds(point);
+    points_.insert(points_.end(), other.points_.begin(), other.points_.end());
+
+    hasColor_ = hasColor_ || other.hasColor_;
+    hasIntensity_ = hasIntensity_ || other.hasIntensity_;
+    hasClassification_ = hasClassification_ || other.hasClassification_;
+    hasReturnInfo_ = hasReturnInfo_ || other.hasReturnInfo_;
+    hasGpsTime_ = hasGpsTime_ || other.hasGpsTime_;
+
+    if (wasEmpty) {
+        minBounds_ = other.minBounds_;
+        maxBounds_ = other.maxBounds_;
+    } else {
+        minBounds_.x = std::min(minBounds_.x, other.minBounds_.x);
+        minBounds_.y = std::min(minBounds_.y, other.minBounds_.y);
+        minBounds_.z = std::min(minBounds_.z, other.minBounds_.z);
+        maxBounds_.x = std::max(maxBounds_.x, other.maxBounds_.x);
+        maxBounds_.y = std::max(maxBounds_.y, other.maxBounds_.y);
+        maxBounds_.z = std::max(maxBounds_.z, other.maxBounds_.z);
     }
 }
 

@@ -41,10 +41,10 @@ int main(int argc, char* argv[])
     QTranslator appTranslator;
     QTranslator qtTranslator;
 
-    const QIcon appIcon(QStringLiteral(":/assets/icon/Icon.png"));
+    const QIcon appIcon(QStringLiteral(":/assets/icon/software.png"));
     app.setWindowIcon(appIcon);
 
-    QPixmap splashPixmap(QStringLiteral(":/assets/icon/SplashPage.png"));
+    QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
     QSplashScreen splashScreen(splashPixmap);
     splashScreen.setWindowFlag(Qt::WindowStaysOnTopHint, true);
     splashScreen.show();

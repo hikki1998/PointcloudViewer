@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFrame>
@@ -11,6 +12,7 @@
 #include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QPainter>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -37,6 +39,7 @@
 #include <osgGA/TrackballManipulator>
 
 #include "osg/OsgPointCloudNode.h"
+#include "domain/DataManager.h"
 #include "pointcloud/LasReader.h"
 #include "pointcloud/PointCloudData.h"
 
@@ -762,6 +765,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     osgWidget_ = new OsgWidget(this);
     createStatusPanel();
     createMeasurementOverlayWidgets();
+    createWelcomeOverlay();
     axisIndicatorOverlay_ = new AxisIndicatorOverlay(osgWidget_);
     axisIndicatorOverlay_->show();
     axisIndicatorOverlay_->raise();
@@ -806,6 +810,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     });
 
     applyClearColor();
+    updateWelcomeOverlayVisibility();
     positionAxisIndicator();
     retranslateUi();
 }
@@ -824,12 +829,34 @@ bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMes
     return loadPointCloudFiles(QStringList { filePath }, errorMessage);
 }
 
+void PointCloudViewer::showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage)
+{
+    if (pointCloudPreview.empty()) {
+        return;
+    }
+
+    currentPointCloud_ = std::make_shared<PointCloudData>(pointCloudPreview);
+    currentFilePath_ = QFileInfo(filePath).absoluteFilePath();
+    hoveredPointValid_ = false;
+    lastHoverQueryPosition_ = QPointF();
+    lastHoverQueryTime_ = {};
+    if (currentPointCloud_ != nullptr && !currentPointCloud_->hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
+        visualizationOptions_.colorMode = PointCloudColorMode::Elevation;
+    }
+
+    updateMessage(tr("Preview Ready"), detailMessage);
+    rebuildScene();
+    updateFooter();
+    updateWelcomeOverlayVisibility();
+}
+
 bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
 {
     LasReader reader;
     QString localError;
-    PointCloudData loadedPointCloud;
     QStringList normalizedFilePaths;
+    QList<LoadedPointCloudDataset> loadedDatasets;
+    QList<PointCloudDatasetInfo> datasetInfos;
 
     for (const QString& filePath : filePaths) {
         const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
@@ -847,9 +874,50 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
         return false;
     }
 
-    for (const QString& filePath : normalizedFilePaths) {
+    const QString loadTitle = normalizedFilePaths.size() == 1
+        ? tr("Loading %1").arg(QFileInfo(normalizedFilePaths.constFirst()).fileName())
+        : tr("Loading %1 datasets").arg(QLocale().toString(normalizedFilePaths.size()));
+    setLoadingState(true, loadTitle, tr("Preparing point cloud import..."), 0);
+    emit pointCloudLoadingStarted(loadTitle);
+    emit pointCloudLoadingProgress(tr("Preparing point cloud import..."), 0, 1000);
+
+    for (int fileIndex = 0; fileIndex < normalizedFilePaths.size(); ++fileIndex) {
+        const QString& filePath = normalizedFilePaths.at(fileIndex);
         PointCloudData datasetPointCloud;
-        if (!reader.read(filePath, &datasetPointCloud, &localError)) {
+        LasFileMetadata metadata;
+        QElapsedTimer progressThrottle;
+        progressThrottle.start();
+        const auto progressCallback = [this, &normalizedFilePaths, fileIndex, &filePath, &progressThrottle](const LasReadProgress& progress) {
+            const double fileFraction = progress.totalPoints > 0
+                ? std::clamp(static_cast<double>(progress.pointsRead) / static_cast<double>(progress.totalPoints), 0.0, 1.0)
+                : 0.0;
+            const bool finishedFile = progress.totalPoints > 0 && progress.pointsRead >= progress.totalPoints;
+            if (!finishedFile && progressThrottle.isValid() && progressThrottle.elapsed() < 40) {
+                return;
+            }
+
+            progressThrottle.restart();
+            const double overallFraction = normalizedFilePaths.isEmpty()
+                ? 0.0
+                : (static_cast<double>(fileIndex) + fileFraction) / static_cast<double>(normalizedFilePaths.size());
+            const int overallValue = std::clamp(static_cast<int>(std::lround(overallFraction * 1000.0)), 0, 1000);
+            const int percent = std::clamp(static_cast<int>(std::lround(overallFraction * 100.0)), 0, 100);
+            const QString detail = progress.totalPoints > 0
+                ? tr("Reading %1 (%2/%3 points, %4%)")
+                      .arg(QFileInfo(filePath).fileName())
+                      .arg(formatPointCount(progress.pointsRead))
+                      .arg(formatPointCount(progress.totalPoints))
+                      .arg(QLocale().toString(percent))
+                : tr("Reading %1 (%2 points)")
+                      .arg(QFileInfo(filePath).fileName())
+                      .arg(formatPointCount(progress.pointsRead));
+            setLoadingState(true, pointCloudLoadingTitle_, detail, percent);
+            emit pointCloudLoadingProgress(detail, overallValue, 1000);
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        };
+        if (!reader.read(filePath, &datasetPointCloud, &localError, &metadata, progressCallback)) {
+            setLoadingState(false, QString(), QString(), -1);
+            emit pointCloudLoadingFinished();
             updateMessage(tr("Open failed"), localError);
             if (errorMessage != nullptr) {
                 *errorMessage = localError;
@@ -865,13 +933,30 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
             }
             return false;
         }
+        PointCloudDatasetInfo datasetInfo;
+        datasetInfo.filePath = filePath;
+        datasetInfo.pointCount = metadata.pointCount;
+        datasetInfo.minBounds = metadata.minBounds;
+        datasetInfo.maxBounds = metadata.maxBounds;
+        datasetInfo.hasColor = metadata.hasColor;
+        datasetInfo.hasIntensity = metadata.hasIntensity;
+        datasetInfo.hasClassification = metadata.hasClassification;
+        datasetInfo.hasReturnInfo = metadata.hasReturnInfo;
+        datasetInfo.hasGpsTime = metadata.hasGpsTime;
+        datasetInfo.visible = true;
+        datasetInfo.projectionText = metadata.projectionText;
+        datasetInfos.append(datasetInfo);
 
-        loadedPointCloud.append(datasetPointCloud);
+        LoadedPointCloudDataset loadedDataset;
+        loadedDataset.info = datasetInfo;
+        loadedDataset.pointCloud = std::make_shared<PointCloudData>(std::move(datasetPointCloud));
+        loadedDatasets.append(std::move(loadedDataset));
     }
 
-    currentPointCloud_ = std::move(loadedPointCloud);
-    currentFilePath_ = normalizedFilePaths.constFirst();
+    loadedPointCloudDatasets_ = std::move(loadedDatasets);
+    DataManager::instance().setPointCloudDatasets(datasetInfos);
     currentFilePaths_ = normalizedFilePaths;
+    syncCurrentFilePath();
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
@@ -880,29 +965,37 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     towerEditMode_ = TowerEditMode::None;
     towerEditTargetIndex_ = -1;
     inspectionIssues_.clear();
+    hiddenInspectionIssueIndices_.clear();
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     selectedIssueIndex_ = -1;
     issueEditMode_ = IssueEditMode::None;
     inspectionRouteWaypoints_.clear();
     inspectionRouteLabels_.clear();
+    inspectionRouteVisible_ = true;
+    DataManager::instance().clearTrajectory();
     selectedInspectionRouteWaypointIndex_ = -1;
     updateSceneClickCapture();
     resetMeasurementState(false);
 
-    if (!currentPointCloud_.hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
+    if (currentPointCloud_ != nullptr && !currentPointCloud_->hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
         visualizationOptions_.colorMode = PointCloudColorMode::Elevation;
     }
 
+    rebuildMergedPointCloud();
     rebuildScene();
     applyViewPreset(PointCloudViewPreset::Isometric);
     updateFooter();
+    updateWelcomeOverlayVisibility();
+    setLoadingState(false, QString(), QString(), -1);
+    emit pointCloudLoadingFinished();
 
     if (errorMessage != nullptr) {
         *errorMessage = normalizedFilePaths.size() == 1
             ? tr("Loaded point cloud with %1 points.")
-                  .arg(formatPointCount(currentPointCloud_.size()))
+                  .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0))
             : tr("Loaded %1 datasets with %2 points.")
                   .arg(QLocale().toString(normalizedFilePaths.size()))
-                  .arg(formatPointCount(currentPointCloud_.size()));
+                  .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0));
     }
 
     emit pointCloudLoaded();
@@ -919,14 +1012,15 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
 
 bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
 {
-    if (!hasPointCloud()) {
+    if (!hasLoadedPointClouds()) {
         return loadPointCloudFiles(filePaths, errorMessage);
     }
 
     LasReader reader;
     QString localError;
-    PointCloudData appendedPointCloud;
     QStringList newFilePaths;
+    QList<LoadedPointCloudDataset> newDatasets;
+    QList<PointCloudDatasetInfo> newDatasetInfos;
 
     for (const QString& filePath : filePaths) {
         const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
@@ -948,9 +1042,50 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
         return true;
     }
 
-    for (const QString& filePath : newFilePaths) {
+    const QString loadTitle = newFilePaths.size() == 1
+        ? tr("Adding %1").arg(QFileInfo(newFilePaths.constFirst()).fileName())
+        : tr("Adding %1 datasets").arg(QLocale().toString(newFilePaths.size()));
+    setLoadingState(true, loadTitle, tr("Preparing point cloud import..."), 0);
+    emit pointCloudLoadingStarted(loadTitle);
+    emit pointCloudLoadingProgress(tr("Preparing point cloud import..."), 0, 1000);
+
+    for (int fileIndex = 0; fileIndex < newFilePaths.size(); ++fileIndex) {
+        const QString& filePath = newFilePaths.at(fileIndex);
         PointCloudData datasetPointCloud;
-        if (!reader.read(filePath, &datasetPointCloud, &localError)) {
+        LasFileMetadata metadata;
+        QElapsedTimer progressThrottle;
+        progressThrottle.start();
+        const auto progressCallback = [this, &newFilePaths, fileIndex, &filePath, &progressThrottle](const LasReadProgress& progress) {
+            const double fileFraction = progress.totalPoints > 0
+                ? std::clamp(static_cast<double>(progress.pointsRead) / static_cast<double>(progress.totalPoints), 0.0, 1.0)
+                : 0.0;
+            const bool finishedFile = progress.totalPoints > 0 && progress.pointsRead >= progress.totalPoints;
+            if (!finishedFile && progressThrottle.isValid() && progressThrottle.elapsed() < 40) {
+                return;
+            }
+
+            progressThrottle.restart();
+            const double overallFraction = newFilePaths.isEmpty()
+                ? 0.0
+                : (static_cast<double>(fileIndex) + fileFraction) / static_cast<double>(newFilePaths.size());
+            const int overallValue = std::clamp(static_cast<int>(std::lround(overallFraction * 1000.0)), 0, 1000);
+            const int percent = std::clamp(static_cast<int>(std::lround(overallFraction * 100.0)), 0, 100);
+            const QString detail = progress.totalPoints > 0
+                ? tr("Reading %1 (%2/%3 points, %4%)")
+                      .arg(QFileInfo(filePath).fileName())
+                      .arg(formatPointCount(progress.pointsRead))
+                      .arg(formatPointCount(progress.totalPoints))
+                      .arg(QLocale().toString(percent))
+                : tr("Reading %1 (%2 points)")
+                      .arg(QFileInfo(filePath).fileName())
+                      .arg(formatPointCount(progress.pointsRead));
+            setLoadingState(true, pointCloudLoadingTitle_, detail, percent);
+            emit pointCloudLoadingProgress(detail, overallValue, 1000);
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        };
+        if (!reader.read(filePath, &datasetPointCloud, &localError, &metadata, progressCallback)) {
+            setLoadingState(false, QString(), QString(), -1);
+            emit pointCloudLoadingFinished();
             updateMessage(tr("Add failed"), localError);
             if (errorMessage != nullptr) {
                 *errorMessage = localError;
@@ -967,31 +1102,55 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
             return false;
         }
 
-        appendedPointCloud.append(datasetPointCloud);
+        PointCloudDatasetInfo datasetInfo;
+        datasetInfo.filePath = filePath;
+        datasetInfo.pointCount = metadata.pointCount;
+        datasetInfo.minBounds = metadata.minBounds;
+        datasetInfo.maxBounds = metadata.maxBounds;
+        datasetInfo.hasColor = metadata.hasColor;
+        datasetInfo.hasIntensity = metadata.hasIntensity;
+        datasetInfo.hasClassification = metadata.hasClassification;
+        datasetInfo.hasReturnInfo = metadata.hasReturnInfo;
+        datasetInfo.hasGpsTime = metadata.hasGpsTime;
+        datasetInfo.visible = true;
+        datasetInfo.projectionText = metadata.projectionText;
+        newDatasetInfos.append(datasetInfo);
+
+        LoadedPointCloudDataset loadedDataset;
+        loadedDataset.info = datasetInfo;
+        loadedDataset.pointCloud = std::make_shared<PointCloudData>(std::move(datasetPointCloud));
+        newDatasets.append(std::move(loadedDataset));
     }
 
-    currentPointCloud_.append(appendedPointCloud);
-    currentFilePaths_.append(newFilePaths);
-    if (currentFilePath_.isEmpty()) {
-        currentFilePath_ = currentFilePaths_.constFirst();
+    for (LoadedPointCloudDataset& dataset : newDatasets) {
+        loadedPointCloudDatasets_.append(std::move(dataset));
     }
+    QList<PointCloudDatasetInfo> combinedDatasets = DataManager::instance().pointCloudDatasets();
+    combinedDatasets.append(newDatasetInfos);
+    DataManager::instance().setPointCloudDatasets(combinedDatasets);
+    currentFilePaths_.append(newFilePaths);
+    syncCurrentFilePath();
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
 
+    rebuildMergedPointCloud();
     rebuildScene();
     updateFooter();
+    updateWelcomeOverlayVisibility();
+    setLoadingState(false, QString(), QString(), -1);
+    emit pointCloudLoadingFinished();
 
     if (errorMessage != nullptr) {
         *errorMessage = newFilePaths.size() == 1
             ? tr("Added %1. Total datasets: %2, total points: %3.")
                   .arg(QFileInfo(newFilePaths.constFirst()).fileName())
                   .arg(QLocale().toString(currentFilePaths_.size()))
-                  .arg(formatPointCount(currentPointCloud_.size()))
+                  .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0))
             : tr("Added %1 datasets. Total datasets: %2, total points: %3.")
                   .arg(QLocale().toString(newFilePaths.size()))
                   .arg(QLocale().toString(currentFilePaths_.size()))
-                  .arg(formatPointCount(currentPointCloud_.size()));
+                  .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0));
     }
 
     emit pointCloudLoaded();
@@ -1001,9 +1160,11 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
 
 void PointCloudViewer::clearPointCloud()
 {
-    currentPointCloud_.clear();
+    currentPointCloud_.reset();
     currentFilePath_.clear();
     currentFilePaths_.clear();
+    loadedPointCloudDatasets_.clear();
+    DataManager::instance().clear();
     hoveredPointValid_ = false;
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
@@ -1012,8 +1173,13 @@ void PointCloudViewer::clearPointCloud()
     towerEditMode_ = TowerEditMode::None;
     towerEditTargetIndex_ = -1;
     inspectionIssues_.clear();
+    hiddenInspectionIssueIndices_.clear();
     selectedIssueIndex_ = -1;
     issueEditMode_ = IssueEditMode::None;
+    inspectionRouteWaypoints_.clear();
+    inspectionRouteLabels_.clear();
+    inspectionRouteVisible_ = true;
+    selectedInspectionRouteWaypointIndex_ = -1;
     updateSceneClickCapture();
     resetMeasurementState(false);
 
@@ -1032,6 +1198,7 @@ void PointCloudViewer::clearPointCloud()
     updateMessage(
         tr("Scene cleared"),
         tr("Open one or more LAS or LAZ files to continue."));
+    updateWelcomeOverlayVisibility();
 
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
@@ -1051,7 +1218,12 @@ void PointCloudViewer::clearPointCloud()
 
 bool PointCloudViewer::hasPointCloud() const
 {
-    return !currentPointCloud_.empty();
+    return currentPointCloud_ != nullptr && !currentPointCloud_->empty();
+}
+
+bool PointCloudViewer::hasLoadedPointClouds() const
+{
+    return !currentFilePaths_.isEmpty();
 }
 
 QString PointCloudViewer::currentFilePath() const
@@ -1066,7 +1238,12 @@ QStringList PointCloudViewer::currentFilePaths() const
 
 const PointCloudData* PointCloudViewer::pointCloudData() const
 {
-    return hasPointCloud() ? &currentPointCloud_ : nullptr;
+    return hasPointCloud() ? currentPointCloud_.get() : nullptr;
+}
+
+const QList<PointCloudDatasetInfo>& PointCloudViewer::pointCloudDatasets() const
+{
+    return DataManager::instance().pointCloudDatasets();
 }
 
 const PointCloudVisualizationOptions& PointCloudViewer::visualizationOptions() const
@@ -1618,6 +1795,8 @@ void PointCloudViewer::cancelTowerEditMode()
 void PointCloudViewer::setInspectionIssues(const QList<InspectionIssue>& issues)
 {
     inspectionIssues_ = issues;
+    hiddenInspectionIssueIndices_.clear();
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     selectedIssueIndex_ = inspectionIssues_.isEmpty() ? -1 : std::clamp(selectedIssueIndex_, 0, inspectionIssues_.size() - 1);
     updateSceneClickCapture();
     refreshInspectionIssuesOverlay();
@@ -1639,6 +1818,7 @@ bool PointCloudViewer::addInspectionIssue(const InspectionIssue& issue)
         normalizedIssue.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
     }
     inspectionIssues_.append(normalizedIssue);
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     selectedIssueIndex_ = inspectionIssues_.size() - 1;
     selectedTowerIndex_ = -1;
     updateSceneClickCapture();
@@ -1663,6 +1843,7 @@ bool PointCloudViewer::updateInspectionIssue(int index, const InspectionIssue& i
         normalizedIssue.createdAt = inspectionIssues_.at(index).createdAt;
     }
     inspectionIssues_[index] = normalizedIssue;
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     refreshInspectionIssuesOverlay();
     emit inspectionIssuesChanged();
     return true;
@@ -1675,6 +1856,15 @@ bool PointCloudViewer::removeInspectionIssue(int index)
     }
 
     inspectionIssues_.removeAt(index);
+    QSet<int> remappedHiddenIndices;
+    for (int hiddenIndex : hiddenInspectionIssueIndices_) {
+        if (hiddenIndex == index) {
+            continue;
+        }
+        remappedHiddenIndices.insert(hiddenIndex > index ? hiddenIndex - 1 : hiddenIndex);
+    }
+    hiddenInspectionIssueIndices_ = std::move(remappedHiddenIndices);
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     selectedIssueIndex_ = inspectionIssues_.isEmpty() ? -1 : std::clamp(index, 0, inspectionIssues_.size() - 1);
     updateSceneClickCapture();
     refreshInspectionIssuesOverlay();
@@ -1691,6 +1881,8 @@ void PointCloudViewer::clearInspectionIssues()
     }
 
     inspectionIssues_.clear();
+    hiddenInspectionIssueIndices_.clear();
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
     selectedIssueIndex_ = -1;
     cancelIssueEditMode();
     updateSceneClickCapture();
@@ -1721,6 +1913,13 @@ void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& way
 {
     inspectionRouteWaypoints_ = waypoints;
     inspectionRouteLabels_ = labels;
+    inspectionRouteVisible_ = true;
+    DataManager::instance().setTrajectory(
+        DataManager::instance().trajectoryItem().name.trimmed().isEmpty()
+            ? tr("Inspection Route")
+            : DataManager::instance().trajectoryItem().name,
+        inspectionRouteWaypoints_,
+        inspectionRouteVisible_);
     if (inspectionRouteLabels_.size() < inspectionRouteWaypoints_.size()) {
         for (int index = inspectionRouteLabels_.size(); index < inspectionRouteWaypoints_.size(); ++index) {
             inspectionRouteLabels_.append(QString::number(index + 1));
@@ -1737,6 +1936,7 @@ void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& way
             : std::clamp(selectedInspectionRouteWaypointIndex_, 0, inspectionRouteWaypoints_.size() - 1);
 
     refreshInspectionRouteOverlay();
+    updateFooter();
     emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
     emit inspectionRouteChanged();
 }
@@ -1749,8 +1949,11 @@ void PointCloudViewer::clearInspectionRouteWaypoints()
 
     inspectionRouteWaypoints_.clear();
     inspectionRouteLabels_.clear();
+    inspectionRouteVisible_ = true;
+    DataManager::instance().clearTrajectory();
     selectedInspectionRouteWaypointIndex_ = -1;
     refreshInspectionRouteOverlay();
+    updateFooter();
     emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
     emit inspectionRouteChanged();
 }
@@ -1765,6 +1968,7 @@ void PointCloudViewer::setSelectedInspectionRouteWaypointIndex(int index)
 
     selectedInspectionRouteWaypointIndex_ = normalizedIndex;
     refreshInspectionRouteOverlay();
+    updateFooter();
     emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
 }
 
@@ -1793,7 +1997,7 @@ void PointCloudViewer::cancelIssueEditMode()
 
 bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceScale)
 {
-    if (!hasPointCloud() || osgWidget_ == nullptr) {
+    if (!hasLoadedPointClouds() || osgWidget_ == nullptr) {
         return false;
     }
 
@@ -1813,12 +2017,25 @@ bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceSca
     manipulator->getTransformation(eye, center, up);
 
     osg::Vec3d offset = eye - center;
-    const double minFocusDistance = std::max({
-        static_cast<double>(currentPointCloud_.maxBounds().x - currentPointCloud_.minBounds().x),
-        static_cast<double>(currentPointCloud_.maxBounds().y - currentPointCloud_.minBounds().y),
-        static_cast<double>(currentPointCloud_.maxBounds().z - currentPointCloud_.minBounds().z),
-        2.0
-    }) * std::max(0.05, distanceScale);
+    double datasetExtent = 2.0;
+    if (hasPointCloud()) {
+        datasetExtent = std::max({
+            static_cast<double>(currentPointCloud_->maxBounds().x - currentPointCloud_->minBounds().x),
+            static_cast<double>(currentPointCloud_->maxBounds().y - currentPointCloud_->minBounds().y),
+            static_cast<double>(currentPointCloud_->maxBounds().z - currentPointCloud_->minBounds().z),
+            2.0
+        });
+    } else {
+        for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+            datasetExtent = std::max(datasetExtent, std::max({
+                static_cast<double>(dataset.info.maxBounds.x - dataset.info.minBounds.x),
+                static_cast<double>(dataset.info.maxBounds.y - dataset.info.minBounds.y),
+                static_cast<double>(dataset.info.maxBounds.z - dataset.info.minBounds.z),
+                2.0
+            }));
+        }
+    }
+    const double minFocusDistance = datasetExtent * std::max(0.05, distanceScale);
 
     if (offset.length2() < 1e-8) {
         offset = osg::Vec3d(minFocusDistance, -minFocusDistance, minFocusDistance * 0.6);
@@ -1834,6 +2051,142 @@ bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceSca
     return true;
 }
 
+bool PointCloudViewer::focusOnBounds(const PointRecord& minBounds, const PointRecord& maxBounds, double distanceScale)
+{
+    PointRecord centerPoint;
+    centerPoint.x = (minBounds.x + maxBounds.x) * 0.5f;
+    centerPoint.y = (minBounds.y + maxBounds.y) * 0.5f;
+    centerPoint.z = (minBounds.z + maxBounds.z) * 0.5f;
+
+    if (!hasLoadedPointClouds() || osgWidget_ == nullptr) {
+        return false;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr) {
+        return false;
+    }
+
+    auto* manipulator = dynamic_cast<osgGA::TrackballManipulator*>(viewer->getCameraManipulator());
+    if (manipulator == nullptr) {
+        return false;
+    }
+
+    osg::Vec3d eye;
+    osg::Vec3d center;
+    osg::Vec3d up;
+    manipulator->getTransformation(eye, center, up);
+
+    osg::Vec3d offset = eye - center;
+    const double maxExtent = std::max({
+        static_cast<double>(maxBounds.x - minBounds.x),
+        static_cast<double>(maxBounds.y - minBounds.y),
+        static_cast<double>(maxBounds.z - minBounds.z),
+        2.0
+    });
+    const double focusDistance = std::max(2.0, maxExtent * std::max(0.18, distanceScale));
+    if (offset.length2() < 1e-8) {
+        offset = osg::Vec3d(focusDistance, -focusDistance, focusDistance * 0.6);
+    } else {
+        offset.normalize();
+        offset *= std::max(focusDistance, (eye - center).length() * std::max(0.15, distanceScale));
+    }
+
+    const osg::Vec3d target(centerPoint.x, centerPoint.y, centerPoint.z);
+    manipulator->setHomePosition(target + offset, target, up.length2() < 1e-8 ? osg::Vec3d(0.0, 0.0, 1.0) : up);
+    manipulator->home(0.0);
+    osgWidget_->update();
+    return true;
+}
+
+bool PointCloudViewer::setPointCloudDatasetVisible(const QString& filePath, bool visible)
+{
+    if (filePath.trimmed().isEmpty()) {
+        return false;
+    }
+
+    bool changed = false;
+    for (int datasetIndex = 0; datasetIndex < loadedPointCloudDatasets_.size(); ++datasetIndex) {
+        LoadedPointCloudDataset& dataset = loadedPointCloudDatasets_[datasetIndex];
+        if (dataset.info.filePath.compare(filePath, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+
+        if (dataset.info.visible == visible) {
+            return true;
+        }
+
+        dataset.info.visible = visible;
+        DataManager::instance().setPointCloudDatasetVisible(filePath, visible);
+        changed = true;
+        break;
+    }
+
+    if (!changed) {
+        return false;
+    }
+
+    rebuildMergedPointCloud();
+    hoveredPointValid_ = false;
+    lastHoverQueryPosition_ = QPointF();
+    lastHoverQueryTime_ = {};
+    rebuildScene();
+    updateFooter();
+    return true;
+}
+
+bool PointCloudViewer::isInspectionIssueVisible(int index) const
+{
+    return index >= 0
+        && index < inspectionIssues_.size()
+        && !hiddenInspectionIssueIndices_.contains(index);
+}
+
+void PointCloudViewer::setInspectionIssueVisible(int index, bool visible)
+{
+    if (index < 0 || index >= inspectionIssues_.size()) {
+        return;
+    }
+
+    const bool currentlyVisible = !hiddenInspectionIssueIndices_.contains(index);
+    if (currentlyVisible == visible) {
+        return;
+    }
+
+    if (visible) {
+        hiddenInspectionIssueIndices_.remove(index);
+    } else {
+        hiddenInspectionIssueIndices_.insert(index);
+    }
+
+    DataManager::instance().setImagesFromIssues(inspectionIssues_, hiddenInspectionIssueIndices_);
+    refreshInspectionIssuesOverlay();
+    updateFooter();
+}
+
+bool PointCloudViewer::inspectionRouteVisible() const
+{
+    return inspectionRouteVisible_;
+}
+
+void PointCloudViewer::setInspectionRouteVisible(bool visible)
+{
+    if (inspectionRouteVisible_ == visible) {
+        return;
+    }
+
+    inspectionRouteVisible_ = visible;
+    DataManager::instance().setTrajectory(
+        DataManager::instance().trajectoryItem().name.trimmed().isEmpty()
+            ? tr("Inspection Route")
+            : DataManager::instance().trajectoryItem().name,
+        inspectionRouteWaypoints_,
+        inspectionRouteVisible_);
+    refreshInspectionRouteOverlay();
+    updateFooter();
+    emit inspectionRouteChanged();
+}
+
 void PointCloudViewer::changeEvent(QEvent* event)
 {
     QWidget::changeEvent(event);
@@ -1847,6 +2200,7 @@ void PointCloudViewer::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
     positionAxisIndicator();
+    updateWelcomeOverlayVisibility();
 }
 
 void PointCloudViewer::createStatusPanel()
@@ -1908,6 +2262,106 @@ void PointCloudViewer::createMeasurementOverlayWidgets()
             "}"));
 }
 
+void PointCloudViewer::createWelcomeOverlay()
+{
+    welcomeOverlay_ = new QFrame(osgWidget_);
+    welcomeOverlay_->setObjectName(QStringLiteral("viewerWelcomeOverlay"));
+    welcomeOverlay_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    welcomeOverlay_->setStyleSheet(QStringLiteral(
+        "QFrame#viewerWelcomeOverlay {"
+        "background-color: #0a1118;"
+        "}"));
+
+    auto* overlayLayout = new QVBoxLayout(welcomeOverlay_);
+    overlayLayout->setContentsMargins(24, 24, 24, 24);
+    overlayLayout->setSpacing(0);
+    overlayLayout->addStretch();
+
+    welcomeImageLabel_ = new QLabel(welcomeOverlay_);
+    welcomeImageLabel_->setAlignment(Qt::AlignCenter);
+    welcomeImageLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    overlayLayout->addWidget(welcomeImageLabel_, 0, Qt::AlignCenter);
+
+    welcomeStatusLabel_ = new QLabel(welcomeOverlay_);
+    welcomeStatusLabel_->setAlignment(Qt::AlignCenter);
+    welcomeStatusLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    welcomeStatusLabel_->setStyleSheet(QStringLiteral(
+        "QLabel {"
+        "color: rgba(226, 232, 240, 0.96);"
+        "font-size: 13px;"
+        "font-weight: 600;"
+        "padding-top: 14px;"
+        "}"));
+    welcomeStatusLabel_->hide();
+    overlayLayout->addWidget(welcomeStatusLabel_, 0, Qt::AlignHCenter);
+
+    overlayLayout->addStretch();
+    welcomeOverlay_->hide();
+}
+
+void PointCloudViewer::setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent)
+{
+    pointCloudLoadingActive_ = active;
+    pointCloudLoadingTitle_ = title;
+    pointCloudLoadingDetail_ = detail;
+    pointCloudLoadingProgressPercent_ = progressPercent;
+
+    if (active) {
+        updateMessage(title, detail);
+    } else {
+        pointCloudLoadingTitle_.clear();
+        pointCloudLoadingDetail_.clear();
+        pointCloudLoadingProgressPercent_ = -1;
+    }
+
+    updateWelcomeOverlayVisibility();
+}
+
+void PointCloudViewer::updateWelcomeOverlayVisibility()
+{
+    if (welcomeOverlay_ == nullptr || osgWidget_ == nullptr || welcomeImageLabel_ == nullptr) {
+        return;
+    }
+
+    welcomeOverlay_->setGeometry(osgWidget_->rect());
+
+    if (hasLoadedPointClouds() || (pointCloudLoadingActive_ && hasPointCloud())) {
+        welcomeOverlay_->hide();
+        if (axisIndicatorOverlay_ != nullptr && visualizationOptions_.showAxes) {
+            axisIndicatorOverlay_->raise();
+        }
+        return;
+    }
+
+    const QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
+    if (!splashPixmap.isNull()) {
+        const QSize availableSize(
+            std::max(320, static_cast<int>(std::lround(welcomeOverlay_->width() * 0.60))),
+            std::max(180, static_cast<int>(std::lround(welcomeOverlay_->height() * 0.60))));
+        welcomeImageLabel_->setPixmap(splashPixmap.scaled(availableSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    } else {
+        welcomeImageLabel_->clear();
+    }
+
+    if (welcomeStatusLabel_ != nullptr) {
+        if (pointCloudLoadingActive_ && !pointCloudLoadingDetail_.trimmed().isEmpty()) {
+            const QString loadingText = pointCloudLoadingProgressPercent_ >= 0
+                ? tr("%1\n%2")
+                      .arg(pointCloudLoadingTitle_.trimmed().isEmpty() ? tr("Loading point cloud") : pointCloudLoadingTitle_)
+                      .arg(pointCloudLoadingDetail_)
+                : pointCloudLoadingDetail_;
+            welcomeStatusLabel_->setText(loadingText);
+            welcomeStatusLabel_->show();
+        } else {
+            welcomeStatusLabel_->hide();
+            welcomeStatusLabel_->clear();
+        }
+    }
+
+    welcomeOverlay_->show();
+    welcomeOverlay_->raise();
+}
+
 void PointCloudViewer::rebuildScene()
 {
     if (!rootGroup_.valid()) {
@@ -1932,7 +2386,7 @@ void PointCloudViewer::rebuildScene()
         return;
     }
 
-    pointCloudNode_ = OsgPointCloudNode::build(currentPointCloud_, visualizationOptions_);
+    pointCloudNode_ = OsgPointCloudNode::build(*currentPointCloud_, visualizationOptions_);
     if (pointCloudNode_.valid()) {
         rootGroup_->addChild(pointCloudNode_.get());
     }
@@ -1943,12 +2397,49 @@ void PointCloudViewer::rebuildScene()
     refreshMeasurementOverlay();
 }
 
+void PointCloudViewer::rebuildMergedPointCloud()
+{
+    currentPointCloud_.reset();
+    std::shared_ptr<PointCloudData> singleVisibleDataset;
+    int visibleDatasetCount = 0;
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || !dataset.pointCloud) {
+            continue;
+        }
+        ++visibleDatasetCount;
+        if (visibleDatasetCount == 1) {
+            singleVisibleDataset = dataset.pointCloud;
+        } else {
+            if (visibleDatasetCount == 2) {
+                currentPointCloud_ = std::make_shared<PointCloudData>();
+                currentPointCloud_->append(*singleVisibleDataset);
+            }
+            currentPointCloud_->append(*dataset.pointCloud);
+        }
+    }
+
+    if (visibleDatasetCount == 1) {
+        currentPointCloud_ = std::move(singleVisibleDataset);
+    }
+    syncCurrentFilePath();
+}
+
 void PointCloudViewer::updateFooter()
 {
-    if (!hasPointCloud()) {
+    if (!hasLoadedPointClouds()) {
         updateMessage(
             tr("Ready for point cloud inspection"),
             tr("Open one or more LAS or LAZ files. Left drag orbits, middle or right drag pans, and the mouse wheel zooms."));
+        if (cursorLabel_ != nullptr) {
+            cursorLabel_->setText(tr("Cursor Point: N/A"));
+        }
+        return;
+    }
+
+    if (!hasPointCloud()) {
+        updateMessage(
+            tr("All point cloud datasets are hidden"),
+            tr("Enable one or more datasets in the project explorer to continue browsing, measuring, or editing."));
         if (cursorLabel_ != nullptr) {
             cursorLabel_->setText(tr("Cursor Point: N/A"));
         }
@@ -1960,15 +2451,15 @@ void PointCloudViewer::updateFooter()
         ? tr("%1 datasets loaded").arg(QLocale().toString(currentFilePaths_.size()))
         : (fileInfo.fileName().isEmpty() ? currentFilePath_ : fileInfo.fileName());
     QString detail = tr("%1 points | Datasets %2 | %3 | %4 px | Axes %5 | Bounds %6")
-        .arg(formatPointCount(currentPointCloud_.size()))
+        .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0))
         .arg(QLocale().toString(currentFilePaths_.size()))
         .arg(colorModeLabel(visualizationOptions_.colorMode))
         .arg(QLocale().toString(static_cast<int>(visualizationOptions_.pointSize)))
         .arg(visualizationOptions_.showAxes ? tr("on") : tr("off"))
         .arg(visualizationOptions_.showBoundingBox ? tr("on") : tr("off"));
     detail += tr(" | Towers %1").arg(QLocale().toString(towerMarkers_.size()));
-    detail += tr(" | Issues %1").arg(QLocale().toString(inspectionIssues_.size()));
-    detail += tr(" | Route WPs %1").arg(QLocale().toString(inspectionRouteWaypoints_.size()));
+    detail += tr(" | Issues %1").arg(QLocale().toString(inspectionIssues_.size() - hiddenInspectionIssueIndices_.size()));
+    detail += tr(" | Route WPs %1").arg(QLocale().toString(inspectionRouteVisible_ ? inspectionRouteWaypoints_.size() : 0));
 
     if (measurementEnabled_) {
         if (measurementResult_.isComplete()) {
@@ -2045,8 +2536,8 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
         return;
     }
 
-    const PointRecord& minBounds = currentPointCloud_.minBounds();
-    const PointRecord& maxBounds = currentPointCloud_.maxBounds();
+    const PointRecord& minBounds = currentPointCloud_->minBounds();
+    const PointRecord& maxBounds = currentPointCloud_->maxBounds();
     const osg::Vec3d center(
         (minBounds.x + maxBounds.x) * 0.5,
         (minBounds.y + maxBounds.y) * 0.5,
@@ -2258,7 +2749,7 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
     double bestDistanceSquared = toleranceSquared;
     double bestDepth = std::numeric_limits<double>::max();
 
-    for (const PointRecord& point : currentPointCloud_.points()) {
+    for (const PointRecord& point : currentPointCloud_->points()) {
         const osg::Vec3d projected = osg::Vec3d(point.x, point.y, point.z) * worldToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
             continue;
@@ -2365,6 +2856,9 @@ int PointCloudViewer::pickInspectionIssueAtScreenPosition(const QPointF& localPo
     double bestDepth = std::numeric_limits<double>::max();
 
     for (int issueIndex = 0; issueIndex < inspectionIssues_.size(); ++issueIndex) {
+        if (hiddenInspectionIssueIndices_.contains(issueIndex)) {
+            continue;
+        }
         const InspectionIssue& issue = inspectionIssues_.at(issueIndex);
         const osg::Vec3d projected = osg::Vec3d(issue.point.x, issue.point.y, issue.point.z) * worldToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
@@ -2427,13 +2921,26 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionIssuesOverlay() const
         return nullptr;
     }
 
-    osg::ref_ptr<osg::Geode> markersGeode = buildInspectionIssuesGeode(inspectionIssues_);
+    QList<InspectionIssue> visibleIssues;
+    visibleIssues.reserve(inspectionIssues_.size());
+    for (int issueIndex = 0; issueIndex < inspectionIssues_.size(); ++issueIndex) {
+        if (hiddenInspectionIssueIndices_.contains(issueIndex)) {
+            continue;
+        }
+        visibleIssues.append(inspectionIssues_.at(issueIndex));
+    }
+
+    if (visibleIssues.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Geode> markersGeode = buildInspectionIssuesGeode(visibleIssues);
     return markersGeode.release();
 }
 
 osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
 {
-    if (inspectionRouteWaypoints_.isEmpty()) {
+    if (inspectionRouteWaypoints_.isEmpty() || !inspectionRouteVisible_) {
         return nullptr;
     }
 
@@ -2643,7 +3150,7 @@ void PointCloudViewer::updateInspectionIssueOverlayWidgets()
             continue;
         }
 
-        if (issueIndex >= inspectionIssues_.size()) {
+        if (issueIndex >= inspectionIssues_.size() || hiddenInspectionIssueIndices_.contains(issueIndex)) {
             label->hide();
             continue;
         }
@@ -2697,6 +3204,15 @@ void PointCloudViewer::updateInspectionIssueOverlayWidgets()
 void PointCloudViewer::updateInspectionRouteOverlayWidgets()
 {
     if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    if (!inspectionRouteVisible_) {
+        for (QLabel* label : inspectionRouteOverlayLabels_) {
+            if (label != nullptr) {
+                label->hide();
+            }
+        }
         return;
     }
 
@@ -2894,6 +3410,21 @@ void PointCloudViewer::positionOverlayLabel(QLabel* label, const QPointF& anchor
     label->setGeometry(x, y, labelSize.width(), labelSize.height());
     label->show();
     label->raise();
+}
+
+void PointCloudViewer::syncCurrentFilePath()
+{
+    currentFilePath_.clear();
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (dataset.info.visible) {
+            currentFilePath_ = dataset.info.filePath;
+            return;
+        }
+    }
+
+    if (!currentFilePaths_.isEmpty()) {
+        currentFilePath_ = currentFilePaths_.constFirst();
+    }
 }
 
 void PointCloudViewer::recalculateMeasurementResult()

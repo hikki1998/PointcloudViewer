@@ -468,6 +468,7 @@ set(SOURCES
     src/domain/AnalysisData.cpp
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp
+    src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionRoutePlanning.cpp
     src/domain/InspectionReportExporter.cpp
@@ -487,6 +488,7 @@ set(HEADERS
     src/domain/AnalysisData.h
     src/domain/ClearanceAnalysis.h
     src/domain/ClearanceReportExporter.h
+    src/domain/DataManager.h
     src/domain/InspectionData.h
     src/domain/InspectionRoutePlanning.h
     src/domain/InspectionReportExporter.h
@@ -535,6 +537,7 @@ endif()
 
 set(COMMON_SOURCES
     src/domain/AnalysisData.cpp
+    src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionRoutePlanning.cpp
     src/domain/RuleBasedClearanceEngine.cpp
@@ -548,6 +551,7 @@ set(COMMON_SOURCES
 
 set(COMMON_HEADERS
     src/domain/AnalysisData.h
+    src/domain/DataManager.h
     src/domain/InspectionData.h
     src/domain/InspectionRoutePlanning.h
     src/domain/RuleBasedClearanceEngine.h

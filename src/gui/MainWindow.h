@@ -29,6 +29,7 @@ class QLabel;
 class QLineEdit;
 class QObject;
 class QPlainTextEdit;
+class QProgressBar;
 class QPushButton;
 class QSlider;
 class QSpinBox;
@@ -36,6 +37,7 @@ class QMenu;
 class QTabWidget;
 class QTableWidget;
 class QTableWidgetItem;
+class QTextEdit;
 class QTreeWidget;
 class QTreeWidgetItem;
 class QToolButton;
@@ -136,6 +138,10 @@ private:
     void persistWindowSettings() const;
     void loadThemeSettings();
     void persistThemeSettings() const;
+    void syncProfileDockForMeasurementMode(bool measurementEnabled);
+    void beginOperationProgress(const QString& message);
+    void updateOperationProgress(const QString& message, int value, int maximum);
+    void endOperationProgress();
     void updateNavigationHelpText();
     void updateMeasurementPanel();
     void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
@@ -143,6 +149,13 @@ private:
     void updateRoutePlanningPanel();
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
+    void focusProjectTreeItem(QTreeWidgetItem* item);
+    void applyProjectTreeItemCheckState(QTreeWidgetItem* item);
+    void showProjectTreeContextMenu(const QPoint& pos);
+    void showPointCloudDatasetDetails(const QString& filePath);
+    void showInspectionRouteDetails() const;
+    void showDetailsDialog(const QString& title, const QString& details) const;
+    void syncDataManagerTrajectory() const;
     void updateTowerPanel();
     void updateIssuePanel();
     void updateTowerDetailEditor();
@@ -284,7 +297,7 @@ private:
     QMenu* towerActionsMenu_ = nullptr;
     QToolButton* issueMenuButton_ = nullptr;
     QMenu* issueActionsMenu_ = nullptr;
-    QPlainTextEdit* logTextEdit_ = nullptr;
+    QTextEdit* logTextEdit_ = nullptr;
     QLineEdit* towerCodeEdit_ = nullptr;
     QLineEdit* towerLineNameEdit_ = nullptr;
     QLineEdit* towerVoltageLevelEdit_ = nullptr;
@@ -303,6 +316,7 @@ private:
     QToolButton* minimizeButton_ = nullptr;
     QToolButton* maximizeButton_ = nullptr;
     QToolButton* closeButton_ = nullptr;
+    QProgressBar* globalProgressBar_ = nullptr;
 
     QAction* openAction_ = nullptr;
     QAction* addPointCloudAction_ = nullptr;
@@ -373,6 +387,7 @@ private:
     QActionGroup* themeActionGroup_ = nullptr;
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
+    bool updatingProjectTree_ = false;
     bool towerEditingEnabled_ = false;
     double clearanceWarningThresholdMeters_ = 10.0;
     ClearanceRulePreset clearanceRulePreset_ = ClearanceRulePreset::TransmissionCorridor;
