@@ -19,6 +19,7 @@ endif()
 
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
 option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
+option(LAS_VIEWER_ENABLE_PROJ "Enable PROJ-based CRS transformation" ON)
 
 set(THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rd" CACHE PATH "Root directory containing project third-party dependencies")
 set(QT_ROOT "E:/code/Qt5.15.2/5.15.2/msvc2019_64" CACHE PATH "Qt installation root")
@@ -28,6 +29,7 @@ set(PCL_ROOT "" CACHE PATH "Legacy override for PCL installation root")
 set(LASLIB_ROOT "" CACHE PATH "Legacy override for LASlib package root")
 set(LASTOOLS_ROOT "" CACHE PATH "Legacy override for LAStools package root")
 set(LASZIP_ROOT "" CACHE PATH "Legacy override for LASzip source root")
+set(PROJ_ROOT "" CACHE PATH "Optional PROJ installation root")
 
 function(las_viewer_read_version_marker marker_file out_name out_version)
     set(package_name "")
@@ -213,6 +215,8 @@ foreach(cached_dependency_var
     OSGVIEWER_DEBUG_LIBRARY
     OSGUTIL_RELEASE_LIBRARY
     OSGUTIL_DEBUG_LIBRARY
+    PROJ_INCLUDE_DIR
+    PROJ_LIBRARY
 )
     unset(${cached_dependency_var} CACHE)
 endforeach()
@@ -365,6 +369,33 @@ find_library(OSGUTIL_DEBUG_LIBRARY
     NO_DEFAULT_PATH
 )
 
+set(LAS_VIEWER_HAS_PROJ OFF)
+if(LAS_VIEWER_ENABLE_PROJ)
+    find_path(PROJ_INCLUDE_DIR
+        NAMES proj.h
+        PATHS
+            "${PROJ_ROOT}/include"
+            "${THIRDPARTY_ROOT}/proj/include"
+    )
+
+    find_library(PROJ_LIBRARY
+        NAMES proj proj_9_5 proj_9_4 proj_9_3 proj_9_2 proj_9_1 proj_9_0
+        PATHS
+            "${PROJ_ROOT}/lib"
+            "${THIRDPARTY_ROOT}/proj/lib"
+    )
+
+    if(PROJ_INCLUDE_DIR AND PROJ_LIBRARY)
+        set(LAS_VIEWER_HAS_PROJ ON)
+        message(STATUS "Using PROJ: ${PROJ_LIBRARY}")
+    else()
+        message(WARNING
+            "PROJ was enabled but not found. CRS transform will be disabled. "
+            "Set PROJ_ROOT to a valid installation root to enable it."
+        )
+    endif()
+endif()
+
 set(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG OFF)
 if(MSVC AND (
     NOT QTITAN_DEBUG_LIBRARY OR
@@ -438,8 +469,10 @@ set(SOURCES
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp
     src/domain/InspectionData.cpp
+    src/domain/InspectionRoutePlanning.cpp
     src/domain/InspectionReportExporter.cpp
     src/domain/ProfileMarkerProjection.cpp
+    src/domain/RouteInterop.cpp
     src/domain/RuleBasedClearanceEngine.cpp
     src/domain/VegetationRiskAnalysis.cpp
     src/gui/MainWindow.cpp
@@ -455,8 +488,10 @@ set(HEADERS
     src/domain/ClearanceAnalysis.h
     src/domain/ClearanceReportExporter.h
     src/domain/InspectionData.h
+    src/domain/InspectionRoutePlanning.h
     src/domain/InspectionReportExporter.h
     src/domain/ProfileMarkerProjection.h
+    src/domain/RouteInterop.h
     src/domain/RuleBasedClearanceEngine.h
     src/domain/VegetationRiskAnalysis.h
     src/gui/MainWindow.h
@@ -501,7 +536,9 @@ endif()
 set(COMMON_SOURCES
     src/domain/AnalysisData.cpp
     src/domain/InspectionData.cpp
+    src/domain/InspectionRoutePlanning.cpp
     src/domain/RuleBasedClearanceEngine.cpp
+    src/domain/RouteInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
@@ -512,7 +549,9 @@ set(COMMON_SOURCES
 set(COMMON_HEADERS
     src/domain/AnalysisData.h
     src/domain/InspectionData.h
+    src/domain/InspectionRoutePlanning.h
     src/domain/RuleBasedClearanceEngine.h
+    src/domain/RouteInterop.h
     src/domain/VegetationRiskAnalysis.h
     src/gui/PointCloudViewer.h
     src/pointcloud/LasReader.h
@@ -566,6 +605,12 @@ function(configure_las_viewer_target target_name use_qtitan)
             "${LASLIB_LIBRARY}"
             "${LASZIP_LIBRARY}"
         )
+    endif()
+
+    if(LAS_VIEWER_HAS_PROJ)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_PROJ=1)
+        target_include_directories(${target_name} PRIVATE "${PROJ_INCLUDE_DIR}")
+        target_link_libraries(${target_name} PRIVATE "${PROJ_LIBRARY}")
     endif()
 
     if(MSVC)
@@ -686,6 +731,7 @@ set(search_directories
     "@QTITAN_ROOT@/bin"
     "@LASLIB_ROOT@/bin"
     "@LASTOOLS_ROOT@/bin"
+    "@PROJ_ROOT@/bin"
 )
 
 if(existing_scan_libraries)
@@ -885,6 +931,26 @@ set_target_properties(LASViewerSmokeTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/smoke"
 )
 
+add_executable(LASViewerRouteInteropSmokeTest
+    examples/route_interop_smoke_test.cpp
+    src/domain/AnalysisData.cpp
+    src/domain/InspectionData.cpp
+    src/domain/InspectionRoutePlanning.cpp
+    src/domain/RouteInterop.cpp
+)
+target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE Qt5::Core)
+if(LAS_VIEWER_HAS_PROJ)
+    target_compile_definitions(LASViewerRouteInteropSmokeTest PRIVATE LAS_VIEWER_HAS_PROJ=1)
+    target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_INCLUDE_DIR}")
+    target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_LIBRARY}")
+endif()
+set_target_properties(LASViewerRouteInteropSmokeTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/smoke"
+)
+
 if(WIN32)
 deploy_osg_runtime(${PROJECT_NAME})
 deploy_qt_runtime(${PROJECT_NAME} TRUE)
@@ -893,4 +959,6 @@ deploy_translation_runtime(${PROJECT_NAME})
 deploy_osg_runtime(LASViewerSmokeTest)
 deploy_qt_runtime(LASViewerSmokeTest FALSE)
 deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
+deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
+deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
 endif()

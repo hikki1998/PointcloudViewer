@@ -8,6 +8,7 @@
 #include "QtnRibbonStyle.h"
 
 #include "domain/AnalysisData.h"
+#include "domain/InspectionRoutePlanning.h"
 #include "domain/RuleBasedClearanceEngine.h"
 
 class QAction;
@@ -139,6 +140,7 @@ private:
     void updateMeasurementPanel();
     void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
     void updateVegetationRiskPanel();
+    void updateRoutePlanningPanel();
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
     void updateTowerPanel();
@@ -190,6 +192,8 @@ private:
     QGroupBox* analysisParametersGroupBox_ = nullptr;
     QFormLayout* analysisParametersLayout_ = nullptr;
     QGroupBox* vegetationRisksGroupBox_ = nullptr;
+    QGroupBox* routePlanningGroupBox_ = nullptr;
+    QGroupBox* routeWaypointsGroupBox_ = nullptr;
     QGroupBox* navigationGroupBox_ = nullptr;
     QFormLayout* navigationToggleLayout_ = nullptr;
     QGroupBox* towerDetailsGroupBox_ = nullptr;
@@ -217,6 +221,8 @@ private:
     QLabel* vegetationRiskCountValueLabel_ = nullptr;
     QLabel* vegetationRiskStatusValueLabel_ = nullptr;
     QLabel* vegetationRiskSummaryLabel_ = nullptr;
+    QLabel* routeStatusValueLabel_ = nullptr;
+    QLabel* routeSummaryValueLabel_ = nullptr;
     QLabel* towerCountValueLabel_ = nullptr;
     QLabel* towerToolStatusLabel_ = nullptr;
     QLabel* issueCountValueLabel_ = nullptr;
@@ -246,6 +252,13 @@ private:
     QDoubleSpinBox* vegetationSearchRadiusSpinBox_ = nullptr;
     QDoubleSpinBox* vegetationClusterGapSpinBox_ = nullptr;
     QSpinBox* vegetationClusterPointCountSpinBox_ = nullptr;
+    QSpinBox* sourceEpsgSpinBox_ = nullptr;
+    QComboBox* aircraftProfileComboBox_ = nullptr;
+    QDoubleSpinBox* routeSafetyHeightSpinBox_ = nullptr;
+    QDoubleSpinBox* routeWaypointSpeedSpinBox_ = nullptr;
+    QDoubleSpinBox* routeWaypointSpacingSpinBox_ = nullptr;
+    QDoubleSpinBox* routeSmoothingStrengthSpinBox_ = nullptr;
+    QDoubleSpinBox* routeHeightOffsetSpinBox_ = nullptr;
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
@@ -260,6 +273,7 @@ private:
     QTableWidget* issueTableWidget_ = nullptr;
     QTableWidget* clearanceSegmentsTableWidget_ = nullptr;
     QTableWidget* vegetationRisksTableWidget_ = nullptr;
+    QTableWidget* routeWaypointsTableWidget_ = nullptr;
     QToolBar* measurementToolBar_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
@@ -325,6 +339,13 @@ private:
     QAction* createIssueFromRiskAction_ = nullptr;
     QAction* createIssuesFromRisksAction_ = nullptr;
     QAction* clearVegetationRisksAction_ = nullptr;
+    QAction* generateInspectionRouteAction_ = nullptr;
+    QAction* regenerateInspectionRouteAction_ = nullptr;
+    QAction* clearInspectionRouteAction_ = nullptr;
+    QAction* focusRouteWaypointAction_ = nullptr;
+    QAction* importRouteKmlAction_ = nullptr;
+    QAction* exportRouteKmlAction_ = nullptr;
+    QAction* exportRouteDjiKmzAction_ = nullptr;
     QAction* startTowerEditAction_ = nullptr;
     QAction* finishTowerEditAction_ = nullptr;
     QAction* addTowerAction_ = nullptr;
@@ -361,6 +382,9 @@ private:
     bool preferVegetationClassification_ = true;
     QList<VegetationRiskRecord> vegetationRiskResults_;
     int selectedVegetationRiskIndex_ = -1;
+    RoutePlanningOptions routePlanningOptions_;
+    InspectionRoute inspectionRoute_;
+    int selectedRouteWaypointIndex_ = -1;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
 };

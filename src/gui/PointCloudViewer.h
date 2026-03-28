@@ -161,8 +161,10 @@ public:
     PointRecord hoveredPoint() const;
     const QList<TowerRecord>& towerMarkers() const;
     const QList<InspectionIssue>& inspectionIssues() const;
+    const QList<PointRecord>& inspectionRouteWaypoints() const;
     int selectedTowerIndex() const;
     int selectedIssueIndex() const;
+    int selectedInspectionRouteWaypointIndex() const;
     TowerEditMode towerEditMode() const;
     int towerEditTargetIndex() const;
     IssueEditMode issueEditMode() const;
@@ -208,6 +210,9 @@ public slots:
     bool removeInspectionIssue(int index);
     void clearInspectionIssues();
     void setSelectedIssueIndex(int index);
+    void setInspectionRouteWaypoints(const QList<PointRecord>& waypoints, const QStringList& labels = QStringList());
+    void clearInspectionRouteWaypoints();
+    void setSelectedInspectionRouteWaypointIndex(int index);
     void beginIssueAddMode();
     void cancelIssueEditMode();
 
@@ -227,6 +232,8 @@ signals:
     void selectedIssueChanged(int index);
     void issueEditModeChanged();
     void issueEditRequested(const PointRecord& point);
+    void inspectionRouteChanged();
+    void selectedInspectionRouteWaypointChanged(int index);
 
 private:
     void changeEvent(QEvent* event) override;
@@ -249,13 +256,16 @@ private:
     osg::ref_ptr<osg::Node> buildMeasurementOverlay() const;
     osg::ref_ptr<osg::Node> buildTowerMarkersOverlay() const;
     osg::ref_ptr<osg::Node> buildInspectionIssuesOverlay() const;
+    osg::ref_ptr<osg::Node> buildInspectionRouteOverlay() const;
     QPointF projectPointToViewport(const PointRecord& point, bool* visible) const;
     void refreshMeasurementOverlay();
     void refreshTowerMarkersOverlay();
     void refreshInspectionIssuesOverlay();
+    void refreshInspectionRouteOverlay();
     void updateMeasurementOverlayWidgets();
     void updateTowerOverlayWidgets();
     void updateInspectionIssueOverlayWidgets();
+    void updateInspectionRouteOverlayWidgets();
     void updateSceneClickCapture();
     void updateAxisIndicator();
     void positionAxisIndicator();
@@ -287,13 +297,17 @@ private:
     PointRecord hoveredPoint_;
     QList<TowerRecord> towerMarkers_;
     QList<InspectionIssue> inspectionIssues_;
+    QList<PointRecord> inspectionRouteWaypoints_;
+    QStringList inspectionRouteLabels_;
     int selectedTowerIndex_ = -1;
     int selectedIssueIndex_ = -1;
+    int selectedInspectionRouteWaypointIndex_ = -1;
     TowerEditMode towerEditMode_ = TowerEditMode::None;
     int towerEditTargetIndex_ = -1;
     IssueEditMode issueEditMode_ = IssueEditMode::None;
     QList<QLabel*> towerOverlayLabels_;
     QList<QLabel*> issueOverlayLabels_;
+    QList<QLabel*> inspectionRouteOverlayLabels_;
     QPointF lastHoverQueryPosition_;
     std::chrono::steady_clock::time_point lastHoverQueryTime_{};
 
@@ -301,5 +315,6 @@ private:
     osg::ref_ptr<osg::Node> pointCloudNode_;
     osg::ref_ptr<osg::Node> towerMarkersNode_;
     osg::ref_ptr<osg::Node> inspectionIssuesNode_;
+    osg::ref_ptr<osg::Node> inspectionRouteNode_;
     osg::ref_ptr<osg::Node> measurementOverlayNode_;
 };

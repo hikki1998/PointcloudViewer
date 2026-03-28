@@ -365,6 +365,69 @@ osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>
     applyMeasurementForegroundState(stateSet);
     return geode;
 }
+
+osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
+    const QList<PointRecord>& waypoints,
+    int selectedIndex)
+{
+    if (waypoints.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+    for (int index = 0; index < waypoints.size(); ++index) {
+        const PointRecord& waypoint = waypoints.at(index);
+        vertices->push_back(osg::Vec3(waypoint.x, waypoint.y, waypoint.z));
+        if (index == selectedIndex) {
+            colors->push_back(osg::Vec4(0.99f, 0.92f, 0.23f, 1.0f));
+        } else {
+            colors->push_back(osg::Vec4(0.15f, 0.74f, 0.96f, 1.0f));
+        }
+    }
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setAttributeAndModes(new osg::Point(11.0f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+    return geode;
+}
+
+osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(const QList<PointRecord>& waypoints)
+{
+    if (waypoints.size() < 2) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    for (const PointRecord& waypoint : waypoints) {
+        vertices->push_back(osg::Vec3(waypoint.x, waypoint.y, waypoint.z));
+    }
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+    colors->push_back(osg::Vec4(0.16f, 0.82f, 0.95f, 1.0f));
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_OVERALL);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setAttributeAndModes(new osg::LineWidth(2.6f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+    return geode;
+}
 }
 
 OsgWidget::OsgWidget(QWidget* parent)
@@ -819,6 +882,9 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     inspectionIssues_.clear();
     selectedIssueIndex_ = -1;
     issueEditMode_ = IssueEditMode::None;
+    inspectionRouteWaypoints_.clear();
+    inspectionRouteLabels_.clear();
+    selectedInspectionRouteWaypointIndex_ = -1;
     updateSceneClickCapture();
     resetMeasurementState(false);
 
@@ -958,9 +1024,11 @@ void PointCloudViewer::clearPointCloud()
     pointCloudNode_ = nullptr;
     towerMarkersNode_ = nullptr;
     inspectionIssuesNode_ = nullptr;
+    inspectionRouteNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
     updateTowerOverlayWidgets();
     updateInspectionIssueOverlayWidgets();
+    updateInspectionRouteOverlayWidgets();
     updateMessage(
         tr("Scene cleared"),
         tr("Open one or more LAS or LAZ files to continue."));
@@ -977,6 +1045,8 @@ void PointCloudViewer::clearPointCloud()
     emit selectedIssueChanged(selectedIssueIndex_);
     emit issueEditModeChanged();
     emit inspectionIssuesChanged();
+    emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
+    emit inspectionRouteChanged();
 }
 
 bool PointCloudViewer::hasPointCloud() const
@@ -1039,6 +1109,11 @@ const QList<InspectionIssue>& PointCloudViewer::inspectionIssues() const
     return inspectionIssues_;
 }
 
+const QList<PointRecord>& PointCloudViewer::inspectionRouteWaypoints() const
+{
+    return inspectionRouteWaypoints_;
+}
+
 int PointCloudViewer::selectedTowerIndex() const
 {
     return selectedTowerIndex_;
@@ -1047,6 +1122,11 @@ int PointCloudViewer::selectedTowerIndex() const
 int PointCloudViewer::selectedIssueIndex() const
 {
     return selectedIssueIndex_;
+}
+
+int PointCloudViewer::selectedInspectionRouteWaypointIndex() const
+{
+    return selectedInspectionRouteWaypointIndex_;
 }
 
 TowerEditMode PointCloudViewer::towerEditMode() const
@@ -1637,6 +1717,57 @@ void PointCloudViewer::setSelectedIssueIndex(int index)
     emit selectedIssueChanged(selectedIssueIndex_);
 }
 
+void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& waypoints, const QStringList& labels)
+{
+    inspectionRouteWaypoints_ = waypoints;
+    inspectionRouteLabels_ = labels;
+    if (inspectionRouteLabels_.size() < inspectionRouteWaypoints_.size()) {
+        for (int index = inspectionRouteLabels_.size(); index < inspectionRouteWaypoints_.size(); ++index) {
+            inspectionRouteLabels_.append(QString::number(index + 1));
+        }
+    } else if (inspectionRouteLabels_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteLabels_.erase(
+            inspectionRouteLabels_.begin() + inspectionRouteWaypoints_.size(),
+            inspectionRouteLabels_.end());
+    }
+
+    selectedInspectionRouteWaypointIndex_ =
+        inspectionRouteWaypoints_.isEmpty()
+            ? -1
+            : std::clamp(selectedInspectionRouteWaypointIndex_, 0, inspectionRouteWaypoints_.size() - 1);
+
+    refreshInspectionRouteOverlay();
+    emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
+    emit inspectionRouteChanged();
+}
+
+void PointCloudViewer::clearInspectionRouteWaypoints()
+{
+    if (inspectionRouteWaypoints_.isEmpty()) {
+        return;
+    }
+
+    inspectionRouteWaypoints_.clear();
+    inspectionRouteLabels_.clear();
+    selectedInspectionRouteWaypointIndex_ = -1;
+    refreshInspectionRouteOverlay();
+    emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
+    emit inspectionRouteChanged();
+}
+
+void PointCloudViewer::setSelectedInspectionRouteWaypointIndex(int index)
+{
+    const int normalizedIndex =
+        (index >= 0 && index < inspectionRouteWaypoints_.size()) ? index : -1;
+    if (selectedInspectionRouteWaypointIndex_ == normalizedIndex) {
+        return;
+    }
+
+    selectedInspectionRouteWaypointIndex_ = normalizedIndex;
+    refreshInspectionRouteOverlay();
+    emit selectedInspectionRouteWaypointChanged(selectedInspectionRouteWaypointIndex_);
+}
+
 void PointCloudViewer::beginIssueAddMode()
 {
     issueEditMode_ = IssueEditMode::Add;
@@ -1787,6 +1918,7 @@ void PointCloudViewer::rebuildScene()
     pointCloudNode_ = nullptr;
     towerMarkersNode_ = nullptr;
     inspectionIssuesNode_ = nullptr;
+    inspectionRouteNode_ = nullptr;
     measurementOverlayNode_ = nullptr;
 
     if (!hasPointCloud()) {
@@ -1795,6 +1927,7 @@ void PointCloudViewer::rebuildScene()
         }
         updateTowerOverlayWidgets();
         updateInspectionIssueOverlayWidgets();
+        updateInspectionRouteOverlayWidgets();
         updateMeasurementOverlayWidgets();
         return;
     }
@@ -1806,6 +1939,7 @@ void PointCloudViewer::rebuildScene()
 
     refreshTowerMarkersOverlay();
     refreshInspectionIssuesOverlay();
+    refreshInspectionRouteOverlay();
     refreshMeasurementOverlay();
 }
 
@@ -1834,6 +1968,7 @@ void PointCloudViewer::updateFooter()
         .arg(visualizationOptions_.showBoundingBox ? tr("on") : tr("off"));
     detail += tr(" | Towers %1").arg(QLocale().toString(towerMarkers_.size()));
     detail += tr(" | Issues %1").arg(QLocale().toString(inspectionIssues_.size()));
+    detail += tr(" | Route WPs %1").arg(QLocale().toString(inspectionRouteWaypoints_.size()));
 
     if (measurementEnabled_) {
         if (measurementResult_.isComplete()) {
@@ -2296,6 +2431,28 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionIssuesOverlay() const
     return markersGeode.release();
 }
 
+osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
+{
+    if (inspectionRouteWaypoints_.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Group> overlay = new osg::Group();
+    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(inspectionRouteWaypoints_);
+    if (routeLineGeode.valid()) {
+        overlay->addChild(routeLineGeode.get());
+    }
+
+    osg::ref_ptr<osg::Geode> routePointsGeode = buildInspectionRoutePointsGeode(
+        inspectionRouteWaypoints_,
+        selectedInspectionRouteWaypointIndex_);
+    if (routePointsGeode.valid()) {
+        overlay->addChild(routePointsGeode.get());
+    }
+
+    return overlay->getNumChildren() > 0 ? overlay.release() : nullptr;
+}
+
 QPointF PointCloudViewer::projectPointToViewport(const PointRecord& point, bool* visible) const
 {
     if (visible != nullptr) {
@@ -2537,6 +2694,59 @@ void PointCloudViewer::updateInspectionIssueOverlayWidgets()
     }
 }
 
+void PointCloudViewer::updateInspectionRouteOverlayWidgets()
+{
+    if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    while (inspectionRouteOverlayLabels_.size() < inspectionRouteWaypoints_.size()) {
+        auto* label = new QLabel(osgWidget_);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        label->hide();
+        inspectionRouteOverlayLabels_.append(label);
+    }
+
+    for (int waypointIndex = 0; waypointIndex < inspectionRouteOverlayLabels_.size(); ++waypointIndex) {
+        QLabel* label = inspectionRouteOverlayLabels_.at(waypointIndex);
+        if (label == nullptr) {
+            continue;
+        }
+
+        if (waypointIndex >= inspectionRouteWaypoints_.size()) {
+            label->hide();
+            continue;
+        }
+
+        bool pointVisible = false;
+        const PointRecord& waypoint = inspectionRouteWaypoints_.at(waypointIndex);
+        const QPointF anchor = projectPointToViewport(waypoint, &pointVisible);
+        if (!pointVisible) {
+            label->hide();
+            continue;
+        }
+
+        const bool isSelected = waypointIndex == selectedInspectionRouteWaypointIndex_;
+        const QString labelText = waypointIndex < inspectionRouteLabels_.size()
+            ? inspectionRouteLabels_.at(waypointIndex)
+            : QString::number(waypointIndex + 1);
+        label->setText(labelText);
+        label->setStyleSheet(QStringLiteral(
+            "QLabel {"
+            "background-color: %1;"
+            "color: #e0f2fe;"
+            "border: 1px solid %2;"
+            "border-radius: 8px;"
+            "padding: 3px 8px;"
+            "font-size: 11px;"
+            "font-weight: 700;"
+            "}").arg(
+                isSelected ? QStringLiteral("rgba(14, 116, 144, 235)") : QStringLiteral("rgba(8, 47, 73, 220)"),
+                isSelected ? QStringLiteral("rgba(125, 211, 252, 235)") : QStringLiteral("rgba(56, 189, 248, 180)")));
+        positionOverlayLabel(label, anchor, QPoint(14, -16));
+    }
+}
+
 void PointCloudViewer::refreshMeasurementOverlay()
 {
     if (rootGroup_.valid() && measurementOverlayNode_.valid()) {
@@ -2592,6 +2802,26 @@ void PointCloudViewer::refreshInspectionIssuesOverlay()
     }
 
     updateInspectionIssueOverlayWidgets();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
+void PointCloudViewer::refreshInspectionRouteOverlay()
+{
+    if (rootGroup_.valid() && inspectionRouteNode_.valid()) {
+        rootGroup_->removeChild(inspectionRouteNode_.get());
+        inspectionRouteNode_ = nullptr;
+    }
+
+    if (rootGroup_.valid() && !inspectionRouteWaypoints_.isEmpty()) {
+        inspectionRouteNode_ = buildInspectionRouteOverlay();
+        if (inspectionRouteNode_.valid()) {
+            rootGroup_->addChild(inspectionRouteNode_.get());
+        }
+    }
+
+    updateInspectionRouteOverlayWidgets();
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }
@@ -2733,5 +2963,6 @@ void PointCloudViewer::retranslateUi()
 {
     updateFooter();
     updateMeasurementOverlayWidgets();
+    updateInspectionRouteOverlayWidgets();
     updateAxisIndicator();
 }
