@@ -14,13 +14,17 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
+#include <QFrame>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHash>
 #include <QHeaderView>
@@ -345,6 +349,185 @@ QColor colorFromJson(const QJsonObject& object, const QColor& fallback)
         object.value(QStringLiteral("g")).toInt(fallback.green()),
         object.value(QStringLiteral("b")).toInt(fallback.blue()),
         object.value(QStringLiteral("a")).toInt(fallback.alpha()));
+}
+
+QLabel* createDetailsValueLabel(const QString& text, QWidget* parent)
+{
+    auto* label = new QLabel(text, parent);
+    label->setObjectName(QStringLiteral("detailsValueLabel"));
+    label->setWordWrap(true);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    return label;
+}
+
+QFrame* createDetailsStatCard(const QString& labelText, const QString& valueText, QWidget* parent)
+{
+    auto* card = new QFrame(parent);
+    card->setObjectName(QStringLiteral("detailsStatCard"));
+
+    auto* layout = new QVBoxLayout(card);
+    layout->setContentsMargins(16, 14, 16, 14);
+    layout->setSpacing(4);
+
+    auto* valueLabel = new QLabel(valueText, card);
+    valueLabel->setObjectName(QStringLiteral("detailsStatValue"));
+    valueLabel->setWordWrap(true);
+    valueLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(valueLabel);
+
+    auto* label = new QLabel(labelText, card);
+    label->setObjectName(QStringLiteral("detailsStatLabel"));
+    label->setWordWrap(true);
+    layout->addWidget(label);
+
+    return card;
+}
+
+void showStyledDetailsDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& subtitle,
+    const QList<QPair<QString, QString>>& detailRows,
+    const QList<QPair<QString, QString>>& statRows = {})
+{
+    QDialog dialog(parent);
+    dialog.setWindowTitle(title);
+    dialog.setModal(true);
+    dialog.resize(760, 560);
+    dialog.setStyleSheet(QStringLiteral(
+        "QDialog {"
+        "background-color: #f3f7fb;"
+        "}"
+        "QFrame#detailsHeaderCard, QFrame#detailsBodyCard, QFrame#detailsStatCard {"
+        "background-color: rgba(255, 255, 255, 0.96);"
+        "border: 1px solid rgba(148, 163, 184, 0.20);"
+        "border-radius: 16px;"
+        "}"
+        "QLabel#detailsTitleLabel {"
+        "color: #0f172a;"
+        "font-size: 22px;"
+        "font-weight: 700;"
+        "}"
+        "QLabel#detailsSubtitleLabel {"
+        "color: #475569;"
+        "font-size: 13px;"
+        "line-height: 1.35em;"
+        "}"
+        "QLabel#detailsSectionLabel {"
+        "color: #0f172a;"
+        "font-size: 14px;"
+        "font-weight: 600;"
+        "}"
+        "QLabel#detailsKeyLabel {"
+        "color: #64748b;"
+        "font-size: 12px;"
+        "font-weight: 600;"
+        "letter-spacing: 0.04em;"
+        "text-transform: uppercase;"
+        "padding-top: 2px;"
+        "}"
+        "QLabel#detailsValueLabel {"
+        "color: #0f172a;"
+        "font-size: 13px;"
+        "font-weight: 500;"
+        "padding-bottom: 10px;"
+        "}"
+        "QLabel#detailsStatValue {"
+        "color: #0f172a;"
+        "font-size: 18px;"
+        "font-weight: 700;"
+        "}"
+        "QLabel#detailsStatLabel {"
+        "color: #64748b;"
+        "font-size: 12px;"
+        "font-weight: 500;"
+        "}"
+        "QPushButton {"
+        "min-width: 96px;"
+        "padding: 8px 18px;"
+        "border-radius: 10px;"
+        "border: 1px solid rgba(37, 99, 235, 0.18);"
+        "background-color: #e0ecff;"
+        "color: #1d4ed8;"
+        "font-weight: 600;"
+        "}"
+        "QPushButton:hover {"
+        "background-color: #d4e4ff;"
+        "}"));
+
+    auto* rootLayout = new QVBoxLayout(&dialog);
+    rootLayout->setContentsMargins(24, 22, 24, 20);
+    rootLayout->setSpacing(16);
+
+    auto* headerCard = new QFrame(&dialog);
+    headerCard->setObjectName(QStringLiteral("detailsHeaderCard"));
+    auto* headerLayout = new QVBoxLayout(headerCard);
+    headerLayout->setContentsMargins(22, 20, 22, 20);
+    headerLayout->setSpacing(8);
+
+    auto* titleLabel = new QLabel(title, headerCard);
+    titleLabel->setObjectName(QStringLiteral("detailsTitleLabel"));
+    titleLabel->setWordWrap(true);
+    headerLayout->addWidget(titleLabel);
+
+    auto* subtitleLabel = new QLabel(subtitle, headerCard);
+    subtitleLabel->setObjectName(QStringLiteral("detailsSubtitleLabel"));
+    subtitleLabel->setWordWrap(true);
+    subtitleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    headerLayout->addWidget(subtitleLabel);
+
+    if (!statRows.isEmpty()) {
+        auto* statsGrid = new QGridLayout();
+        statsGrid->setContentsMargins(0, 8, 0, 0);
+        statsGrid->setHorizontalSpacing(12);
+        statsGrid->setVerticalSpacing(12);
+
+        for (int statIndex = 0; statIndex < statRows.size(); ++statIndex) {
+            const auto& stat = statRows.at(statIndex);
+            statsGrid->addWidget(
+                createDetailsStatCard(stat.first, stat.second, headerCard),
+                statIndex / 2,
+                statIndex % 2);
+        }
+        headerLayout->addLayout(statsGrid);
+    }
+
+    rootLayout->addWidget(headerCard);
+
+    auto* bodyCard = new QFrame(&dialog);
+    bodyCard->setObjectName(QStringLiteral("detailsBodyCard"));
+    auto* bodyLayout = new QVBoxLayout(bodyCard);
+    bodyLayout->setContentsMargins(22, 18, 22, 16);
+    bodyLayout->setSpacing(12);
+
+    auto* sectionLabel = new QLabel(QCoreApplication::translate("MainWindow", "Detailed Information"), bodyCard);
+    sectionLabel->setObjectName(QStringLiteral("detailsSectionLabel"));
+    bodyLayout->addWidget(sectionLabel);
+
+    auto* grid = new QGridLayout();
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setHorizontalSpacing(18);
+    grid->setVerticalSpacing(2);
+    grid->setColumnStretch(1, 1);
+
+    for (int rowIndex = 0; rowIndex < detailRows.size(); ++rowIndex) {
+        const auto& row = detailRows.at(rowIndex);
+        auto* keyLabel = new QLabel(row.first, bodyCard);
+        keyLabel->setObjectName(QStringLiteral("detailsKeyLabel"));
+        keyLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+        grid->addWidget(keyLabel, rowIndex, 0);
+        grid->addWidget(createDetailsValueLabel(row.second, bodyCard), rowIndex, 1);
+    }
+
+    bodyLayout->addLayout(grid);
+    rootLayout->addWidget(bodyCard, 1);
+
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    rootLayout->addWidget(buttonBox);
+
+    dialog.exec();
 }
 
 QIcon createRibbonIcon(RibbonGlyph glyph)
@@ -3089,26 +3272,24 @@ void MainWindow::createConnections()
     });
 
     const auto beginAddTower = [this]() {
-        if (!towerEditingEnabled_) {
-            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
-            return;
-        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before adding tower markers."), 3000);
             return;
+        }
+        if (!towerEditingEnabled_) {
+            setTowerEditingEnabled(true);
         }
         viewer_->beginTowerAddMode();
         updateTowerPanel();
         showUserMessage(LogLevel::Info, tr("Tower add mode enabled. Click points continuously to add tower markers, or cancel the tool when finished."), 4500);
     };
     const auto beginInsertTower = [this]() {
-        if (!towerEditingEnabled_) {
-            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
-            return;
-        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before inserting tower markers."), 3000);
             return;
+        }
+        if (!towerEditingEnabled_) {
+            setTowerEditingEnabled(true);
         }
 
         const int currentRow = viewer_ != nullptr ? viewer_->selectedTowerIndex() : -1;
@@ -3123,13 +3304,12 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Click a point in the view to insert a tower marker before the current one."), 4000);
     };
     const auto beginMoveTower = [this]() {
-        if (!towerEditingEnabled_) {
-            showUserMessage(LogLevel::Warning, tr("Start tower editing before using tower tools."), 3000);
-            return;
-        }
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before moving tower markers."), 3000);
             return;
+        }
+        if (!towerEditingEnabled_) {
+            setTowerEditingEnabled(true);
         }
 
         const int currentRow = viewer_ != nullptr ? viewer_->selectedTowerIndex() : -1;
@@ -3156,10 +3336,6 @@ void MainWindow::createConnections()
         viewer_->focusOnPoint(viewer_->towerMarkers().at(currentRow).point);
     };
     const auto removeSelectedTower = [this]() {
-        if (!towerEditingEnabled_) {
-            showUserMessage(LogLevel::Warning, tr("Start tower editing before removing tower markers."), 3000);
-            return;
-        }
         if (viewer_ == nullptr || towerTableWidget_ == nullptr) {
             return;
         }
@@ -3173,10 +3349,6 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Tower marker removed."), 2500);
     };
     const auto clearAllTowers = [this]() {
-        if (!towerEditingEnabled_) {
-            showUserMessage(LogLevel::Warning, tr("Start tower editing before clearing tower markers."), 3000);
-            return;
-        }
         if (viewer_ == nullptr || viewer_->towerMarkers().isEmpty()) {
             return;
         }
@@ -4072,23 +4244,6 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
         return false;
     }
 
-    if (!viewer_->hasLoadedPointClouds() && filePaths.size() == 1) {
-        const QFileInfo previewFileInfo(filePaths.constFirst());
-        if (previewFileInfo.exists() && previewFileInfo.size() >= 64ll * 1024ll * 1024ll) {
-            LasReader previewReader;
-            PointCloudData previewPointCloud;
-            QString previewErrorMessage;
-            if (previewReader.readPreview(filePaths.constFirst(), &previewPointCloud, 140000, 280000, &previewErrorMessage)) {
-                viewer_->showTransientPreviewPointCloud(
-                    filePaths.constFirst(),
-                    previewPointCloud,
-                    tr("Preview loaded. Continuing full-resolution import for %1...")
-                        .arg(previewFileInfo.fileName()));
-                QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-            }
-        }
-    }
-
     QString errorMessage;
     if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
@@ -4377,8 +4532,6 @@ bool MainWindow::isInteractiveRibbonWidget(const QWidget* widget) const
             || qobject_cast<const QAbstractSpinBox*>(current) != nullptr
             || qobject_cast<const QTabBar*>(current) != nullptr
             || className.contains(QStringLiteral("RibbonTab"), Qt::CaseInsensitive)
-            || className.contains(QStringLiteral("RibbonPage"), Qt::CaseInsensitive)
-            || className.contains(QStringLiteral("QuickAccess"), Qt::CaseInsensitive)
             || className.contains(QStringLiteral("SystemButton"), Qt::CaseInsensitive)) {
             return true;
         }
@@ -4616,13 +4769,13 @@ void MainWindow::updateActionState()
     }
     startTowerEditAction_->setEnabled(hasPointCloud && !towerEditingEnabled_);
     finishTowerEditAction_->setEnabled(towerEditingEnabled_);
-    addTowerAction_->setEnabled(hasPointCloud && towerEditingEnabled_ && !towerToolActive);
-    insertTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
-    moveTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
+    addTowerAction_->setEnabled(hasPointCloud && !towerToolActive);
+    insertTowerAction_->setEnabled(hasPointCloud && hasTowerSelection && !towerToolActive);
+    moveTowerAction_->setEnabled(hasPointCloud && hasTowerSelection && !towerToolActive);
     focusTowerAction_->setEnabled(hasTowerSelection);
-    removeTowerAction_->setEnabled(hasTowerSelection && towerEditingEnabled_ && !towerToolActive);
-    clearTowersAction_->setEnabled(hasTowerMarkers && towerEditingEnabled_ && !towerToolActive);
-    cancelTowerToolAction_->setEnabled(towerEditingEnabled_ && towerToolActive);
+    removeTowerAction_->setEnabled(hasTowerSelection && !towerToolActive);
+    clearTowersAction_->setEnabled(hasTowerMarkers && !towerToolActive);
+    cancelTowerToolAction_->setEnabled(towerToolActive);
     startIssueMarkAction_->setEnabled(hasPointCloud && !issueToolActive);
     cancelIssueToolAction_->setEnabled(issueToolActive);
     focusIssueAction_->setEnabled(hasIssueSelection);
@@ -5382,6 +5535,13 @@ void MainWindow::rebuildProjectTree()
     trajectoryGroup->setIcon(0, style()->standardIcon(QStyle::SP_ArrowRight));
 
     QTreeWidgetItem* selectedItem = nullptr;
+    if (previousItemType == QStringLiteral("pointCloudGroup")) {
+        selectedItem = pointCloudGroup;
+    } else if (previousItemType == QStringLiteral("imageGroup")) {
+        selectedItem = imageGroup;
+    } else if (previousItemType == QStringLiteral("trajectoryGroup")) {
+        selectedItem = trajectoryGroup;
+    }
 
     for (const PointCloudDatasetInfo& datasetInfo : dataManager.pointCloudDatasets()) {
         const QFileInfo fileInfo(datasetInfo.filePath);
@@ -5604,6 +5764,103 @@ void MainWindow::applyProjectTreeItemCheckState(QTreeWidgetItem* item)
     }
 }
 
+void MainWindow::setProjectTreeGroupVisibility(const QString& groupType, bool visible)
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    if (groupType == QStringLiteral("pointCloudGroup")) {
+        for (const PointCloudDatasetInfo& datasetInfo : DataManager::instance().pointCloudDatasets()) {
+            viewer_->setPointCloudDatasetVisible(datasetInfo.filePath, visible);
+        }
+        updateDatasetPanel();
+    } else if (groupType == QStringLiteral("imageGroup")) {
+        for (const DataImageItem& imageItem : DataManager::instance().imageItems()) {
+            viewer_->setInspectionIssueVisible(imageItem.issueIndex, visible);
+        }
+        updateIssuePanel();
+    } else if (groupType == QStringLiteral("trajectoryGroup")) {
+        viewer_->setInspectionRouteVisible(visible);
+        updateRoutePlanningPanel();
+    }
+
+    rebuildProjectTree();
+    updateActionState();
+}
+
+void MainWindow::clearAllProjectImages()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    QList<InspectionIssue> issues = viewer_->inspectionIssues();
+    if (issues.isEmpty()) {
+        return;
+    }
+
+    bool changed = false;
+    for (InspectionIssue& issue : issues) {
+        if (issue.imagePath.trimmed().isEmpty()) {
+            continue;
+        }
+
+        issue.imagePath.clear();
+        changed = true;
+    }
+
+    if (!changed) {
+        return;
+    }
+
+    const int selectedIssueIndex = viewer_->selectedIssueIndex();
+    viewer_->setInspectionIssues(issues);
+    viewer_->setSelectedIssueIndex(selectedIssueIndex);
+    updateIssuePanel();
+    rebuildProjectTree();
+    updateActionState();
+    showUserMessage(LogLevel::Info, tr("All image attachments were removed from the project."), 3000);
+}
+
+bool MainWindow::attachImageToIssue(int issueIndex)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    const QList<InspectionIssue> issues = viewer_->inspectionIssues();
+    if (issueIndex < 0 || issueIndex >= issues.size()) {
+        showUserMessage(LogLevel::Warning, tr("Select an inspection issue before attaching an image."), 3000);
+        return false;
+    }
+
+    const InspectionIssue& selectedIssue = issues.at(issueIndex);
+    const QString initialPath = selectedIssue.imagePath.trimmed();
+    const QString filePath = QFileDialog::getOpenFileName(
+        this,
+        tr("Attach Image"),
+        initialPath.isEmpty() ? QDir::homePath() : QFileInfo(initialPath).absolutePath(),
+        tr("Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All Files (*.*)"));
+    if (filePath.isEmpty()) {
+        return false;
+    }
+
+    InspectionIssue updatedIssue = selectedIssue;
+    updatedIssue.imagePath = QFileInfo(filePath).absoluteFilePath();
+    if (!viewer_->updateInspectionIssue(issueIndex, updatedIssue)) {
+        showUserMessage(LogLevel::Warning, tr("Unable to attach the selected image."), 3000);
+        return false;
+    }
+
+    viewer_->setSelectedIssueIndex(issueIndex);
+    updateIssuePanel();
+    rebuildProjectTree();
+    updateActionState();
+    showUserMessage(LogLevel::Info, tr("Image attached to the selected inspection issue."), 3000);
+    return true;
+}
+
 void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
 {
     if (projectTreeWidget_ == nullptr) {
@@ -5613,31 +5870,64 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     if (QTreeWidgetItem* item = projectTreeWidget_->itemAt(pos)) {
         projectTreeWidget_->setCurrentItem(item);
     }
+    updateActionState();
 
     QTreeWidgetItem* currentItem = projectTreeWidget_->currentItem();
     const QString itemType = projectTreeItemType(currentItem);
-    QMenu menu(projectTreeWidget_);
+    QMenu menu(this);
+    menu.setAttribute(Qt::WA_TranslucentBackground, false);
+    menu.setWindowOpacity(1.0);
+    menu.setStyleSheet(QStringLiteral(
+        "QMenu {"
+        "background-color: #f8fbff;"
+        "border: 1px solid #cfd9e6;"
+        "border-radius: 10px;"
+        "padding: 6px;"
+        "color: #0f172a;"
+        "}"
+        "QMenu::item {"
+        "padding: 8px 16px 8px 12px;"
+        "border-radius: 7px;"
+        "background-color: transparent;"
+        "}"
+        "QMenu::item:selected {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QMenu::separator {"
+        "height: 1px;"
+        "margin: 6px 8px;"
+        "background: #d7e1ee;"
+        "}"));
+    const QPoint globalPos = projectTreeWidget_->viewport()->mapToGlobal(pos);
 
     if (itemType == QStringLiteral("pointCloudItem")) {
-        QAction* focusAction = menu.addAction(tr("Focus in View"));
         QAction* detailsAction = menu.addAction(tr("Point Cloud Details"));
+        QAction* focusAction = menu.addAction(tr("Focus in View"));
         menu.addSeparator();
         QAction* openFolderAction = menu.addAction(tr("Open Folder"));
         QAction* copyPathAction = menu.addAction(tr("Copy Path"));
         menu.addSeparator();
         QAction* removeAction = menu.addAction(tr("Remove Selected Dataset"));
 
-        QAction* chosenAction = menu.exec(projectTreeWidget_->viewport()->mapToGlobal(pos));
+        QAction* chosenAction = menu.exec(globalPos);
+        const QString filePath = projectTreeItemFilePath(currentItem);
         if (chosenAction == focusAction) {
             focusProjectTreeItem(currentItem);
         } else if (chosenAction == detailsAction) {
-            showPointCloudDatasetDetails(projectTreeItemFilePath(currentItem));
+            showPointCloudDatasetDetails(filePath);
         } else if (chosenAction == openFolderAction) {
-            locateDatasetAction_->trigger();
+            const QString folderPath = QFileInfo(filePath).absolutePath();
+            if (!folderPath.isEmpty() && !QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath))) {
+                showUserMessage(LogLevel::Warning, tr("Unable to open the selected file folder."), 3000);
+            }
         } else if (chosenAction == copyPathAction) {
-            copyDatasetPathAction_->trigger();
+            if (!filePath.isEmpty() && QGuiApplication::clipboard() != nullptr) {
+                QGuiApplication::clipboard()->setText(filePath);
+                showUserMessage(LogLevel::Info, tr("Selected path copied."), 2000);
+            }
         } else if (chosenAction == removeAction) {
-            removeDatasetAction_->trigger();
+            removeSelectedDataset();
         }
         return;
     }
@@ -5645,22 +5935,44 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     if (itemType == QStringLiteral("imageItem")) {
         QAction* focusAction = menu.addAction(tr("Focus in View"));
         QAction* openImageAction = menu.addAction(tr("Open Image"));
+        QAction* attachImageAction = menu.addAction(tr("Replace Image"));
         menu.addSeparator();
         QAction* openFolderAction = menu.addAction(tr("Open Folder"));
         QAction* copyPathAction = menu.addAction(tr("Copy Path"));
+        QAction* removeImageAction = menu.addAction(tr("Remove Image"));
 
-        QAction* chosenAction = menu.exec(projectTreeWidget_->viewport()->mapToGlobal(pos));
+        QAction* chosenAction = menu.exec(globalPos);
         const QString imagePath = projectTreeItemFilePath(currentItem);
+        const int issueIndex = currentItem != nullptr ? currentItem->data(0, kProjectTreeIssueIndexRole).toInt() : -1;
         if (chosenAction == focusAction) {
             focusProjectTreeItem(currentItem);
         } else if (chosenAction == openImageAction) {
             if (!imagePath.isEmpty() && !QDesktopServices::openUrl(QUrl::fromLocalFile(imagePath))) {
                 showUserMessage(LogLevel::Warning, tr("Unable to open the image file."), 3000);
             }
+        } else if (chosenAction == attachImageAction) {
+            attachImageToIssue(issueIndex);
         } else if (chosenAction == openFolderAction) {
-            locateDatasetAction_->trigger();
+            const QString folderPath = QFileInfo(imagePath).absolutePath();
+            if (!folderPath.isEmpty() && !QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath))) {
+                showUserMessage(LogLevel::Warning, tr("Unable to open the selected file folder."), 3000);
+            }
         } else if (chosenAction == copyPathAction) {
-            copyDatasetPathAction_->trigger();
+            if (!imagePath.isEmpty() && QGuiApplication::clipboard() != nullptr) {
+                QGuiApplication::clipboard()->setText(imagePath);
+                showUserMessage(LogLevel::Info, tr("Selected path copied."), 2000);
+            }
+        } else if (chosenAction == removeImageAction) {
+            QList<InspectionIssue> issues = viewer_->inspectionIssues();
+            if (issueIndex >= 0 && issueIndex < issues.size()) {
+                issues[issueIndex].imagePath.clear();
+                viewer_->setInspectionIssues(issues);
+                viewer_->setSelectedIssueIndex(issueIndex);
+                updateIssuePanel();
+                rebuildProjectTree();
+                updateActionState();
+                showUserMessage(LogLevel::Info, tr("Image attachment removed."), 2500);
+            }
         }
         return;
     }
@@ -5668,12 +5980,104 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     if (itemType == QStringLiteral("trajectoryItem")) {
         QAction* focusAction = menu.addAction(tr("Focus in View"));
         QAction* detailsAction = menu.addAction(tr("Trajectory Details"));
+        menu.addSeparator();
+        QAction* hideAction = menu.addAction(tr("Hide"));
+        QAction* clearAction = menu.addAction(tr("Remove Trajectory"));
 
-        QAction* chosenAction = menu.exec(projectTreeWidget_->viewport()->mapToGlobal(pos));
+        QAction* chosenAction = menu.exec(globalPos);
         if (chosenAction == focusAction) {
             focusProjectTreeItem(currentItem);
         } else if (chosenAction == detailsAction) {
             showInspectionRouteDetails();
+        } else if (chosenAction == hideAction) {
+            viewer_->setInspectionRouteVisible(false);
+            updateRoutePlanningPanel();
+            rebuildProjectTree();
+            updateActionState();
+        } else if (chosenAction == clearAction) {
+            inspectionRoute_ = InspectionRoute();
+            selectedRouteWaypointIndex_ = -1;
+            viewer_->clearInspectionRouteWaypoints();
+            updateRoutePlanningPanel();
+            rebuildProjectTree();
+            updateActionState();
+        }
+        return;
+    }
+
+    if (itemType == QStringLiteral("pointCloudGroup")) {
+        QAction* addAction = menu.addAction(tr("Add LAS/LAZ Files"));
+        menu.addSeparator();
+        QAction* showAllAction = menu.addAction(tr("Show All"));
+        QAction* hideAllAction = menu.addAction(tr("Hide All"));
+        menu.addSeparator();
+        QAction* removeAllAction = menu.addAction(tr("Remove All Point Clouds"));
+        removeAllAction->setEnabled(viewer_ != nullptr && viewer_->hasLoadedPointClouds());
+
+        QAction* chosenAction = menu.exec(globalPos);
+        if (chosenAction == addAction) {
+            addPointCloudFiles();
+        } else if (chosenAction == showAllAction) {
+            setProjectTreeGroupVisibility(itemType, true);
+        } else if (chosenAction == hideAllAction) {
+            setProjectTreeGroupVisibility(itemType, false);
+        } else if (chosenAction == removeAllAction) {
+            clearPointCloud();
+        }
+        return;
+    }
+
+    if (itemType == QStringLiteral("imageGroup")) {
+        QAction* markIssueAction = menu.addAction(tr("Mark Issue"));
+        QAction* attachImageAction = menu.addAction(tr("Attach Image To Selected Issue"));
+        attachImageAction->setEnabled(viewer_ != nullptr && viewer_->selectedIssueIndex() >= 0);
+        menu.addSeparator();
+        QAction* showAllAction = menu.addAction(tr("Show All"));
+        QAction* hideAllAction = menu.addAction(tr("Hide All"));
+        menu.addSeparator();
+        QAction* removeAllAction = menu.addAction(tr("Remove All Images"));
+        removeAllAction->setEnabled(!DataManager::instance().imageItems().isEmpty());
+
+        QAction* chosenAction = menu.exec(globalPos);
+        if (chosenAction == markIssueAction) {
+            startIssueMarkAction_->trigger();
+        } else if (chosenAction == attachImageAction) {
+            attachImageToIssue(viewer_ != nullptr ? viewer_->selectedIssueIndex() : -1);
+        } else if (chosenAction == showAllAction) {
+            setProjectTreeGroupVisibility(itemType, true);
+        } else if (chosenAction == hideAllAction) {
+            setProjectTreeGroupVisibility(itemType, false);
+        } else if (chosenAction == removeAllAction) {
+            clearAllProjectImages();
+        }
+        return;
+    }
+
+    if (itemType == QStringLiteral("trajectoryGroup")) {
+        QAction* importAction = menu.addAction(tr("Import Route KML"));
+        menu.addSeparator();
+        QAction* showAllAction = menu.addAction(tr("Show All"));
+        QAction* hideAllAction = menu.addAction(tr("Hide All"));
+        showAllAction->setEnabled(DataManager::instance().hasTrajectory());
+        hideAllAction->setEnabled(DataManager::instance().hasTrajectory());
+        menu.addSeparator();
+        QAction* removeAction = menu.addAction(tr("Remove Trajectory"));
+        removeAction->setEnabled(DataManager::instance().hasTrajectory());
+
+        QAction* chosenAction = menu.exec(globalPos);
+        if (chosenAction == importAction) {
+            importRouteKmlAction_->trigger();
+        } else if (chosenAction == showAllAction) {
+            setProjectTreeGroupVisibility(itemType, true);
+        } else if (chosenAction == hideAllAction) {
+            setProjectTreeGroupVisibility(itemType, false);
+        } else if (chosenAction == removeAction) {
+            inspectionRoute_ = InspectionRoute();
+            selectedRouteWaypointIndex_ = -1;
+            viewer_->clearInspectionRouteWaypoints();
+            updateRoutePlanningPanel();
+            rebuildProjectTree();
+            updateActionState();
         }
         return;
     }
@@ -5683,7 +6087,7 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     menu.addSeparator();
     menu.addAction(expandProjectTreeAction_);
     menu.addAction(collapseProjectTreeAction_);
-    menu.exec(projectTreeWidget_->viewport()->mapToGlobal(pos));
+    menu.exec(globalPos);
 }
 
 void MainWindow::showPointCloudDatasetDetails(const QString& filePath)
@@ -5697,19 +6101,34 @@ void MainWindow::showPointCloudDatasetDetails(const QString& filePath)
             continue;
         }
 
-        const QString details = tr("Name: %1\nPath: %2\nPoints: %3\nMin Bounds: %4\nMax Bounds: %5\nExtent: %6\nProjection: %7\nNative RGB: %8")
-            .arg(QFileInfo(datasetInfo.filePath).fileName())
-            .arg(QDir::toNativeSeparators(datasetInfo.filePath))
-            .arg(QLocale().toString(static_cast<qlonglong>(datasetInfo.pointCount)))
-            .arg(formatTriplet(datasetInfo.minBounds.x, datasetInfo.minBounds.y, datasetInfo.minBounds.z))
-            .arg(formatTriplet(datasetInfo.maxBounds.x, datasetInfo.maxBounds.y, datasetInfo.maxBounds.z))
-            .arg(formatTriplet(
-                datasetInfo.maxBounds.x - datasetInfo.minBounds.x,
-                datasetInfo.maxBounds.y - datasetInfo.minBounds.y,
-                datasetInfo.maxBounds.z - datasetInfo.minBounds.z))
-            .arg(datasetInfo.projectionText.trimmed().isEmpty() ? tr("Unknown") : datasetInfo.projectionText)
-            .arg(datasetInfo.hasColor ? tr("yes") : tr("no"));
-        showDetailsDialog(tr("Point Cloud Details"), details);
+        const QFileInfo fileInfo(datasetInfo.filePath);
+        const QString extentText = formatTriplet(
+            datasetInfo.maxBounds.x - datasetInfo.minBounds.x,
+            datasetInfo.maxBounds.y - datasetInfo.minBounds.y,
+            datasetInfo.maxBounds.z - datasetInfo.minBounds.z);
+        const QString subtitle = tr("Review the active dataset metadata, spatial bounds, and attribute availability before further analysis.");
+        const QList<QPair<QString, QString>> statRows = {
+            qMakePair(tr("Point Count"), QLocale().toString(static_cast<qlonglong>(datasetInfo.pointCount))),
+            qMakePair(tr("Extent"), extentText),
+            qMakePair(tr("Projection"), datasetInfo.projectionText.trimmed().isEmpty() ? tr("Unknown") : datasetInfo.projectionText),
+            qMakePair(tr("Native RGB"), datasetInfo.hasColor ? tr("Available") : tr("Unavailable"))
+        };
+        const QList<QPair<QString, QString>> detailRows = {
+            qMakePair(tr("Dataset Name"), fileInfo.fileName().isEmpty() ? datasetInfo.filePath : fileInfo.fileName()),
+            qMakePair(tr("Full Path"), QDir::toNativeSeparators(datasetInfo.filePath)),
+            qMakePair(tr("File Size"), fileInfo.exists() ? QLocale().formattedDataSize(fileInfo.size()) : tr("N/A")),
+            qMakePair(tr("Visibility"), datasetInfo.visible ? tr("Visible") : tr("Hidden")),
+            qMakePair(tr("Min Bounds"), formatTriplet(datasetInfo.minBounds.x, datasetInfo.minBounds.y, datasetInfo.minBounds.z)),
+            qMakePair(tr("Max Bounds"), formatTriplet(datasetInfo.maxBounds.x, datasetInfo.maxBounds.y, datasetInfo.maxBounds.z)),
+            qMakePair(tr("Extent"), extentText),
+            qMakePair(tr("Projection Text"), datasetInfo.projectionText.trimmed().isEmpty() ? tr("Unknown") : datasetInfo.projectionText),
+            qMakePair(tr("RGB Attribute"), datasetInfo.hasColor ? tr("Available") : tr("Unavailable")),
+            qMakePair(tr("Intensity"), datasetInfo.hasIntensity ? tr("Available") : tr("Unavailable")),
+            qMakePair(tr("Classification"), datasetInfo.hasClassification ? tr("Available") : tr("Unavailable")),
+            qMakePair(tr("Return Info"), datasetInfo.hasReturnInfo ? tr("Available") : tr("Unavailable")),
+            qMakePair(tr("GPS Time"), datasetInfo.hasGpsTime ? tr("Available") : tr("Unavailable"))
+        };
+        showStyledDetailsDialog(this, tr("Point Cloud Details"), subtitle, detailRows, statRows);
         return;
     }
 }
@@ -5722,41 +6141,30 @@ void MainWindow::showInspectionRouteDetails() const
     PointRecord minBounds;
     PointRecord maxBounds;
     const bool hasBounds = boundsFromPoints(routePoints, &minBounds, &maxBounds);
-    const QString details = tr("Name: %1\nWaypoints: %2\nMin Bounds: %3\nMax Bounds: %4\nExtent: %5")
-        .arg(trajectoryItem.name.trimmed().isEmpty() ? tr("Inspection Route") : trajectoryItem.name.trimmed())
-        .arg(QLocale().toString(routePoints.size()))
-        .arg(hasBounds ? formatTriplet(minBounds.x, minBounds.y, minBounds.z) : tr("N/A"))
-        .arg(hasBounds ? formatTriplet(maxBounds.x, maxBounds.y, maxBounds.z) : tr("N/A"))
-        .arg(hasBounds
-            ? formatTriplet(maxBounds.x - minBounds.x, maxBounds.y - minBounds.y, maxBounds.z - minBounds.z)
-            : tr("N/A"));
-    showDetailsDialog(tr("Trajectory Details"), details);
-}
-
-void MainWindow::showDetailsDialog(const QString& title, const QString& details) const
-{
-    QMessageBox dialog(const_cast<MainWindow*>(this));
-    dialog.setIcon(QMessageBox::Information);
-    dialog.setWindowTitle(title);
-    dialog.setTextFormat(Qt::PlainText);
-    dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
-    dialog.setText(details);
-    dialog.setStandardButtons(QMessageBox::Ok);
-    dialog.setStyleSheet(QStringLiteral(
-        "QMessageBox {"
-        "background-color: #f8fafc;"
-        "}"
-        "QLabel {"
-        "background-color: #f8fafc;"
-        "color: #0f172a;"
-        "min-width: 520px;"
-        "font-size: 12px;"
-        "}"
-        "QPushButton {"
-        "min-width: 84px;"
-        "padding: 6px 12px;"
-        "}"));
-    dialog.exec();
+    const QString routeName = trajectoryItem.name.trimmed().isEmpty()
+        ? tr("Inspection Route")
+        : trajectoryItem.name.trimmed();
+    const QString extentText = hasBounds
+        ? formatTriplet(maxBounds.x - minBounds.x, maxBounds.y - minBounds.y, maxBounds.z - minBounds.z)
+        : tr("N/A");
+    const QList<QPair<QString, QString>> statRows = {
+        qMakePair(tr("Waypoints"), QLocale().toString(routePoints.size())),
+        qMakePair(tr("Visibility"), trajectoryItem.visible ? tr("Visible") : tr("Hidden")),
+        qMakePair(tr("Extent"), extentText)
+    };
+    const QList<QPair<QString, QString>> detailRows = {
+        qMakePair(tr("Route Name"), routeName),
+        qMakePair(tr("Waypoints"), QLocale().toString(routePoints.size())),
+        qMakePair(tr("Min Bounds"), hasBounds ? formatTriplet(minBounds.x, minBounds.y, minBounds.z) : tr("N/A")),
+        qMakePair(tr("Max Bounds"), hasBounds ? formatTriplet(maxBounds.x, maxBounds.y, maxBounds.z) : tr("N/A")),
+        qMakePair(tr("Extent"), extentText)
+    };
+    showStyledDetailsDialog(
+        const_cast<MainWindow*>(this),
+        tr("Trajectory Details"),
+        tr("Inspect route bounds, waypoint count, and visibility before exporting or editing."),
+        detailRows,
+        statRows);
 }
 
 void MainWindow::syncDataManagerTrajectory() const

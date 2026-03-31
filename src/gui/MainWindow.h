@@ -152,9 +152,11 @@ private:
     void focusProjectTreeItem(QTreeWidgetItem* item);
     void applyProjectTreeItemCheckState(QTreeWidgetItem* item);
     void showProjectTreeContextMenu(const QPoint& pos);
+    void setProjectTreeGroupVisibility(const QString& groupType, bool visible);
+    void clearAllProjectImages();
+    bool attachImageToIssue(int issueIndex);
     void showPointCloudDatasetDetails(const QString& filePath);
     void showInspectionRouteDetails() const;
-    void showDetailsDialog(const QString& title, const QString& details) const;
     void syncDataManagerTrajectory() const;
     void updateTowerPanel();
     void updateIssuePanel();
