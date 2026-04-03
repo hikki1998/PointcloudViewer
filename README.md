@@ -42,6 +42,45 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 .\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 
+## 发布打包
+
+首版发布使用“最小可运行 ZIP 包”方式分发，默认面向 Windows x64 用户，不附带大型测试数据。
+
+先执行 Release 构建：
+
+```powershell
+cmake --build out/build --config Release --target LASPointCloudViewer
+```
+
+然后执行打包脚本：
+
+```powershell
+.\scripts\package_release.ps1 -Version v1.0.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
+```
+
+默认会生成：
+
+```text
+out/release/LASPointCloudViewer-v1.0.0-windows-x64/
+out/release/LASPointCloudViewer-v1.0.0-windows-x64.zip
+```
+
+发布说明模板见：
+
+```text
+docs/releases/v1.0.0.md
+```
+
+GitHub Release 建议流程：
+
+1. 打开仓库 Releases 页面
+2. 选择 `Draft a new release`
+3. 选择 tag `v1.0.0`
+4. 标题填写 `v1.0.0`
+5. 粘贴 `docs/releases/v1.0.0.md` 的内容
+6. 上传 `LASPointCloudViewer-v1.0.0-windows-x64.zip`
+7. 发布
+
 ## 开发快速入口
 
 如果是第一次进入这个仓库，建议按下面顺序读取：
