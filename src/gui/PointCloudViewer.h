@@ -201,6 +201,10 @@ public slots:
     void setColorMode(int colorModeIndex);
     void setColorMode(PointCloudColorMode colorMode);
     void setSingleColor(const QColor& color);
+    void setClassificationColor(int classification, const QColor& color);
+    void setClassificationColorMap(const QMap<int, QColor>& colorMap);
+    void setClassificationFallbackColor(const QColor& color);
+    void resetClassificationColors();
     void setBackgroundColor(const QColor& color);
     void setDepthCueStrength(int strengthPercent);
     void setEdlStrength(int strengthPercent);

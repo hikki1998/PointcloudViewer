@@ -165,6 +165,7 @@ private:
     QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
     void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
     void updateVisualizationTooltips();
+    void updateClassificationColorTable();
     QString nextDefaultTowerName() const;
     QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
@@ -198,6 +199,7 @@ private:
     QGroupBox* datasetGroupBox_ = nullptr;
     QFormLayout* datasetLayout_ = nullptr;
     QGroupBox* renderingGroupBox_ = nullptr;
+    QGroupBox* classificationColorsGroupBox_ = nullptr;
     QFormLayout* renderingLayout_ = nullptr;
     QGroupBox* measurementGroupBox_ = nullptr;
     QFormLayout* measurementLayout_ = nullptr;
@@ -286,6 +288,7 @@ private:
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
     QTableWidget* issueTableWidget_ = nullptr;
+    QTableWidget* classificationColorsTableWidget_ = nullptr;
     QTableWidget* clearanceSegmentsTableWidget_ = nullptr;
     QTableWidget* vegetationRisksTableWidget_ = nullptr;
     QTableWidget* routeWaypointsTableWidget_ = nullptr;
@@ -312,6 +315,7 @@ private:
     QComboBox* issueRelatedTowerComboBox_ = nullptr;
     QLineEdit* issueImagePathEdit_ = nullptr;
     QPlainTextEdit* issueDescriptionEdit_ = nullptr;
+    QPushButton* resetClassificationColorsButton_ = nullptr;
     QWidget* windowControlsWidget_ = nullptr;
     QToolButton* minimizeButton_ = nullptr;
     QToolButton* maximizeButton_ = nullptr;
@@ -341,6 +345,7 @@ private:
     QAction* rgbColorAction_ = nullptr;
     QAction* elevationColorAction_ = nullptr;
     QAction* singleColorAction_ = nullptr;
+    QAction* classificationColorAction_ = nullptr;
     QAction* themeColorfulAction_ = nullptr;
     QAction* themeWhiteAction_ = nullptr;
     QAction* themeDarkGrayAction_ = nullptr;
@@ -403,4 +408,5 @@ private:
     int selectedRouteWaypointIndex_ = -1;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
+    bool updatingClassificationColorTable_ = false;
 };

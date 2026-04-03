@@ -156,6 +156,23 @@ QColor colorForElevation(float normalizedHeight)
     return blendColor(midColor, highColor, (normalizedHeight - 0.5f) * 2.0f);
 }
 
+QColor colorForClassification(
+    const PointRecord& point,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    if (!point.hasClassification) {
+        return visualizationOptions.classificationFallbackColor;
+    }
+
+    const int classification = static_cast<int>(point.classification);
+    const auto colorIt = visualizationOptions.classificationColors.constFind(classification);
+    if (colorIt != visualizationOptions.classificationColors.constEnd()) {
+        return colorIt.value();
+    }
+
+    return visualizationOptions.classificationFallbackColor;
+}
+
 osg::Vec4ub pointColor(
     const PointRecord& point,
     const PointCloudVisualizationOptions& visualizationOptions,
@@ -170,6 +187,8 @@ osg::Vec4ub pointColor(
     }
     case PointCloudColorMode::SingleColor:
         return toOsgColorBytes(visualizationOptions.singleColor);
+    case PointCloudColorMode::Classification:
+        return toOsgColorBytes(colorForClassification(point, visualizationOptions));
     case PointCloudColorMode::Rgb:
     default:
         return osg::Vec4ub(point.r, point.g, point.b, point.a);

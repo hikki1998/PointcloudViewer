@@ -2678,6 +2678,90 @@ Max (%2)</source>
         <source>Rendering</source>
         <translation>渲染</translation>
     </message>
+    <message>
+        <source>Classification</source>
+        <translation>分类</translation>
+    </message>
+    <message>
+        <source>Classification Colors</source>
+        <translation>分类颜色</translation>
+    </message>
+    <message>
+        <source>Class</source>
+        <translation>类别</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>类型</translation>
+    </message>
+    <message>
+        <source>Color</source>
+        <translation>颜色</translation>
+    </message>
+    <message>
+        <source>Reset Defaults</source>
+        <translation>恢复默认</translation>
+    </message>
+    <message>
+        <source>Other</source>
+        <translation>其他</translation>
+    </message>
+    <message>
+        <source>Other / Unknown</source>
+        <translation>其他/未知</translation>
+    </message>
+    <message>
+        <source>Unclassified</source>
+        <translation>未分类</translation>
+    </message>
+    <message>
+        <source>Unassigned</source>
+        <translation>未指定</translation>
+    </message>
+    <message>
+        <source>Ground</source>
+        <translation>地面</translation>
+    </message>
+    <message>
+        <source>Low Vegetation</source>
+        <translation>低矮植被</translation>
+    </message>
+    <message>
+        <source>Medium Vegetation</source>
+        <translation>中等植被</translation>
+    </message>
+    <message>
+        <source>High Vegetation</source>
+        <translation>高植被</translation>
+    </message>
+    <message>
+        <source>Building</source>
+        <translation>建筑物</translation>
+    </message>
+    <message>
+        <source>Low Point / Noise</source>
+        <translation>低点/噪声</translation>
+    </message>
+    <message>
+        <source>Water</source>
+        <translation>水体</translation>
+    </message>
+    <message>
+        <source>Wire / Conductor</source>
+        <translation>导线/导体</translation>
+    </message>
+    <message>
+        <source>Custom Class %1</source>
+        <translation>自定义类别 %1</translation>
+    </message>
+    <message>
+        <source>Double-click to change this class color.</source>
+        <translation>双击可修改该类别颜色。</translation>
+    </message>
+    <message>
+        <source>Choose Classification Color</source>
+        <translation>选择分类颜色</translation>
+    </message>
 </context>
 <context>
     <name>PointCloudViewer</name>
@@ -2690,6 +2774,10 @@ Max (%2)</source>
         <location filename="../src/gui/PointCloudViewer.cpp" line="151"/>
         <source>Single Color</source>
         <translation>单色</translation>
+    </message>
+    <message>
+        <source>Classification</source>
+        <translation>分类</translation>
     </message>
     <message>
         <location filename="../src/gui/PointCloudViewer.cpp" line="154"/>

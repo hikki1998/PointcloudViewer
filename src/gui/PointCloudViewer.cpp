@@ -149,6 +149,8 @@ QString colorModeLabel(PointCloudColorMode colorMode)
         return QCoreApplication::translate("PointCloudViewer", "Elevation Ramp");
     case PointCloudColorMode::SingleColor:
         return QCoreApplication::translate("PointCloudViewer", "Single Color");
+    case PointCloudColorMode::Classification:
+        return QCoreApplication::translate("PointCloudViewer", "Classification");
     case PointCloudColorMode::Rgb:
     default:
         return QCoreApplication::translate("PointCloudViewer", "RGB");
@@ -1356,6 +1358,9 @@ void PointCloudViewer::setColorMode(int colorModeIndex)
     case 2:
         setColorMode(PointCloudColorMode::SingleColor);
         break;
+    case 3:
+        setColorMode(PointCloudColorMode::Classification);
+        break;
     case 0:
     default:
         setColorMode(PointCloudColorMode::Rgb);
@@ -1383,6 +1388,69 @@ void PointCloudViewer::setSingleColor(const QColor& color)
 
     visualizationOptions_.singleColor = color;
     if (visualizationOptions_.colorMode == PointCloudColorMode::SingleColor) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setClassificationColor(int classification, const QColor& color)
+{
+    if (classification < 0 || classification > 255 || !color.isValid()) {
+        return;
+    }
+
+    const auto colorIt = visualizationOptions_.classificationColors.constFind(classification);
+    if (colorIt != visualizationOptions_.classificationColors.constEnd() && colorIt.value() == color) {
+        return;
+    }
+
+    visualizationOptions_.classificationColors.insert(classification, color);
+    if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setClassificationColorMap(const QMap<int, QColor>& colorMap)
+{
+    if (visualizationOptions_.classificationColors == colorMap) {
+        return;
+    }
+
+    visualizationOptions_.classificationColors = colorMap;
+    if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setClassificationFallbackColor(const QColor& color)
+{
+    if (!color.isValid() || visualizationOptions_.classificationFallbackColor == color) {
+        return;
+    }
+
+    visualizationOptions_.classificationFallbackColor = color;
+    if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::resetClassificationColors()
+{
+    visualizationOptions_.classificationColors = defaultPointClassificationColors();
+    visualizationOptions_.classificationFallbackColor = defaultPointClassificationFallbackColor();
+
+    if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
         rebuildScene();
     }
 

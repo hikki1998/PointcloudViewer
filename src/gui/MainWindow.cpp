@@ -37,6 +37,7 @@
 #include <QLibraryInfo>
 #include <QLineEdit>
 #include <QLocale>
+#include <QMap>
 #include <QMessageBox>
 #include <QMenu>
 #include <QMimeData>
@@ -54,6 +55,7 @@
 #include <QScrollBar>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QStyle>
@@ -78,6 +80,7 @@
 #include <QMouseEvent>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <set>
 
@@ -121,6 +124,26 @@ constexpr int kProjectTreeFilePathRole = Qt::UserRole + 1;
 constexpr int kProjectTreeIssueIndexRole = Qt::UserRole + 2;
 constexpr int kProjectTreeRouteIndexRole = Qt::UserRole + 3;
 
+struct ClassificationDisplayItem
+{
+    int code;
+    const char* sourceText;
+};
+
+const std::array<ClassificationDisplayItem, 11> kClassificationDisplayItems = {
+    ClassificationDisplayItem { -1, "Other / Unknown" },
+    ClassificationDisplayItem { 0, "Unclassified" },
+    ClassificationDisplayItem { 1, "Unassigned" },
+    ClassificationDisplayItem { 2, "Ground" },
+    ClassificationDisplayItem { 3, "Low Vegetation" },
+    ClassificationDisplayItem { 4, "Medium Vegetation" },
+    ClassificationDisplayItem { 5, "High Vegetation" },
+    ClassificationDisplayItem { 6, "Building" },
+    ClassificationDisplayItem { 7, "Low Point / Noise" },
+    ClassificationDisplayItem { 9, "Water" },
+    ClassificationDisplayItem { 13, "Wire / Conductor" }
+};
+
 bool boundsFromPoints(const QList<PointRecord>& points, PointRecord* minBounds, PointRecord* maxBounds)
 {
     if (points.isEmpty() || minBounds == nullptr || maxBounds == nullptr) {
@@ -157,6 +180,7 @@ enum class RibbonGlyph
     Rgb,
     Elevation,
     SingleColor,
+    Classification,
     ThemeColorful,
     ThemeWhite,
     ThemeDarkGray,
@@ -214,11 +238,28 @@ QString colorModeName(PointCloudColorMode colorMode)
         return QCoreApplication::translate("MainWindow", "Elevation ramp");
     case PointCloudColorMode::SingleColor:
         return QCoreApplication::translate("MainWindow", "Single color");
+    case PointCloudColorMode::Classification:
+        return QCoreApplication::translate("MainWindow", "Classification");
     case PointCloudColorMode::Rgb:
     default:
         return QCoreApplication::translate("MainWindow", "RGB");
     }
 }
+
+QString classificationDisplayName(int classificationCode)
+{
+    for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
+        if (item.code == classificationCode) {
+            return QCoreApplication::translate("MainWindow", item.sourceText);
+        }
+    }
+
+    return QCoreApplication::translate("MainWindow", "Custom Class %1")
+        .arg(QLocale().toString(classificationCode));
+}
+
+QJsonObject colorToJson(const QColor& color);
+QColor colorFromJson(const QJsonObject& object, const QColor& fallback);
 
 QString measurementPointText(const MeasurementResult& measurementResult, bool useStartPoint)
 {
@@ -231,6 +272,32 @@ QString measurementPointText(const MeasurementResult& measurementResult, bool us
     return formatTriplet(point.x, point.y, point.z);
 }
 
+QJsonObject classificationColorMapToJson(const QMap<int, QColor>& colorMap)
+{
+    QJsonObject object;
+    for (auto it = colorMap.constBegin(); it != colorMap.constEnd(); ++it) {
+        object.insert(QString::number(it.key()), colorToJson(it.value()));
+    }
+    return object;
+}
+
+QMap<int, QColor> classificationColorMapFromJson(
+    const QJsonObject& object,
+    const QMap<int, QColor>& fallback)
+{
+    QMap<int, QColor> map = fallback;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+        bool ok = false;
+        const int classificationCode = it.key().toInt(&ok);
+        if (!ok || classificationCode < 0 || classificationCode > 255 || !it->isObject()) {
+            continue;
+        }
+
+        map.insert(classificationCode, colorFromJson(it->toObject(), map.value(classificationCode)));
+    }
+
+    return map;
+}
 QString languageCodeFor(MainWindow::UiLanguage language)
 {
     switch (language) {
@@ -537,6 +604,243 @@ void showStyledDetailsDialog(
     dialog.exec();
 }
 
+QColor showStyledColorDialog(
+    QWidget* parent,
+    const QColor& initialColor,
+    const QString& title)
+{
+    QColorDialog dialog(initialColor, parent);
+    dialog.setWindowTitle(title);
+    dialog.setCurrentColor(initialColor);
+    dialog.setOption(QColorDialog::DontUseNativeDialog, true);
+    dialog.setStyleSheet(QStringLiteral(
+        "QColorDialog, QColorDialog QWidget {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "}"
+        "QColorDialog QGroupBox {"
+        "background-color: #ffffff;"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 8px;"
+        "margin-top: 8px;"
+        "padding-top: 10px;"
+        "font-weight: 600;"
+        "}"
+        "QColorDialog QGroupBox::title {"
+        "subcontrol-origin: margin;"
+        "left: 8px;"
+        "padding: 0 4px;"
+        "color: #334155;"
+        "background-color: #f8fafc;"
+        "}"
+        "QColorDialog QLineEdit,"
+        "QColorDialog QSpinBox,"
+        "QColorDialog QDoubleSpinBox,"
+        "QColorDialog QComboBox,"
+        "QColorDialog QPushButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "min-height: 24px;"
+        "padding: 3px 8px;"
+        "}"
+        "QColorDialog QPushButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QColorDialog QPushButton:pressed {"
+        "background-color: #dbeafe;"
+        "}"
+        "QColorDialog QDialogButtonBox QPushButton {"
+        "min-width: 80px;"
+        "}"
+        "QColorDialog QAbstractItemView {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "}"
+        "QColorDialog QLabel {"
+        "color: #0f172a;"
+        "}"
+    ));
+
+    QPalette palette = dialog.palette();
+    palette.setColor(QPalette::Window, QColor(248, 250, 252));
+    palette.setColor(QPalette::Base, QColor(255, 255, 255));
+    palette.setColor(QPalette::AlternateBase, QColor(241, 245, 249));
+    palette.setColor(QPalette::WindowText, QColor(15, 23, 42));
+    palette.setColor(QPalette::Text, QColor(15, 23, 42));
+    palette.setColor(QPalette::ButtonText, QColor(15, 23, 42));
+    palette.setColor(QPalette::Highlight, QColor(219, 234, 254));
+    palette.setColor(QPalette::HighlightedText, QColor(15, 23, 42));
+    dialog.setPalette(palette);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        return dialog.currentColor();
+    }
+    return QColor();
+}
+
+QString styledDialogStyleSheet()
+{
+    return QStringLiteral(
+        "QDialog, QFileDialog, QFileDialog QWidget {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "}"
+        "QFileDialog QFrame, QFileDialog QStackedWidget, QFileDialog QSplitter {"
+        "background-color: #f8fafc;"
+        "}"
+        "QFileDialog QLabel {"
+        "color: #0f172a;"
+        "}"
+        "QFileDialog QLineEdit,"
+        "QFileDialog QComboBox,"
+        "QFileDialog QListView,"
+        "QFileDialog QTreeView,"
+        "QFileDialog QAbstractItemView,"
+        "QFileDialog QSpinBox {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "}"
+        "QFileDialog QLineEdit, QFileDialog QComboBox {"
+        "min-height: 26px;"
+        "padding: 2px 8px;"
+        "}"
+        "QFileDialog QPushButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "min-height: 28px;"
+        "padding: 4px 10px;"
+        "}"
+        "QFileDialog QPushButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QFileDialog QPushButton:pressed {"
+        "background-color: #dbeafe;"
+        "}"
+        "QFileDialog QPushButton:disabled {"
+        "background-color: #f1f5f9;"
+        "border-color: #e2e8f0;"
+        "color: #94a3b8;"
+        "}"
+        "QFileDialog QHeaderView::section {"
+        "background-color: #e2e8f0;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "padding: 4px 8px;"
+        "font-weight: 600;"
+        "}"
+        "QFileDialog QHeaderView::section:hover {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QFileDialog QHeaderView::section:pressed {"
+        "background-color: #bfdbfe;"
+        "color: #0f172a;"
+        "}"
+        "QFileDialog QToolButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 3px 8px;"
+        "}"
+        "QFileDialog QToolButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QFileDialog QToolButton:pressed {"
+        "background-color: #dbeafe;"
+        "}"
+    );
+}
+
+void applyStyledDialogPalette(QDialog* dialog)
+{
+    if (dialog == nullptr) {
+        return;
+    }
+
+    dialog->setStyleSheet(styledDialogStyleSheet());
+
+    QPalette palette = dialog->palette();
+    palette.setColor(QPalette::Window, QColor(248, 250, 252));
+    palette.setColor(QPalette::Base, QColor(255, 255, 255));
+    palette.setColor(QPalette::AlternateBase, QColor(241, 245, 249));
+    palette.setColor(QPalette::WindowText, QColor(15, 23, 42));
+    palette.setColor(QPalette::Text, QColor(15, 23, 42));
+    palette.setColor(QPalette::Button, QColor(255, 255, 255));
+    palette.setColor(QPalette::ButtonText, QColor(15, 23, 42));
+    palette.setColor(QPalette::Highlight, QColor(219, 234, 254));
+    palette.setColor(QPalette::HighlightedText, QColor(15, 23, 42));
+    dialog->setPalette(palette);
+}
+
+QString showStyledOpenFileNameDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& initialPath,
+    const QString& filter)
+{
+    QFileDialog dialog(parent, title, initialPath, filter);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    applyStyledDialogPalette(&dialog);
+
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
+        return QString();
+    }
+    return dialog.selectedFiles().constFirst();
+}
+
+QStringList showStyledOpenFileNamesDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& initialPath,
+    const QString& filter)
+{
+    QFileDialog dialog(parent, title, initialPath, filter);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setFileMode(QFileDialog::ExistingFiles);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    applyStyledDialogPalette(&dialog);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return QStringList();
+    }
+    return dialog.selectedFiles();
+}
+
+QString showStyledSaveFileNameDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& initialPath,
+    const QString& filter)
+{
+    QFileDialog dialog(parent, title, initialPath, filter);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    applyStyledDialogPalette(&dialog);
+
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
+        return QString();
+    }
+    return dialog.selectedFiles().constFirst();
+}
+
 QIcon createRibbonIcon(RibbonGlyph glyph)
 {
     constexpr int iconSize = 48;
@@ -697,6 +1001,22 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.setBrush(QColor(53, 142, 255));
         painter.setPen(QPen(QColor(37, 99, 235), 1.2));
         painter.drawEllipse(QRectF(r.left() + 9.0, r.top() + 9.0, 8.0, 8.0));
+        break;
+    case RibbonGlyph::Classification:
+        painter.setPen(QPen(QColor(148, 163, 184), 1.8));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 4.0, 20.0, 18.0), 4.0, 4.0);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(190, 242, 100));
+        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 6.0, 6.0, 5.0), 1.5, 1.5);
+        painter.setBrush(QColor(22, 163, 74));
+        painter.drawRoundedRect(QRectF(r.left() + 12.0, r.top() + 6.0, 9.0, 5.0), 1.5, 1.5);
+        painter.setBrush(QColor(251, 146, 60));
+        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 12.0, 8.0, 5.0), 1.5, 1.5);
+        painter.setBrush(QColor(14, 165, 233));
+        painter.drawRoundedRect(QRectF(r.left() + 14.0, r.top() + 12.0, 7.0, 5.0), 1.5, 1.5);
+        painter.setBrush(QColor(168, 85, 247));
+        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 18.0, 16.0, 3.5), 1.2, 1.2);
         break;
     case RibbonGlyph::ThemeColorful:
         painter.setPen(Qt::NoPen);
@@ -1101,10 +1421,13 @@ void MainWindow::createActions()
     elevationColorAction_->setCheckable(true);
     singleColorAction_ = new QAction(createRibbonIcon(RibbonGlyph::SingleColor), tr("Single"), this);
     singleColorAction_->setCheckable(true);
+    classificationColorAction_ = new QAction(createRibbonIcon(RibbonGlyph::Classification), tr("Classification"), this);
+    classificationColorAction_->setCheckable(true);
 
     colorModeActionGroup_->addAction(rgbColorAction_);
     colorModeActionGroup_->addAction(elevationColorAction_);
     colorModeActionGroup_->addAction(singleColorAction_);
+    colorModeActionGroup_->addAction(classificationColorAction_);
 
     themeActionGroup_ = new QActionGroup(this);
     themeActionGroup_->setExclusive(true);
@@ -1193,10 +1516,21 @@ void MainWindow::createRibbon()
     ribbonBar_->showQuickAccess(true);
     ribbonBar_->setStyleSheet(QStringLiteral(
         "QAbstractButton {"
-        "color: #1f2937;"
+        "background-color: transparent;"
+        "border: none;"
+        "color: #0f172a;"
+        "}"
+        "QAbstractButton:hover {"
+        "background-color: rgba(37, 99, 235, 0.16);"
+        "color: #0b1220;"
         "}"
         "QAbstractButton:checked, QAbstractButton:pressed {"
-        "color: #f8fafc;"
+        "background-color: #1d4ed8;"
+        "color: #ffffff;"
+        "}"
+        "QAbstractButton:disabled {"
+        "background-color: transparent;"
+        "color: #64748b;"
         "}"));
     ribbonBar_->installEventFilter(this);
     setRibbonBar(ribbonBar_);
@@ -1256,6 +1590,7 @@ void MainWindow::createRibbon()
     colorRibbonGroup_->addAction(rgbColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
+    colorRibbonGroup_->addAction(classificationColorAction_, Qt::ToolButtonTextUnderIcon);
 
     themeRibbonGroup_ = appearancePage_->addGroup(tr("Office Theme"));
     themeRibbonGroup_->addAction(themeColorfulAction_, Qt::ToolButtonTextUnderIcon);
@@ -1379,19 +1714,26 @@ void MainWindow::createProjectDock()
         "spacing: 4px;"
         "}"
         "QToolBar#projectExplorerToolBar QToolButton {"
-        "background: transparent;"
-        "border: none;"
+        "background: rgba(255, 255, 255, 0.92);"
+        "border: 1px solid #d6dde8;"
         "border-radius: 8px;"
         "padding: 6px 10px;"
         "color: #1e293b;"
         "}"
         "QToolBar#projectExplorerToolBar QToolButton:hover {"
         "background: rgba(219, 234, 254, 0.95);"
+        "border-color: #93c5fd;"
         "}"
         "QToolBar#projectExplorerToolBar QToolButton:pressed,"
         "QToolBar#projectExplorerToolBar QToolButton:checked {"
         "background: #2563eb;"
+        "border-color: #1d4ed8;"
         "color: #eff6ff;"
+        "}"
+        "QToolBar#projectExplorerToolBar QToolButton:disabled {"
+        "background: #f1f5f9;"
+        "border-color: #e2e8f0;"
+        "color: #94a3b8;"
         "}"
         "QTreeWidget#projectExplorerTree {"
         "background: rgba(255, 255, 255, 0.84);"
@@ -1522,6 +1864,7 @@ void MainWindow::createInspectorPanel()
         "QToolButton:disabled {"
         "border-color: #e2e8f0;"
         "background-color: #f8fafc;"
+        "color: #94a3b8;"
         "}"
     ).arg(towerToolSpacing).arg(towerButtonSize).arg(towerButtonPadding).arg(towerButtonRadius));
     towerToolBar_->addAction(addTowerAction_);
@@ -1734,6 +2077,7 @@ void MainWindow::createInspectorPanel()
     colorModeComboBox_->addItem(tr("RGB"));
     colorModeComboBox_->addItem(tr("Elevation Ramp"));
     colorModeComboBox_->addItem(tr("Single Color"));
+    colorModeComboBox_->addItem(tr("Classification"));
 
     pointColorButton_ = new QPushButton(tr("Pick Color"), renderingGroupBox_);
     backgroundColorButton_ = new QPushButton(tr("Pick Background"), renderingGroupBox_);
@@ -1752,6 +2096,35 @@ void MainWindow::createInspectorPanel()
     renderingLayout_->addRow(QString(), roundSplatsCheckBox_);
     renderingLayout_->addRow(QString(), axesCheckBox_);
     renderingLayout_->addRow(QString(), boundingBoxCheckBox_);
+
+    classificationColorsGroupBox_ = new QGroupBox(tr("Classification Colors"), renderingTab.first);
+    auto* classificationColorsLayout = new QVBoxLayout(classificationColorsGroupBox_);
+    classificationColorsLayout->setContentsMargins(12, 12, 12, 12);
+    classificationColorsLayout->setSpacing(8);
+
+    classificationColorsTableWidget_ = new QTableWidget(classificationColorsGroupBox_);
+    classificationColorsTableWidget_->setColumnCount(3);
+    classificationColorsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    classificationColorsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    classificationColorsTableWidget_->setAlternatingRowColors(true);
+    classificationColorsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Class"), tr("Type"), tr("Color") });
+    classificationColorsTableWidget_->verticalHeader()->setVisible(false);
+    classificationColorsTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    classificationColorsTableWidget_->setMinimumHeight(210);
+
+    resetClassificationColorsButton_ = new QPushButton(tr("Reset Defaults"), classificationColorsGroupBox_);
+    resetClassificationColorsButton_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+
+    auto* classificationButtonRow = new QHBoxLayout();
+    classificationButtonRow->addStretch(1);
+    classificationButtonRow->addWidget(resetClassificationColorsButton_);
+
+    classificationColorsLayout->addWidget(classificationColorsTableWidget_, 1);
+    classificationColorsLayout->addLayout(classificationButtonRow);
 
     auto* measurementToolbarHost = new QWidget(measurementTab.first);
     auto* measurementToolbarHostLayout = new QHBoxLayout(measurementToolbarHost);
@@ -2109,6 +2482,7 @@ void MainWindow::createInspectorPanel()
     issueTab.second->addWidget(issueToolbarHost);
     issueTab.second->addWidget(issuePanel, 1);
     renderingTab.second->addWidget(renderingGroupBox_);
+    renderingTab.second->addWidget(classificationColorsGroupBox_);
     renderingTab.second->addStretch(1);
     measurementTab.second->addWidget(measurementToolbarHost);
     measurementTab.second->addWidget(measurementGroupBox_);
@@ -2180,6 +2554,18 @@ void MainWindow::createInspectorPanel()
         "}"
         "QToolButton:pressed {"
         "background-color: #dbeafe;"
+        "border-color: #60a5fa;"
+        "color: #0f172a;"
+        "}"
+        "QToolButton:checked {"
+        "background-color: #2563eb;"
+        "border-color: #1d4ed8;"
+        "color: #eff6ff;"
+        "}"
+        "QToolButton:disabled {"
+        "background-color: #f1f5f9;"
+        "border-color: #e2e8f0;"
+        "color: #94a3b8;"
         "}"
         "QToolButton::menu-indicator {"
         "subcontrol-origin: padding;"
@@ -2202,6 +2588,35 @@ void MainWindow::createInspectorPanel()
         "QTreeWidget::item:selected {"
         "background-color: #dbeafe;"
         "color: #0f172a;"
+        "}"
+        "QTableWidget {"
+        "background-color: #ffffff;"
+        "alternate-background-color: #f8fafc;"
+        "gridline-color: #e2e8f0;"
+        "color: #0f172a;"
+        "}"
+        "QTableWidget::item:selected {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QHeaderView::section {"
+        "background-color: #e2e8f0;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "padding: 4px 8px;"
+        "font-weight: 600;"
+        "}"
+        "QHeaderView::section:hover {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QHeaderView::section:pressed {"
+        "background-color: #bfdbfe;"
+        "color: #0f172a;"
+        "}"
+        "QTableCornerButton::section {"
+        "background-color: #e2e8f0;"
+        "border: 1px solid #cbd5e1;"
         "}"
         "QGroupBox {"
         "font-weight: 600;"
@@ -2523,6 +2938,7 @@ void MainWindow::retranslateUi()
     rgbColorAction_->setText(tr("RGB"));
     elevationColorAction_->setText(tr("Elevation"));
     singleColorAction_->setText(tr("Single"));
+    classificationColorAction_->setText(tr("Classification"));
     themeColorfulAction_->setText(tr("Colorful"));
     themeWhiteAction_->setText(tr("White"));
     themeDarkGrayAction_->setText(tr("Dark Gray"));
@@ -2639,6 +3055,15 @@ void MainWindow::retranslateUi()
     if (renderingGroupBox_ != nullptr) {
         renderingGroupBox_->setTitle(tr("Rendering Controls"));
     }
+    if (classificationColorsGroupBox_ != nullptr) {
+        classificationColorsGroupBox_->setTitle(tr("Classification Colors"));
+    }
+    if (classificationColorsTableWidget_ != nullptr) {
+        classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Class"), tr("Type"), tr("Color") });
+    }
+    if (resetClassificationColorsButton_ != nullptr) {
+        resetClassificationColorsButton_->setText(tr("Reset Defaults"));
+    }
     if (measurementGroupBox_ != nullptr) {
         measurementGroupBox_->setTitle(tr("Measurement"));
     }
@@ -2727,6 +3152,9 @@ void MainWindow::retranslateUi()
     colorModeComboBox_->setItemText(0, tr("RGB"));
     colorModeComboBox_->setItemText(1, tr("Elevation Ramp"));
     colorModeComboBox_->setItemText(2, tr("Single Color"));
+    if (colorModeComboBox_->count() >= 4) {
+        colorModeComboBox_->setItemText(3, tr("Classification"));
+    }
     roundSplatsCheckBox_->setText(tr("Round splats (survey style)"));
     axesCheckBox_->setText(tr("Show XYZ axes"));
     boundingBoxCheckBox_->setText(tr("Show bounding box"));
@@ -2822,6 +3250,7 @@ void MainWindow::retranslateUi()
         setColorButtonAppearance(pointColorButton_, viewer_->visualizationOptions().singleColor, tr("Pick Color"));
         setColorButtonAppearance(backgroundColorButton_, viewer_->visualizationOptions().backgroundColor, tr("Pick Background"));
     }
+    updateClassificationColorTable();
     updateWindowControlButtons();
     rebuildProjectTree();
     updateDatasetPanel();
@@ -2832,6 +3261,67 @@ void MainWindow::retranslateUi()
     if (viewer_ != nullptr) {
         viewer_->update();
     }
+}
+
+void MainWindow::updateClassificationColorTable()
+{
+    if (classificationColorsTableWidget_ == nullptr || viewer_ == nullptr) {
+        return;
+    }
+
+    const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
+    const QSignalBlocker blocker(classificationColorsTableWidget_);
+    updatingClassificationColorTable_ = true;
+
+    classificationColorsTableWidget_->setRowCount(static_cast<int>(kClassificationDisplayItems.size()));
+    for (int row = 0; row < static_cast<int>(kClassificationDisplayItems.size()); ++row) {
+        const int classificationCode = kClassificationDisplayItems[static_cast<std::size_t>(row)].code;
+        const QColor color = classificationCode < 0
+            ? options.classificationFallbackColor
+            : options.classificationColors.value(classificationCode, options.classificationFallbackColor);
+
+        auto* classItem = classificationColorsTableWidget_->item(row, 0);
+        if (classItem == nullptr) {
+            classItem = new QTableWidgetItem();
+            classificationColorsTableWidget_->setItem(row, 0, classItem);
+        }
+        classItem->setFlags((classItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        classItem->setText(classificationCode < 0 ? tr("Other") : QLocale().toString(classificationCode));
+        classItem->setTextAlignment(Qt::AlignCenter);
+        classItem->setData(Qt::UserRole, classificationCode);
+
+        auto* typeItem = classificationColorsTableWidget_->item(row, 1);
+        if (typeItem == nullptr) {
+            typeItem = new QTableWidgetItem();
+            classificationColorsTableWidget_->setItem(row, 1, typeItem);
+        }
+        typeItem->setFlags((typeItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        typeItem->setText(classificationDisplayName(classificationCode));
+
+        auto* colorItem = classificationColorsTableWidget_->item(row, 2);
+        if (colorItem == nullptr) {
+            colorItem = new QTableWidgetItem();
+            classificationColorsTableWidget_->setItem(row, 2, colorItem);
+        }
+        colorItem->setFlags((colorItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
+        colorItem->setText(color.name(QColor::HexRgb).toUpper());
+        colorItem->setTextAlignment(Qt::AlignCenter);
+        colorItem->setData(Qt::UserRole, classificationCode);
+        colorItem->setBackground(color);
+        const int luminance = static_cast<int>(std::lround(0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue()));
+        colorItem->setForeground(luminance < 140 ? QColor(248, 250, 252) : QColor(15, 23, 42));
+        colorItem->setToolTip(tr("Double-click to change this class color."));
+    }
+
+    classificationColorsTableWidget_->resizeRowsToContents();
+    if (classificationColorsGroupBox_ != nullptr) {
+        classificationColorsGroupBox_->setEnabled(viewer_->hasPointCloud());
+    }
+    if (resetClassificationColorsButton_ != nullptr) {
+        resetClassificationColorsButton_->setEnabled(viewer_->hasPointCloud());
+    }
+
+    updatingClassificationColorTable_ = false;
 }
 
 void MainWindow::createConnections()
@@ -2895,6 +3385,7 @@ void MainWindow::createConnections()
     connect(rgbColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Rgb); });
     connect(elevationColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Elevation); });
     connect(singleColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::SingleColor); });
+    connect(classificationColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Classification); });
 
     connect(themeColorfulAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016Colorful); });
     connect(themeWhiteAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016White); });
@@ -2917,7 +3408,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getSaveFileName(
+        const QString filePath = showStyledSaveFileNameDialog(
             this,
             tr("Export Clearance CSV"),
             QStringLiteral("clearance_segments.csv"),
@@ -3149,7 +3640,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getOpenFileName(
+        const QString filePath = showStyledOpenFileNameDialog(
             this,
             tr("Import Route KML"),
             QString(),
@@ -3203,7 +3694,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getSaveFileName(
+        const QString filePath = showStyledSaveFileNameDialog(
             this,
             tr("Export Route KML"),
             QStringLiteral("inspection_route.kml"),
@@ -3238,7 +3729,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getSaveFileName(
+        const QString filePath = showStyledSaveFileNameDialog(
             this,
             tr("Export DJI KMZ"),
             QStringLiteral("inspection_route.kmz"),
@@ -3322,6 +3813,45 @@ void MainWindow::createConnections()
         static_cast<void (PointCloudViewer::*)(int)>(&PointCloudViewer::setColorMode));
     connect(pointColorButton_, &QPushButton::clicked, this, [this]() { choosePointColor(); });
     connect(backgroundColorButton_, &QPushButton::clicked, this, [this]() { chooseBackgroundColor(); });
+    connect(resetClassificationColorsButton_, &QPushButton::clicked, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        viewer_->resetClassificationColors();
+        updateClassificationColorTable();
+    });
+    connect(classificationColorsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
+        if (viewer_ == nullptr || classificationColorsTableWidget_ == nullptr || updatingClassificationColorTable_) {
+            return;
+        }
+
+        QTableWidgetItem* colorItem = classificationColorsTableWidget_->item(row, 2);
+        if (colorItem == nullptr) {
+            return;
+        }
+
+        const int classificationCode = colorItem->data(Qt::UserRole).toInt();
+        const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
+        const QColor currentColor = classificationCode < 0
+            ? options.classificationFallbackColor
+            : options.classificationColors.value(classificationCode, options.classificationFallbackColor);
+        const QColor selectedColor = showStyledColorDialog(this, currentColor, tr("Choose Classification Color"));
+        if (!selectedColor.isValid()) {
+            return;
+        }
+
+        if (classificationCode < 0) {
+            viewer_->setClassificationFallbackColor(selectedColor);
+        } else {
+            viewer_->setClassificationColor(classificationCode, selectedColor);
+        }
+
+        if (viewer_->visualizationOptions().colorMode != PointCloudColorMode::Classification) {
+            viewer_->setColorMode(PointCloudColorMode::Classification);
+        }
+        updateClassificationColorTable();
+    });
     connect(roundSplatsCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setUseRoundSplats);
     connect(axesCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowAxes);
     connect(boundingBoxCheckBox_, &QCheckBox::toggled, viewer_, &PointCloudViewer::setShowBoundingBox);
@@ -3691,7 +4221,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getSaveFileName(
+        const QString filePath = showStyledSaveFileNameDialog(
             this,
             tr("Export Issues CSV"),
             QStringLiteral("inspection_issues.csv"),
@@ -3712,7 +4242,7 @@ void MainWindow::createConnections()
             return;
         }
 
-        const QString filePath = QFileDialog::getSaveFileName(
+        const QString filePath = showStyledSaveFileNameDialog(
             this,
             tr("Export Inspection Report"),
             QStringLiteral("inspection_report.html"),
@@ -4029,7 +4559,7 @@ void MainWindow::createConnections()
 
 void MainWindow::openProject()
 {
-    const QString filePath = QFileDialog::getOpenFileName(
+    const QString filePath = showStyledOpenFileNameDialog(
         this,
         tr("Open Project"),
         QString(),
@@ -4058,7 +4588,7 @@ void MainWindow::saveProjectAs()
     const QString initialPath = currentProjectFilePath_.isEmpty()
         ? QStringLiteral("project.lpproj")
         : currentProjectFilePath_;
-    const QString filePath = QFileDialog::getSaveFileName(
+    const QString filePath = showStyledSaveFileNameDialog(
         this,
         tr("Save Project"),
         initialPath,
@@ -4127,6 +4657,12 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     viewer_->setPointOpacity(visualizationObject.value(QStringLiteral("pointOpacity")).toInt(static_cast<int>(defaults.pointOpacity * 100.0f)));
     viewer_->setDepthCueStrength(visualizationObject.value(QStringLiteral("depthCueStrength")).toInt(static_cast<int>(defaults.depthCueStrength * 100.0f)));
     viewer_->setEdlStrength(visualizationObject.value(QStringLiteral("edlStrength")).toInt(static_cast<int>(defaults.edlStrength * 100.0f)));
+    viewer_->setClassificationColorMap(classificationColorMapFromJson(
+        visualizationObject.value(QStringLiteral("classificationColors")).toObject(),
+        defaults.classificationColors));
+    viewer_->setClassificationFallbackColor(colorFromJson(
+        visualizationObject.value(QStringLiteral("classificationFallbackColor")).toObject(),
+        defaults.classificationFallbackColor));
     viewer_->setColorMode(visualizationObject.value(QStringLiteral("colorMode")).toInt(static_cast<int>(defaults.colorMode)));
     viewer_->setSingleColor(colorFromJson(visualizationObject.value(QStringLiteral("singleColor")).toObject(), defaults.singleColor));
     viewer_->setBackgroundColor(colorFromJson(visualizationObject.value(QStringLiteral("backgroundColor")).toObject(), defaults.backgroundColor));
@@ -4289,6 +4825,8 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("edlStrength"), static_cast<int>(std::lround(viewer_->visualizationOptions().edlStrength * 100.0f)) },
         { QStringLiteral("colorMode"), static_cast<int>(viewer_->visualizationOptions().colorMode) },
         { QStringLiteral("singleColor"), colorToJson(viewer_->visualizationOptions().singleColor) },
+        { QStringLiteral("classificationColors"), classificationColorMapToJson(viewer_->visualizationOptions().classificationColors) },
+        { QStringLiteral("classificationFallbackColor"), colorToJson(viewer_->visualizationOptions().classificationFallbackColor) },
         { QStringLiteral("backgroundColor"), colorToJson(viewer_->visualizationOptions().backgroundColor) },
         { QStringLiteral("useRoundSplats"), viewer_->visualizationOptions().useRoundSplats },
         { QStringLiteral("showAxes"), viewer_->visualizationOptions().showAxes },
@@ -4339,7 +4877,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     QJsonObject projectObject {
-        { QStringLiteral("version"), 5 },
+        { QStringLiteral("version"), 6 },
         { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
         { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
@@ -4369,7 +4907,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
 
 void MainWindow::openPointCloud()
 {
-    const QStringList filePaths = QFileDialog::getOpenFileNames(
+    const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
         tr("Open LAS Point Clouds"),
         QString(),
@@ -4385,7 +4923,7 @@ void MainWindow::openPointCloud()
 
 void MainWindow::addPointCloudFiles()
 {
-    const QStringList filePaths = QFileDialog::getOpenFileNames(
+    const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
         tr("Add LAS Point Clouds"),
         QString(),
@@ -4532,7 +5070,7 @@ void MainWindow::removeSelectedDataset()
 void MainWindow::choosePointColor()
 {
     const QColor initialColor = viewer_->visualizationOptions().singleColor;
-    const QColor chosenColor = QColorDialog::getColor(initialColor, this, tr("Choose Single Point Color"));
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Single Point Color"));
     if (chosenColor.isValid()) {
         viewer_->setSingleColor(chosenColor);
         if (viewer_->visualizationOptions().colorMode != PointCloudColorMode::SingleColor) {
@@ -4544,7 +5082,7 @@ void MainWindow::choosePointColor()
 void MainWindow::chooseBackgroundColor()
 {
     const QColor initialColor = viewer_->visualizationOptions().backgroundColor;
-    const QColor chosenColor = QColorDialog::getColor(initialColor, this, tr("Choose Background Color"));
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Background Color"));
     if (chosenColor.isValid()) {
         viewer_->setBackgroundColor(chosenColor);
     }
@@ -4566,6 +5104,9 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
     const bool useDarkChrome = theme == Qtitan::RibbonStyle::Office2016DarkGray;
     const QColor frameColor = useDarkChrome ? kWindowChromeDark : kWindowChromeLight;
     const QColor textColor = useDarkChrome ? QColor(241, 245, 249) : QColor(31, 41, 55);
+    const QString dockTitleBackground = useDarkChrome ? QStringLiteral("#1f2937") : QStringLiteral("#e2e8f0");
+    const QString dockTitleText = useDarkChrome ? QStringLiteral("#f1f5f9") : QStringLiteral("#0f172a");
+    const QString dockBorder = useDarkChrome ? QStringLiteral("#475569") : QStringLiteral("#cbd5e1");
 
     QPalette windowPalette = palette();
     windowPalette.setColor(QPalette::Window, frameColor);
@@ -4596,8 +5137,47 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
             page->update();
         }
 
+        const QString normalText = useDarkChrome ? QStringLiteral("#e2e8f0") : QStringLiteral("#0f172a");
+        const QString hoverBg = useDarkChrome ? QStringLiteral("rgba(148, 163, 184, 0.22)") : QStringLiteral("rgba(37, 99, 235, 0.16)");
+        const QString hoverText = useDarkChrome ? QStringLiteral("#f8fafc") : QStringLiteral("#0b1220");
+        const QString checkedBg = useDarkChrome ? QStringLiteral("#2563eb") : QStringLiteral("#1d4ed8");
+        const QString disabledText = useDarkChrome ? QStringLiteral("#94a3b8") : QStringLiteral("#475569");
+        ribbonBar_->setStyleSheet(QStringLiteral(
+            "QAbstractButton {"
+            "background-color: transparent;"
+            "border: none;"
+            "color: %1;"
+            "}"
+            "QAbstractButton:hover {"
+            "background-color: %2;"
+            "color: %3;"
+            "}"
+            "QAbstractButton:checked, QAbstractButton:pressed {"
+            "background-color: %4;"
+            "color: #ffffff;"
+            "}"
+            "QAbstractButton:disabled {"
+            "background-color: transparent;"
+            "color: %5;"
+            "}")
+                .arg(normalText, hoverBg, hoverText, checkedBg, disabledText));
+
         ribbonBar_->update();
     }
+
+    setStyleSheet(QStringLiteral(
+        "QDockWidget {"
+        "border: 1px solid %1;"
+        "}"
+        "QDockWidget::title {"
+        "background-color: %2;"
+        "color: %3;"
+        "text-align: left;"
+        "padding: 6px 10px;"
+        "border-bottom: 1px solid %1;"
+        "font-weight: 600;"
+        "}")
+            .arg(dockBorder, dockTitleBackground, dockTitleText));
 
     updateWindowControlAppearance(theme);
     updateWindowControlButtons();
@@ -4741,6 +5321,7 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker rgbActionBlocker(rgbColorAction_);
         const QSignalBlocker elevationActionBlocker(elevationColorAction_);
         const QSignalBlocker singleActionBlocker(singleColorAction_);
+        const QSignalBlocker classificationActionBlocker(classificationColorAction_);
         const QSignalBlocker colorfulThemeBlocker(themeColorfulAction_);
         const QSignalBlocker whiteThemeBlocker(themeWhiteAction_);
         const QSignalBlocker darkThemeBlocker(themeDarkGrayAction_);
@@ -4777,6 +5358,7 @@ void MainWindow::syncUiFromViewer()
         rgbColorAction_->setChecked(options.colorMode == PointCloudColorMode::Rgb);
         elevationColorAction_->setChecked(options.colorMode == PointCloudColorMode::Elevation);
         singleColorAction_->setChecked(options.colorMode == PointCloudColorMode::SingleColor);
+        classificationColorAction_->setChecked(options.colorMode == PointCloudColorMode::Classification);
         measureAction_->setChecked(viewer_->measurementEnabled());
         languageEnglishAction_->setChecked(currentLanguage_ == UiLanguage::English);
         languageChineseAction_->setChecked(currentLanguage_ == UiLanguage::Chinese);
@@ -4833,6 +5415,7 @@ void MainWindow::syncUiFromViewer()
 
     setColorButtonAppearance(pointColorButton_, options.singleColor, tr("Pick Color"));
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
+    updateClassificationColorTable();
     updateNavigationHelpText();
     updateDatasetPanel();
     updateMeasurementPanel();
@@ -4930,6 +5513,12 @@ void MainWindow::updateActionState()
     measurementToggleButton_->setEnabled(hasPointCloud);
     measurementClearButton_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
     clearanceThresholdSpinBox_->setEnabled(hasPointCloud);
+    if (classificationColorsGroupBox_ != nullptr) {
+        classificationColorsGroupBox_->setEnabled(hasPointCloud);
+    }
+    if (resetClassificationColorsButton_ != nullptr) {
+        resetClassificationColorsButton_->setEnabled(hasPointCloud);
+    }
     if (clearanceSegmentsTableWidget_ != nullptr) {
         clearanceSegmentsTableWidget_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
     }
@@ -5144,6 +5733,14 @@ void MainWindow::loadVisualizationSettings()
     viewer_->setEdlStrength(settings.value(QStringLiteral("visualization/edlStrength"), defaults.edlStrength * 100.0f).toInt());
     viewer_->setColorMode(settings.value(QStringLiteral("visualization/colorMode"), static_cast<int>(defaults.colorMode)).toInt());
     viewer_->setSingleColor(settings.value(QStringLiteral("visualization/singleColor"), defaults.singleColor).value<QColor>());
+    const QJsonDocument classificationColorDocument = QJsonDocument::fromJson(
+        settings.value(QStringLiteral("visualization/classificationColorsJson")).toByteArray());
+    if (classificationColorDocument.isObject()) {
+        viewer_->setClassificationColorMap(
+            classificationColorMapFromJson(classificationColorDocument.object(), defaults.classificationColors));
+    }
+    viewer_->setClassificationFallbackColor(
+        settings.value(QStringLiteral("visualization/classificationFallbackColor"), defaults.classificationFallbackColor).value<QColor>());
     viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
     viewer_->setUseRoundSplats(settings.value(QStringLiteral("visualization/useRoundSplats"), defaults.useRoundSplats).toBool());
     viewer_->setShowAxes(settings.value(QStringLiteral("visualization/showAxes"), defaults.showAxes).toBool());
@@ -5164,6 +5761,10 @@ void MainWindow::persistVisualizationSettings() const
     settings.setValue(QStringLiteral("visualization/edlStrength"), options.edlStrength * 100.0f);
     settings.setValue(QStringLiteral("visualization/colorMode"), static_cast<int>(options.colorMode));
     settings.setValue(QStringLiteral("visualization/singleColor"), options.singleColor);
+    settings.setValue(
+        QStringLiteral("visualization/classificationColorsJson"),
+        QJsonDocument(classificationColorMapToJson(options.classificationColors)).toJson(QJsonDocument::Compact));
+    settings.setValue(QStringLiteral("visualization/classificationFallbackColor"), options.classificationFallbackColor);
     settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
     settings.setValue(QStringLiteral("visualization/useRoundSplats"), options.useRoundSplats);
     settings.setValue(QStringLiteral("visualization/showAxes"), options.showAxes);
@@ -6004,7 +6605,7 @@ bool MainWindow::attachImageToIssue(int issueIndex)
 
     const InspectionIssue& selectedIssue = issues.at(issueIndex);
     const QString initialPath = selectedIssue.imagePath.trimmed();
-    const QString filePath = QFileDialog::getOpenFileName(
+    const QString filePath = showStyledOpenFileNameDialog(
         this,
         tr("Attach Image"),
         initialPath.isEmpty() ? QDir::homePath() : QFileInfo(initialPath).absolutePath(),
