@@ -70,6 +70,7 @@
 #include <QTreeWidgetItemIterator>
 #include <QToolButton>
 #include <QToolBar>
+#include <QToolTip>
 #include <QTranslator>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -162,6 +163,12 @@ enum class RibbonGlyph
     Log,
     Measure,
     Tower,
+    TowerAdd,
+    TowerInsert,
+    TowerMove,
+    TowerAdjust,
+    TowerFocus,
+    TowerRemove,
     Language
 };
 
@@ -552,6 +559,16 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
     painter.setPen(glyphPen);
 
     const QRectF r(11.0, 11.0, 26.0, 26.0);
+    const auto drawTowerBase = [&painter, &r]() {
+        painter.setPen(QPen(kRibbonGlyphColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 4.0), QPointF(r.center().x(), r.bottom() - 2.0));
+        painter.drawLine(QPointF(r.center().x() - 7.0, r.top() + 10.0), QPointF(r.center().x() + 7.0, r.top() + 10.0));
+        painter.drawLine(QPointF(r.center().x() - 5.0, r.top() + 17.0), QPointF(r.center().x() + 5.0, r.top() + 17.0));
+        painter.setBrush(QColor(249, 115, 22));
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(QRectF(r.center().x() - 5.0, r.bottom() - 9.0, 10.0, 10.0));
+    };
+
     switch (glyph) {
     case RibbonGlyph::Open:
         painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 8.0, 20.0, 12.0), 3.0, 3.0);
@@ -722,13 +739,57 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.drawLine(QPointF(r.left() + 8.0, r.top() + 12.0), QPointF(r.right() - 6.0, r.bottom() - 6.0));
         break;
     case RibbonGlyph::Tower:
-        painter.setPen(QPen(kRibbonGlyphColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 4.0), QPointF(r.center().x(), r.bottom() - 2.0));
-        painter.drawLine(QPointF(r.center().x() - 7.0, r.top() + 10.0), QPointF(r.center().x() + 7.0, r.top() + 10.0));
-        painter.drawLine(QPointF(r.center().x() - 5.0, r.top() + 17.0), QPointF(r.center().x() + 5.0, r.top() + 17.0));
-        painter.setBrush(QColor(249, 115, 22));
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(QRectF(r.center().x() - 5.0, r.bottom() - 9.0, 10.0, 10.0));
+        drawTowerBase();
+        break;
+    case RibbonGlyph::TowerAdd:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(22, 163, 74), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.right() - 3.0, r.top() + 2.0), QPointF(r.right() - 3.0, r.top() + 10.0));
+        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 6.0), QPointF(r.right() + 1.0, r.top() + 6.0));
+        break;
+    case RibbonGlyph::TowerInsert:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(37, 99, 235), 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 5.0), QPointF(r.left() + 9.0, r.top() + 5.0));
+        painter.drawLine(QPointF(r.left() + 9.0, r.top() + 5.0), QPointF(r.left() + 6.0, r.top() + 2.5));
+        painter.drawLine(QPointF(r.left() + 9.0, r.top() + 5.0), QPointF(r.left() + 6.0, r.top() + 7.5));
+        break;
+    case RibbonGlyph::TowerMove:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(37, 99, 235), 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x(), r.top() + 8.0));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x() - 2.5, r.top() + 3.5));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x() + 2.5, r.top() + 3.5));
+        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 8.0, r.top() + 12.0));
+        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 4.5, r.top() + 9.5));
+        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 4.5, r.top() + 14.5));
+        break;
+    case RibbonGlyph::TowerAdjust:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(2, 132, 199), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawEllipse(QRectF(r.right() - 11.0, r.top() + 1.5, 8.0, 8.0));
+        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 1.5), QPointF(r.right() - 7.0, r.top() - 1.0));
+        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 9.5), QPointF(r.right() - 7.0, r.top() + 12.0));
+        painter.drawLine(QPointF(r.right() - 11.0, r.top() + 5.5), QPointF(r.right() - 13.5, r.top() + 5.5));
+        painter.drawLine(QPointF(r.right() - 3.0, r.top() + 5.5), QPointF(r.right() - 0.5, r.top() + 5.5));
+        break;
+    case RibbonGlyph::TowerFocus:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(37, 99, 235), 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.left() + 1.5, r.top() + 1.5), QPointF(r.left() + 6.0, r.top() + 1.5));
+        painter.drawLine(QPointF(r.left() + 1.5, r.top() + 1.5), QPointF(r.left() + 1.5, r.top() + 6.0));
+        painter.drawLine(QPointF(r.right() - 1.5, r.top() + 1.5), QPointF(r.right() - 6.0, r.top() + 1.5));
+        painter.drawLine(QPointF(r.right() - 1.5, r.top() + 1.5), QPointF(r.right() - 1.5, r.top() + 6.0));
+        painter.drawLine(QPointF(r.left() + 1.5, r.bottom() - 1.5), QPointF(r.left() + 6.0, r.bottom() - 1.5));
+        painter.drawLine(QPointF(r.left() + 1.5, r.bottom() - 1.5), QPointF(r.left() + 1.5, r.bottom() - 6.0));
+        painter.drawLine(QPointF(r.right() - 1.5, r.bottom() - 1.5), QPointF(r.right() - 6.0, r.bottom() - 1.5));
+        painter.drawLine(QPointF(r.right() - 1.5, r.bottom() - 1.5), QPointF(r.right() - 1.5, r.bottom() - 6.0));
+        break;
+    case RibbonGlyph::TowerRemove:
+        drawTowerBase();
+        painter.setPen(QPen(QColor(220, 38, 38), 2.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.right() - 9.0, r.top() + 2.0), QPointF(r.right() - 1.0, r.top() + 10.0));
+        painter.drawLine(QPointF(r.right() - 1.0, r.top() + 2.0), QPointF(r.right() - 9.0, r.top() + 10.0));
         break;
     case RibbonGlyph::Language:
         painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 4.0, 18.0, 18.0));
@@ -1083,11 +1144,12 @@ void MainWindow::createActions()
 
     startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
     finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
-    addTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Click To Add Tower"), this);
-    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Insert Before Current"), this);
-    moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Move Current Tower"), this);
-    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Current Tower"), this);
-    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Current Tower"), this);
+    addTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdd), tr("Click To Add Tower"), this);
+    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerInsert), tr("Insert Before Current"), this);
+    moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerMove), tr("Move Current Tower"), this);
+    editCurrentTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdjust), tr("Edit Current Tower"), this);
+    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerFocus), tr("Focus Current Tower"), this);
+    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerRemove), tr("Remove Current Tower"), this);
     clearTowersAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Tower Markers"), this);
     cancelTowerToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Tower Tool"), this);
     showTowerXAction_ = new QAction(tr("Show X"), this);
@@ -1427,43 +1489,49 @@ void MainWindow::createInspectorPanel()
     auto* towerToolbarHost = new QWidget(towerTab.first);
     auto* towerToolbarHostLayout = new QHBoxLayout(towerToolbarHost);
     towerToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
-    towerToolbarHostLayout->setSpacing(8);
+    const double towerUiScale = std::clamp(static_cast<double>(towerToolbarHost->logicalDpiX()) / 96.0, 1.0, 2.0);
+    const int towerIconSize = static_cast<int>(std::lround(26.0 * towerUiScale));
+    const int towerButtonSize = static_cast<int>(std::lround(44.0 * towerUiScale));
+    const int towerButtonPadding = static_cast<int>(std::lround(7.0 * towerUiScale));
+    const int towerButtonRadius = static_cast<int>(std::lround(9.0 * towerUiScale));
+    const int towerToolSpacing = static_cast<int>(std::lround(8.0 * towerUiScale));
+    towerToolbarHostLayout->setSpacing(towerToolSpacing + 2);
 
     towerToolBar_ = new QToolBar(towerToolbarHost);
-    towerToolBar_->setIconSize(QSize(16, 16));
-    towerToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    towerToolBar_->setIconSize(QSize(towerIconSize, towerIconSize));
+    towerToolBar_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     towerToolBar_->setMovable(false);
     towerToolBar_->setFloatable(false);
+    towerToolBar_->setStyleSheet(QStringLiteral(
+        "QToolBar { spacing: %1px; }"
+        "QToolButton {"
+        "min-width: %2px;"
+        "min-height: %2px;"
+        "padding: %3px;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: %4px;"
+        "background-color: #ffffff;"
+        "}"
+        "QToolButton:hover {"
+        "border-color: #94a3b8;"
+        "background-color: #f8fafc;"
+        "}"
+        "QToolButton:pressed {"
+        "background-color: #e2e8f0;"
+        "}"
+        "QToolButton:disabled {"
+        "border-color: #e2e8f0;"
+        "background-color: #f8fafc;"
+        "}"
+    ).arg(towerToolSpacing).arg(towerButtonSize).arg(towerButtonPadding).arg(towerButtonRadius));
     towerToolBar_->addAction(addTowerAction_);
     towerToolBar_->addAction(insertTowerAction_);
     towerToolBar_->addAction(moveTowerAction_);
-    towerToolBar_->addSeparator();
+    towerToolBar_->addAction(editCurrentTowerAction_);
     towerToolBar_->addAction(focusTowerAction_);
     towerToolBar_->addAction(removeTowerAction_);
-    towerToolBar_->addAction(clearTowersAction_);
-    towerToolBar_->addAction(cancelTowerToolAction_);
-
-    towerActionsMenu_ = new QMenu(towerToolbarHost);
-    towerActionsMenu_->addAction(addTowerAction_);
-    towerActionsMenu_->addAction(insertTowerAction_);
-    towerActionsMenu_->addAction(moveTowerAction_);
-    towerActionsMenu_->addSeparator();
-    towerActionsMenu_->addAction(focusTowerAction_);
-    towerActionsMenu_->addAction(removeTowerAction_);
-    towerActionsMenu_->addAction(clearTowersAction_);
-    towerActionsMenu_->addAction(cancelTowerToolAction_);
-    towerActionsMenu_->addSeparator();
-    towerActionsMenu_->addAction(showTowerXAction_);
-    towerActionsMenu_->addAction(showTowerYAction_);
-    towerActionsMenu_->addAction(showTowerZAction_);
-
-    towerMenuButton_ = new QToolButton(towerToolbarHost);
-    towerMenuButton_->setPopupMode(QToolButton::InstantPopup);
-    towerMenuButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    towerMenuButton_->setMenu(towerActionsMenu_);
 
     towerToolbarHostLayout->addWidget(towerToolBar_, 1);
-    towerToolbarHostLayout->addWidget(towerMenuButton_, 0);
 
     auto* towerPanel = new QWidget(towerTab.first);
     auto* towerLayout = new QVBoxLayout(towerPanel);
@@ -1492,6 +1560,31 @@ void MainWindow::createInspectorPanel()
     towerTableWidget_->setColumnHidden(2, true);
     towerTableWidget_->setColumnHidden(3, true);
     towerTableWidget_->setColumnHidden(4, true);
+    towerTableWidget_->setStyleSheet(QStringLiteral(
+        "QTableWidget {"
+        "background-color: #ffffff;"
+        "alternate-background-color: #f8fafc;"
+        "gridline-color: #e2e8f0;"
+        "color: #0f172a;"
+        "}"
+        "QHeaderView::section {"
+        "background-color: #e2e8f0;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "padding: 4px 8px;"
+        "font-weight: 600;"
+        "}"
+        "QHeaderView::section:hover {"
+        "background-color: #dbeafe;"
+        "}"
+        "QHeaderView::section:pressed {"
+        "background-color: #bfdbfe;"
+        "}"
+        "QTableCornerButton::section {"
+        "background-color: #e2e8f0;"
+        "border: 1px solid #cbd5e1;"
+        "}"
+    ));
 
     towerLayout->addWidget(towerCountValueLabel_);
     towerLayout->addWidget(towerToolStatusLabel_);
@@ -2163,7 +2256,19 @@ void MainWindow::createInspectorPanel()
         "}"
         "QCheckBox {"
         "color: #1f2937;"
+        "}"
+        "QToolTip {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #94a3b8;"
+        "padding: 4px 8px;"
+        "border-radius: 4px;"
         "}");
+
+    QPalette toolTipPalette = QToolTip::palette();
+    toolTipPalette.setColor(QPalette::ToolTipBase, QColor(248, 250, 252));
+    toolTipPalette.setColor(QPalette::ToolTipText, QColor(15, 23, 42));
+    QToolTip::setPalette(toolTipPalette);
 
     inspectorDock_->setWidget(inspectorTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
@@ -2437,6 +2542,7 @@ void MainWindow::retranslateUi()
     addTowerAction_->setText(tr("Click To Add Tower"));
     insertTowerAction_->setText(tr("Insert Before Current"));
     moveTowerAction_->setText(tr("Move Current Tower"));
+    editCurrentTowerAction_->setText(tr("Edit Current Tower"));
     focusTowerAction_->setText(tr("Focus Current Tower"));
     removeTowerAction_->setText(tr("Remove Current Tower"));
     clearTowersAction_->setText(tr("Clear Tower Markers"));
@@ -2526,9 +2632,6 @@ void MainWindow::retranslateUi()
     }
     if (issueTableWidget_ != nullptr) {
         issueTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Title"), tr("Severity"), tr("Status"), tr("Tower"), tr("Category") });
-    }
-    if (towerMenuButton_ != nullptr) {
-        towerMenuButton_->setText(tr("Menu"));
     }
     if (issueMenuButton_ != nullptr) {
         issueMenuButton_->setText(tr("Menu"));
@@ -3323,6 +3426,26 @@ void MainWindow::createConnections()
         updateTowerPanel();
         showUserMessage(LogLevel::Info, tr("Click a point in the view to move the current tower marker."), 4000);
     };
+    const auto editCurrentTower = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before moving tower markers."), 3000);
+            return;
+        }
+        if (!towerEditingEnabled_) {
+            setTowerEditingEnabled(true);
+        }
+
+        const int currentRow = viewer_ != nullptr ? viewer_->selectedTowerIndex() : -1;
+        if (currentRow < 0 || currentRow >= viewer_->towerMarkers().size()) {
+            showUserMessage(LogLevel::Warning, tr("Select the current tower before moving it."), 3000);
+            return;
+        }
+
+        viewer_->setSelectedTowerIndex(currentRow);
+        viewer_->beginTowerMoveMode(currentRow);
+        updateTowerPanel();
+        showUserMessage(LogLevel::Info, tr("Click a point in the view to move the current tower marker."), 4000);
+    };
     const auto focusSelectedTower = [this]() {
         if (viewer_ == nullptr || towerTableWidget_ == nullptr) {
             return;
@@ -3388,6 +3511,7 @@ void MainWindow::createConnections()
     connect(addTowerAction_, &QAction::triggered, this, beginAddTower);
     connect(insertTowerAction_, &QAction::triggered, this, beginInsertTower);
     connect(moveTowerAction_, &QAction::triggered, this, beginMoveTower);
+    connect(editCurrentTowerAction_, &QAction::triggered, this, editCurrentTower);
     connect(focusTowerAction_, &QAction::triggered, this, focusSelectedTower);
     connect(removeTowerAction_, &QAction::triggered, this, removeSelectedTower);
     connect(clearTowersAction_, &QAction::triggered, this, clearAllTowers);
@@ -3407,6 +3531,48 @@ void MainWindow::createConnections()
             towerTableWidget_->setColumnHidden(4, !checked);
         }
     });
+    if (towerTableWidget_ != nullptr && towerTableWidget_->horizontalHeader() != nullptr) {
+        towerTableWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(towerTableWidget_, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+            if (towerTableWidget_ == nullptr || viewer_ == nullptr) {
+                return;
+            }
+
+            const QModelIndex index = towerTableWidget_->indexAt(pos);
+            if (index.isValid()) {
+                const int row = index.row();
+                if (row >= 0 && row < towerTableWidget_->rowCount()) {
+                    towerTableWidget_->setCurrentCell(row, 1);
+                }
+            }
+
+            QMenu rowMenu(towerTableWidget_);
+            rowMenu.addAction(focusTowerAction_);
+            rowMenu.addAction(removeTowerAction_);
+            rowMenu.addSeparator();
+            rowMenu.addAction(editCurrentTowerAction_);
+            rowMenu.addAction(moveTowerAction_);
+            rowMenu.addAction(insertTowerAction_);
+            rowMenu.addSeparator();
+            rowMenu.addAction(addTowerAction_);
+            rowMenu.addAction(clearTowersAction_);
+            rowMenu.addAction(cancelTowerToolAction_);
+            rowMenu.exec(towerTableWidget_->viewport()->mapToGlobal(pos));
+        });
+
+        towerTableWidget_->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(towerTableWidget_->horizontalHeader(), &QHeaderView::customContextMenuRequested, this, [this](const QPoint& pos) {
+            if (towerTableWidget_ == nullptr || towerTableWidget_->horizontalHeader() == nullptr) {
+                return;
+            }
+
+            QMenu columnMenu(towerTableWidget_);
+            columnMenu.addAction(showTowerXAction_);
+            columnMenu.addAction(showTowerYAction_);
+            columnMenu.addAction(showTowerZAction_);
+            columnMenu.exec(towerTableWidget_->horizontalHeader()->mapToGlobal(pos));
+        });
+    }
     connect(towerTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
         if (viewer_ != nullptr) {
             viewer_->setSelectedTowerIndex(currentRow);
@@ -4769,11 +4935,12 @@ void MainWindow::updateActionState()
     }
     startTowerEditAction_->setEnabled(hasPointCloud && !towerEditingEnabled_);
     finishTowerEditAction_->setEnabled(towerEditingEnabled_);
-    addTowerAction_->setEnabled(hasPointCloud && !towerToolActive);
-    insertTowerAction_->setEnabled(hasPointCloud && hasTowerSelection && !towerToolActive);
-    moveTowerAction_->setEnabled(hasPointCloud && hasTowerSelection && !towerToolActive);
+    addTowerAction_->setEnabled(hasPointCloud);
+    insertTowerAction_->setEnabled(hasPointCloud && hasTowerSelection);
+    moveTowerAction_->setEnabled(hasPointCloud && hasTowerSelection);
+    editCurrentTowerAction_->setEnabled(hasPointCloud && hasTowerSelection);
     focusTowerAction_->setEnabled(hasTowerSelection);
-    removeTowerAction_->setEnabled(hasTowerSelection && !towerToolActive);
+    removeTowerAction_->setEnabled(hasTowerSelection);
     clearTowersAction_->setEnabled(hasTowerMarkers && !towerToolActive);
     cancelTowerToolAction_->setEnabled(towerToolActive);
     startIssueMarkAction_->setEnabled(hasPointCloud && !issueToolActive);
@@ -6190,7 +6357,7 @@ void MainWindow::updateTowerPanel()
     const QList<TowerMarker>& towerMarkers = viewer_->towerMarkers();
     towerCountValueLabel_->setText(
         towerMarkers.isEmpty()
-            ? tr("No tower markers yet. Use the toolbar or menu above to add one from the point cloud.")
+            ? tr("No tower markers yet. Use the icon tools above to add one from the point cloud.")
             : tr("%1 tower marker(s)").arg(QLocale().toString(towerMarkers.size())));
 
     switch (viewer_->towerEditMode()) {

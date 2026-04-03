@@ -481,6 +481,7 @@ set(SOURCES
     src/gui/ProfilePlotWidget.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
+    src/pointcloud/PointCloudTileStore.cpp
     src/osg/OsgPointCloudNode.cpp
 )
 
@@ -501,6 +502,7 @@ set(HEADERS
     src/gui/ProfilePlotWidget.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
+    src/pointcloud/PointCloudTileStore.h
     src/osg/PointCloudVisualization.h
     src/osg/OsgPointCloudNode.h
 )
@@ -546,6 +548,7 @@ set(COMMON_SOURCES
     src/gui/PointCloudViewer.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
+    src/pointcloud/PointCloudTileStore.cpp
     src/osg/OsgPointCloudNode.cpp
 )
 
@@ -560,6 +563,7 @@ set(COMMON_HEADERS
     src/gui/PointCloudViewer.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
+    src/pointcloud/PointCloudTileStore.h
     src/osg/PointCloudVisualization.h
     src/osg/OsgPointCloudNode.h
 )
@@ -932,7 +936,7 @@ add_executable(LASViewerSmokeTest
 )
 configure_las_viewer_target(LASViewerSmokeTest FALSE)
 set_target_properties(LASViewerSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/smoke"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 add_executable(LASViewerRouteInteropSmokeTest
@@ -952,7 +956,7 @@ if(LAS_VIEWER_HAS_PROJ)
     target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_LIBRARY}")
 endif()
 set_target_properties(LASViewerRouteInteropSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/smoke"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 if(WIN32)
@@ -966,3 +970,5 @@ deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
 deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
 deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
 endif()
+
+

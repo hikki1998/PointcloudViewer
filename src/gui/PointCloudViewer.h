@@ -1,7 +1,10 @@
 #pragma once
 
 #include <chrono>
+#include <atomic>
+#include <cstdint>
 #include <memory>
+#include <thread>
 
 #include <QColor>
 #include <QList>
@@ -15,6 +18,7 @@
 #include <QOpenGLFunctions>
 
 #include <osg/ref_ptr>
+#include <osg/Matrix>
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 
@@ -22,14 +26,18 @@
 #include "domain/InspectionData.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/PointCloudData.h"
+#include "pointcloud/PointCloudTileStore.h"
 
 class QLabel;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QResizeEvent;
+class QTimer;
 class QWheelEvent;
 class QFrame;
+class OsgPointCloudNode;
+struct LasFileMetadata;
 
 namespace osg
 {
@@ -150,15 +158,19 @@ public:
 
     bool loadPointCloud(const QString& filePath, QString* errorMessage = nullptr);
     bool loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
+    bool loadPointCloudFilesAsync(const QStringList& filePaths, QString* errorMessage = nullptr);
     bool appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     void clearPointCloud();
     void showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage);
 
     bool hasPointCloud() const;
     bool hasLoadedPointClouds() const;
+    bool isPointCloudLoadingInProgress() const;
+    bool hasFullResolutionPointCloud() const;
     QString currentFilePath() const;
     QStringList currentFilePaths() const;
     const PointCloudData* pointCloudData() const;
+    const PointCloudData* fullResolutionPointCloudData(QString* errorMessage = nullptr);
     const QList<PointCloudDatasetInfo>& pointCloudDatasets() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
     const InteractionOptions& interactionOptions() const;
@@ -257,6 +269,40 @@ private:
     void createStatusPanel();
     void createMeasurementOverlayWidgets();
     void createWelcomeOverlay();
+    void startAsyncSingleFileLoad(const QString& filePath);
+    void cancelAsyncPointCloudLoad();
+    void completeAsyncLoadFailure(std::uint64_t token, const QString& errorMessage);
+    void applyAsyncPreview(
+        std::uint64_t token,
+        const QString& filePath,
+        const LasFileMetadata& metadata,
+        const std::shared_ptr<PointCloudData>& previewPointCloud,
+        const std::shared_ptr<PointCloudTileSet>& previewTiles);
+    void applyAsyncFullTiles(
+        std::uint64_t token,
+        const QString& filePath,
+        const LasFileMetadata& metadata,
+        const std::shared_ptr<PointCloudTileSet>& fullTiles);
+    void handleAsyncLoadProgress(
+        std::uint64_t token,
+        const QString& stageTitle,
+        const QString& detail,
+        int overallValue,
+        int overallMaximum);
+    void refreshAsyncVisiblePointCloudState();
+    void updateTiledPointCloudScene();
+    void scheduleTileRefinement();
+    void promoteNextTileBatch();
+    void handleFrameRendered();
+    QList<PointCloudTileId> prioritizedTileOrder() const;
+    bool tileBoundsProjectToViewport(
+        const PointRecord& minBounds,
+        const PointRecord& maxBounds,
+        QRectF* viewportBounds,
+        double* depthHint = nullptr) const;
+    const PointCloudData* activePointCloudDataForTile(const PointCloudTileId& tileId) const;
+    const PointCloudTileData* findTileData(const PointCloudTileSet& tileSet, const PointCloudTileId& tileId) const;
+    const PointCloudData* ensureFullResolutionPointCloudCache(QString* errorMessage = nullptr);
     void rebuildScene();
     void rebuildMergedPointCloud();
     void updateFooter();
@@ -317,6 +363,8 @@ private:
     QWidget* statusPanel_ = nullptr;
 
     std::shared_ptr<PointCloudData> currentPointCloud_;
+    std::shared_ptr<PointCloudData> previewPointCloud_;
+    mutable std::shared_ptr<PointCloudData> fullResolutionPointCloudCache_;
     QString currentFilePath_;
     QStringList currentFilePaths_;
     QList<LoadedPointCloudDataset> loadedPointCloudDatasets_;
@@ -341,12 +389,26 @@ private:
     int selectedInspectionRouteWaypointIndex_ = -1;
     TowerEditMode towerEditMode_ = TowerEditMode::None;
     int towerEditTargetIndex_ = -1;
+    int towerAddModeStartCount_ = 0;
     IssueEditMode issueEditMode_ = IssueEditMode::None;
     QList<QLabel*> towerOverlayLabels_;
     QList<QLabel*> issueOverlayLabels_;
     QList<QLabel*> inspectionRouteOverlayLabels_;
     QPointF lastHoverQueryPosition_;
     std::chrono::steady_clock::time_point lastHoverQueryTime_{};
+    PointCloudTileSet previewTileSet_;
+    PointCloudTileSet fullTileSet_;
+    QSet<PointCloudTileId> promotedFullResolutionTiles_;
+    bool tiledPointCloudModeActive_ = false;
+    bool fullResolutionTilesReady_ = false;
+    bool frameCameraStateValid_ = false;
+    bool cameraMoving_ = false;
+    osg::Matrixd lastCameraViewMatrix_;
+    std::uint64_t asyncLoadToken_ = 0;
+    std::atomic_bool asyncLoadCancellationRequested_ = false;
+    std::thread asyncLoadThread_;
+    QTimer* refineIdleTimer_ = nullptr;
+    QTimer* refineBatchTimer_ = nullptr;
 
     osg::ref_ptr<osg::Group> rootGroup_;
     osg::ref_ptr<osg::Node> pointCloudNode_;
@@ -354,4 +416,5 @@ private:
     osg::ref_ptr<osg::Node> inspectionIssuesNode_;
     osg::ref_ptr<osg::Node> inspectionRouteNode_;
     osg::ref_ptr<osg::Node> measurementOverlayNode_;
+    std::unique_ptr<OsgPointCloudNode> tiledPointCloudNode_;
 };

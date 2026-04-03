@@ -5,6 +5,7 @@
 
 #include <QColor>
 
+#include <osg/Array>
 #include <osg/BlendFunc>
 #include <osg/Geode>
 #include <osg/Geometry>
@@ -14,7 +15,6 @@
 #include <osg/Program>
 #include <osg/Shader>
 #include <osg/StateSet>
-#include <osg/Array>
 #include <osg/Uniform>
 
 #include "pointcloud/PointCloudData.h"
@@ -216,11 +216,8 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointCloudData& pointCloudData)
+osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
-    const PointRecord& minBounds = pointCloudData.minBounds();
-    const PointRecord& maxBounds = pointCloudData.maxBounds();
-
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     const osg::Vec4 boundsColor(0.96f, 0.77f, 0.28f, 1.0f);
@@ -262,10 +259,8 @@ osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointCloudData& pointCloudD
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildAxesGeode(const PointCloudData& pointCloudData)
+osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
-    const PointRecord& minBounds = pointCloudData.minBounds();
-    const PointRecord& maxBounds = pointCloudData.maxBounds();
     const float maxExtent = std::max({
         maxBounds.x - minBounds.x,
         maxBounds.y - minBounds.y,
@@ -316,6 +311,13 @@ osg::ref_ptr<osg::Geode> buildAxesGeode(const PointCloudData& pointCloudData)
 }
 }
 
+OsgPointCloudNode::OsgPointCloudNode()
+{
+    root_ = new osg::Group();
+    tileGroup_ = new osg::Group();
+    root_->addChild(tileGroup_.get());
+}
+
 osg::ref_ptr<osg::Group> OsgPointCloudNode::build(
     const PointCloudData& pointCloudData,
     const PointCloudVisualizationOptions& visualizationOptions)
@@ -324,12 +326,198 @@ osg::ref_ptr<osg::Group> OsgPointCloudNode::build(
     root->addChild(buildPointCloudGeode(pointCloudData, visualizationOptions).get());
 
     if (visualizationOptions.showBoundingBox) {
-        root->addChild(buildBoundingBoxGeode(pointCloudData).get());
+        root->addChild(buildBoundingBoxGeode(pointCloudData.minBounds(), pointCloudData.maxBounds()).get());
     }
 
     if (visualizationOptions.showAxes) {
-        root->addChild(buildAxesGeode(pointCloudData).get());
+        root->addChild(buildAxesGeode(pointCloudData.minBounds(), pointCloudData.maxBounds()).get());
     }
 
     return root;
+}
+
+osg::Group* OsgPointCloudNode::root() const
+{
+    return root_.get();
+}
+
+void OsgPointCloudNode::clear()
+{
+    tileEntries_.clear();
+    if (tileGroup_.valid()) {
+        tileGroup_->removeChildren(0, tileGroup_->getNumChildren());
+    }
+    hasSceneBounds_ = false;
+    sceneMinBounds_ = PointRecord();
+    sceneMaxBounds_ = PointRecord();
+    rebuildAuxiliaryNodes();
+}
+
+void OsgPointCloudNode::setVisualizationOptions(const PointCloudVisualizationOptions& visualizationOptions)
+{
+    visualizationOptions_ = visualizationOptions;
+    rebuildAllTiles();
+    rebuildAuxiliaryNodes();
+}
+
+void OsgPointCloudNode::setSceneBounds(const PointRecord& minBounds, const PointRecord& maxBounds, bool hasData)
+{
+    sceneMinBounds_ = minBounds;
+    sceneMaxBounds_ = maxBounds;
+    hasSceneBounds_ = hasData;
+    rebuildAuxiliaryNodes();
+}
+
+void OsgPointCloudNode::setPreviewTiles(const PointCloudTileSet& tileSet)
+{
+    tileEntries_.clear();
+    if (tileGroup_.valid()) {
+        tileGroup_->removeChildren(0, tileGroup_->getNumChildren());
+    }
+
+    setSceneBounds(tileSet.minBounds, tileSet.maxBounds, !tileSet.empty());
+
+    for (const PointCloudTileData& tile : tileSet.tiles) {
+        TileNodeEntry entry;
+        entry.id = tile.id;
+        entry.minBounds = tile.minBounds;
+        entry.maxBounds = tile.maxBounds;
+        entry.previewPointCloud = tile.pointCloud;
+        entry.group = new osg::Group();
+        tileGroup_->addChild(entry.group.get());
+        tileEntries_.insert(entry.id, entry);
+    }
+
+    rebuildAllTiles();
+}
+
+void OsgPointCloudNode::setFullTileData(const PointCloudTileId& tileId, const std::shared_ptr<PointCloudData>& pointCloud)
+{
+    TileNodeEntry* tileEntry = nullptr;
+    auto it = tileEntries_.find(tileId);
+    if (it == tileEntries_.end()) {
+        TileNodeEntry entry;
+        entry.id = tileId;
+        entry.group = new osg::Group();
+        if (pointCloud != nullptr && !pointCloud->empty()) {
+            entry.minBounds = pointCloud->minBounds();
+            entry.maxBounds = pointCloud->maxBounds();
+        }
+        it = tileEntries_.insert(tileId, entry);
+        tileGroup_->addChild(it->group.get());
+    }
+
+    tileEntry = &it.value();
+    tileEntry->fullPointCloud = pointCloud;
+    if (pointCloud != nullptr && !pointCloud->empty()) {
+        tileEntry->minBounds = pointCloud->minBounds();
+        tileEntry->maxBounds = pointCloud->maxBounds();
+    }
+    tileEntry->fullNode = nullptr;
+    updateTileNode(*tileEntry);
+}
+
+bool OsgPointCloudNode::setTilePromoted(const PointCloudTileId& tileId, bool promoted)
+{
+    auto it = tileEntries_.find(tileId);
+    if (it == tileEntries_.end()) {
+        return false;
+    }
+
+    if (it->promoted == promoted) {
+        return true;
+    }
+
+    it->promoted = promoted;
+    updateTileNode(it.value());
+    return true;
+}
+
+QList<PointCloudTileId> OsgPointCloudNode::tileIds() const
+{
+    return tileEntries_.keys();
+}
+
+void OsgPointCloudNode::rebuildAllTiles()
+{
+    for (auto it = tileEntries_.begin(); it != tileEntries_.end(); ++it) {
+        it->previewNode = nullptr;
+        it->fullNode = nullptr;
+        updateTileNode(it.value());
+    }
+}
+
+void OsgPointCloudNode::rebuildAuxiliaryNodes()
+{
+    if (!root_.valid()) {
+        return;
+    }
+
+    if (boundsNode_.valid()) {
+        root_->removeChild(boundsNode_.get());
+        boundsNode_ = nullptr;
+    }
+
+    if (axesNode_.valid()) {
+        root_->removeChild(axesNode_.get());
+        axesNode_ = nullptr;
+    }
+
+    if (!hasSceneBounds_) {
+        return;
+    }
+
+    if (visualizationOptions_.showBoundingBox) {
+        boundsNode_ = buildBoundingBoxGeode(sceneMinBounds_, sceneMaxBounds_);
+        if (boundsNode_.valid()) {
+            root_->addChild(boundsNode_.get());
+        }
+    }
+
+    if (visualizationOptions_.showAxes) {
+        axesNode_ = buildAxesGeode(sceneMinBounds_, sceneMaxBounds_);
+        if (axesNode_.valid()) {
+            root_->addChild(axesNode_.get());
+        }
+    }
+}
+
+void OsgPointCloudNode::updateTileNode(TileNodeEntry& tileEntry)
+{
+    if (!tileEntry.group.valid()) {
+        tileEntry.group = new osg::Group();
+    }
+
+    tileEntry.group->removeChildren(0, tileEntry.group->getNumChildren());
+
+    osg::ref_ptr<osg::Node> activeNode;
+    if (tileEntry.promoted && tileEntry.fullPointCloud != nullptr && !tileEntry.fullPointCloud->empty()) {
+        if (!tileEntry.fullNode.valid()) {
+            tileEntry.fullNode = buildTileNode(tileEntry.fullPointCloud);
+        }
+        activeNode = tileEntry.fullNode;
+    } else if (tileEntry.previewPointCloud != nullptr && !tileEntry.previewPointCloud->empty()) {
+        if (!tileEntry.previewNode.valid()) {
+            tileEntry.previewNode = buildTileNode(tileEntry.previewPointCloud);
+        }
+        activeNode = tileEntry.previewNode;
+    } else if (tileEntry.fullPointCloud != nullptr && !tileEntry.fullPointCloud->empty()) {
+        if (!tileEntry.fullNode.valid()) {
+            tileEntry.fullNode = buildTileNode(tileEntry.fullPointCloud);
+        }
+        activeNode = tileEntry.fullNode;
+    }
+
+    if (activeNode.valid()) {
+        tileEntry.group->addChild(activeNode.get());
+    }
+}
+
+osg::ref_ptr<osg::Node> OsgPointCloudNode::buildTileNode(const std::shared_ptr<PointCloudData>& pointCloud) const
+{
+    if (pointCloud == nullptr || pointCloud->empty()) {
+        return nullptr;
+    }
+
+    return buildPointCloudGeode(*pointCloud, visualizationOptions_);
 }

@@ -295,8 +295,6 @@ private:
     QToolBar* issueToolBar_ = nullptr;
     QToolBar* analysisToolBar_ = nullptr;
     ProfilePlotWidget* profilePlotWidget_ = nullptr;
-    QToolButton* towerMenuButton_ = nullptr;
-    QMenu* towerActionsMenu_ = nullptr;
     QToolButton* issueMenuButton_ = nullptr;
     QMenu* issueActionsMenu_ = nullptr;
     QTextEdit* logTextEdit_ = nullptr;
@@ -367,6 +365,7 @@ private:
     QAction* addTowerAction_ = nullptr;
     QAction* insertTowerAction_ = nullptr;
     QAction* moveTowerAction_ = nullptr;
+    QAction* editCurrentTowerAction_ = nullptr;
     QAction* focusTowerAction_ = nullptr;
     QAction* removeTowerAction_ = nullptr;
     QAction* clearTowersAction_ = nullptr;

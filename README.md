@@ -39,7 +39,7 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
-.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 
 ## 发布打包
@@ -95,7 +95,7 @@ GitHub Release 建议流程：
 
 ```powershell
 cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
-.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 
 ## 测试数据
@@ -123,3 +123,4 @@ python .\test_data\create_sampled_las.py <source.las> .\test_data\ezhou_powerlin
   laslib/
   lastools/
 ```
+

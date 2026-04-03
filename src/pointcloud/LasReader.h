@@ -32,18 +32,35 @@ public:
     LasReader() = default;
 
     using ProgressCallback = std::function<void(const LasReadProgress&)>;
+    using PointCallback = std::function<void(const PointRecord&)>;
+    using CancellationCallback = std::function<bool()>;
+
+    bool readMetadata(
+        const QString& filePath,
+        LasFileMetadata* metadata,
+        QString* errorMessage = nullptr) const;
 
     bool read(
         const QString& filePath,
         PointCloudData* output,
         QString* errorMessage = nullptr,
         LasFileMetadata* metadata = nullptr,
-        ProgressCallback progressCallback = ProgressCallback()) const;
+        ProgressCallback progressCallback = ProgressCallback(),
+        CancellationCallback cancellationCallback = CancellationCallback()) const;
+
+    bool readPoints(
+        const QString& filePath,
+        PointCallback pointCallback,
+        QString* errorMessage = nullptr,
+        LasFileMetadata* metadata = nullptr,
+        ProgressCallback progressCallback = ProgressCallback(),
+        CancellationCallback cancellationCallback = CancellationCallback()) const;
 
     bool readPreview(
         const QString& filePath,
         PointCloudData* output,
         std::size_t targetPreviewPoints = 160000,
         std::size_t maxScanPoints = 320000,
-        QString* errorMessage = nullptr) const;
+        QString* errorMessage = nullptr,
+        CancellationCallback cancellationCallback = CancellationCallback()) const;
 };

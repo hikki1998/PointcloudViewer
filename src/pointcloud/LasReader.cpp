@@ -17,6 +17,63 @@
 #ifdef LAS_VIEWER_HAS_LASLIB
 namespace
 {
+QString extractProjectionInfo(const LASheader& header);
+
+void populateMetadataFromHeader(const LASheader& header, std::size_t pointCount, LasFileMetadata* metadata)
+{
+    if (metadata == nullptr) {
+        return;
+    }
+
+    metadata->pointCount = pointCount;
+    metadata->minBounds.x = static_cast<float>(header.min_x);
+    metadata->minBounds.y = static_cast<float>(header.min_y);
+    metadata->minBounds.z = static_cast<float>(header.min_z);
+    metadata->maxBounds.x = static_cast<float>(header.max_x);
+    metadata->maxBounds.y = static_cast<float>(header.max_y);
+    metadata->maxBounds.z = static_cast<float>(header.max_z);
+    metadata->hasColor = header.point_data_format >= 2;
+    metadata->hasIntensity = true;
+    metadata->hasClassification = true;
+    metadata->hasReturnInfo = true;
+    metadata->hasGpsTime = header.point_data_format == 1
+        || header.point_data_format == 3
+        || header.point_data_format == 4
+        || header.point_data_format == 5
+        || header.point_data_format == 6
+        || header.point_data_format == 7
+        || header.point_data_format == 8
+        || header.point_data_format == 9
+        || header.point_data_format == 10;
+    metadata->projectionText = extractProjectionInfo(header);
+}
+
+PointRecord readPointRecord(const LASreader& reader)
+{
+    PointRecord point;
+    point.x = static_cast<float>(reader.get_x());
+    point.y = static_cast<float>(reader.get_y());
+    point.z = static_cast<float>(reader.get_z());
+    point.a = 255;
+    point.intensity = reader.point.get_intensity();
+    point.classification = reader.point.get_classification();
+    point.returnNumber = reader.point.get_return_number();
+    point.numberOfReturns = reader.point.get_number_of_returns();
+    point.gpsTime = reader.point.have_gps_time ? reader.point.get_gps_time() : 0.0;
+    point.hasIntensity = true;
+    point.hasClassification = true;
+    point.hasReturnInfo = true;
+    point.hasGpsTime = reader.point.have_gps_time;
+
+    if (reader.point.have_rgb) {
+        point.r = static_cast<std::uint8_t>(std::min<U16>(reader.point.get_R() / 256, 255));
+        point.g = static_cast<std::uint8_t>(std::min<U16>(reader.point.get_G() / 256, 255));
+        point.b = static_cast<std::uint8_t>(std::min<U16>(reader.point.get_B() / 256, 255));
+    }
+
+    return point;
+}
+
 QString extractProjectionInfo(const LASheader& header)
 {
     if (header.vlr_geo_ogc_wkt != nullptr && header.vlr_geo_ogc_wkt[0] != '\0') {
@@ -63,12 +120,72 @@ QString extractProjectionInfo(const LASheader& header)
 }
 #endif
 
+bool LasReader::readMetadata(
+    const QString& filePath,
+    LasFileMetadata* metadata,
+    QString* errorMessage) const
+{
+    if (metadata == nullptr) {
+        if (errorMessage != nullptr) {
+            *errorMessage = "Internal error: metadata output buffer is null.";
+        }
+        return false;
+    }
+
+    const QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("File not found: %1").arg(filePath);
+        }
+        return false;
+    }
+
+    if (!fileInfo.isFile()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Path is not a file: %1").arg(filePath);
+        }
+        return false;
+    }
+
+#ifndef LAS_VIEWER_HAS_LASLIB
+    if (errorMessage != nullptr) {
+        *errorMessage = "LASlib support is not enabled in this build.";
+    }
+    return false;
+#else
+    const QByteArray nativePath = QDir::toNativeSeparators(filePath).toLocal8Bit();
+    LASreadOpener opener;
+    opener.set_file_name(nativePath.constData());
+
+    std::unique_ptr<LASreader> reader(opener.open());
+    if (!reader) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Failed to open LAS/LAZ file: %1").arg(filePath);
+        }
+        return false;
+    }
+
+    const auto maxSizeT = static_cast<I64>(std::numeric_limits<std::size_t>::max());
+    const std::size_t totalPoints = (reader->npoints > 0 && reader->npoints <= maxSizeT)
+        ? static_cast<std::size_t>(reader->npoints)
+        : 0;
+    populateMetadataFromHeader(reader->header, totalPoints, metadata);
+    reader->close();
+
+    if (errorMessage != nullptr) {
+        *errorMessage = QStringLiteral("Metadata loaded for %1 points").arg(totalPoints);
+    }
+    return true;
+#endif
+}
+
 bool LasReader::read(
     const QString& filePath,
     PointCloudData* output,
     QString* errorMessage,
     LasFileMetadata* metadata,
-    ProgressCallback progressCallback) const
+    ProgressCallback progressCallback,
+    CancellationCallback cancellationCallback) const
 {
     if (output == nullptr) {
         if (errorMessage != nullptr) {
@@ -103,29 +220,6 @@ bool LasReader::read(
     }
     return false;
 #else
-    LASreadOpener opener;
-    opener.set_file_name(nativePath.constData());
-
-    std::unique_ptr<LASreader> reader(opener.open());
-    if (!reader) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QStringLiteral("Failed to open LAS/LAZ file: %1").arg(filePath);
-        }
-        return false;
-    }
-
-    const auto maxSizeT = static_cast<I64>(std::numeric_limits<std::size_t>::max());
-    if (reader->npoints > 0 && reader->npoints <= maxSizeT) {
-        output->reserve(static_cast<std::size_t>(reader->npoints));
-    }
-
-    const std::size_t totalPoints = (reader->npoints > 0 && reader->npoints <= maxSizeT)
-        ? static_cast<std::size_t>(reader->npoints)
-        : 0;
-    const std::size_t progressStep = totalPoints > 0
-        ? std::max<std::size_t>(8192, totalPoints / 200)
-        : static_cast<std::size_t>(65536);
-
     PointRecord minBounds;
     PointRecord maxBounds;
     minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<float>::max();
@@ -137,30 +231,8 @@ bool LasReader::read(
     bool hasGpsTime = false;
     bool firstPoint = true;
     std::size_t loadedCount = 0;
-    while (reader->read_point()) {
-        PointRecord point;
-        point.x = static_cast<float>(reader->get_x());
-        point.y = static_cast<float>(reader->get_y());
-        point.z = static_cast<float>(reader->get_z());
-        point.a = 255;
-        point.intensity = reader->point.get_intensity();
-        point.classification = reader->point.get_classification();
-        point.returnNumber = reader->point.get_return_number();
-        point.numberOfReturns = reader->point.get_number_of_returns();
-        point.gpsTime = reader->point.have_gps_time ? reader->point.get_gps_time() : 0.0;
-        point.hasIntensity = true;
-        point.hasClassification = true;
-        point.hasReturnInfo = true;
-        point.hasGpsTime = reader->point.have_gps_time;
-
-        if (reader->point.have_rgb) {
-            point.r = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_R() / 256, 255));
-            point.g = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_G() / 256, 255));
-            point.b = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_B() / 256, 255));
-        }
-
+    const auto pointCallback = [&output, &minBounds, &maxBounds, &hasColor, &hasIntensity, &hasClassification, &hasReturnInfo, &hasGpsTime, &firstPoint, &loadedCount](const PointRecord& point) {
         output->appendPointFast(point);
-
         if (firstPoint) {
             minBounds = point;
             maxBounds = point;
@@ -179,15 +251,17 @@ bool LasReader::read(
         hasClassification = hasClassification || point.hasClassification;
         hasReturnInfo = hasReturnInfo || point.hasReturnInfo;
         hasGpsTime = hasGpsTime || point.hasGpsTime;
-
         ++loadedCount;
-        if (progressCallback && (loadedCount == totalPoints || loadedCount % progressStep == 0)) {
-            progressCallback({ loadedCount, totalPoints });
-        }
-    }
+    };
 
-    const QString projectionText = extractProjectionInfo(reader->header);
-    reader->close();
+    QString pointReadMessage;
+    if (!readPoints(filePath, pointCallback, &pointReadMessage, metadata, progressCallback, cancellationCallback)) {
+        if (errorMessage != nullptr) {
+            *errorMessage = pointReadMessage;
+        }
+        output->clear();
+        return false;
+    }
 
     if (loadedCount == 0) {
         if (errorMessage != nullptr) {
@@ -214,11 +288,10 @@ bool LasReader::read(
         metadata->hasClassification = hasClassification;
         metadata->hasReturnInfo = hasReturnInfo;
         metadata->hasGpsTime = hasGpsTime;
-        metadata->projectionText = projectionText;
     }
 
     if (progressCallback && loadedCount > 0) {
-        progressCallback({ loadedCount, totalPoints > 0 ? totalPoints : loadedCount });
+        progressCallback({ loadedCount, metadata != nullptr && metadata->pointCount > 0 ? metadata->pointCount : loadedCount });
     }
 
     if (errorMessage != nullptr) {
@@ -229,12 +302,103 @@ bool LasReader::read(
 #endif
 }
 
+bool LasReader::readPoints(
+    const QString& filePath,
+    PointCallback pointCallback,
+    QString* errorMessage,
+    LasFileMetadata* metadata,
+    ProgressCallback progressCallback,
+    CancellationCallback cancellationCallback) const
+{
+    if (!pointCallback) {
+        if (errorMessage != nullptr) {
+            *errorMessage = "Internal error: point callback is null.";
+        }
+        return false;
+    }
+
+    const QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("File not found: %1").arg(filePath);
+        }
+        return false;
+    }
+
+    if (!fileInfo.isFile()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Path is not a file: %1").arg(filePath);
+        }
+        return false;
+    }
+
+#ifndef LAS_VIEWER_HAS_LASLIB
+    if (errorMessage != nullptr) {
+        *errorMessage = "LASlib support is not enabled in this build.";
+    }
+    return false;
+#else
+    const QByteArray nativePath = QDir::toNativeSeparators(filePath).toLocal8Bit();
+    LASreadOpener opener;
+    opener.set_file_name(nativePath.constData());
+
+    std::unique_ptr<LASreader> reader(opener.open());
+    if (!reader) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Failed to open LAS/LAZ file: %1").arg(filePath);
+        }
+        return false;
+    }
+
+    const auto maxSizeT = static_cast<I64>(std::numeric_limits<std::size_t>::max());
+    const std::size_t totalPoints = (reader->npoints > 0 && reader->npoints <= maxSizeT)
+        ? static_cast<std::size_t>(reader->npoints)
+        : 0;
+    populateMetadataFromHeader(reader->header, totalPoints, metadata);
+
+    const std::size_t progressStep = totalPoints > 0
+        ? std::max<std::size_t>(8192, totalPoints / 200)
+        : static_cast<std::size_t>(65536);
+
+    std::size_t loadedCount = 0;
+    while (reader->read_point()) {
+        if (cancellationCallback && cancellationCallback()) {
+            reader->close();
+            if (errorMessage != nullptr) {
+                *errorMessage = QStringLiteral("Point cloud loading was cancelled.");
+            }
+            return false;
+        }
+
+        pointCallback(readPointRecord(*reader));
+        ++loadedCount;
+        if (progressCallback && (loadedCount == totalPoints || loadedCount % progressStep == 0)) {
+            progressCallback({ loadedCount, totalPoints });
+        }
+    }
+
+    reader->close();
+
+    if (metadata != nullptr) {
+        metadata->pointCount = loadedCount > 0 ? loadedCount : metadata->pointCount;
+    }
+    if (progressCallback && loadedCount > 0) {
+        progressCallback({ loadedCount, totalPoints > 0 ? totalPoints : loadedCount });
+    }
+    if (errorMessage != nullptr) {
+        *errorMessage = QStringLiteral("Successfully streamed %1 points").arg(loadedCount);
+    }
+    return loadedCount > 0;
+#endif
+}
+
 bool LasReader::readPreview(
     const QString& filePath,
     PointCloudData* output,
     std::size_t targetPreviewPoints,
     std::size_t maxScanPoints,
-    QString* errorMessage) const
+    QString* errorMessage,
+    CancellationCallback cancellationCallback) const
 {
     if (output == nullptr) {
         if (errorMessage != nullptr) {
@@ -297,28 +461,17 @@ bool LasReader::readPreview(
     std::size_t scannedCount = 0;
     std::size_t sampledCount = 0;
     while (scannedCount < scanLimit && reader->read_point()) {
-        if ((scannedCount % stride) == 0) {
-            PointRecord point;
-            point.x = static_cast<float>(reader->get_x());
-            point.y = static_cast<float>(reader->get_y());
-            point.z = static_cast<float>(reader->get_z());
-            point.a = 255;
-            point.intensity = reader->point.get_intensity();
-            point.classification = reader->point.get_classification();
-            point.returnNumber = reader->point.get_return_number();
-            point.numberOfReturns = reader->point.get_number_of_returns();
-            point.gpsTime = reader->point.have_gps_time ? reader->point.get_gps_time() : 0.0;
-            point.hasIntensity = true;
-            point.hasClassification = true;
-            point.hasReturnInfo = true;
-            point.hasGpsTime = reader->point.have_gps_time;
-
-            if (reader->point.have_rgb) {
-                point.r = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_R() / 256, 255));
-                point.g = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_G() / 256, 255));
-                point.b = static_cast<std::uint8_t>(std::min<U16>(reader->point.get_B() / 256, 255));
+        if (cancellationCallback && cancellationCallback()) {
+            reader->close();
+            if (errorMessage != nullptr) {
+                *errorMessage = QStringLiteral("Point cloud loading was cancelled.");
             }
+            output->clear();
+            return false;
+        }
 
+        if ((scannedCount % stride) == 0) {
+            const PointRecord point = readPointRecord(*reader);
             output->appendPointFast(point);
             if (firstPoint) {
                 minBounds = point;

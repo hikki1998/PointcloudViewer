@@ -23,6 +23,8 @@
 - `out/build/`：推荐本地构建目录。
 
 ## Build And Validation
+- 用户已明确授权：常规 `git pull`、`cmake` 配置、`cmake --build`、smoke test 这类开发拉取与构建验证命令可直接执行，无需逐次征询。
+- 上述默认直执行授权不覆盖高风险命令；涉及强推、历史重写、删除、reset 或其他不可逆操作时，仍需先说明影响。
 - 标准配置命令：
 ```powershell
 cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DQT_ROOT=E:/code/Qt5.15.2/5.15.2/msvc2019_64
@@ -37,7 +39,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ```
 - smoke test：
 ```powershell
-.\out\build\bin\smoke\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 - 涉及 UI、翻译、渲染、点选、量测、构建脚本时，默认至少做一次构建验证；如果改动影响显示结果，优先再跑 smoke test。
 
@@ -102,3 +104,4 @@ E:\code\Qt5.15.2\5.15.2\msvc2019_64\bin\lupdate.exe src -ts translations\lasview
 
 ## Practical Goal
 - 目标不是写一份泛化说明，而是让新对话能在几分钟内定位到：入口文件、常改模块、标准验证命令、当前已具备的点云显示功能、以及常见改动该落在哪些文件。
+

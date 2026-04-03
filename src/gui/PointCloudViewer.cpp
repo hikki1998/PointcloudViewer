@@ -1587,6 +1587,9 @@ bool PointCloudViewer::insertTowerMarker(int index, const QString& name, const P
     towerMarker.point = point;
     towerMarkers_.insert(index, towerMarker);
     selectedTowerIndex_ = index;
+    if (towerEditMode_ == TowerEditMode::InsertBeforeSelected) {
+        towerEditTargetIndex_ = selectedTowerIndex_;
+    }
     updateSceneClickCapture();
     refreshTowerMarkersOverlay();
     updateFooter();
@@ -1667,6 +1670,10 @@ void PointCloudViewer::setSelectedTowerIndex(int index)
     }
 
     selectedTowerIndex_ = normalizedIndex;
+    if ((towerEditMode_ == TowerEditMode::InsertBeforeSelected || towerEditMode_ == TowerEditMode::MoveSelected)
+        && selectedTowerIndex_ >= 0) {
+        towerEditTargetIndex_ = selectedTowerIndex_;
+    }
     selectedIssueIndex_ = -1;
     refreshTowerMarkersOverlay();
     refreshInspectionIssuesOverlay();
@@ -1702,6 +1709,9 @@ bool PointCloudViewer::moveTowerMarker(int index, const PointRecord& point)
 
     towerMarkers_[index].point = point;
     selectedTowerIndex_ = index;
+    if (towerEditMode_ == TowerEditMode::MoveSelected) {
+        towerEditTargetIndex_ = selectedTowerIndex_;
+    }
     refreshTowerMarkersOverlay();
     updateFooter();
     emit selectedTowerChanged(selectedTowerIndex_);
@@ -1729,6 +1739,7 @@ void PointCloudViewer::beginTowerAddMode()
 {
     towerEditMode_ = TowerEditMode::AddAfterLast;
     towerEditTargetIndex_ = -1;
+    towerAddModeStartCount_ = towerMarkers_.size();
     cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
@@ -1748,6 +1759,7 @@ void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
     selectedIssueIndex_ = -1;
     towerEditMode_ = TowerEditMode::InsertBeforeSelected;
     towerEditTargetIndex_ = beforeIndex;
+    towerAddModeStartCount_ = towerMarkers_.size();
     cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
@@ -1769,6 +1781,7 @@ void PointCloudViewer::beginTowerMoveMode(int towerIndex)
     selectedIssueIndex_ = -1;
     towerEditMode_ = TowerEditMode::MoveSelected;
     towerEditTargetIndex_ = towerIndex;
+    towerAddModeStartCount_ = towerMarkers_.size();
     cancelIssueEditMode();
     if (measurementEnabled_) {
         setMeasurementEnabled(false);
@@ -1788,6 +1801,7 @@ void PointCloudViewer::cancelTowerEditMode()
 
     towerEditMode_ = TowerEditMode::None;
     towerEditTargetIndex_ = -1;
+    towerAddModeStartCount_ = towerMarkers_.size();
     updateSceneClickCapture();
     emit towerEditModeChanged();
 }
@@ -2604,12 +2618,6 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
     if (towerEditMode_ != TowerEditMode::None) {
         const TowerEditMode requestedMode = towerEditMode_;
         const int targetIndex = towerEditTargetIndex_;
-        if (towerEditMode_ != TowerEditMode::AddAfterLast) {
-            towerEditMode_ = TowerEditMode::None;
-            towerEditTargetIndex_ = -1;
-            updateSceneClickCapture();
-            emit towerEditModeChanged();
-        }
         emit towerEditRequested(pickedPoint, static_cast<int>(requestedMode), targetIndex);
         return;
     }
@@ -2641,6 +2649,24 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
 {
     Q_UNUSED(localPos);
+
+    if (towerEditMode_ == TowerEditMode::AddAfterLast) {
+        if (towerMarkers_.size() > towerAddModeStartCount_) {
+            if (removeTowerMarker(towerMarkers_.size() - 1)) {
+                emit measurementMessage(tr("Tower marker removed."), false);
+            }
+        } else {
+            cancelTowerEditMode();
+            emit measurementMessage(tr("Tower tool cancelled."), false);
+        }
+        return;
+    }
+
+    if (towerEditMode_ != TowerEditMode::None) {
+        cancelTowerEditMode();
+        emit measurementMessage(tr("Tower tool cancelled."), false);
+        return;
+    }
 
     if (issueEditMode_ == IssueEditMode::Add) {
         cancelIssueEditMode();

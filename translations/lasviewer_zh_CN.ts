@@ -359,6 +359,12 @@
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1089"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2418"/>
+        <source>Edit Current Tower</source>
+        <translation>修改当前杆塔</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="1089"/>
         <location filename="../src/gui/MainWindow.cpp" line="2440"/>
         <source>Focus Current Tower</source>
         <translation>聚焦当前杆塔</translation>
@@ -1221,6 +1227,16 @@ Extent: %5</source>
         <translation>移动前请先选择当前杆塔。</translation>
     </message>
     <message>
+        <location filename="../src/gui/MainWindow.cpp" line="3335"/>
+        <source>Select the current tower before editing its details.</source>
+        <translation>修改详情前请先选择当前杆塔。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="3351"/>
+        <source>Tower details editing ready.</source>
+        <translation>已进入当前杆塔详情编辑。</translation>
+    </message>
+    <message>
         <location filename="../src/gui/MainWindow.cpp" line="3327"/>
         <source>Click a point in the view to move the current tower marker.</source>
         <translation>请在视图中点击一点，移动当前杆塔标注。</translation>
@@ -1572,9 +1588,9 @@ Extent: %5</source>
         <translation type="vanished">X %1 | Y %2 | Z %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="6199"/>
-        <source>No tower markers yet. Use the toolbar or menu above to add one from the point cloud.</source>
-        <translation>当前还没有杆塔标注。请使用上方工具栏或菜单从点云中添加。</translation>
+        <location filename="../src/gui/MainWindow.cpp" line="6201"/>
+        <source>No tower markers yet. Use the icon tools above to add one from the point cloud.</source>
+        <translation>当前还没有杆塔标注。请使用上方图标工具从点云中添加。</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="6208"/>
