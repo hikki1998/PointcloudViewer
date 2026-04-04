@@ -109,6 +109,7 @@
 #include "domain/ProfileMarkerProjection.h"
 #include "domain/RouteInterop.h"
 #include "domain/RuleBasedClearanceEngine.h"
+#include "domain/TowerFileInterop.h"
 #include "domain/VegetationRiskAnalysis.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfilePlotWidget.h"
@@ -1677,6 +1678,10 @@ void MainWindow::createActions()
         this);
     clearTowersAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Tower Markers"), this);
     cancelTowerToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Tower Tool"), this);
+    importTowerFileAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Import Tower File"), this);
+    saveTowerFileAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Tower File"), this);
+    saveTowerFileAsAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Tower File As"), this);
+    reloadTowerFileAction_ = new QAction(style()->standardIcon(QStyle::SP_BrowserReload), tr("Reload Tower File"), this);
     showTowerXAction_ = new QAction(tr("Show X"), this);
     showTowerYAction_ = new QAction(tr("Show Y"), this);
     showTowerZAction_ = new QAction(tr("Show Z"), this);
@@ -1750,8 +1755,8 @@ void MainWindow::createRibbon()
     datasetRibbonGroup_->addAction(addPointCloudAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(openProjectAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(saveProjectAction_, Qt::ToolButtonTextUnderIcon);
+    datasetRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
-    datasetRibbonGroup_->addAction(exitAction_, Qt::ToolButtonTextUnderIcon);
 
     cameraRibbonGroup_ = homePage_->addGroup(tr("Camera"));
     cameraRibbonGroup_->addAction(fitSceneAction_, Qt::ToolButtonTextUnderIcon);
@@ -1767,27 +1772,45 @@ void MainWindow::createRibbon()
 
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(showProfileDockAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(profileClassificationAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(showProfileClassificationDockAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(saveProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
-    measureRibbonGroup_->addAction(showProfileDockAction_, Qt::ToolButtonTextUnderIcon);
-    measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(undoProfileClassificationAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(redoProfileClassificationAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(clearProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
-    measureRibbonGroup_->addAction(analyzeVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
-    measureRibbonGroup_->addAction(generateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
-    measureRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
+
+    vegetationRiskRibbonGroup_ = homePage_->addGroup(tr("Vegetation Risks"));
+    vegetationRiskRibbonGroup_->addAction(analyzeVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
+    vegetationRiskRibbonGroup_->addAction(focusVegetationRiskAction_, Qt::ToolButtonTextUnderIcon);
+    vegetationRiskRibbonGroup_->addAction(createIssueFromRiskAction_, Qt::ToolButtonTextUnderIcon);
+    vegetationRiskRibbonGroup_->addAction(createIssuesFromRisksAction_, Qt::ToolButtonTextUnderIcon);
+    vegetationRiskRibbonGroup_->addAction(clearVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
+
+    routeRibbonGroup_ = homePage_->addGroup(tr("Route Planning"));
+    routeRibbonGroup_->addAction(generateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(regenerateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(clearInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(focusRouteWaypointAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
+
+    issueRibbonGroup_ = homePage_->addGroup(tr("Inspection Issues"));
+    issueRibbonGroup_->addAction(startIssueMarkAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(cancelIssueToolAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(focusIssueAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(removeIssueAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(clearIssuesAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(exportIssuesCsvAction_, Qt::ToolButtonTextUnderIcon);
+    issueRibbonGroup_->addAction(exportInspectionReportAction_, Qt::ToolButtonTextUnderIcon);
 
     workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
-    workspaceRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(projectCoordinateSystemsAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(startIssueMarkAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(exportInspectionReportAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
+    workspaceRibbonGroup_->addAction(exitAction_, Qt::ToolButtonTextUnderIcon);
 
     towerPage_ = ribbonBar_->addPage(tr("Tower"));
     towerRibbonGroup_ = towerPage_->addGroup(tr("Tower Editing"));
@@ -2082,6 +2105,11 @@ void MainWindow::createInspectorPanel()
     towerToolBar_->addAction(editCurrentTowerAction_);
     towerToolBar_->addAction(focusTowerAction_);
     towerToolBar_->addAction(removeTowerAction_);
+    towerToolBar_->addSeparator();
+    towerToolBar_->addAction(importTowerFileAction_);
+    towerToolBar_->addAction(saveTowerFileAction_);
+    towerToolBar_->addAction(saveTowerFileAsAction_);
+    towerToolBar_->addAction(reloadTowerFileAction_);
 
     towerToolbarHostLayout->addWidget(towerToolBar_, 1);
 
@@ -2149,6 +2177,10 @@ void MainWindow::createInspectorPanel()
     towerCodeEdit_ = new QLineEdit(towerDetailsGroupBox_);
     towerLineNameEdit_ = new QLineEdit(towerDetailsGroupBox_);
     towerVoltageLevelEdit_ = new QLineEdit(towerDetailsGroupBox_);
+    towerTypeComboBox_ = new QComboBox(towerDetailsGroupBox_);
+    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Unknown));
+    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Tangent));
+    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Strain));
     towerStructureTypeEdit_ = new QLineEdit(towerDetailsGroupBox_);
     towerInspectionDateEdit_ = new QLineEdit(towerDetailsGroupBox_);
     towerStatusEdit_ = new QLineEdit(towerDetailsGroupBox_);
@@ -2157,7 +2189,8 @@ void MainWindow::createInspectorPanel()
     towerDetailsLayout_->addRow(tr("Code"), towerCodeEdit_);
     towerDetailsLayout_->addRow(tr("Line"), towerLineNameEdit_);
     towerDetailsLayout_->addRow(tr("Voltage"), towerVoltageLevelEdit_);
-    towerDetailsLayout_->addRow(tr("Tower Type"), towerStructureTypeEdit_);
+    towerDetailsLayout_->addRow(tr("Tower Category"), towerTypeComboBox_);
+    towerDetailsLayout_->addRow(tr("Structure Type"), towerStructureTypeEdit_);
     towerDetailsLayout_->addRow(tr("Inspection Date"), towerInspectionDateEdit_);
     towerDetailsLayout_->addRow(tr("Tower Status"), towerStatusEdit_);
     towerDetailsLayout_->addRow(tr("Notes"), towerNotesEdit_);
@@ -3366,6 +3399,14 @@ void MainWindow::retranslateUi()
     removeTowerAction_->setText(tr("Remove Current Tower"));
     clearTowersAction_->setText(tr("Clear Tower Markers"));
     cancelTowerToolAction_->setText(tr("Cancel Tower Tool"));
+    importTowerFileAction_->setText(tr("Import Tower File"));
+    saveTowerFileAction_->setText(tr("Save Tower File"));
+    saveTowerFileAsAction_->setText(tr("Save Tower File As"));
+    reloadTowerFileAction_->setText(tr("Reload Tower File"));
+    importTowerFileAction_->setToolTip(tr("Import towers from a LiTower file"));
+    saveTowerFileAction_->setToolTip(tr("Save towers to the linked LiTower file"));
+    saveTowerFileAsAction_->setToolTip(tr("Save towers to a new LiTower file"));
+    reloadTowerFileAction_->setToolTip(tr("Reload towers from the linked LiTower file"));
     showTowerXAction_->setText(tr("Show X"));
     showTowerYAction_->setText(tr("Show Y"));
     showTowerZAction_->setText(tr("Show Z"));
@@ -3402,6 +3443,15 @@ void MainWindow::retranslateUi()
     }
     if (measureRibbonGroup_ != nullptr) {
         measureRibbonGroup_->setTitle(tr("Measure"));
+    }
+    if (vegetationRiskRibbonGroup_ != nullptr) {
+        vegetationRiskRibbonGroup_->setTitle(tr("Vegetation Risks"));
+    }
+    if (routeRibbonGroup_ != nullptr) {
+        routeRibbonGroup_->setTitle(tr("Route Planning"));
+    }
+    if (issueRibbonGroup_ != nullptr) {
+        issueRibbonGroup_->setTitle(tr("Inspection Issues"));
     }
     if (workspaceRibbonGroup_ != nullptr) {
         workspaceRibbonGroup_->setTitle(tr("Workspace"));
@@ -3523,10 +3573,16 @@ void MainWindow::retranslateUi()
     setFieldLabel(towerDetailsLayout_, towerCodeEdit_, tr("Code"));
     setFieldLabel(towerDetailsLayout_, towerLineNameEdit_, tr("Line"));
     setFieldLabel(towerDetailsLayout_, towerVoltageLevelEdit_, tr("Voltage"));
-    setFieldLabel(towerDetailsLayout_, towerStructureTypeEdit_, tr("Tower Type"));
+    setFieldLabel(towerDetailsLayout_, towerTypeComboBox_, tr("Tower Category"));
+    setFieldLabel(towerDetailsLayout_, towerStructureTypeEdit_, tr("Structure Type"));
     setFieldLabel(towerDetailsLayout_, towerInspectionDateEdit_, tr("Inspection Date"));
     setFieldLabel(towerDetailsLayout_, towerStatusEdit_, tr("Tower Status"));
     setFieldLabel(towerDetailsLayout_, towerNotesEdit_, tr("Notes"));
+    if (towerTypeComboBox_ != nullptr && towerTypeComboBox_->count() >= 3) {
+        towerTypeComboBox_->setItemText(0, towerTypeDisplayName(TowerType::Unknown));
+        towerTypeComboBox_->setItemText(1, towerTypeDisplayName(TowerType::Tangent));
+        towerTypeComboBox_->setItemText(2, towerTypeDisplayName(TowerType::Strain));
+    }
     setFieldLabel(issueDetailsLayout_, issueTitleEdit_, tr("Title"));
     setFieldLabel(issueDetailsLayout_, issueCategoryComboBox_, tr("Category"));
     setFieldLabel(issueDetailsLayout_, issueSeverityComboBox_, tr("Severity"));
@@ -4992,6 +5048,59 @@ void MainWindow::createConnections()
         updateTowerPanel();
         showUserMessage(LogLevel::Info, tr("Tower tool cancelled."), 2500);
     };
+    const auto importTowerFileFromDialog = [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before importing tower files."), 3000);
+            return;
+        }
+        const QString filePath = showStyledOpenFileNameDialog(
+            this,
+            tr("Import Tower File"),
+            QString(),
+            tr("LiTower Files (*.LiTower);;CSV Files (*.csv);;All Files (*.*)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+        importTowerFile(filePath, true, true);
+    };
+    const auto saveTowerFileToLinkedPath = [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        if (linkedTowerFilePath_.trimmed().isEmpty()) {
+            const QString filePath = showStyledSaveFileNameDialog(
+                this,
+                tr("Save Tower File"),
+                QStringLiteral("tower.LiTower"),
+                tr("LiTower Files (*.LiTower);;CSV Files (*.csv)"));
+            if (filePath.isEmpty()) {
+                return;
+            }
+            exportTowerFile(filePath, true, true);
+            return;
+        }
+        exportTowerFile(linkedTowerFilePath_, true, true);
+    };
+    const auto saveTowerFileAs = [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        const QString initialPath = linkedTowerFilePath_.trimmed().isEmpty()
+            ? QStringLiteral("tower.LiTower")
+            : linkedTowerFilePath_;
+        const QString filePath = showStyledSaveFileNameDialog(
+            this,
+            tr("Save Tower File As"),
+            initialPath,
+            tr("LiTower Files (*.LiTower);;CSV Files (*.csv)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+        exportTowerFile(filePath, true, true);
+    };
+    const auto reloadTowerFileFromLinkedPath = [this]() {
+        reloadLinkedTowerFile(true);
+    };
     const auto startTowerEditing = [this]() {
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before editing tower markers."), 3000);
@@ -5019,6 +5128,10 @@ void MainWindow::createConnections()
     connect(removeTowerAction_, &QAction::triggered, this, removeSelectedTower);
     connect(clearTowersAction_, &QAction::triggered, this, clearAllTowers);
     connect(cancelTowerToolAction_, &QAction::triggered, this, cancelTowerTool);
+    connect(importTowerFileAction_, &QAction::triggered, this, importTowerFileFromDialog);
+    connect(saveTowerFileAction_, &QAction::triggered, this, saveTowerFileToLinkedPath);
+    connect(saveTowerFileAsAction_, &QAction::triggered, this, saveTowerFileAs);
+    connect(reloadTowerFileAction_, &QAction::triggered, this, reloadTowerFileFromLinkedPath);
     connect(showTowerXAction_, &QAction::toggled, this, [this](bool checked) {
         if (towerTableWidget_ != nullptr) {
             towerTableWidget_->setColumnHidden(2, !checked);
@@ -5060,6 +5173,11 @@ void MainWindow::createConnections()
             rowMenu.addAction(addTowerAction_);
             rowMenu.addAction(clearTowersAction_);
             rowMenu.addAction(cancelTowerToolAction_);
+            rowMenu.addSeparator();
+            rowMenu.addAction(importTowerFileAction_);
+            rowMenu.addAction(saveTowerFileAction_);
+            rowMenu.addAction(saveTowerFileAsAction_);
+            rowMenu.addAction(reloadTowerFileAction_);
             rowMenu.exec(towerTableWidget_->viewport()->mapToGlobal(pos));
         });
 
@@ -5107,7 +5225,7 @@ void MainWindow::createConnections()
         updateTowerPanel();
     });
     const auto commitTowerDetails = [this]() {
-        if (updatingTowerDetails_ || viewer_ == nullptr) {
+        if (updatingTowerDetails_ || viewer_ == nullptr || towerTypeComboBox_ == nullptr) {
             return;
         }
 
@@ -5120,6 +5238,7 @@ void MainWindow::createConnections()
         towerRecord.code = towerCodeEdit_->text().trimmed();
         towerRecord.lineName = towerLineNameEdit_->text().trimmed();
         towerRecord.voltageLevel = towerVoltageLevelEdit_->text().trimmed();
+        towerRecord.towerType = static_cast<TowerType>(towerTypeComboBox_->currentData().toInt());
         towerRecord.structureType = towerStructureTypeEdit_->text().trimmed();
         towerRecord.inspectionDate = towerInspectionDateEdit_->text().trimmed();
         towerRecord.status = towerStatusEdit_->text().trimmed();
@@ -5131,6 +5250,7 @@ void MainWindow::createConnections()
     connect(towerCodeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
     connect(towerLineNameEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
     connect(towerVoltageLevelEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
+    connect(towerTypeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitTowerDetails](int) { commitTowerDetails(); });
     connect(towerStructureTypeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
     connect(towerInspectionDateEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
     connect(towerStatusEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
@@ -5392,6 +5512,7 @@ void MainWindow::createConnections()
     connect(viewer_, &PointCloudViewer::pointCloudCleared, this, [this]() {
         endOperationProgress();
         classificationEditsDirty_ = false;
+        linkedTowerFilePath_.clear();
         setTowerEditingEnabled(false);
         inspectionRoute_ = InspectionRoute();
         selectedRouteWaypointIndex_ = -1;
@@ -5694,6 +5815,102 @@ void MainWindow::syncRoutePlanningFromProjectCoordinateSystems()
     routePlanningOptions_.crs.targetEpsg = projectCoordinateSystems_.geographicCrs.code;
 }
 
+bool MainWindow::importTowerFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    QList<TowerRecord> towers;
+    QString errorMessage;
+    if (!importTowerLiTowerFile(filePath, &towers, &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to import tower file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    viewer_->setTowerMarkers(towers);
+    if (updateLink) {
+        linkedTowerFilePath_ = QFileInfo(filePath).absoluteFilePath();
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Imported tower file: %1").arg(QFileInfo(filePath).fileName()),
+            3500);
+    }
+    updateActionState();
+    return true;
+}
+
+bool MainWindow::exportTowerFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    QString normalizedPath = filePath;
+    if (QFileInfo(normalizedPath).suffix().isEmpty()) {
+        normalizedPath += QStringLiteral(".LiTower");
+    }
+
+    QString errorMessage;
+    if (!exportTowerLiTowerFile(normalizedPath, viewer_->towerMarkers(), &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to save tower file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    if (updateLink) {
+        linkedTowerFilePath_ = QFileInfo(normalizedPath).absoluteFilePath();
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Tower file saved: %1").arg(QFileInfo(normalizedPath).fileName()),
+            3000);
+    }
+    updateActionState();
+    return true;
+}
+
+bool MainWindow::reloadLinkedTowerFile(bool notify)
+{
+    const QString linkedPath = linkedTowerFilePath_.trimmed();
+    if (linkedPath.isEmpty()) {
+        if (notify) {
+            showUserMessage(LogLevel::Warning, tr("No linked tower file to reload."), 3000);
+        }
+        return false;
+    }
+
+    if (!QFileInfo::exists(linkedPath)) {
+        if (notify) {
+            showUserMessage(LogLevel::Error, tr("Linked tower file was not found."), 4000);
+        }
+        return false;
+    }
+
+    if (!importTowerFile(linkedPath, false, false)) {
+        return false;
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Reloaded tower file: %1").arg(QFileInfo(linkedPath).fileName()),
+            3000);
+    }
+    return true;
+}
+
 bool MainWindow::loadProjectFile(const QString& filePath)
 {
     QFile file(filePath);
@@ -5710,6 +5927,7 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     const QJsonObject projectObject = document.object();
+    linkedTowerFilePath_.clear();
     QStringList pointCloudFilePaths;
     const QJsonArray pointCloudFilesArray = projectObject.value(QStringLiteral("pointCloudFilePaths")).toArray();
     for (const QJsonValue& pathValue : pointCloudFilesArray) {
@@ -5839,6 +6057,19 @@ bool MainWindow::loadProjectFile(const QString& filePath)
         towerMarkers.append(towerRecord);
     }
     viewer_->setTowerMarkers(towerMarkers);
+
+    const QJsonObject towerFileObject = projectObject.value(QStringLiteral("towerFile")).toObject();
+    const QString storedTowerRelativePath = towerFileObject.value(QStringLiteral("relativePath")).toString().trimmed();
+    if (!storedTowerRelativePath.isEmpty()) {
+        linkedTowerFilePath_ = resolveProjectPath(filePath, storedTowerRelativePath);
+        if (!QFileInfo::exists(linkedTowerFilePath_)) {
+            showUserMessage(
+                LogLevel::Warning,
+                tr("Linked tower file is missing: %1")
+                    .arg(QFileInfo(storedTowerRelativePath).fileName()),
+                5000);
+        }
+    }
 
     QList<InspectionIssue> inspectionIssues;
     const QJsonArray issuesArray = projectObject.value(QStringLiteral("inspectionIssues")).toArray();
@@ -5974,6 +6205,13 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     QJsonObject projectPropertiesObject {
         { QStringLiteral("coordinateSystems"), projectCoordinateSystemsToJson(projectCoordinateSystems_) }
     };
+    QJsonObject towerFileObject;
+    if (!linkedTowerFilePath_.trimmed().isEmpty()) {
+        towerFileObject.insert(QStringLiteral("format"), QStringLiteral("LiTower"));
+        towerFileObject.insert(
+            QStringLiteral("relativePath"),
+            projectRelativePathFor(filePath, linkedTowerFilePath_));
+    }
 
     QJsonArray towersArray;
     for (const TowerMarker& towerMarker : viewer_->towerMarkers()) {
@@ -6001,7 +6239,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     QJsonObject projectObject {
-        { QStringLiteral("version"), 7 },
+        { QStringLiteral("version"), 8 },
         { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
         { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
@@ -6013,6 +6251,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("routePlanning"), routePlanningObject },
         { QStringLiteral("classificationEdits"), classificationEditsObject },
         { QStringLiteral("routes"), routesArray },
+        { QStringLiteral("towerFile"), towerFileObject },
         { QStringLiteral("towerMarkers"), towersArray },
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
     };
@@ -6025,10 +6264,27 @@ bool MainWindow::saveProjectFile(const QString& filePath)
 
     file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented));
     file.close();
+
+    bool towerFileSyncOk = true;
+    QString towerFileSyncError;
+    if (!linkedTowerFilePath_.trimmed().isEmpty()) {
+        if (!exportTowerLiTowerFile(linkedTowerFilePath_, viewer_->towerMarkers(), &towerFileSyncError)) {
+            towerFileSyncOk = false;
+        }
+    }
+
     currentProjectFilePath_ = filePath;
     classificationEditsDirty_ = false;
     rebuildProjectTree();
-    showUserMessage(LogLevel::Info, tr("Project saved: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    if (towerFileSyncOk) {
+        showUserMessage(LogLevel::Info, tr("Project saved: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    } else {
+        showUserMessage(
+            LogLevel::Warning,
+            tr("Project saved, but tower file sync failed: %1")
+                .arg(towerFileSyncError.isEmpty() ? tr("Unknown error") : towerFileSyncError),
+            5000);
+    }
     return true;
 }
 
@@ -6078,6 +6334,7 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
     QString errorMessage;
     if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
+        linkedTowerFilePath_.clear();
         setTowerEditingEnabled(false);
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
@@ -6114,6 +6371,7 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
     }
 
     currentProjectFilePath_.clear();
+    linkedTowerFilePath_.clear();
     setTowerEditingEnabled(false);
     vegetationRiskResults_.clear();
     selectedVegetationRiskIndex_ = -1;
@@ -6128,6 +6386,7 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
 void MainWindow::clearPointCloud()
 {
     currentProjectFilePath_.clear();
+    linkedTowerFilePath_.clear();
     classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     vegetationRiskResults_.clear();
@@ -6633,6 +6892,7 @@ void MainWindow::updateActionState()
     const bool hasTowerMarkers = viewer_ != nullptr && !viewer_->towerMarkers().isEmpty();
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
     const bool towerToolActive = viewer_ != nullptr && viewer_->towerEditMode() != TowerEditMode::None;
+    const bool hasLinkedTowerFile = !linkedTowerFilePath_.trimmed().isEmpty();
     const bool hasIssues = viewer_ != nullptr && !viewer_->inspectionIssues().isEmpty();
     const bool hasIssueSelection = viewer_ != nullptr && viewer_->selectedIssueIndex() >= 0;
     const bool issueToolActive = viewer_ != nullptr && viewer_->issueEditMode() != IssueEditMode::None;
@@ -6691,6 +6951,10 @@ void MainWindow::updateActionState()
     removeTowerAction_->setEnabled(hasTowerSelection);
     clearTowersAction_->setEnabled(hasTowerMarkers && !towerToolActive);
     cancelTowerToolAction_->setEnabled(towerToolActive);
+    importTowerFileAction_->setEnabled(hasPointCloud);
+    saveTowerFileAction_->setEnabled(hasTowerMarkers);
+    saveTowerFileAsAction_->setEnabled(hasTowerMarkers);
+    reloadTowerFileAction_->setEnabled(hasLinkedTowerFile && hasPointCloud);
     startIssueMarkAction_->setEnabled(hasPointCloud && !issueToolActive);
     cancelIssueToolAction_->setEnabled(issueToolActive);
     focusIssueAction_->setEnabled(hasIssueSelection);
@@ -8216,7 +8480,7 @@ void MainWindow::updateTowerPanel()
         const TowerMarker& towerMarker = towerMarkers.at(towerIndex);
         towerTableWidget_->insertRow(towerIndex);
 
-        auto* indexItem = new QTableWidgetItem(QLocale().toString(towerIndex + 1));
+        auto* indexItem = new QTableWidgetItem(QLocale().toString(towerMarker.index));
         indexItem->setFlags((indexItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
         indexItem->setTextAlignment(Qt::AlignCenter);
         towerTableWidget_->setItem(towerIndex, 0, indexItem);
@@ -8295,7 +8559,7 @@ QString MainWindow::nextDefaultIssueTitle() const
 
 void MainWindow::updateTowerDetailEditor()
 {
-    if (viewer_ == nullptr || towerCodeEdit_ == nullptr) {
+    if (viewer_ == nullptr || towerCodeEdit_ == nullptr || towerTypeComboBox_ == nullptr) {
         return;
     }
 
@@ -8308,6 +8572,8 @@ void MainWindow::updateTowerDetailEditor()
     towerCodeEdit_->setText(towerRecord.code);
     towerLineNameEdit_->setText(towerRecord.lineName);
     towerVoltageLevelEdit_->setText(towerRecord.voltageLevel);
+    const int towerTypeOption = towerTypeComboBox_->findData(static_cast<int>(towerRecord.towerType));
+    towerTypeComboBox_->setCurrentIndex(towerTypeOption >= 0 ? towerTypeOption : 0);
     towerStructureTypeEdit_->setText(towerRecord.structureType);
     towerInspectionDateEdit_->setText(towerRecord.inspectionDate);
     towerStatusEdit_->setText(towerRecord.status);
@@ -8317,6 +8583,7 @@ void MainWindow::updateTowerDetailEditor()
         towerCodeEdit_,
         towerLineNameEdit_,
         towerVoltageLevelEdit_,
+        towerTypeComboBox_,
         towerStructureTypeEdit_,
         towerInspectionDateEdit_,
         towerStatusEdit_,

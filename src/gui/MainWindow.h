@@ -176,6 +176,9 @@ private:
     void updateProfileClassificationPanel();
     bool saveProfileClassificationEditsToLas();
     void promptSaveProfileClassificationEditsIfNeeded();
+    bool importTowerFile(const QString& filePath, bool updateLink = true, bool notify = true);
+    bool exportTowerFile(const QString& filePath, bool updateLink = true, bool notify = true);
+    bool reloadLinkedTowerFile(bool notify = true);
     QString nextDefaultTowerName() const;
     QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
@@ -203,6 +206,9 @@ private:
     Qtitan::RibbonGroup* cameraRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* sceneRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* measureRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* vegetationRiskRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* routeRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* issueRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* colorRibbonGroup_ = nullptr;
@@ -319,6 +325,7 @@ private:
     QLineEdit* towerCodeEdit_ = nullptr;
     QLineEdit* towerLineNameEdit_ = nullptr;
     QLineEdit* towerVoltageLevelEdit_ = nullptr;
+    QComboBox* towerTypeComboBox_ = nullptr;
     QLineEdit* towerStructureTypeEdit_ = nullptr;
     QLineEdit* towerInspectionDateEdit_ = nullptr;
     QLineEdit* towerStatusEdit_ = nullptr;
@@ -405,6 +412,10 @@ private:
     QAction* removeTowerAction_ = nullptr;
     QAction* clearTowersAction_ = nullptr;
     QAction* cancelTowerToolAction_ = nullptr;
+    QAction* importTowerFileAction_ = nullptr;
+    QAction* saveTowerFileAction_ = nullptr;
+    QAction* saveTowerFileAsAction_ = nullptr;
+    QAction* reloadTowerFileAction_ = nullptr;
     QAction* showTowerXAction_ = nullptr;
     QAction* showTowerYAction_ = nullptr;
     QAction* showTowerZAction_ = nullptr;
@@ -423,6 +434,7 @@ private:
     QActionGroup* themeActionGroup_ = nullptr;
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
+    QString linkedTowerFilePath_;
     bool updatingProjectTree_ = false;
     bool towerEditingEnabled_ = false;
     double clearanceWarningThresholdMeters_ = 10.0;
