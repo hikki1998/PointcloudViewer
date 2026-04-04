@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QColor>
+#include <QMap>
 #include <QStringList>
 #include <QStyle>
 
 #include "QtnRibbonMainWindow.h"
 #include "QtnRibbonStyle.h"
 
+#include "crs/CrsTypes.h"
 #include "domain/AnalysisData.h"
 #include "domain/InspectionRoutePlanning.h"
 #include "domain/RuleBasedClearanceEngine.h"
@@ -103,6 +105,7 @@ private:
     void openProject();
     void saveProject();
     void saveProjectAs();
+    void openProjectCoordinateSystems();
     bool loadPointCloudFile(const QString& filePath);
     bool loadPointCloudFiles(const QStringList& filePaths);
     bool appendPointCloudFiles(const QStringList& filePaths);
@@ -165,11 +168,14 @@ private:
     QWidget* createSliderControl(QSlider*& slider, QLabel*& valueLabel, int minimum, int maximum, int step);
     void updateSliderValueLabel(QSlider* slider, QLabel* valueLabel, const QString& formatText) const;
     void updateVisualizationTooltips();
+    void adjustClassificationColorTableHeight();
     void updateClassificationColorTable();
     QString nextDefaultTowerName() const;
     QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
     void setTowerEditingEnabled(bool enabled);
+    void syncProjectCoordinateSystemsFromRoutePlanning();
+    void syncRoutePlanningFromProjectCoordinateSystems();
     void applyLanguage(UiLanguage language);
 
     PointCloudViewer* viewer_ = nullptr;
@@ -269,7 +275,6 @@ private:
     QDoubleSpinBox* vegetationSearchRadiusSpinBox_ = nullptr;
     QDoubleSpinBox* vegetationClusterGapSpinBox_ = nullptr;
     QSpinBox* vegetationClusterPointCountSpinBox_ = nullptr;
-    QSpinBox* sourceEpsgSpinBox_ = nullptr;
     QComboBox* aircraftProfileComboBox_ = nullptr;
     QDoubleSpinBox* routeSafetyHeightSpinBox_ = nullptr;
     QDoubleSpinBox* routeWaypointSpeedSpinBox_ = nullptr;
@@ -332,6 +337,7 @@ private:
     QAction* openProjectAction_ = nullptr;
     QAction* saveProjectAction_ = nullptr;
     QAction* saveProjectAsAction_ = nullptr;
+    QAction* projectCoordinateSystemsAction_ = nullptr;
     QAction* clearAction_ = nullptr;
     QAction* exitAction_ = nullptr;
     QAction* fitSceneAction_ = nullptr;
@@ -403,10 +409,15 @@ private:
     bool preferVegetationClassification_ = true;
     QList<VegetationRiskRecord> vegetationRiskResults_;
     int selectedVegetationRiskIndex_ = -1;
+    lasviewer::crs::ProjectCoordinateSystems projectCoordinateSystems_ {
+        lasviewer::crs::CoordinateSystemRef(),
+        lasviewer::crs::defaultGeographicCoordinateSystem()
+    };
     RoutePlanningOptions routePlanningOptions_;
     InspectionRoute inspectionRoute_;
     int selectedRouteWaypointIndex_ = -1;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
     bool updatingClassificationColorTable_ = false;
+    QMap<int, QString> classificationNameOverrides_;
 };

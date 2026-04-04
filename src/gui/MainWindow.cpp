@@ -93,6 +93,9 @@
 #include "QtnRibbonPage.h"
 #include "QtnRibbonQuickAccessBar.h"
 
+#include "crs/CrsAuthorityService.h"
+#include "crs/ProjectCoordinateSystemsDialog.h"
+#include "crs/CrsTypes.h"
 #include "domain/ClearanceAnalysis.h"
 #include "domain/ClearanceReportExporter.h"
 #include "domain/DataManager.h"
@@ -108,6 +111,11 @@
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
 #include "pointcloud/PointCloudData.h"
+
+using lasviewer::crs::CoordinateSystemKind;
+using lasviewer::crs::CoordinateSystemRef;
+using lasviewer::crs::CrsAuthorityService;
+using lasviewer::crs::ProjectCoordinateSystemsDialog;
 
 namespace
 {
@@ -130,18 +138,40 @@ struct ClassificationDisplayItem
     const char* sourceText;
 };
 
-const std::array<ClassificationDisplayItem, 11> kClassificationDisplayItems = {
-    ClassificationDisplayItem { -1, "Other / Unknown" },
-    ClassificationDisplayItem { 0, "Unclassified" },
-    ClassificationDisplayItem { 1, "Unassigned" },
-    ClassificationDisplayItem { 2, "Ground" },
-    ClassificationDisplayItem { 3, "Low Vegetation" },
-    ClassificationDisplayItem { 4, "Medium Vegetation" },
-    ClassificationDisplayItem { 5, "High Vegetation" },
-    ClassificationDisplayItem { 6, "Building" },
-    ClassificationDisplayItem { 7, "Low Point / Noise" },
-    ClassificationDisplayItem { 9, "Water" },
-    ClassificationDisplayItem { 13, "Wire / Conductor" }
+const std::array<ClassificationDisplayItem, 33> kClassificationDisplayItems = {
+    ClassificationDisplayItem { 0, QT_TRANSLATE_NOOP("MainWindow", "Created / Unclassified") },
+    ClassificationDisplayItem { 1, QT_TRANSLATE_NOOP("MainWindow", "Unclassified Point") },
+    ClassificationDisplayItem { 2, QT_TRANSLATE_NOOP("MainWindow", "Ground Point") },
+    ClassificationDisplayItem { 3, QT_TRANSLATE_NOOP("MainWindow", "Low Vegetation Point") },
+    ClassificationDisplayItem { 4, QT_TRANSLATE_NOOP("MainWindow", "Medium Vegetation Point") },
+    ClassificationDisplayItem { 5, QT_TRANSLATE_NOOP("MainWindow", "High Vegetation Point") },
+    ClassificationDisplayItem { 6, QT_TRANSLATE_NOOP("MainWindow", "Building Point") },
+    ClassificationDisplayItem { 7, QT_TRANSLATE_NOOP("MainWindow", "Low Point") },
+    ClassificationDisplayItem { 8, QT_TRANSLATE_NOOP("MainWindow", "Model Key Point") },
+    ClassificationDisplayItem { 9, QT_TRANSLATE_NOOP("MainWindow", "Temporary Structure") },
+    ClassificationDisplayItem { 10, QT_TRANSLATE_NOOP("MainWindow", "Bridge") },
+    ClassificationDisplayItem { 11, QT_TRANSLATE_NOOP("MainWindow", "Railway") },
+    ClassificationDisplayItem { 12, QT_TRANSLATE_NOOP("MainWindow", "Highway") },
+    ClassificationDisplayItem { 13, QT_TRANSLATE_NOOP("MainWindow", "Non-navigable River") },
+    ClassificationDisplayItem { 14, QT_TRANSLATE_NOOP("MainWindow", "Lake") },
+    ClassificationDisplayItem { 15, QT_TRANSLATE_NOOP("MainWindow", "Substation") },
+    ClassificationDisplayItem { 16, QT_TRANSLATE_NOOP("MainWindow", "Conductor") },
+    ClassificationDisplayItem { 17, QT_TRANSLATE_NOOP("MainWindow", "Tower") },
+    ClassificationDisplayItem { 18, QT_TRANSLATE_NOOP("MainWindow", "Crossing Above") },
+    ClassificationDisplayItem { 19, QT_TRANSLATE_NOOP("MainWindow", "Crossing Below") },
+    ClassificationDisplayItem { 20, QT_TRANSLATE_NOOP("MainWindow", "Ground Wire") },
+    ClassificationDisplayItem { 21, QT_TRANSLATE_NOOP("MainWindow", "Other") },
+    ClassificationDisplayItem { 22, QT_TRANSLATE_NOOP("MainWindow", "Boat / Vehicle") },
+    ClassificationDisplayItem { 23, QT_TRANSLATE_NOOP("MainWindow", "Other Line") },
+    ClassificationDisplayItem { 24, QT_TRANSLATE_NOOP("MainWindow", "Under-Line Structure") },
+    ClassificationDisplayItem { 25, QT_TRANSLATE_NOOP("MainWindow", "Navigable River") },
+    ClassificationDisplayItem { 26, QT_TRANSLATE_NOOP("MainWindow", "Railway Catenary / Contact Wire") },
+    ClassificationDisplayItem { 27, QT_TRANSLATE_NOOP("MainWindow", "Insulator") },
+    ClassificationDisplayItem { 28, QT_TRANSLATE_NOOP("MainWindow", "Jumper Wire") },
+    ClassificationDisplayItem { 29, QT_TRANSLATE_NOOP("MainWindow", "Tower Body") },
+    ClassificationDisplayItem { 30, QT_TRANSLATE_NOOP("MainWindow", "Reserved30") },
+    ClassificationDisplayItem { 31, QT_TRANSLATE_NOOP("MainWindow", "Sag Zone") },
+    ClassificationDisplayItem { -1, QT_TRANSLATE_NOOP("MainWindow", "Other / Unknown") }
 };
 
 bool boundsFromPoints(const QList<PointRecord>& points, PointRecord* minBounds, PointRecord* maxBounds)
@@ -217,6 +247,23 @@ QString formatTriplet(float x, float y, float z)
         .arg(formatCoordinate(z));
 }
 
+QString formatCoordinateSystemCode(const CoordinateSystemRef& crs, const QString& unsetText)
+{
+    if (crs.code <= 0) {
+        return unsetText;
+    }
+    return QStringLiteral("%1:%2")
+        .arg(crs.authName.trimmed().isEmpty() ? QStringLiteral("EPSG") : crs.authName.trimmed())
+        .arg(QLocale().toString(crs.code));
+}
+
+QString formatProjectCoordinateSystemsSummary(const lasviewer::crs::ProjectCoordinateSystems& coordinateSystems)
+{
+    return QCoreApplication::translate("MainWindow", "%1 -> %2")
+        .arg(formatCoordinateSystemCode(coordinateSystems.pointCloudCrs, QCoreApplication::translate("MainWindow", "Unset")))
+        .arg(formatCoordinateSystemCode(coordinateSystems.geographicCrs, QStringLiteral("EPSG:4326")));
+}
+
 QString projectTreeItemType(const QTreeWidgetItem* item)
 {
     return item != nullptr ? item->data(0, kProjectTreeItemTypeRole).toString() : QString();
@@ -246,7 +293,7 @@ QString colorModeName(PointCloudColorMode colorMode)
     }
 }
 
-QString classificationDisplayName(int classificationCode)
+QString defaultClassificationDisplayName(int classificationCode)
 {
     for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
         if (item.code == classificationCode) {
@@ -256,6 +303,16 @@ QString classificationDisplayName(int classificationCode)
 
     return QCoreApplication::translate("MainWindow", "Custom Class %1")
         .arg(QLocale().toString(classificationCode));
+}
+
+QString classificationDisplayName(
+    int classificationCode,
+    const QMap<int, QString>& customNames)
+{
+    const QString customName = customNames.value(classificationCode).trimmed();
+    return customName.isEmpty()
+        ? defaultClassificationDisplayName(classificationCode)
+        : customName;
 }
 
 QJsonObject colorToJson(const QColor& color);
@@ -296,6 +353,67 @@ QMap<int, QColor> classificationColorMapFromJson(
         map.insert(classificationCode, colorFromJson(it->toObject(), map.value(classificationCode)));
     }
 
+    return map;
+}
+
+QJsonObject classificationVisibilityMapToJson(const QMap<int, bool>& visibilityMap)
+{
+    QJsonObject object;
+    for (auto it = visibilityMap.constBegin(); it != visibilityMap.constEnd(); ++it) {
+        object.insert(QString::number(it.key()), it.value());
+    }
+    return object;
+}
+
+QMap<int, bool> classificationVisibilityMapFromJson(
+    const QJsonObject& object,
+    const QMap<int, bool>& fallback)
+{
+    QMap<int, bool> map = fallback;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+        bool ok = false;
+        const int classificationCode = it.key().toInt(&ok);
+        if (!ok || classificationCode < -1 || classificationCode > 255 || !it->isBool()) {
+            continue;
+        }
+
+        map.insert(classificationCode, it->toBool());
+    }
+
+    if (!map.contains(-1)) {
+        map.insert(-1, true);
+    }
+    return map;
+}
+
+QJsonObject classificationNameMapToJson(const QMap<int, QString>& nameMap)
+{
+    QJsonObject object;
+    for (auto it = nameMap.constBegin(); it != nameMap.constEnd(); ++it) {
+        const QString trimmedName = it.value().trimmed();
+        if (trimmedName.isEmpty()) {
+            continue;
+        }
+        object.insert(QString::number(it.key()), trimmedName);
+    }
+    return object;
+}
+
+QMap<int, QString> classificationNameMapFromJson(const QJsonObject& object)
+{
+    QMap<int, QString> map;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it) {
+        bool ok = false;
+        const int classificationCode = it.key().toInt(&ok);
+        if (!ok || classificationCode < -1 || classificationCode > 255 || !it->isString()) {
+            continue;
+        }
+
+        const QString trimmedName = it->toString().trimmed();
+        if (!trimmedName.isEmpty()) {
+            map.insert(classificationCode, trimmedName);
+        }
+    }
     return map;
 }
 QString languageCodeFor(MainWindow::UiLanguage language)
@@ -1389,6 +1507,11 @@ void MainWindow::createActions()
     openProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Open Project"), this);
     saveProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Project"), this);
     saveProjectAsAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Project As"), this);
+    projectCoordinateSystemsAction_ = new QAction(
+        style()->standardIcon(QStyle::SP_FileDialogDetailedView),
+        tr("Project Properties"),
+        this);
+    projectCoordinateSystemsAction_->setToolTip(tr("Open project coordinate system settings"));
 
     clearAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear"), this);
     clearAction_->setToolTip(tr("Clear the current scene"));
@@ -1574,6 +1697,7 @@ void MainWindow::createRibbon()
 
     workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
     workspaceRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
+    workspaceRibbonGroup_->addAction(projectCoordinateSystemsAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(startIssueMarkAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     workspaceRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
@@ -2097,24 +2221,26 @@ void MainWindow::createInspectorPanel()
     renderingLayout_->addRow(QString(), axesCheckBox_);
     renderingLayout_->addRow(QString(), boundingBoxCheckBox_);
 
-    classificationColorsGroupBox_ = new QGroupBox(tr("Classification Colors"), renderingTab.first);
+    classificationColorsGroupBox_ = new QGroupBox(tr("Classification Mapping"), renderingTab.first);
     auto* classificationColorsLayout = new QVBoxLayout(classificationColorsGroupBox_);
     classificationColorsLayout->setContentsMargins(12, 12, 12, 12);
     classificationColorsLayout->setSpacing(8);
 
     classificationColorsTableWidget_ = new QTableWidget(classificationColorsGroupBox_);
-    classificationColorsTableWidget_->setColumnCount(3);
+    classificationColorsTableWidget_->setColumnCount(4);
     classificationColorsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     classificationColorsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     classificationColorsTableWidget_->setAlternatingRowColors(true);
-    classificationColorsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Class"), tr("Type"), tr("Color") });
+    classificationColorsTableWidget_->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked | QAbstractItemView::EditKeyPressed);
+    classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Show"), tr("Class ID"), tr("Class Name"), tr("Color") });
     classificationColorsTableWidget_->verticalHeader()->setVisible(false);
     classificationColorsTableWidget_->horizontalHeader()->setStretchLastSection(false);
     classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    classificationColorsTableWidget_->setMinimumHeight(210);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    classificationColorsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    classificationColorsTableWidget_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    classificationColorsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     resetClassificationColorsButton_ = new QPushButton(tr("Reset Defaults"), classificationColorsGroupBox_);
     resetClassificationColorsButton_->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
@@ -2123,7 +2249,7 @@ void MainWindow::createInspectorPanel()
     classificationButtonRow->addStretch(1);
     classificationButtonRow->addWidget(resetClassificationColorsButton_);
 
-    classificationColorsLayout->addWidget(classificationColorsTableWidget_, 1);
+    classificationColorsLayout->addWidget(classificationColorsTableWidget_);
     classificationColorsLayout->addLayout(classificationButtonRow);
 
     auto* measurementToolbarHost = new QWidget(measurementTab.first);
@@ -2349,11 +2475,6 @@ void MainWindow::createInspectorPanel()
     routePlanningLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
     routePlanningLayout->setFormAlignment(Qt::AlignTop);
 
-    sourceEpsgSpinBox_ = new QSpinBox(routePlanningGroupBox_);
-    sourceEpsgSpinBox_->setRange(0, 999999);
-    sourceEpsgSpinBox_->setSpecialValueText(tr("Unset"));
-    sourceEpsgSpinBox_->setValue(routePlanningOptions_.crs.sourceEpsg);
-
     aircraftProfileComboBox_ = new QComboBox(routePlanningGroupBox_);
     for (const DjiAircraftProfile profile : supportedDjiAircraftProfiles()) {
         aircraftProfileComboBox_->addItem(djiAircraftProfileDisplayName(profile), static_cast<int>(profile));
@@ -2394,7 +2515,6 @@ void MainWindow::createInspectorPanel()
     routeSummaryValueLabel_->setWordWrap(true);
     routeSummaryValueLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    routePlanningLayout->addRow(tr("Source EPSG"), sourceEpsgSpinBox_);
     routePlanningLayout->addRow(tr("DJI Profile"), aircraftProfileComboBox_);
     routePlanningLayout->addRow(tr("Safety Height"), routeSafetyHeightSpinBox_);
     routePlanningLayout->addRow(tr("Waypoint Speed"), routeWaypointSpeedSpinBox_);
@@ -2923,6 +3043,8 @@ void MainWindow::retranslateUi()
     openProjectAction_->setText(tr("Open Project"));
     saveProjectAction_->setText(tr("Save Project"));
     saveProjectAsAction_->setText(tr("Save Project As"));
+    projectCoordinateSystemsAction_->setText(tr("Project Properties"));
+    projectCoordinateSystemsAction_->setToolTip(tr("Open project coordinate system settings"));
     clearAction_->setText(tr("Clear"));
     clearAction_->setToolTip(tr("Clear the current scene"));
     exitAction_->setText(tr("Exit"));
@@ -3056,10 +3178,10 @@ void MainWindow::retranslateUi()
         renderingGroupBox_->setTitle(tr("Rendering Controls"));
     }
     if (classificationColorsGroupBox_ != nullptr) {
-        classificationColorsGroupBox_->setTitle(tr("Classification Colors"));
+        classificationColorsGroupBox_->setTitle(tr("Classification Mapping"));
     }
     if (classificationColorsTableWidget_ != nullptr) {
-        classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Class"), tr("Type"), tr("Color") });
+        classificationColorsTableWidget_->setHorizontalHeaderLabels({ tr("Show"), tr("Class ID"), tr("Class Name"), tr("Color") });
     }
     if (resetClassificationColorsButton_ != nullptr) {
         resetClassificationColorsButton_->setText(tr("Reset Defaults"));
@@ -3273,35 +3395,78 @@ void MainWindow::updateClassificationColorTable()
     const QSignalBlocker blocker(classificationColorsTableWidget_);
     updatingClassificationColorTable_ = true;
 
-    classificationColorsTableWidget_->setRowCount(static_cast<int>(kClassificationDisplayItems.size()));
-    for (int row = 0; row < static_cast<int>(kClassificationDisplayItems.size()); ++row) {
-        const int classificationCode = kClassificationDisplayItems[static_cast<std::size_t>(row)].code;
+    QList<int> classificationCodes;
+    classificationCodes.reserve(static_cast<int>(kClassificationDisplayItems.size()) + options.classificationColors.size());
+    std::set<int> seenCodes;
+    for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
+        if (item.code >= 0) {
+            classificationCodes.append(item.code);
+            seenCodes.insert(item.code);
+        }
+    }
+
+    const auto appendConfiguredCode = [&classificationCodes, &seenCodes](int code) {
+        if (code < 0 || code > 255 || seenCodes.count(code) > 0) {
+            return;
+        }
+        classificationCodes.append(code);
+        seenCodes.insert(code);
+    };
+    for (auto it = options.classificationColors.constBegin(); it != options.classificationColors.constEnd(); ++it) {
+        appendConfiguredCode(it.key());
+    }
+    for (auto it = options.classificationVisibility.constBegin(); it != options.classificationVisibility.constEnd(); ++it) {
+        appendConfiguredCode(it.key());
+    }
+    for (auto it = classificationNameOverrides_.constBegin(); it != classificationNameOverrides_.constEnd(); ++it) {
+        appendConfiguredCode(it.key());
+    }
+    classificationCodes.append(-1);
+
+    classificationColorsTableWidget_->setRowCount(classificationCodes.size());
+    for (int row = 0; row < classificationCodes.size(); ++row) {
+        const int classificationCode = classificationCodes.at(row);
+        const bool visible = options.classificationVisibility.value(
+            classificationCode,
+            options.classificationVisibility.value(-1, true));
         const QColor color = classificationCode < 0
             ? options.classificationFallbackColor
             : options.classificationColors.value(classificationCode, options.classificationFallbackColor);
 
-        auto* classItem = classificationColorsTableWidget_->item(row, 0);
+        auto* visibleItem = classificationColorsTableWidget_->item(row, 0);
+        if (visibleItem == nullptr) {
+            visibleItem = new QTableWidgetItem();
+            classificationColorsTableWidget_->setItem(row, 0, visibleItem);
+        }
+        visibleItem->setFlags((visibleItem->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable) & ~Qt::ItemIsEditable);
+        visibleItem->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
+        visibleItem->setText(QString());
+        visibleItem->setTextAlignment(Qt::AlignCenter);
+        visibleItem->setData(Qt::UserRole, classificationCode);
+
+        auto* classItem = classificationColorsTableWidget_->item(row, 1);
         if (classItem == nullptr) {
             classItem = new QTableWidgetItem();
-            classificationColorsTableWidget_->setItem(row, 0, classItem);
+            classificationColorsTableWidget_->setItem(row, 1, classItem);
         }
         classItem->setFlags((classItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
         classItem->setText(classificationCode < 0 ? tr("Other") : QLocale().toString(classificationCode));
         classItem->setTextAlignment(Qt::AlignCenter);
         classItem->setData(Qt::UserRole, classificationCode);
 
-        auto* typeItem = classificationColorsTableWidget_->item(row, 1);
-        if (typeItem == nullptr) {
-            typeItem = new QTableWidgetItem();
-            classificationColorsTableWidget_->setItem(row, 1, typeItem);
+        auto* nameItem = classificationColorsTableWidget_->item(row, 2);
+        if (nameItem == nullptr) {
+            nameItem = new QTableWidgetItem();
+            classificationColorsTableWidget_->setItem(row, 2, nameItem);
         }
-        typeItem->setFlags((typeItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
-        typeItem->setText(classificationDisplayName(classificationCode));
+        nameItem->setFlags(nameItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable);
+        nameItem->setText(classificationDisplayName(classificationCode, classificationNameOverrides_));
+        nameItem->setData(Qt::UserRole, classificationCode);
 
-        auto* colorItem = classificationColorsTableWidget_->item(row, 2);
+        auto* colorItem = classificationColorsTableWidget_->item(row, 3);
         if (colorItem == nullptr) {
             colorItem = new QTableWidgetItem();
-            classificationColorsTableWidget_->setItem(row, 2, colorItem);
+            classificationColorsTableWidget_->setItem(row, 3, colorItem);
         }
         colorItem->setFlags((colorItem->flags() | Qt::ItemIsSelectable | Qt::ItemIsEnabled) & ~Qt::ItemIsEditable);
         colorItem->setText(color.name(QColor::HexRgb).toUpper());
@@ -3314,6 +3479,7 @@ void MainWindow::updateClassificationColorTable()
     }
 
     classificationColorsTableWidget_->resizeRowsToContents();
+    adjustClassificationColorTableHeight();
     if (classificationColorsGroupBox_ != nullptr) {
         classificationColorsGroupBox_->setEnabled(viewer_->hasPointCloud());
     }
@@ -3322,6 +3488,27 @@ void MainWindow::updateClassificationColorTable()
     }
 
     updatingClassificationColorTable_ = false;
+}
+
+void MainWindow::adjustClassificationColorTableHeight()
+{
+    if (classificationColorsTableWidget_ == nullptr) {
+        return;
+    }
+
+    int contentHeight = classificationColorsTableWidget_->frameWidth() * 2;
+    if (classificationColorsTableWidget_->horizontalHeader() != nullptr
+        && !classificationColorsTableWidget_->horizontalHeader()->isHidden()) {
+        contentHeight += classificationColorsTableWidget_->horizontalHeader()->height();
+    }
+
+    for (int row = 0; row < classificationColorsTableWidget_->rowCount(); ++row) {
+        contentHeight += classificationColorsTableWidget_->rowHeight(row);
+    }
+
+    contentHeight += 4;
+    classificationColorsTableWidget_->setMinimumHeight(contentHeight);
+    classificationColorsTableWidget_->setMaximumHeight(contentHeight);
 }
 
 void MainWindow::createConnections()
@@ -3369,6 +3556,7 @@ void MainWindow::createConnections()
     connect(openProjectAction_, &QAction::triggered, this, [this]() { openProject(); });
     connect(saveProjectAction_, &QAction::triggered, this, [this]() { saveProject(); });
     connect(saveProjectAsAction_, &QAction::triggered, this, [this]() { saveProjectAs(); });
+    connect(projectCoordinateSystemsAction_, &QAction::triggered, this, [this]() { openProjectCoordinateSystems(); });
     connect(clearAction_, &QAction::triggered, this, [this]() { clearPointCloud(); });
     connect(exitAction_, &QAction::triggered, this, &QWidget::close);
 
@@ -3540,10 +3728,7 @@ void MainWindow::createConnections()
     });
 
     const auto syncRoutePlanningOptionsFromUi = [this]() {
-        if (sourceEpsgSpinBox_ != nullptr) {
-            routePlanningOptions_.crs.sourceEpsg = sourceEpsgSpinBox_->value();
-        }
-        routePlanningOptions_.crs.targetEpsg = 4326;
+        syncRoutePlanningFromProjectCoordinateSystems();
         if (aircraftProfileComboBox_ != nullptr) {
             const QVariant profileValue = aircraftProfileComboBox_->currentData();
             const int profileIndex = profileValue.isValid() ? profileValue.toInt() : static_cast<int>(routePlanningOptions_.aircraftProfile);
@@ -3635,8 +3820,8 @@ void MainWindow::createConnections()
 
     connect(importRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi, applyRouteToViewer]() {
         syncRoutePlanningOptionsFromUi();
-        if (routePlanningOptions_.crs.sourceEpsg <= 0) {
-            showUserMessage(LogLevel::Error, tr("Set Source EPSG before importing route KML."), 4500);
+        if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
+            showUserMessage(LogLevel::Error, tr("Set the project point cloud CRS before importing route KML."), 4500);
             return;
         }
 
@@ -3657,7 +3842,7 @@ void MainWindow::createConnections()
         }
 
         InspectionRoute importedLocal;
-        if (!transformRouteFromWgs84(importedWgs84, routePlanningOptions_.crs, &importedLocal, &errorMessage)) {
+        if (!transformRouteFromWgs84(importedWgs84, projectCoordinateSystems_, &importedLocal, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -3682,14 +3867,14 @@ void MainWindow::createConnections()
         }
 
         syncRoutePlanningOptionsFromUi();
-        if (routePlanningOptions_.crs.sourceEpsg <= 0) {
-            showUserMessage(LogLevel::Error, tr("Set Source EPSG before exporting route KML."), 4500);
+        if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
+            showUserMessage(LogLevel::Error, tr("Set the project point cloud CRS before exporting route KML."), 4500);
             return;
         }
 
         InspectionRoute routeWgs84;
         QString errorMessage;
-        if (!transformRouteToWgs84(inspectionRoute_, routePlanningOptions_.crs, &routeWgs84, &errorMessage)) {
+        if (!transformRouteToWgs84(inspectionRoute_, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -3717,14 +3902,14 @@ void MainWindow::createConnections()
         }
 
         syncRoutePlanningOptionsFromUi();
-        if (routePlanningOptions_.crs.sourceEpsg <= 0) {
-            showUserMessage(LogLevel::Error, tr("Set Source EPSG before exporting DJI KMZ."), 4500);
+        if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
+            showUserMessage(LogLevel::Error, tr("Set the project point cloud CRS before exporting DJI KMZ."), 4500);
             return;
         }
 
         InspectionRoute routeWgs84;
         QString errorMessage;
-        if (!transformRouteToWgs84(inspectionRoute_, routePlanningOptions_.crs, &routeWgs84, &errorMessage)) {
+        if (!transformRouteToWgs84(inspectionRoute_, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -3759,10 +3944,6 @@ void MainWindow::createConnections()
         selectedRouteWaypointIndex_ = index;
         updateRoutePlanningPanel();
         updateActionState();
-    });
-    connect(sourceEpsgSpinBox_, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
-        routePlanningOptions_.crs.sourceEpsg = value;
-        updateRoutePlanningPanel();
     });
     connect(aircraftProfileComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
         const QVariant profileValue = aircraftProfileComboBox_->currentData();
@@ -3818,15 +3999,44 @@ void MainWindow::createConnections()
             return;
         }
 
+        classificationNameOverrides_.clear();
         viewer_->resetClassificationColors();
         updateClassificationColorTable();
     });
-    connect(classificationColorsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
-        if (viewer_ == nullptr || classificationColorsTableWidget_ == nullptr || updatingClassificationColorTable_) {
+    connect(classificationColorsTableWidget_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
+        if (viewer_ == nullptr || item == nullptr || updatingClassificationColorTable_) {
             return;
         }
 
-        QTableWidgetItem* colorItem = classificationColorsTableWidget_->item(row, 2);
+        const int classificationCode = item->data(Qt::UserRole).toInt();
+        if (item->column() == 0) {
+            viewer_->setClassificationVisible(classificationCode, item->checkState() == Qt::Checked);
+            return;
+        }
+
+        if (item->column() != 2) {
+            return;
+        }
+
+        const QString trimmedName = item->text().trimmed();
+        const QString defaultName = defaultClassificationDisplayName(classificationCode);
+        if (trimmedName.isEmpty() || trimmedName == defaultName) {
+            classificationNameOverrides_.remove(classificationCode);
+        } else {
+            classificationNameOverrides_.insert(classificationCode, trimmedName);
+        }
+        persistVisualizationSettings();
+        updateClassificationColorTable();
+    });
+    connect(classificationColorsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int column) {
+        if (viewer_ == nullptr || classificationColorsTableWidget_ == nullptr || updatingClassificationColorTable_) {
+            return;
+        }
+        if (column != 3) {
+            return;
+        }
+
+        QTableWidgetItem* colorItem = classificationColorsTableWidget_->item(row, 3);
         if (colorItem == nullptr) {
             return;
         }
@@ -4337,6 +4547,9 @@ void MainWindow::createConnections()
         } else if (itemType == QStringLiteral("pointCloudItem")) {
             viewer_->setSelectedIssueIndex(-1);
             updateIssuePanel();
+        } else {
+            viewer_->setSelectedIssueIndex(-1);
+            updateIssuePanel();
         }
         updateActionState();
     });
@@ -4607,6 +4820,84 @@ void MainWindow::saveProjectAs()
     saveProjectFile(normalizedPath);
 }
 
+void MainWindow::openProjectCoordinateSystems()
+{
+    ProjectCoordinateSystemsDialog dialog(this);
+    dialog.setCoordinateSystems(projectCoordinateSystems_);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    projectCoordinateSystems_ = dialog.coordinateSystems();
+    syncRoutePlanningFromProjectCoordinateSystems();
+    updateRoutePlanningPanel();
+    rebuildProjectTree();
+    updateActionState();
+    showUserMessage(LogLevel::Info, tr("Project coordinate systems updated."), 3000);
+}
+
+void MainWindow::syncProjectCoordinateSystemsFromRoutePlanning()
+{
+    if (projectCoordinateSystems_.pointCloudCrs.authName.trimmed().isEmpty()) {
+        projectCoordinateSystems_.pointCloudCrs.authName = QStringLiteral("EPSG");
+    }
+
+    projectCoordinateSystems_.pointCloudCrs.code = routePlanningOptions_.crs.sourceEpsg;
+    if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
+        projectCoordinateSystems_.pointCloudCrs.displayName.clear();
+        projectCoordinateSystems_.pointCloudCrs.wkt.clear();
+    } else {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.pointCloudCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.pointCloudCrs = normalized;
+        }
+    }
+    projectCoordinateSystems_.pointCloudCrs.kind = CoordinateSystemKind::Projected;
+
+    if (projectCoordinateSystems_.geographicCrs.code <= 0) {
+        projectCoordinateSystems_.geographicCrs = defaultGeographicCoordinateSystem();
+    } else {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.geographicCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.geographicCrs = normalized;
+        }
+    }
+    projectCoordinateSystems_.geographicCrs.kind = CoordinateSystemKind::Geographic;
+}
+
+void MainWindow::syncRoutePlanningFromProjectCoordinateSystems()
+{
+    if (projectCoordinateSystems_.pointCloudCrs.authName.trimmed().isEmpty()) {
+        projectCoordinateSystems_.pointCloudCrs.authName = QStringLiteral("EPSG");
+    }
+    projectCoordinateSystems_.pointCloudCrs.kind = CoordinateSystemKind::Projected;
+
+    if (projectCoordinateSystems_.geographicCrs.authName.trimmed().isEmpty()) {
+        projectCoordinateSystems_.geographicCrs.authName = QStringLiteral("EPSG");
+    }
+
+    if (projectCoordinateSystems_.geographicCrs.code <= 0) {
+        projectCoordinateSystems_.geographicCrs = defaultGeographicCoordinateSystem();
+    }
+    if (projectCoordinateSystems_.pointCloudCrs.code > 0) {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.pointCloudCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.pointCloudCrs = normalized;
+        }
+    }
+    if (projectCoordinateSystems_.geographicCrs.code > 0) {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.geographicCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.geographicCrs = normalized;
+        }
+    }
+    projectCoordinateSystems_.pointCloudCrs.kind = CoordinateSystemKind::Projected;
+    projectCoordinateSystems_.geographicCrs.kind = CoordinateSystemKind::Geographic;
+
+    routePlanningOptions_.crs.sourceEpsg = projectCoordinateSystems_.pointCloudCrs.code;
+    routePlanningOptions_.crs.targetEpsg = projectCoordinateSystems_.geographicCrs.code;
+}
+
 bool MainWindow::loadProjectFile(const QString& filePath)
 {
     QFile file(filePath);
@@ -4660,9 +4951,14 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     viewer_->setClassificationColorMap(classificationColorMapFromJson(
         visualizationObject.value(QStringLiteral("classificationColors")).toObject(),
         defaults.classificationColors));
+    viewer_->setClassificationVisibilityMap(classificationVisibilityMapFromJson(
+        visualizationObject.value(QStringLiteral("classificationVisibility")).toObject(),
+        defaults.classificationVisibility));
     viewer_->setClassificationFallbackColor(colorFromJson(
         visualizationObject.value(QStringLiteral("classificationFallbackColor")).toObject(),
         defaults.classificationFallbackColor));
+    classificationNameOverrides_ = classificationNameMapFromJson(
+        visualizationObject.value(QStringLiteral("classificationNameOverrides")).toObject());
     viewer_->setColorMode(visualizationObject.value(QStringLiteral("colorMode")).toInt(static_cast<int>(defaults.colorMode)));
     viewer_->setSingleColor(colorFromJson(visualizationObject.value(QStringLiteral("singleColor")).toObject(), defaults.singleColor));
     viewer_->setBackgroundColor(colorFromJson(visualizationObject.value(QStringLiteral("backgroundColor")).toObject(), defaults.backgroundColor));
@@ -4712,6 +5008,22 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     routePlanningOptions_ = routePlanningOptionsFromJson(projectObject.value(QStringLiteral("routePlanning")).toObject());
+    syncProjectCoordinateSystemsFromRoutePlanning();
+
+    const QJsonObject projectPropertiesObject = projectObject.value(QStringLiteral("projectProperties")).toObject();
+    const QJsonObject coordinateSystemsObject = projectPropertiesObject.value(QStringLiteral("coordinateSystems")).toObject();
+    if (!coordinateSystemsObject.isEmpty()) {
+        projectCoordinateSystems_.pointCloudCrs = coordinateSystemRefFromJson(
+            coordinateSystemsObject.value(QStringLiteral("pointCloudCrs")).toObject(),
+            projectCoordinateSystems_.pointCloudCrs);
+        projectCoordinateSystems_.geographicCrs = coordinateSystemRefFromJson(
+            coordinateSystemsObject.value(QStringLiteral("geographicCrs")).toObject(),
+            projectCoordinateSystems_.geographicCrs);
+        if (projectCoordinateSystems_.geographicCrs.code <= 0) {
+            projectCoordinateSystems_.geographicCrs = defaultGeographicCoordinateSystem();
+        }
+    }
+    syncRoutePlanningFromProjectCoordinateSystems();
 
     QList<TowerMarker> towerMarkers;
     const QJsonArray towersArray = projectObject.value(QStringLiteral("towerMarkers")).toArray();
@@ -4793,10 +5105,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         return false;
     }
 
-    if (sourceEpsgSpinBox_ != nullptr) {
-        routePlanningOptions_.crs.sourceEpsg = sourceEpsgSpinBox_->value();
-    }
-    routePlanningOptions_.crs.targetEpsg = 4326;
+    syncRoutePlanningFromProjectCoordinateSystems();
     if (aircraftProfileComboBox_ != nullptr) {
         const QVariant profileValue = aircraftProfileComboBox_->currentData();
         const int profileIndex = profileValue.isValid() ? profileValue.toInt() : static_cast<int>(routePlanningOptions_.aircraftProfile);
@@ -4826,6 +5135,8 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("colorMode"), static_cast<int>(viewer_->visualizationOptions().colorMode) },
         { QStringLiteral("singleColor"), colorToJson(viewer_->visualizationOptions().singleColor) },
         { QStringLiteral("classificationColors"), classificationColorMapToJson(viewer_->visualizationOptions().classificationColors) },
+        { QStringLiteral("classificationVisibility"), classificationVisibilityMapToJson(viewer_->visualizationOptions().classificationVisibility) },
+        { QStringLiteral("classificationNameOverrides"), classificationNameMapToJson(classificationNameOverrides_) },
         { QStringLiteral("classificationFallbackColor"), colorToJson(viewer_->visualizationOptions().classificationFallbackColor) },
         { QStringLiteral("backgroundColor"), colorToJson(viewer_->visualizationOptions().backgroundColor) },
         { QStringLiteral("useRoundSplats"), viewer_->visualizationOptions().useRoundSplats },
@@ -4850,6 +5161,9 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("preferVegetationClassification"), preferVegetationClassification_ }
     };
     QJsonObject routePlanningObject = routePlanningOptionsToJson(routePlanningOptions_);
+    QJsonObject projectPropertiesObject {
+        { QStringLiteral("coordinateSystems"), projectCoordinateSystemsToJson(projectCoordinateSystems_) }
+    };
 
     QJsonArray towersArray;
     for (const TowerMarker& towerMarker : viewer_->towerMarkers()) {
@@ -4877,10 +5191,11 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     QJsonObject projectObject {
-        { QStringLiteral("version"), 6 },
+        { QStringLiteral("version"), 7 },
         { QStringLiteral("pointCloudFilePaths"), pointCloudFilesArray },
         { QStringLiteral("pointCloudFilePath"), viewer_->currentFilePath().isEmpty() ? QString() : projectRelativePathFor(filePath, viewer_->currentFilePath()) },
         { QStringLiteral("language"), languageCodeFor(currentLanguage_) },
+        { QStringLiteral("projectProperties"), projectPropertiesObject },
         { QStringLiteral("visualization"), visualizationObject },
         { QStringLiteral("interaction"), interactionObject },
         { QStringLiteral("measurement"), measurementObject },
@@ -5333,7 +5648,6 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker vegetationClusterGapBlocker(vegetationClusterGapSpinBox_);
         const QSignalBlocker vegetationClusterPointCountBlocker(vegetationClusterPointCountSpinBox_);
         const QSignalBlocker preferVegetationClassificationBlocker(preferVegetationClassificationCheckBox_);
-        const QSignalBlocker sourceEpsgBlocker(sourceEpsgSpinBox_);
         const QSignalBlocker aircraftProfileBlocker(aircraftProfileComboBox_);
         const QSignalBlocker routeSafetyHeightBlocker(routeSafetyHeightSpinBox_);
         const QSignalBlocker routeWaypointSpeedBlocker(routeWaypointSpeedSpinBox_);
@@ -5377,9 +5691,6 @@ void MainWindow::syncUiFromViewer()
         }
         if (preferVegetationClassificationCheckBox_ != nullptr) {
             preferVegetationClassificationCheckBox_->setChecked(preferVegetationClassification_);
-        }
-        if (sourceEpsgSpinBox_ != nullptr) {
-            sourceEpsgSpinBox_->setValue(routePlanningOptions_.crs.sourceEpsg);
         }
         if (aircraftProfileComboBox_ != nullptr) {
             const int profileIndex = aircraftProfileComboBox_->findData(static_cast<int>(routePlanningOptions_.aircraftProfile));
@@ -5493,6 +5804,7 @@ void MainWindow::updateActionState()
     openProjectAction_->setEnabled(true);
     saveProjectAction_->setEnabled(viewer_ != nullptr && !viewer_->currentFilePaths().isEmpty());
     saveProjectAsAction_->setEnabled(viewer_ != nullptr && !viewer_->currentFilePaths().isEmpty());
+    projectCoordinateSystemsAction_->setEnabled(viewer_ != nullptr);
     addPointCloudAction_->setEnabled(true);
     removeDatasetAction_->setEnabled(hasDatasetSelection);
     locateDatasetAction_->setEnabled(hasPathSelection);
@@ -5739,6 +6051,17 @@ void MainWindow::loadVisualizationSettings()
         viewer_->setClassificationColorMap(
             classificationColorMapFromJson(classificationColorDocument.object(), defaults.classificationColors));
     }
+    const QJsonDocument classificationVisibilityDocument = QJsonDocument::fromJson(
+        settings.value(QStringLiteral("visualization/classificationVisibilityJson")).toByteArray());
+    if (classificationVisibilityDocument.isObject()) {
+        viewer_->setClassificationVisibilityMap(
+            classificationVisibilityMapFromJson(classificationVisibilityDocument.object(), defaults.classificationVisibility));
+    }
+    const QJsonDocument classificationNameDocument = QJsonDocument::fromJson(
+        settings.value(QStringLiteral("visualization/classificationNameOverridesJson")).toByteArray());
+    classificationNameOverrides_ = classificationNameDocument.isObject()
+        ? classificationNameMapFromJson(classificationNameDocument.object())
+        : QMap<int, QString>();
     viewer_->setClassificationFallbackColor(
         settings.value(QStringLiteral("visualization/classificationFallbackColor"), defaults.classificationFallbackColor).value<QColor>());
     viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
@@ -5764,6 +6087,12 @@ void MainWindow::persistVisualizationSettings() const
     settings.setValue(
         QStringLiteral("visualization/classificationColorsJson"),
         QJsonDocument(classificationColorMapToJson(options.classificationColors)).toJson(QJsonDocument::Compact));
+    settings.setValue(
+        QStringLiteral("visualization/classificationVisibilityJson"),
+        QJsonDocument(classificationVisibilityMapToJson(options.classificationVisibility)).toJson(QJsonDocument::Compact));
+    settings.setValue(
+        QStringLiteral("visualization/classificationNameOverridesJson"),
+        QJsonDocument(classificationNameMapToJson(classificationNameOverrides_)).toJson(QJsonDocument::Compact));
     settings.setValue(QStringLiteral("visualization/classificationFallbackColor"), options.classificationFallbackColor);
     settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
     settings.setValue(QStringLiteral("visualization/useRoundSplats"), options.useRoundSplats);
@@ -6212,8 +6541,9 @@ void MainWindow::updateRoutePlanningPanel()
             : tr("%1 waypoint(s) ready for KML/KMZ interoperability.")
                 .arg(QLocale().toString(inspectionRoute_.waypoints.size())));
     routeSummaryValueLabel_->setText(
-        tr("EPSG:%1 -> EPSG:4326 | DJI profile: %2 | Safety %3 m | Speed %4 m/s | Spacing %5 m | Smoothing %6%% | Height offset %7 m")
-            .arg(routePlanningOptions_.crs.sourceEpsg <= 0 ? tr("Unset") : QLocale().toString(routePlanningOptions_.crs.sourceEpsg))
+        tr("%1 -> %2 | DJI profile: %3 | Safety %4 m | Speed %5 m/s | Spacing %6 m | Smoothing %7%% | Height offset %8 m")
+            .arg(formatCoordinateSystemCode(projectCoordinateSystems_.pointCloudCrs, tr("Unset")))
+            .arg(formatCoordinateSystemCode(projectCoordinateSystems_.geographicCrs, QStringLiteral("EPSG:4326")))
             .arg(djiAircraftProfileDisplayName(routePlanningOptions_.aircraftProfile))
             .arg(formatCoordinate(routePlanningOptions_.safety.safetyHeightMeters))
             .arg(formatCoordinate(routePlanningOptions_.safety.defaultWaypointSpeedMps))
@@ -6284,6 +6614,17 @@ void MainWindow::rebuildProjectTree()
     updatingProjectTree_ = true;
     projectTreeWidget_->clear();
 
+    const QString projectName = currentProjectFilePath_.trimmed().isEmpty()
+        ? tr("Unsaved Project")
+        : QFileInfo(currentProjectFilePath_).completeBaseName();
+    auto* coordinateSystemsItem = new QTreeWidgetItem(projectTreeWidget_, QStringList { tr("Project Properties") });
+    coordinateSystemsItem->setData(0, kProjectTreeItemTypeRole, QStringLiteral("coordinateSystemsItem"));
+    coordinateSystemsItem->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogContentsView));
+    coordinateSystemsItem->setToolTip(
+        0,
+        tr("Project: %1\nCurrent project CRS: %2")
+            .arg(projectName, formatProjectCoordinateSystemsSummary(projectCoordinateSystems_)));
+
     auto* pointCloudGroup = new QTreeWidgetItem(projectTreeWidget_, QStringList {
         tr("Point Clouds (%1)").arg(QLocale().toString(dataManager.pointCloudDatasets().size()))
     });
@@ -6303,7 +6644,9 @@ void MainWindow::rebuildProjectTree()
     trajectoryGroup->setIcon(0, style()->standardIcon(QStyle::SP_ArrowRight));
 
     QTreeWidgetItem* selectedItem = nullptr;
-    if (previousItemType == QStringLiteral("pointCloudGroup")) {
+    if (previousItemType == QStringLiteral("coordinateSystemsItem")) {
+        selectedItem = coordinateSystemsItem;
+    } else if (previousItemType == QStringLiteral("pointCloudGroup")) {
         selectedItem = pointCloudGroup;
     } else if (previousItemType == QStringLiteral("imageGroup")) {
         selectedItem = imageGroup;
@@ -6383,7 +6726,8 @@ void MainWindow::rebuildProjectTree()
         QTreeWidgetItemIterator it(projectTreeWidget_);
         while (*it != nullptr) {
             const QString itemType = (*it)->data(0, kProjectTreeItemTypeRole).toString();
-            if (itemType == QStringLiteral("pointCloudItem")
+            if (itemType == QStringLiteral("coordinateSystemsItem")
+                || itemType == QStringLiteral("pointCloudItem")
                 || itemType == QStringLiteral("imageItem")
                 || itemType == QStringLiteral("trajectoryItem")) {
                 selectedItem = *it;
@@ -6393,7 +6737,7 @@ void MainWindow::rebuildProjectTree()
         }
     }
 
-    projectTreeWidget_->setCurrentItem(selectedItem != nullptr ? selectedItem : pointCloudGroup);
+    projectTreeWidget_->setCurrentItem(selectedItem != nullptr ? selectedItem : coordinateSystemsItem);
     updatingProjectTree_ = false;
     refreshProjectTreeFilter();
 }
@@ -6464,6 +6808,11 @@ void MainWindow::focusProjectTreeItem(QTreeWidgetItem* item)
     }
 
     const QString itemType = projectTreeItemType(item);
+    if (itemType == QStringLiteral("coordinateSystemsItem")) {
+        openProjectCoordinateSystems();
+        return;
+    }
+
     if (itemType == QStringLiteral("pointCloudItem")) {
         const QString filePath = projectTreeItemFilePath(item);
         for (const PointCloudDatasetInfo& datasetInfo : DataManager::instance().pointCloudDatasets()) {
@@ -6846,6 +7195,15 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
             updateRoutePlanningPanel();
             rebuildProjectTree();
             updateActionState();
+        }
+        return;
+    }
+
+    if (itemType == QStringLiteral("projectGroup") || itemType == QStringLiteral("coordinateSystemsItem")) {
+        QAction* propertiesAction = menu.addAction(tr("Project Properties"));
+        QAction* chosenAction = menu.exec(globalPos);
+        if (chosenAction == propertiesAction) {
+            openProjectCoordinateSystems();
         }
         return;
     }

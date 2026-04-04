@@ -1,14 +1,15 @@
 #include "domain/InspectionRoutePlanning.h"
 
+#include <QPointF>
 #include <QCoreApplication>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-#ifdef LAS_VIEWER_HAS_PROJ
-#include <proj.h>
-#endif
+#include "crs/CrsAuthorityService.h"
+#include "crs/CrsTransformService.h"
+#include "crs/CrsTypes.h"
 
 namespace
 {
@@ -147,67 +148,39 @@ bool transformPointEpsg(
         return true;
     }
 
-#ifdef LAS_VIEWER_HAS_PROJ
-    PJ_CONTEXT* context = proj_context_create();
-    if (context == nullptr) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Failed to create PROJ context.");
-        }
+    lasviewer::crs::CoordinateSystemRef source;
+    source.authName = QStringLiteral("EPSG");
+    source.code = sourceEpsg;
+    source.kind = lasviewer::crs::CoordinateSystemKind::Projected;
+    lasviewer::crs::CoordinateSystemRef normalizedSource;
+    if (lasviewer::crs::CrsAuthorityService::normalizeCoordinateSystem(source, &normalizedSource, nullptr)) {
+        source = normalizedSource;
+    }
+
+    lasviewer::crs::CoordinateSystemRef target;
+    target.authName = QStringLiteral("EPSG");
+    target.code = targetEpsg;
+    target.kind = targetEpsg == 4326
+        ? lasviewer::crs::CoordinateSystemKind::Geographic
+        : lasviewer::crs::CoordinateSystemKind::Projected;
+    lasviewer::crs::CoordinateSystemRef normalizedTarget;
+    if (lasviewer::crs::CrsAuthorityService::normalizeCoordinateSystem(target, &normalizedTarget, nullptr)) {
+        target = normalizedTarget;
+    }
+
+    QPointF output;
+    if (!lasviewer::crs::CrsTransformService::transformPoint(
+            source,
+            target,
+            QPointF(x, y),
+            &output,
+            errorMessage)) {
         return false;
     }
 
-    const QString source = QStringLiteral("EPSG:%1").arg(sourceEpsg);
-    const QString target = QStringLiteral("EPSG:%1").arg(targetEpsg);
-    PJ* transform = proj_create_crs_to_crs(
-        context,
-        source.toUtf8().constData(),
-        target.toUtf8().constData(),
-        nullptr);
-    if (transform == nullptr) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Failed to create CRS transform from %1 to %2.")
-                .arg(source, target);
-        }
-        proj_context_destroy(context);
-        return false;
-    }
-
-    PJ* normalized = proj_normalize_for_visualization(context, transform);
-    proj_destroy(transform);
-    if (normalized == nullptr) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Failed to normalize CRS transform from %1 to %2.")
-                .arg(source, target);
-        }
-        proj_context_destroy(context);
-        return false;
-    }
-
-    PJ_COORD input = proj_coord(x, y, 0.0, 0.0);
-    PJ_COORD output = proj_trans(normalized, PJ_FWD, input);
-    proj_destroy(normalized);
-    proj_context_destroy(context);
-
-    if (!std::isfinite(output.xy.x) || !std::isfinite(output.xy.y)) {
-        if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Coordinate transformation returned invalid result.");
-        }
-        return false;
-    }
-
-    *outX = output.xy.x;
-    *outY = output.xy.y;
+    *outX = output.x();
+    *outY = output.y();
     return true;
-#else
-    Q_UNUSED(x);
-    Q_UNUSED(y);
-    Q_UNUSED(sourceEpsg);
-    Q_UNUSED(targetEpsg);
-    if (errorMessage != nullptr) {
-        *errorMessage = QObject::tr("PROJ support is not available in this build.");
-    }
-    return false;
-#endif
 }
 
 QJsonObject generationOptionsToJson(const RouteGenerationOptions& options)
@@ -392,7 +365,7 @@ InspectionRoute generateInspectionRouteFromRisks(
 
 bool transformRouteToWgs84(
     const InspectionRoute& localRoute,
-    const CrsTransformOptions& transformOptions,
+    const ProjectCoordinateSystems& coordinateSystems,
     InspectionRoute* outputRouteWgs84,
     QString* errorMessage)
 {
@@ -403,9 +376,16 @@ bool transformRouteToWgs84(
         return false;
     }
 
-    if (transformOptions.sourceEpsg <= 0) {
+    if (coordinateSystems.pointCloudCrs.code <= 0) {
         if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Source EPSG is required before route export.");
+            *errorMessage = QObject::tr("Project point cloud CRS is required before route export.");
+        }
+        return false;
+    }
+
+    if (coordinateSystems.geographicCrs.code <= 0) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QObject::tr("Project geographic CRS is required before route export.");
         }
         return false;
     }
@@ -417,8 +397,8 @@ bool transformRouteToWgs84(
         if (!transformPointEpsg(
                 static_cast<double>(waypoint.localPoint.x),
                 static_cast<double>(waypoint.localPoint.y),
-                transformOptions.sourceEpsg,
-                transformOptions.targetEpsg,
+                coordinateSystems.pointCloudCrs.code,
+                coordinateSystems.geographicCrs.code,
                 &longitude,
                 &latitude,
                 errorMessage)) {
@@ -434,7 +414,7 @@ bool transformRouteToWgs84(
 
 bool transformRouteFromWgs84(
     const InspectionRoute& routeWgs84,
-    const CrsTransformOptions& transformOptions,
+    const ProjectCoordinateSystems& coordinateSystems,
     InspectionRoute* outputLocalRoute,
     QString* errorMessage)
 {
@@ -445,9 +425,16 @@ bool transformRouteFromWgs84(
         return false;
     }
 
-    if (transformOptions.sourceEpsg <= 0) {
+    if (coordinateSystems.pointCloudCrs.code <= 0) {
         if (errorMessage != nullptr) {
-            *errorMessage = QObject::tr("Source EPSG is required before route import.");
+            *errorMessage = QObject::tr("Project point cloud CRS is required before route import.");
+        }
+        return false;
+    }
+
+    if (coordinateSystems.geographicCrs.code <= 0) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QObject::tr("Project geographic CRS is required before route import.");
         }
         return false;
     }
@@ -459,8 +446,8 @@ bool transformRouteFromWgs84(
         if (!transformPointEpsg(
                 waypoint.longitude,
                 waypoint.latitude,
-                transformOptions.targetEpsg,
-                transformOptions.sourceEpsg,
+                coordinateSystems.geographicCrs.code,
+                coordinateSystems.pointCloudCrs.code,
                 &x,
                 &y,
                 errorMessage)) {
@@ -551,7 +538,6 @@ QJsonObject routePlanningOptionsToJson(const RoutePlanningOptions& options)
     return QJsonObject {
         { QStringLiteral("generation"), generationOptionsToJson(options.generation) },
         { QStringLiteral("safety"), safetyOptionsToJson(options.safety) },
-        { QStringLiteral("crs"), crsOptionsToJson(options.crs) },
         { QStringLiteral("aircraftProfile"), static_cast<int>(options.aircraftProfile) }
     };
 }

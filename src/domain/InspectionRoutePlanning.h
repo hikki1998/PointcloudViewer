@@ -8,6 +8,7 @@
 
 #include "domain/AnalysisData.h"
 #include "domain/InspectionData.h"
+#include "domain/ProjectMetadata.h"
 #include "pointcloud/PointCloudData.h"
 
 enum class DjiAircraftProfile
@@ -89,13 +90,13 @@ InspectionRoute generateInspectionRouteFromRisks(
 
 bool transformRouteToWgs84(
     const InspectionRoute& localRoute,
-    const CrsTransformOptions& transformOptions,
+    const ProjectCoordinateSystems& coordinateSystems,
     InspectionRoute* outputRouteWgs84,
     QString* errorMessage = nullptr);
 
 bool transformRouteFromWgs84(
     const InspectionRoute& routeWgs84,
-    const CrsTransformOptions& transformOptions,
+    const ProjectCoordinateSystems& coordinateSystems,
     InspectionRoute* outputLocalRoute,
     QString* errorMessage = nullptr);
 
