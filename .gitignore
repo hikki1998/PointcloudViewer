@@ -41,6 +41,8 @@ mocs_compilation*.cpp
 *.log
 *.tmp
 Thumbs.db
+/plan/
+/planning/
 test_data/220kV万川23B6线49-57.las
 test_data/220kV万川23B6线57-65.las
 ourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1*
