@@ -1397,7 +1397,12 @@ void PointCloudViewer::setSingleColor(const QColor& color)
 
 void PointCloudViewer::setClassificationColor(int classification, const QColor& color)
 {
-    if (classification < 0 || classification > 255 || !color.isValid()) {
+    if (classification > 255 || !color.isValid()) {
+        return;
+    }
+
+    if (classification < 0) {
+        setClassificationFallbackColor(color);
         return;
     }
 
@@ -1415,6 +1420,28 @@ void PointCloudViewer::setClassificationColor(int classification, const QColor& 
     emit visualizationOptionsChanged();
 }
 
+void PointCloudViewer::setClassificationVisible(int classification, bool visible)
+{
+    if (classification < -1 || classification > 255) {
+        return;
+    }
+
+    const bool currentVisible = visualizationOptions_.classificationVisibility.value(
+        classification,
+        visualizationOptions_.classificationVisibility.value(-1, true));
+    if (currentVisible == visible) {
+        return;
+    }
+
+    visualizationOptions_.classificationVisibility.insert(classification, visible);
+    if (hasPointCloud()) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
 void PointCloudViewer::setClassificationColorMap(const QMap<int, QColor>& colorMap)
 {
     if (visualizationOptions_.classificationColors == colorMap) {
@@ -1423,6 +1450,24 @@ void PointCloudViewer::setClassificationColorMap(const QMap<int, QColor>& colorM
 
     visualizationOptions_.classificationColors = colorMap;
     if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
+        rebuildScene();
+    }
+
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
+void PointCloudViewer::setClassificationVisibilityMap(const QMap<int, bool>& visibilityMap)
+{
+    if (visualizationOptions_.classificationVisibility == visibilityMap) {
+        return;
+    }
+
+    visualizationOptions_.classificationVisibility = visibilityMap;
+    if (!visualizationOptions_.classificationVisibility.contains(-1)) {
+        visualizationOptions_.classificationVisibility.insert(-1, true);
+    }
+    if (hasPointCloud()) {
         rebuildScene();
     }
 
@@ -1448,9 +1493,10 @@ void PointCloudViewer::setClassificationFallbackColor(const QColor& color)
 void PointCloudViewer::resetClassificationColors()
 {
     visualizationOptions_.classificationColors = defaultPointClassificationColors();
+    visualizationOptions_.classificationVisibility = defaultPointClassificationVisibility();
     visualizationOptions_.classificationFallbackColor = defaultPointClassificationFallbackColor();
 
-    if (visualizationOptions_.colorMode == PointCloudColorMode::Classification && hasPointCloud()) {
+    if (hasPointCloud()) {
         rebuildScene();
     }
 

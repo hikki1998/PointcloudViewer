@@ -173,6 +173,20 @@ QColor colorForClassification(
     return visualizationOptions.classificationFallbackColor;
 }
 
+bool pointVisibleForClassification(
+    const PointRecord& point,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    const bool fallbackVisible = visualizationOptions.classificationVisibility.value(-1, true);
+    if (!point.hasClassification) {
+        return fallbackVisible;
+    }
+
+    return visualizationOptions.classificationVisibility.value(
+        static_cast<int>(point.classification),
+        fallbackVisible);
+}
+
 osg::Vec4ub pointColor(
     const PointRecord& point,
     const PointCloudVisualizationOptions& visualizationOptions,
@@ -202,9 +216,8 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     const std::size_t pointCount = pointCloudData.size();
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4ubArray> colors = new osg::Vec4ubArray();
-
-    vertices->resize(pointCount);
-    colors->resize(pointCount);
+    vertices->reserve(pointCount);
+    colors->reserve(pointCount);
 
     const float minZ = pointCloudData.minBounds().z;
     const float heightSpan = std::max(0.0f, pointCloudData.maxBounds().z - minZ);
@@ -212,8 +225,12 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     const std::vector<PointRecord>& points = pointCloudData.points();
     for (std::size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
         const PointRecord& point = points[pointIndex];
-        (*vertices)[pointIndex].set(point.x, point.y, point.z);
-        (*colors)[pointIndex] = pointColor(point, visualizationOptions, minZ, heightSpan);
+        if (!pointVisibleForClassification(point, visualizationOptions)) {
+            continue;
+        }
+
+        vertices->push_back(osg::Vec3(point.x, point.y, point.z));
+        colors->push_back(pointColor(point, visualizationOptions, minZ, heightSpan));
     }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
@@ -221,7 +238,7 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     geometry->setUseVertexBufferObjects(true);
     geometry->setVertexArray(vertices.get());
     geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
-    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(pointCount)));
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
     geode->addDrawable(geometry.get());
