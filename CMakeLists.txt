@@ -25,6 +25,7 @@ set(THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rd" CACHE PATH "Root directory
 set(QT_ROOT "E:/code/Qt5.15.2/5.15.2/msvc2019_64" CACHE PATH "Qt installation root")
 set(OSG_ROOT "" CACHE PATH "Legacy override for OpenSceneGraph installation root")
 set(QTITAN_ROOT "" CACHE PATH "Legacy override for QtitanRibbon package root")
+set(GDAL_ROOT "" CACHE PATH "Legacy override for GDAL SDK/runtime root")
 set(PCL_ROOT "" CACHE PATH "Legacy override for PCL installation root")
 set(LASLIB_ROOT "" CACHE PATH "Legacy override for LASlib package root")
 set(LASTOOLS_ROOT "" CACHE PATH "Legacy override for LAStools package root")
@@ -139,6 +140,23 @@ las_viewer_resolve_package_root(RESOLVED_QTITAN_ROOT "QtitanRibbon" "qtitan"
     REQUIRED_PATHS "include/QtitanRibbon.h" "bin"
 )
 set(QTITAN_ROOT "${RESOLVED_QTITAN_ROOT}" CACHE PATH "QtitanRibbon package root" FORCE)
+
+set(default_gdal_root "${THIRDPARTY_ROOT}/gdal")
+if(GDAL_ROOT OR EXISTS "${default_gdal_root}")
+    las_viewer_resolve_package_root(RESOLVED_GDAL_ROOT "GDAL SDK" "gdal"
+        LEGACY_ROOT "${GDAL_ROOT}"
+        REQUIRED_PATHS "include/gdal.h" "lib" "bin"
+    )
+    set(GDAL_ROOT "${RESOLVED_GDAL_ROOT}" CACHE PATH "GDAL SDK/runtime root" FORCE)
+endif()
+
+if((NOT PROJ_ROOT
+    OR (NOT EXISTS "${PROJ_ROOT}/include/proj9/proj.h" AND NOT EXISTS "${PROJ_ROOT}/include/proj.h"))
+    AND GDAL_ROOT
+    AND EXISTS "${GDAL_ROOT}/include/proj9/proj.h"
+    AND EXISTS "${GDAL_ROOT}/lib/proj9.lib")
+    set(PROJ_ROOT "${GDAL_ROOT}" CACHE PATH "Optional PROJ installation root" FORCE)
+endif()
 
 if(LAS_VIEWER_ENABLE_PCL)
     las_viewer_resolve_package_root(RESOLVED_PCL_ROOT "PCL" "pcl"
@@ -375,11 +393,13 @@ if(LAS_VIEWER_ENABLE_PROJ)
         NAMES proj.h
         PATHS
             "${PROJ_ROOT}/include"
+            "${PROJ_ROOT}/include/proj9"
             "${THIRDPARTY_ROOT}/proj/include"
+            "${THIRDPARTY_ROOT}/proj/include/proj9"
     )
 
     find_library(PROJ_LIBRARY
-        NAMES proj proj_9_5 proj_9_4 proj_9_3 proj_9_2 proj_9_1 proj_9_0
+        NAMES proj proj9 proj_9 proj_9_6 proj_9_5 proj_9_4 proj_9_3 proj_9_2 proj_9_1 proj_9_0
         PATHS
             "${PROJ_ROOT}/lib"
             "${THIRDPARTY_ROOT}/proj/lib"
@@ -465,6 +485,14 @@ endif()
 set(SOURCES
     src/main.cpp
     resources.qrc
+    src/crs/CrsCatalogService.cpp
+    src/crs/CrsAuthorityService.cpp
+    src/crs/CrsProjRuntime.cpp
+    src/crs/CrsSelectionDialog.cpp
+    src/crs/CrsTransformService.cpp
+    src/crs/CrsTypes.cpp
+    src/crs/ProjectCoordinateSystemsDialog.cpp
+    src/crs/RecentCrsStore.cpp
     src/domain/AnalysisData.cpp
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp
@@ -486,6 +514,15 @@ set(SOURCES
 )
 
 set(HEADERS
+    src/crs/CrsCatalogService.h
+    src/crs/CrsAuthorityService.h
+    src/crs/CrsProjRuntime.h
+    src/crs/CrsSelectionDialog.h
+    src/crs/CrsTransformService.h
+    src/crs/CrsTypes.h
+    src/crs/LASViewerCrsExport.h
+    src/crs/ProjectCoordinateSystemsDialog.h
+    src/crs/RecentCrsStore.h
     src/domain/AnalysisData.h
     src/domain/ClearanceAnalysis.h
     src/domain/ClearanceReportExporter.h
@@ -493,6 +530,7 @@ set(HEADERS
     src/domain/InspectionData.h
     src/domain/InspectionRoutePlanning.h
     src/domain/InspectionReportExporter.h
+    src/domain/ProjectMetadata.h
     src/domain/ProfileMarkerProjection.h
     src/domain/RouteInterop.h
     src/domain/RuleBasedClearanceEngine.h
@@ -538,6 +576,14 @@ else()
 endif()
 
 set(COMMON_SOURCES
+    src/crs/CrsCatalogService.cpp
+    src/crs/CrsAuthorityService.cpp
+    src/crs/CrsProjRuntime.cpp
+    src/crs/CrsSelectionDialog.cpp
+    src/crs/CrsTransformService.cpp
+    src/crs/CrsTypes.cpp
+    src/crs/ProjectCoordinateSystemsDialog.cpp
+    src/crs/RecentCrsStore.cpp
     src/domain/AnalysisData.cpp
     src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
@@ -553,6 +599,15 @@ set(COMMON_SOURCES
 )
 
 set(COMMON_HEADERS
+    src/crs/CrsCatalogService.h
+    src/crs/CrsAuthorityService.h
+    src/crs/CrsProjRuntime.h
+    src/crs/CrsSelectionDialog.h
+    src/crs/CrsTransformService.h
+    src/crs/CrsTypes.h
+    src/crs/LASViewerCrsExport.h
+    src/crs/ProjectCoordinateSystemsDialog.h
+    src/crs/RecentCrsStore.h
     src/domain/AnalysisData.h
     src/domain/DataManager.h
     src/domain/InspectionData.h
@@ -616,7 +671,7 @@ function(configure_las_viewer_target target_name use_qtitan)
     endif()
 
     if(LAS_VIEWER_HAS_PROJ)
-        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_PROJ=1)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_PROJ=1 LASVIEWERCRS_HAS_PROJ=1)
         target_include_directories(${target_name} PRIVATE "${PROJ_INCLUDE_DIR}")
         target_link_libraries(${target_name} PRIVATE "${PROJ_LIBRARY}")
     endif()
@@ -733,14 +788,15 @@ foreach(scan_library IN LISTS scan_libraries)
     endif()
 endforeach()
 
-set(search_directories
-    "@QT_ROOT@/bin"
-    "@OSG_ROOT@/bin"
-    "@QTITAN_ROOT@/bin"
-    "@LASLIB_ROOT@/bin"
-    "@LASTOOLS_ROOT@/bin"
-    "@PROJ_ROOT@/bin"
-)
+    set(search_directories
+        "@QT_ROOT@/bin"
+        "@OSG_ROOT@/bin"
+        "@QTITAN_ROOT@/bin"
+        "@GDAL_ROOT@/bin"
+        "@LASLIB_ROOT@/bin"
+        "@LASTOOLS_ROOT@/bin"
+        "@PROJ_ROOT@/bin"
+    )
 
 if(existing_scan_libraries)
     file(GET_RUNTIME_DEPENDENCIES
@@ -924,6 +980,40 @@ function(deploy_translation_runtime target_name)
     endif()
 endfunction()
 
+function(deploy_proj_runtime_assets target_name)
+    if(NOT WIN32)
+        return()
+    endif()
+
+    set(proj_runtime_share_dir "")
+    if(PROJ_ROOT AND EXISTS "${PROJ_ROOT}/bin/proj9/share/proj.db")
+        set(proj_runtime_share_dir "${PROJ_ROOT}/bin/proj9/share")
+    elseif(PROJ_ROOT AND EXISTS "${PROJ_ROOT}/share/proj/proj.db")
+        set(proj_runtime_share_dir "${PROJ_ROOT}/share/proj")
+    elseif(GDAL_ROOT AND EXISTS "${GDAL_ROOT}/bin/proj9/share/proj.db")
+        set(proj_runtime_share_dir "${GDAL_ROOT}/bin/proj9/share")
+    elseif(GDAL_ROOT AND EXISTS "${GDAL_ROOT}/share/proj/proj.db")
+        set(proj_runtime_share_dir "${GDAL_ROOT}/share/proj")
+    else()
+        return()
+    endif()
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${target_name}>/gdal-data"
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${target_name}>/proj9"
+        COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${target_name}>/gdal"
+        COMMAND ${CMAKE_COMMAND} -E remove "$<TARGET_FILE_DIR:${target_name}>/gdal-env.bat"
+        COMMENT "Refreshing PROJ runtime assets for ${target_name}"
+    )
+
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/proj9"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${proj_runtime_share_dir}"
+        "$<TARGET_FILE_DIR:${target_name}>/proj9/share"
+    )
+endfunction()
+
 configure_las_viewer_target(${PROJECT_NAME} TRUE)
 if(TARGET lasviewer_translations)
     add_dependencies(${PROJECT_NAME} lasviewer_translations)
@@ -941,6 +1031,10 @@ set_target_properties(LASViewerSmokeTest PROPERTIES
 
 add_executable(LASViewerRouteInteropSmokeTest
     examples/route_interop_smoke_test.cpp
+    src/crs/CrsAuthorityService.cpp
+    src/crs/CrsProjRuntime.cpp
+    src/crs/CrsTransformService.cpp
+    src/crs/CrsTypes.cpp
     src/domain/AnalysisData.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionRoutePlanning.cpp
@@ -951,7 +1045,7 @@ target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE
 )
 target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE Qt5::Core)
 if(LAS_VIEWER_HAS_PROJ)
-    target_compile_definitions(LASViewerRouteInteropSmokeTest PRIVATE LAS_VIEWER_HAS_PROJ=1)
+    target_compile_definitions(LASViewerRouteInteropSmokeTest PRIVATE LAS_VIEWER_HAS_PROJ=1 LASVIEWERCRS_HAS_PROJ=1)
     target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_INCLUDE_DIR}")
     target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_LIBRARY}")
 endif()
@@ -960,15 +1054,18 @@ set_target_properties(LASViewerRouteInteropSmokeTest PROPERTIES
 )
 
 if(WIN32)
-deploy_osg_runtime(${PROJECT_NAME})
-deploy_qt_runtime(${PROJECT_NAME} TRUE)
-deploy_runtime_dependencies(${PROJECT_NAME} TRUE)
-deploy_translation_runtime(${PROJECT_NAME})
-deploy_osg_runtime(LASViewerSmokeTest)
-deploy_qt_runtime(LASViewerSmokeTest FALSE)
-deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
-deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
-deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
+    deploy_osg_runtime(${PROJECT_NAME})
+    deploy_qt_runtime(${PROJECT_NAME} TRUE)
+    deploy_runtime_dependencies(${PROJECT_NAME} TRUE)
+    deploy_translation_runtime(${PROJECT_NAME})
+    deploy_proj_runtime_assets(${PROJECT_NAME})
+    deploy_osg_runtime(LASViewerSmokeTest)
+    deploy_qt_runtime(LASViewerSmokeTest FALSE)
+    deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
+    deploy_proj_runtime_assets(LASViewerSmokeTest)
+    deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
+    deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
+    deploy_proj_runtime_assets(LASViewerRouteInteropSmokeTest)
 endif()
 
 

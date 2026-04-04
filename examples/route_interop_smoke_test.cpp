@@ -5,6 +5,7 @@
 
 #include <iostream>
 
+#include "crs/CrsAuthorityService.h"
 #include "domain/InspectionRoutePlanning.h"
 #include "domain/RouteInterop.h"
 
@@ -23,6 +24,36 @@ bool verify(bool condition, const std::string& message)
 int main(int argc, char* argv[])
 {
     QCoreApplication app(argc, argv);
+
+    const lasviewer::crs::CrsResolveResult authorityResult =
+        lasviewer::crs::CrsAuthorityService::resolveFromAuthority(QStringLiteral("EPSG"), 4326);
+    if (!verify(authorityResult.ok, "EPSG:4326 should resolve from authority database")) {
+        return 1;
+    }
+    if (!verify(!authorityResult.definition.reference.wkt.trimmed().isEmpty(), "Resolved EPSG:4326 should provide WKT")) {
+        return 1;
+    }
+
+    const lasviewer::crs::CrsResolveResult wktResult =
+        lasviewer::crs::CrsAuthorityService::resolveFromWkt(authorityResult.definition.reference.wkt);
+    if (!verify(wktResult.ok, "WKT should resolve back to a CRS definition")) {
+        return 1;
+    }
+    if (!verify(
+            wktResult.definition.reference.authName.compare(QStringLiteral("EPSG"), Qt::CaseInsensitive) == 0
+                && wktResult.definition.reference.code == 4326,
+            "WKT should identify back to EPSG:4326")) {
+        return 1;
+    }
+
+    const QList<lasviewer::crs::CoordinateSystemDefinition> nameMatches =
+        lasviewer::crs::CrsAuthorityService::findByName(
+            QStringLiteral("WGS 84"),
+            lasviewer::crs::CoordinateSystemKindFilter::Geographic,
+            5);
+    if (!verify(!nameMatches.isEmpty(), "Name lookup for WGS 84 should return candidates")) {
+        return 1;
+    }
 
     QList<VegetationRiskRecord> risks;
     for (int index = 0; index < 4; ++index) {
@@ -65,9 +96,16 @@ int main(int argc, char* argv[])
     planningOptions.crs.targetEpsg = 4326;
     planningOptions.aircraftProfile = DjiAircraftProfile::M30Series;
 
+    ProjectCoordinateSystems coordinateSystems;
+    coordinateSystems.pointCloudCrs.authName = QStringLiteral("EPSG");
+    coordinateSystems.pointCloudCrs.code = 4326;
+    coordinateSystems.pointCloudCrs.displayName = QStringLiteral("WGS 84");
+    coordinateSystems.pointCloudCrs.kind = CoordinateSystemKind::Projected;
+    coordinateSystems.geographicCrs = defaultGeographicCoordinateSystem();
+
     InspectionRoute routeWgs84;
     QString errorMessage;
-    if (!transformRouteToWgs84(localRoute, planningOptions.crs, &routeWgs84, &errorMessage)) {
+    if (!transformRouteToWgs84(localRoute, coordinateSystems, &routeWgs84, &errorMessage)) {
         std::cerr << "[FAIL] transformRouteToWgs84: " << errorMessage.toStdString() << std::endl;
         return 1;
     }
