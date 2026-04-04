@@ -20,6 +20,7 @@
 #include <QDockWidget>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
+#include <QEventLoop>
 #include <QFrame>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -36,6 +37,7 @@
 #include <QLinearGradient>
 #include <QLibraryInfo>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QLocale>
 #include <QMap>
 #include <QMessageBox>
@@ -82,6 +84,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <memory>
 #include <set>
 
 #ifdef Q_OS_WIN
@@ -98,6 +101,7 @@
 #include "crs/CrsTypes.h"
 #include "domain/ClearanceAnalysis.h"
 #include "domain/ClearanceReportExporter.h"
+#include "domain/ClassificationEditStore.h"
 #include "domain/DataManager.h"
 #include "domain/InspectionData.h"
 #include "domain/InspectionRoutePlanning.h"
@@ -111,6 +115,11 @@
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
 #include "pointcloud/PointCloudData.h"
+
+#ifdef LAS_VIEWER_HAS_LASLIB
+#include "lasreader.hpp"
+#include "laswriter.hpp"
+#endif
 
 using lasviewer::crs::CoordinateSystemKind;
 using lasviewer::crs::CoordinateSystemRef;
@@ -1241,6 +1250,50 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
     return QIcon(pixmap);
 }
 
+QIcon createResourceIconOrFallback(const QString& resourcePath, RibbonGlyph fallbackGlyph)
+{
+    const QIcon resourceIcon(resourcePath);
+    return resourceIcon.isNull() ? createRibbonIcon(fallbackGlyph) : resourceIcon;
+}
+
+QMessageBox::StandardButton showLightStyledMessageBox(
+    QWidget* parent,
+    QMessageBox::Icon icon,
+    const QString& title,
+    const QString& text,
+    QMessageBox::StandardButtons buttons,
+    QMessageBox::StandardButton defaultButton = QMessageBox::NoButton)
+{
+    QMessageBox messageBox(icon, title, text, buttons, parent);
+    messageBox.setStyleSheet(QStringLiteral(
+        "QMessageBox {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "}"
+        "QMessageBox QLabel {"
+        "color: #0f172a;"
+        "}"
+        "QMessageBox QPushButton {"
+        "background-color: #ffffff;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 6px 14px;"
+        "color: #0f172a;"
+        "min-width: 84px;"
+        "}"
+        "QMessageBox QPushButton:hover {"
+        "background-color: #f1f5f9;"
+        "border-color: #94a3b8;"
+        "}"
+        "QMessageBox QPushButton:pressed {"
+        "background-color: #e2e8f0;"
+        "}"));
+    if (defaultButton != QMessageBox::NoButton) {
+        messageBox.setDefaultButton(defaultButton);
+    }
+    return static_cast<QMessageBox::StandardButton>(messageBox.exec());
+}
+
 QIcon createWindowControlIcon(WindowControlGlyph glyph, const QColor& color)
 {
     constexpr int iconSize = 12;
@@ -1298,6 +1351,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     createRibbon();
     createProjectDock();
     createInspectorPanel();
+    createProfileClassificationDock();
     createProfileDock();
     createLogDock();
     createStatusBar();
@@ -1568,6 +1622,16 @@ void MainWindow::createActions()
 
     measureAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Measure"), this);
     measureAction_->setCheckable(true);
+    profileClassificationAction_ = new QAction(createRibbonIcon(RibbonGlyph::Classification), tr("Profile Classify"), this);
+    profileClassificationAction_->setCheckable(true);
+    profileClassificationAction_->setToolTip(tr("Drag a rectangle to reclassify points. Hold Alt and drag left mouse to adjust view while the tool is active"));
+    showProfileClassificationDockAction_ = new QAction(createRibbonIcon(RibbonGlyph::Classification), tr("Classify Panel"), this);
+    showProfileClassificationDockAction_->setCheckable(true);
+    showProfileClassificationDockAction_->setChecked(false);
+    saveProfileClassificationEditsAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Classify Result"), this);
+    undoProfileClassificationAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowBack), tr("Undo Classify"), this);
+    redoProfileClassificationAction_ = new QAction(style()->standardIcon(QStyle::SP_ArrowForward), tr("Redo Classify"), this);
+    clearProfileClassificationEditsAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Classify Edits"), this);
 
     clearMeasurementAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Measure"), this);
     exportClearanceCsvAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Clearance CSV"), this);
@@ -1590,12 +1654,27 @@ void MainWindow::createActions()
 
     startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
     finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
-    addTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdd), tr("Click To Add Tower"), this);
-    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerInsert), tr("Insert Before Current"), this);
+    addTowerAction_ = new QAction(
+        createResourceIconOrFallback(QStringLiteral(":/assets/icon/addTower.png"), RibbonGlyph::TowerAdd),
+        tr("Click To Add Tower"),
+        this);
+    insertTowerAction_ = new QAction(
+        createResourceIconOrFallback(QStringLiteral(":/assets/icon/addTowerPrevious.png"), RibbonGlyph::TowerInsert),
+        tr("Insert Before Current"),
+        this);
     moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerMove), tr("Move Current Tower"), this);
-    editCurrentTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdjust), tr("Edit Current Tower"), this);
-    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerFocus), tr("Focus Current Tower"), this);
-    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerRemove), tr("Remove Current Tower"), this);
+    editCurrentTowerAction_ = new QAction(
+        createResourceIconOrFallback(QStringLiteral(":/assets/icon/modifyTower.png"), RibbonGlyph::TowerAdjust),
+        tr("Edit Current Tower"),
+        this);
+    focusTowerAction_ = new QAction(
+        createResourceIconOrFallback(QStringLiteral(":/assets/icon/focusTower.png"), RibbonGlyph::TowerFocus),
+        tr("Focus Current Tower"),
+        this);
+    removeTowerAction_ = new QAction(
+        createResourceIconOrFallback(QStringLiteral(":/assets/icon/deleteTower.png"), RibbonGlyph::TowerRemove),
+        tr("Remove Current Tower"),
+        this);
     clearTowersAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Tower Markers"), this);
     cancelTowerToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Tower Tool"), this);
     showTowerXAction_ = new QAction(tr("Show X"), this);
@@ -1688,8 +1767,14 @@ void MainWindow::createRibbon()
 
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(profileClassificationAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(showProfileClassificationDockAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(saveProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(showProfileDockAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(undoProfileClassificationAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(redoProfileClassificationAction_, Qt::ToolButtonTextUnderIcon);
+    measureRibbonGroup_->addAction(clearProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(analyzeVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(generateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
@@ -2252,6 +2337,73 @@ void MainWindow::createInspectorPanel()
     classificationColorsLayout->addWidget(classificationColorsTableWidget_);
     classificationColorsLayout->addLayout(classificationButtonRow);
 
+    profileClassificationGroupBox_ = new QGroupBox(tr("3D Profile Classification"), renderingTab.first);
+    auto* profileClassificationLayout = new QVBoxLayout(profileClassificationGroupBox_);
+    profileClassificationLayout->setContentsMargins(12, 12, 12, 12);
+    profileClassificationLayout->setSpacing(8);
+
+    auto* profileClassificationButtonRow = new QHBoxLayout();
+    profileClassificationButtonRow->setContentsMargins(0, 0, 0, 0);
+    profileClassificationButtonRow->setSpacing(6);
+    profileClassificationToggleButton_ = new QPushButton(tr("Start Tool"), profileClassificationGroupBox_);
+    profileClassificationSelectAllButton_ = new QPushButton(tr("Select All"), profileClassificationGroupBox_);
+    profileClassificationClearSelectionButton_ = new QPushButton(tr("Clear Sources"), profileClassificationGroupBox_);
+    profileClassificationButtonRow->addWidget(profileClassificationToggleButton_);
+    profileClassificationButtonRow->addWidget(profileClassificationSelectAllButton_);
+    profileClassificationButtonRow->addWidget(profileClassificationClearSelectionButton_);
+    profileClassificationButtonRow->addStretch(1);
+
+    auto* profileClassificationHistoryRow = new QHBoxLayout();
+    profileClassificationHistoryRow->setContentsMargins(0, 0, 0, 0);
+    profileClassificationHistoryRow->setSpacing(6);
+    profileClassificationUndoButton_ = new QPushButton(tr("Undo"), profileClassificationGroupBox_);
+    profileClassificationRedoButton_ = new QPushButton(tr("Redo"), profileClassificationGroupBox_);
+    profileClassificationClearEditsButton_ = new QPushButton(tr("Clear Edits"), profileClassificationGroupBox_);
+    profileClassificationSaveButton_ = new QPushButton(tr("Save Result"), profileClassificationGroupBox_);
+    profileClassificationHistoryRow->addWidget(profileClassificationUndoButton_);
+    profileClassificationHistoryRow->addWidget(profileClassificationRedoButton_);
+    profileClassificationHistoryRow->addWidget(profileClassificationClearEditsButton_);
+    profileClassificationHistoryRow->addWidget(profileClassificationSaveButton_);
+    profileClassificationHistoryRow->addStretch(1);
+
+    profileClassificationStatusLabel_ = new QLabel(profileClassificationGroupBox_);
+    profileClassificationStatusLabel_->setWordWrap(true);
+    profileClassificationStatusLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    auto* sourceTitleLabel = new QLabel(tr("Source Classes"), profileClassificationGroupBox_);
+    profileClassificationSourceListWidget_ = new QListWidget(profileClassificationGroupBox_);
+    profileClassificationSourceListWidget_->setSelectionMode(QAbstractItemView::NoSelection);
+    profileClassificationSourceListWidget_->setAlternatingRowColors(true);
+    profileClassificationSourceListWidget_->setMinimumHeight(220);
+
+    auto* targetTitleLabel = new QLabel(tr("Target Class"), profileClassificationGroupBox_);
+    profileClassificationTargetListWidget_ = new QListWidget(profileClassificationGroupBox_);
+    profileClassificationTargetListWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    profileClassificationTargetListWidget_->setAlternatingRowColors(true);
+    profileClassificationTargetListWidget_->setMinimumHeight(180);
+
+    for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
+        if (item.code < 0) {
+            continue;
+        }
+
+        auto* sourceItem = new QListWidgetItem(profileClassificationSourceListWidget_);
+        sourceItem->setData(Qt::UserRole, item.code);
+        sourceItem->setFlags(sourceItem->flags() | Qt::ItemIsUserCheckable);
+        sourceItem->setCheckState(Qt::Unchecked);
+
+        auto* targetItem = new QListWidgetItem(profileClassificationTargetListWidget_);
+        targetItem->setData(Qt::UserRole, item.code);
+    }
+
+    profileClassificationLayout->addLayout(profileClassificationButtonRow);
+    profileClassificationLayout->addLayout(profileClassificationHistoryRow);
+    profileClassificationLayout->addWidget(profileClassificationStatusLabel_);
+    profileClassificationLayout->addWidget(sourceTitleLabel);
+    profileClassificationLayout->addWidget(profileClassificationSourceListWidget_);
+    profileClassificationLayout->addWidget(targetTitleLabel);
+    profileClassificationLayout->addWidget(profileClassificationTargetListWidget_);
+
     auto* measurementToolbarHost = new QWidget(measurementTab.first);
     auto* measurementToolbarHostLayout = new QHBoxLayout(measurementToolbarHost);
     measurementToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
@@ -2809,6 +2961,119 @@ void MainWindow::createInspectorPanel()
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
 }
 
+void MainWindow::createProfileClassificationDock()
+{
+    profileClassificationDock_ = new QDockWidget(tr("Profile Classification"), this);
+    profileClassificationDock_->setObjectName(QStringLiteral("profileClassificationDock"));
+    profileClassificationDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    profileClassificationDock_->setFeatures(
+        QDockWidget::DockWidgetClosable
+        | QDockWidget::DockWidgetMovable
+        | QDockWidget::DockWidgetFloatable);
+    profileClassificationDock_->setMinimumWidth(320);
+
+    auto* profileClassificationSurface = new QWidget(profileClassificationDock_);
+    profileClassificationSurface->setObjectName(QStringLiteral("profileClassificationSurface"));
+    auto* profileClassificationSurfaceLayout = new QVBoxLayout(profileClassificationSurface);
+    profileClassificationSurfaceLayout->setContentsMargins(10, 10, 10, 10);
+    profileClassificationSurfaceLayout->setSpacing(8);
+    if (profileClassificationGroupBox_ != nullptr) {
+        profileClassificationSurfaceLayout->addWidget(profileClassificationGroupBox_);
+    }
+    profileClassificationSurfaceLayout->addStretch(1);
+    profileClassificationSurface->setStyleSheet(QStringLiteral(
+        "QWidget#profileClassificationSurface {"
+        "background-color: #f3f7fc;"
+        "border: 1px solid #d6e0eb;"
+        "border-radius: 10px;"
+        "}"
+        "QGroupBox {"
+        "font-weight: 600;"
+        "background-color: #ffffff;"
+        "color: #1f2937;"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 8px;"
+        "margin-top: 8px;"
+        "padding-top: 10px;"
+        "}"
+        "QGroupBox::title {"
+        "subcontrol-origin: margin;"
+        "left: 8px;"
+        "padding: 0 4px;"
+        "background-color: #f3f7fc;"
+        "color: #334155;"
+        "}"
+        "QLabel {"
+        "color: #1f2937;"
+        "}"
+        "QListWidget {"
+        "background-color: #ffffff;"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 6px;"
+        "alternate-background-color: #f8fafc;"
+        "color: #0f172a;"
+        "}"
+        "QListWidget::item:selected {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QScrollBar:vertical {"
+        "background: #edf2f7;"
+        "width: 12px;"
+        "margin: 2px;"
+        "border-radius: 6px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "background: #94a3b8;"
+        "min-height: 28px;"
+        "border-radius: 6px;"
+        "}"
+        "QScrollBar::handle:vertical:hover {"
+        "background: #64748b;"
+        "}"
+        "QScrollBar:horizontal {"
+        "background: #edf2f7;"
+        "height: 12px;"
+        "margin: 2px;"
+        "border-radius: 6px;"
+        "}"
+        "QScrollBar::handle:horizontal {"
+        "background: #94a3b8;"
+        "min-width: 28px;"
+        "border-radius: 6px;"
+        "}"
+        "QScrollBar::handle:horizontal:hover {"
+        "background: #64748b;"
+        "}"
+        "QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {"
+        "background: transparent;"
+        "border: none;"
+        "}"
+        "QPushButton {"
+        "background-color: #ffffff;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 6px 10px;"
+        "color: #0f172a;"
+        "}"
+        "QPushButton:hover {"
+        "border-color: #94a3b8;"
+        "background-color: #f8fafc;"
+        "}"
+        "QPushButton:disabled {"
+        "background-color: #f1f5f9;"
+        "border-color: #e2e8f0;"
+        "color: #94a3b8;"
+        "}"));
+    profileClassificationDock_->setWidget(profileClassificationSurface);
+
+    addDockWidget(Qt::LeftDockWidgetArea, profileClassificationDock_);
+    if (projectDock_ != nullptr) {
+        tabifyDockWidget(projectDock_, profileClassificationDock_);
+    }
+    profileClassificationDock_->hide();
+}
+
 void MainWindow::createProfileDock()
 {
     profileDock_ = new QDockWidget(tr("Span Profile"), this);
@@ -3065,7 +3330,16 @@ void MainWindow::retranslateUi()
     themeWhiteAction_->setText(tr("White"));
     themeDarkGrayAction_->setText(tr("Dark Gray"));
     measureAction_->setText(tr("Measure"));
+    profileClassificationAction_->setText(tr("Profile Classify"));
+    profileClassificationAction_->setToolTip(tr("Drag a rectangle to reclassify points. Hold Alt and drag left mouse to adjust view while the tool is active"));
+    showProfileClassificationDockAction_->setText(tr("Classify Panel"));
+    showProfileClassificationDockAction_->setToolTip(tr("Show or hide the profile classification dock"));
+    saveProfileClassificationEditsAction_->setText(tr("Save Classify Result"));
+    saveProfileClassificationEditsAction_->setToolTip(tr("Write current profile classification edits back to LAS files"));
     clearMeasurementAction_->setText(tr("Clear Measure"));
+    undoProfileClassificationAction_->setText(tr("Undo Classify"));
+    redoProfileClassificationAction_->setText(tr("Redo Classify"));
+    clearProfileClassificationEditsAction_->setText(tr("Clear Classify Edits"));
     exportClearanceCsvAction_->setText(tr("Export Clearance CSV"));
     showProfileDockAction_->setText(tr("Profile View"));
     showProfileDockAction_->setToolTip(tr("Show or hide the span profile dock"));
@@ -3075,6 +3349,13 @@ void MainWindow::retranslateUi()
     createIssueFromRiskAction_->setText(tr("Create Issue"));
     createIssuesFromRisksAction_->setText(tr("Create All Issues"));
     clearVegetationRisksAction_->setText(tr("Clear Risks"));
+    generateInspectionRouteAction_->setText(tr("Generate Route"));
+    regenerateInspectionRouteAction_->setText(tr("Regenerate Route"));
+    clearInspectionRouteAction_->setText(tr("Clear Route"));
+    focusRouteWaypointAction_->setText(tr("Focus Route Point"));
+    importRouteKmlAction_->setText(tr("Import Route KML"));
+    exportRouteKmlAction_->setText(tr("Export Route KML"));
+    exportRouteDjiKmzAction_->setText(tr("Export DJI KMZ"));
     startTowerEditAction_->setText(tr("Start Editing"));
     finishTowerEditAction_->setText(tr("Finish Editing"));
     addTowerAction_->setText(tr("Click To Add Tower"));
@@ -3147,6 +3428,9 @@ void MainWindow::retranslateUi()
     if (profileDock_ != nullptr) {
         profileDock_->setWindowTitle(tr("Span Profile"));
     }
+    if (profileClassificationDock_ != nullptr) {
+        profileClassificationDock_->setWindowTitle(tr("Profile Classification"));
+    }
     if (logDock_ != nullptr) {
         logDock_->setWindowTitle(tr("Application Log"));
     }
@@ -3186,6 +3470,7 @@ void MainWindow::retranslateUi()
     if (resetClassificationColorsButton_ != nullptr) {
         resetClassificationColorsButton_->setText(tr("Reset Defaults"));
     }
+    updateProfileClassificationPanel();
     if (measurementGroupBox_ != nullptr) {
         measurementGroupBox_->setTitle(tr("Measurement"));
     }
@@ -3200,6 +3485,12 @@ void MainWindow::retranslateUi()
     }
     if (vegetationRisksGroupBox_ != nullptr) {
         vegetationRisksGroupBox_->setTitle(tr("Detected Risk Clusters"));
+    }
+    if (routePlanningGroupBox_ != nullptr) {
+        routePlanningGroupBox_->setTitle(tr("Inspection Route Planning"));
+    }
+    if (routeWaypointsGroupBox_ != nullptr) {
+        routeWaypointsGroupBox_->setTitle(tr("Route Waypoints"));
     }
     if (navigationGroupBox_ != nullptr) {
         navigationGroupBox_->setTitle(tr("Navigation"));
@@ -3340,6 +3631,24 @@ void MainWindow::retranslateUi()
         setFieldLabel(analysisParametersLayout_, vegetationRiskStatusValueLabel_, tr("Status"));
         setFieldLabel(analysisParametersLayout_, vegetationRiskSummaryLabel_, tr("Summary"));
     }
+    if (routePlanningGroupBox_ != nullptr) {
+        if (auto* routePlanningLayout = qobject_cast<QFormLayout*>(routePlanningGroupBox_->layout())) {
+            setFieldLabel(routePlanningLayout, aircraftProfileComboBox_, tr("DJI Profile"));
+            setFieldLabel(routePlanningLayout, routeSafetyHeightSpinBox_, tr("Safety Height"));
+            setFieldLabel(routePlanningLayout, routeWaypointSpeedSpinBox_, tr("Waypoint Speed"));
+            setFieldLabel(routePlanningLayout, routeWaypointSpacingSpinBox_, tr("Waypoint Spacing"));
+            setFieldLabel(routePlanningLayout, routeSmoothingStrengthSpinBox_, tr("Smoothing"));
+            setFieldLabel(routePlanningLayout, routeHeightOffsetSpinBox_, tr("Height Offset"));
+            setFieldLabel(routePlanningLayout, routeStatusValueLabel_, tr("Status"));
+            setFieldLabel(routePlanningLayout, routeSummaryValueLabel_, tr("Summary"));
+        }
+    }
+    if (aircraftProfileComboBox_ != nullptr) {
+        const QList<DjiAircraftProfile> profiles = supportedDjiAircraftProfiles();
+        for (int index = 0; index < profiles.size() && index < aircraftProfileComboBox_->count(); ++index) {
+            aircraftProfileComboBox_->setItemText(index, djiAircraftProfileDisplayName(profiles.at(index)));
+        }
+    }
     if (preferVegetationClassificationCheckBox_ != nullptr) {
         preferVegetationClassificationCheckBox_->setText(tr("Prefer LAS vegetation classifications when available"));
     }
@@ -3352,6 +3661,16 @@ void MainWindow::retranslateUi()
             tr("Chainage"),
             tr("Tower"),
             tr("Points")
+        });
+    }
+    if (routeWaypointsTableWidget_ != nullptr) {
+        routeWaypointsTableWidget_->setHorizontalHeaderLabels({
+            tr("Index"),
+            tr("X"),
+            tr("Y"),
+            tr("Z"),
+            tr("Speed"),
+            tr("Chainage")
         });
     }
 
@@ -3373,6 +3692,7 @@ void MainWindow::retranslateUi()
         setColorButtonAppearance(backgroundColorButton_, viewer_->visualizationOptions().backgroundColor, tr("Pick Background"));
     }
     updateClassificationColorTable();
+    updateProfileClassificationPanel();
     updateWindowControlButtons();
     rebuildProjectTree();
     updateDatasetPanel();
@@ -3511,6 +3831,370 @@ void MainWindow::adjustClassificationColorTableHeight()
     classificationColorsTableWidget_->setMaximumHeight(contentHeight);
 }
 
+void MainWindow::updateProfileClassificationPanel()
+{
+    if (viewer_ == nullptr || profileClassificationGroupBox_ == nullptr) {
+        return;
+    }
+
+    profileClassificationGroupBox_->setTitle(tr("3D Profile Classification"));
+    if (profileClassificationToggleButton_ != nullptr) {
+        profileClassificationToggleButton_->setText(
+            viewer_->profileClassificationModeEnabled() ? tr("Exit Tool") : tr("Start Tool"));
+    }
+    if (profileClassificationSelectAllButton_ != nullptr) {
+        profileClassificationSelectAllButton_->setText(tr("Select All"));
+    }
+    if (profileClassificationClearSelectionButton_ != nullptr) {
+        profileClassificationClearSelectionButton_->setText(tr("Clear Sources"));
+    }
+    if (profileClassificationUndoButton_ != nullptr) {
+        profileClassificationUndoButton_->setText(tr("Undo"));
+    }
+    if (profileClassificationRedoButton_ != nullptr) {
+        profileClassificationRedoButton_->setText(tr("Redo"));
+    }
+    if (profileClassificationClearEditsButton_ != nullptr) {
+        profileClassificationClearEditsButton_->setText(tr("Clear Edits"));
+    }
+
+    const bool hasPointCloud = viewer_->hasPointCloud();
+    const bool sceneReady = hasPointCloud;
+    const bool toolBusy = viewer_->profileClassificationTaskActive();
+    profileClassificationGroupBox_->setEnabled(hasPointCloud);
+    if (profileClassificationToggleButton_ != nullptr) {
+        profileClassificationToggleButton_->setEnabled(sceneReady && !toolBusy);
+    }
+    if (profileClassificationSelectAllButton_ != nullptr) {
+        profileClassificationSelectAllButton_->setEnabled(sceneReady && !toolBusy);
+    }
+    if (profileClassificationClearSelectionButton_ != nullptr) {
+        profileClassificationClearSelectionButton_->setEnabled(sceneReady && !toolBusy);
+    }
+    if (profileClassificationUndoButton_ != nullptr) {
+        profileClassificationUndoButton_->setEnabled(sceneReady && viewer_->canUndoClassificationEdits() && !toolBusy);
+    }
+    if (profileClassificationRedoButton_ != nullptr) {
+        profileClassificationRedoButton_->setEnabled(sceneReady && viewer_->canRedoClassificationEdits() && !toolBusy);
+    }
+    if (profileClassificationClearEditsButton_ != nullptr) {
+        profileClassificationClearEditsButton_->setEnabled(sceneReady && viewer_->classificationEditedPointCount() > 0 && !toolBusy);
+    }
+    if (profileClassificationSaveButton_ != nullptr) {
+        profileClassificationSaveButton_->setText(tr("Save Result"));
+        profileClassificationSaveButton_->setEnabled(hasPointCloud && viewer_->classificationEditedPointCount() > 0 && !toolBusy);
+    }
+
+    if (profileClassificationSourceListWidget_ != nullptr) {
+        const QSignalBlocker blocker(profileClassificationSourceListWidget_);
+        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
+            QListWidgetItem* item = profileClassificationSourceListWidget_->item(row);
+            if (item == nullptr) {
+                continue;
+            }
+
+            const int classificationCode = item->data(Qt::UserRole).toInt();
+            item->setText(QStringLiteral("%1 - %2")
+                .arg(QLocale().toString(classificationCode))
+                .arg(classificationDisplayName(classificationCode, classificationNameOverrides_)));
+            item->setCheckState(viewer_->profileClassificationSourceClasses().contains(classificationCode)
+                ? Qt::Checked
+                : Qt::Unchecked);
+        }
+        profileClassificationSourceListWidget_->setEnabled(sceneReady && !toolBusy);
+    }
+
+    if (profileClassificationTargetListWidget_ != nullptr) {
+        const QSignalBlocker blocker(profileClassificationTargetListWidget_);
+        int targetRow = -1;
+        for (int row = 0; row < profileClassificationTargetListWidget_->count(); ++row) {
+            QListWidgetItem* item = profileClassificationTargetListWidget_->item(row);
+            if (item == nullptr) {
+                continue;
+            }
+
+            const int classificationCode = item->data(Qt::UserRole).toInt();
+            item->setText(QStringLiteral("%1 - %2")
+                .arg(QLocale().toString(classificationCode))
+                .arg(classificationDisplayName(classificationCode, classificationNameOverrides_)));
+            if (classificationCode == viewer_->profileClassificationTargetClass()) {
+                targetRow = row;
+            }
+        }
+        profileClassificationTargetListWidget_->setCurrentRow(targetRow >= 0 ? targetRow : 0);
+        profileClassificationTargetListWidget_->setEnabled(sceneReady && !toolBusy);
+    }
+
+    if (profileClassificationStatusLabel_ != nullptr) {
+        if (!hasPointCloud) {
+            profileClassificationStatusLabel_->setText(tr("Load a point cloud and switch to a stable scene before using profile classification."));
+        } else if (toolBusy) {
+            profileClassificationStatusLabel_->setText(tr("Profile classification is processing the current rectangular selection."));
+        } else {
+            profileClassificationStatusLabel_->setText(
+                tr("Source classes %1 | Target class %2 | Edited points %3 | Save state %4")
+                    .arg(QLocale().toString(viewer_->profileClassificationSourceClasses().size()))
+                    .arg(QLocale().toString(viewer_->profileClassificationTargetClass()))
+                    .arg(QLocale().toString(viewer_->classificationEditedPointCount()))
+                    .arg(classificationEditsDirty_ ? tr("unsaved") : tr("saved")));
+        }
+    }
+}
+
+bool MainWindow::saveProfileClassificationEditsToLas()
+{
+    if (savingProfileClassificationEdits_) {
+        return false;
+    }
+
+    savingProfileClassificationEdits_ = true;
+    struct SaveFlagResetGuard
+    {
+        bool* flag = nullptr;
+        ~SaveFlagResetGuard()
+        {
+            if (flag != nullptr) {
+                *flag = false;
+            }
+        }
+    } saveFlagResetGuard { &savingProfileClassificationEdits_ };
+
+    if (viewer_ == nullptr || viewer_->classificationEditedPointCount() <= 0) {
+        classificationEditsDirty_ = false;
+        updateProfileClassificationPanel();
+        updateActionState();
+        return true;
+    }
+
+#ifndef LAS_VIEWER_HAS_LASLIB
+    const QString errorMessage = tr("This build does not support writing LAS/LAZ files.");
+    showUserMessage(LogLevel::Error, errorMessage, 5000);
+    showLightStyledMessageBox(
+        this,
+        QMessageBox::Warning,
+        tr("Save Classification Results"),
+        errorMessage,
+        QMessageBox::Ok);
+    return false;
+#else
+    const ClassificationEditStore::StoreMap editsByDataset = viewer_->classificationEditStore().editsByDataset();
+    if (editsByDataset.isEmpty()) {
+        classificationEditsDirty_ = false;
+        updateProfileClassificationPanel();
+        updateActionState();
+        return true;
+    }
+
+    QHash<QString, qint64> datasetPointCounts;
+    for (const PointCloudDatasetInfo& datasetInfo : viewer_->pointCloudDatasets()) {
+        datasetPointCounts.insert(datasetInfo.filePath.toLower(), static_cast<qint64>(datasetInfo.pointCount));
+    }
+
+    int datasetCountToWrite = 0;
+    qint64 totalPointsToWrite = 0;
+    for (auto it = editsByDataset.constBegin(); it != editsByDataset.constEnd(); ++it) {
+        if (it->isEmpty()) {
+            continue;
+        }
+
+        ++datasetCountToWrite;
+        const qint64 estimatedPointCount = datasetPointCounts.value(
+            it.key().toLower(),
+            static_cast<qint64>(it->size()));
+        totalPointsToWrite += std::max<qint64>(estimatedPointCount, 1);
+    }
+
+    if (datasetCountToWrite <= 0) {
+        classificationEditsDirty_ = false;
+        updateProfileClassificationPanel();
+        updateActionState();
+        return true;
+    }
+
+    const int progressMaximum = static_cast<int>(std::min<qint64>(
+        std::max<qint64>(totalPointsToWrite, 1),
+        2000000000LL));
+    qint64 processedPoints = 0;
+    QStringList writtenDatasetNames;
+
+    beginOperationProgress(tr("Saving classification results to LAS files..."));
+    updateOperationProgress(tr("Preparing LAS write tasks..."), 0, progressMaximum);
+
+    const auto failWithMessage = [this](const QString& message) -> bool {
+        endOperationProgress();
+        showUserMessage(LogLevel::Error, message, 7000);
+        showLightStyledMessageBox(
+            this,
+            QMessageBox::Warning,
+            tr("Save Classification Results"),
+            message,
+            QMessageBox::Ok);
+        return false;
+    };
+
+    for (auto datasetIt = editsByDataset.constBegin(); datasetIt != editsByDataset.constEnd(); ++datasetIt) {
+        const QString datasetPath = datasetIt.key();
+        const ClassificationEditStore::DatasetEditMap& edits = datasetIt.value();
+        if (edits.isEmpty()) {
+            continue;
+        }
+
+        const QFileInfo datasetInfo(datasetPath);
+        if (!datasetInfo.exists() || !datasetInfo.isFile()) {
+            return failWithMessage(tr("Failed to save classification result: dataset file not found (%1).")
+                .arg(datasetPath));
+        }
+
+        const QString suffix = datasetInfo.suffix().isEmpty() ? QStringLiteral("las") : datasetInfo.suffix();
+        const QString tempFilePath = datasetInfo.absolutePath()
+            + QDir::separator()
+            + QStringLiteral("%1.__classify_tmp_%2.%3")
+                .arg(datasetInfo.completeBaseName())
+                .arg(QString::number(QDateTime::currentMSecsSinceEpoch()))
+                .arg(suffix);
+        const QString backupFilePath = datasetPath + QStringLiteral(".__classify_backup");
+        QFile::remove(tempFilePath);
+        QFile::remove(backupFilePath);
+
+        LASreadOpener readOpener;
+        const QByteArray datasetPathNative = QDir::toNativeSeparators(datasetPath).toLocal8Bit();
+        readOpener.set_file_name(datasetPathNative.constData());
+        std::unique_ptr<LASreader> reader(readOpener.open());
+        if (!reader) {
+            QFile::remove(tempFilePath);
+            return failWithMessage(tr("Failed to open dataset for write-back (%1).")
+                .arg(datasetInfo.fileName()));
+        }
+
+        LASwriteOpener writeOpener;
+        const QByteArray tempFilePathNative = QDir::toNativeSeparators(tempFilePath).toLocal8Bit();
+        writeOpener.set_file_name(tempFilePathNative.constData());
+        std::unique_ptr<LASwriter> writer(writeOpener.open(&reader->header));
+        const auto closeLasHandles = [&reader, &writer]() {
+            if (writer) {
+                writer->close();
+                writer.reset();
+            }
+            if (reader) {
+                reader->close();
+                reader.reset();
+            }
+        };
+        if (!writer) {
+            closeLasHandles();
+            QFile::remove(tempFilePath);
+            return failWithMessage(tr("Failed to create output LAS file (%1).")
+                .arg(datasetInfo.fileName()));
+        }
+
+        quint32 pointIndex = 0;
+        const qint64 datasetTotalPoints = reader->npoints > 0
+            ? static_cast<qint64>(reader->npoints)
+            : std::max<qint64>(static_cast<qint64>(edits.size()), 1);
+        while (reader->read_point()) {
+            const auto editIt = edits.constFind(pointIndex);
+            if (editIt != edits.constEnd()) {
+                reader->point.set_classification(static_cast<U8>(std::clamp(editIt.value(), 0, 255)));
+            }
+
+            if (!writer->write_point(&reader->point)) {
+                closeLasHandles();
+                QFile::remove(tempFilePath);
+                return failWithMessage(tr("Failed while writing classification result (%1).")
+                    .arg(datasetInfo.fileName()));
+            }
+
+            ++pointIndex;
+            ++processedPoints;
+            if ((pointIndex & 0x1FFFu) == 0u) {
+                const int progressValue = static_cast<int>(std::min<qint64>(processedPoints, progressMaximum));
+                updateOperationProgress(
+                    tr("Writing %1 (%2/%3 points)")
+                        .arg(datasetInfo.fileName())
+                        .arg(QLocale().toString(static_cast<qlonglong>(pointIndex)))
+                        .arg(QLocale().toString(static_cast<qlonglong>(datasetTotalPoints))),
+                    progressValue,
+                    progressMaximum);
+                QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            }
+        }
+
+        closeLasHandles();
+
+        if (!QFile::rename(datasetPath, backupFilePath)) {
+            QFile::remove(tempFilePath);
+            return failWithMessage(tr("Failed to replace dataset while saving (%1).")
+                .arg(datasetInfo.fileName()));
+        }
+
+        if (!QFile::rename(tempFilePath, datasetPath)) {
+            QFile::rename(backupFilePath, datasetPath);
+            QFile::remove(tempFilePath);
+            return failWithMessage(tr("Failed to finalize LAS save (%1).")
+                .arg(datasetInfo.fileName()));
+        }
+        QFile::remove(backupFilePath);
+
+        writtenDatasetNames.append(datasetInfo.fileName());
+        const int progressValue = static_cast<int>(std::min<qint64>(processedPoints, progressMaximum));
+        updateOperationProgress(
+            tr("Saved %1 (%2/%3 files)")
+                .arg(datasetInfo.fileName())
+                .arg(QLocale().toString(writtenDatasetNames.size()))
+                .arg(QLocale().toString(datasetCountToWrite)),
+            progressValue,
+            progressMaximum);
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+
+    endOperationProgress();
+    viewer_->commitClassificationEditsToPointCloudData();
+    classificationEditsDirty_ = false;
+    updateProfileClassificationPanel();
+    updateActionState();
+
+    const QString completionMessage = tr("Classification results were written to %1 LAS file(s).")
+        .arg(QLocale().toString(writtenDatasetNames.size()));
+    showUserMessage(LogLevel::Info, completionMessage, 5000);
+    showLightStyledMessageBox(
+        this,
+        QMessageBox::Information,
+        tr("Save Classification Results"),
+        writtenDatasetNames.isEmpty()
+            ? completionMessage
+            : tr("%1\n\nSaved files: %2")
+                .arg(completionMessage)
+                .arg(writtenDatasetNames.join(QStringLiteral(", "))),
+        QMessageBox::Ok);
+    return true;
+#endif
+}
+
+void MainWindow::promptSaveProfileClassificationEditsIfNeeded()
+{
+    if (handlingProfileClassificationExitPrompt_ || viewer_ == nullptr) {
+        return;
+    }
+
+    if (!classificationEditsDirty_ || viewer_->classificationEditedPointCount() <= 0) {
+        return;
+    }
+
+    handlingProfileClassificationExitPrompt_ = true;
+    const QMessageBox::StandardButton choice = showLightStyledMessageBox(
+        this,
+        QMessageBox::Question,
+        tr("Save Classification Results"),
+        tr("Profile classification results are not saved. Write them to LAS files now?"),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes);
+    handlingProfileClassificationExitPrompt_ = false;
+
+    if (choice == QMessageBox::Yes) {
+        saveProfileClassificationEditsToLas();
+    }
+}
+
 void MainWindow::createConnections()
 {
     connect(openAction_, &QAction::triggered, this, [this]() { openPointCloud(); });
@@ -3579,6 +4263,21 @@ void MainWindow::createConnections()
     connect(themeWhiteAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016White); });
     connect(themeDarkGrayAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016DarkGray); });
     connect(measureAction_, &QAction::toggled, viewer_, &PointCloudViewer::setMeasurementEnabled);
+    connect(profileClassificationAction_, &QAction::toggled, viewer_, &PointCloudViewer::setProfileClassificationModeEnabled);
+    connect(showProfileClassificationDockAction_, &QAction::toggled, this, [this](bool visible) {
+        if (profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible() != visible) {
+            profileClassificationDock_->setVisible(visible);
+        }
+    });
+    connect(saveProfileClassificationEditsAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr || viewer_->classificationEditedPointCount() <= 0) {
+            return;
+        }
+        saveProfileClassificationEditsToLas();
+    });
+    connect(undoProfileClassificationAction_, &QAction::triggered, viewer_, &PointCloudViewer::undoClassificationEdit);
+    connect(redoProfileClassificationAction_, &QAction::triggered, viewer_, &PointCloudViewer::redoClassificationEdit);
+    connect(clearProfileClassificationEditsAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearClassificationEdits);
     connect(measureAction_, &QAction::toggled, this, [this](bool enabled) {
         syncProfileDockForMeasurementMode(enabled);
     });
@@ -4002,6 +4701,69 @@ void MainWindow::createConnections()
         classificationNameOverrides_.clear();
         viewer_->resetClassificationColors();
         updateClassificationColorTable();
+        updateProfileClassificationPanel();
+    });
+    connect(profileClassificationToggleButton_, &QPushButton::clicked, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+
+        viewer_->setProfileClassificationModeEnabled(!viewer_->profileClassificationModeEnabled());
+    });
+    connect(profileClassificationSelectAllButton_, &QPushButton::clicked, this, [this]() {
+        if (profileClassificationSourceListWidget_ == nullptr) {
+            return;
+        }
+
+        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
+            if (QListWidgetItem* item = profileClassificationSourceListWidget_->item(row)) {
+                item->setCheckState(Qt::Checked);
+            }
+        }
+    });
+    connect(profileClassificationClearSelectionButton_, &QPushButton::clicked, this, [this]() {
+        if (profileClassificationSourceListWidget_ == nullptr) {
+            return;
+        }
+
+        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
+            if (QListWidgetItem* item = profileClassificationSourceListWidget_->item(row)) {
+                item->setCheckState(Qt::Unchecked);
+            }
+        }
+    });
+    connect(profileClassificationUndoButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::undoClassificationEdit);
+    connect(profileClassificationRedoButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::redoClassificationEdit);
+    connect(profileClassificationClearEditsButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearClassificationEdits);
+    connect(profileClassificationSaveButton_, &QPushButton::clicked, this, [this]() {
+        if (viewer_ == nullptr || viewer_->classificationEditedPointCount() <= 0) {
+            return;
+        }
+        saveProfileClassificationEditsToLas();
+    });
+    connect(profileClassificationSourceListWidget_, &QListWidget::itemChanged, this, [this](QListWidgetItem*) {
+        if (viewer_ == nullptr || profileClassificationSourceListWidget_ == nullptr) {
+            return;
+        }
+
+        QSet<int> selectedSourceClasses;
+        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
+            QListWidgetItem* item = profileClassificationSourceListWidget_->item(row);
+            if (item != nullptr && item->checkState() == Qt::Checked) {
+                selectedSourceClasses.insert(item->data(Qt::UserRole).toInt());
+            }
+        }
+        viewer_->setProfileClassificationSourceClasses(selectedSourceClasses);
+    });
+    connect(profileClassificationTargetListWidget_, &QListWidget::currentRowChanged, this, [this](int currentRow) {
+        if (viewer_ == nullptr || profileClassificationTargetListWidget_ == nullptr || currentRow < 0) {
+            return;
+        }
+
+        QListWidgetItem* item = profileClassificationTargetListWidget_->item(currentRow);
+        if (item != nullptr) {
+            viewer_->setProfileClassificationTargetClass(item->data(Qt::UserRole).toInt());
+        }
     });
     connect(classificationColorsTableWidget_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
         if (viewer_ == nullptr || item == nullptr || updatingClassificationColorTable_) {
@@ -4027,6 +4789,7 @@ void MainWindow::createConnections()
         }
         persistVisualizationSettings();
         updateClassificationColorTable();
+        updateProfileClassificationPanel();
     });
     connect(classificationColorsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int column) {
         if (viewer_ == nullptr || classificationColorsTableWidget_ == nullptr || updatingClassificationColorTable_) {
@@ -4585,15 +5348,24 @@ void MainWindow::createConnections()
         }
         persistWindowSettings();
     });
+    connect(profileClassificationDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (showProfileClassificationDockAction_ != nullptr && showProfileClassificationDockAction_->isChecked() != visible) {
+            const QSignalBlocker blocker(showProfileClassificationDockAction_);
+            showProfileClassificationDockAction_->setChecked(visible);
+        }
+        persistWindowSettings();
+    });
     const auto persistDockState = [this]() {
         persistWindowSettings();
     };
     connect(projectDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(inspectorDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
+    connect(profileClassificationDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(profileDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(logDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(projectDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(inspectorDock_, &QDockWidget::topLevelChanged, this, persistDockState);
+    connect(profileClassificationDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(profileDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(logDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     if (inspectorTabWidget_ != nullptr) {
@@ -4613,11 +5385,13 @@ void MainWindow::createConnections()
     });
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         endOperationProgress();
+        classificationEditsDirty_ = false;
         rebuildProjectTree();
         syncUiFromViewer();
     });
     connect(viewer_, &PointCloudViewer::pointCloudCleared, this, [this]() {
         endOperationProgress();
+        classificationEditsDirty_ = false;
         setTowerEditingEnabled(false);
         inspectionRoute_ = InspectionRoute();
         selectedRouteWaypointIndex_ = -1;
@@ -4627,6 +5401,28 @@ void MainWindow::createConnections()
     });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { syncUiFromViewer(); });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { persistVisualizationSettings(); });
+    connect(viewer_, &PointCloudViewer::profileClassificationModeChanged, this, [this](bool enabled) {
+        const QSignalBlocker blocker(profileClassificationAction_);
+        profileClassificationAction_->setChecked(enabled);
+        if (enabled && profileClassificationDock_ != nullptr) {
+            profileClassificationDock_->show();
+            profileClassificationDock_->raise();
+        }
+        if (!enabled) {
+            promptSaveProfileClassificationEditsIfNeeded();
+        }
+        updateProfileClassificationPanel();
+        updateActionState();
+    });
+    connect(viewer_, &PointCloudViewer::classificationEditsChanged, this, [this]() {
+        classificationEditsDirty_ = viewer_ != nullptr && viewer_->classificationEditedPointCount() > 0;
+        updateProfileClassificationPanel();
+        updateActionState();
+    });
+    connect(viewer_, &PointCloudViewer::profileClassificationStateChanged, this, [this]() {
+        updateProfileClassificationPanel();
+        updateActionState();
+    });
     connect(viewer_, &PointCloudViewer::interactionOptionsChanged, this, [this]() {
         persistInteractionSettings();
         syncUiFromViewer();
@@ -5025,6 +5821,14 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
     syncRoutePlanningFromProjectCoordinateSystems();
 
+    const QJsonObject classificationEditsObject =
+        projectObject.value(QStringLiteral("classificationEdits")).toObject();
+    viewer_->setClassificationEditStore(classificationEditsFromJson(
+        classificationEditsObject,
+        [&filePath](const QString& storedDatasetPath) {
+            return resolveProjectPath(filePath, storedDatasetPath);
+        }));
+
     QList<TowerMarker> towerMarkers;
     const QJsonArray towersArray = projectObject.value(QStringLiteral("towerMarkers")).toArray();
     for (const QJsonValue& towerValue : towersArray) {
@@ -5084,6 +5888,7 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     currentProjectFilePath_ = filePath;
+    classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     const QString languageCode = projectObject.value(QStringLiteral("language")).toString();
     if (languageCode == QStringLiteral("zh_CN")) {
@@ -5161,6 +5966,11 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("preferVegetationClassification"), preferVegetationClassification_ }
     };
     QJsonObject routePlanningObject = routePlanningOptionsToJson(routePlanningOptions_);
+    QJsonObject classificationEditsObject = classificationEditsToJson(
+        viewer_->classificationEditStore(),
+        [&filePath](const QString& datasetPath) {
+            return projectRelativePathFor(filePath, datasetPath);
+        });
     QJsonObject projectPropertiesObject {
         { QStringLiteral("coordinateSystems"), projectCoordinateSystemsToJson(projectCoordinateSystems_) }
     };
@@ -5201,6 +6011,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("measurement"), measurementObject },
         { QStringLiteral("analysis"), analysisObject },
         { QStringLiteral("routePlanning"), routePlanningObject },
+        { QStringLiteral("classificationEdits"), classificationEditsObject },
         { QStringLiteral("routes"), routesArray },
         { QStringLiteral("towerMarkers"), towersArray },
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
@@ -5215,6 +6026,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented));
     file.close();
     currentProjectFilePath_ = filePath;
+    classificationEditsDirty_ = false;
     rebuildProjectTree();
     showUserMessage(LogLevel::Info, tr("Project saved: %1").arg(QFileInfo(filePath).fileName()), 3000);
     return true;
@@ -5316,6 +6128,7 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
 void MainWindow::clearPointCloud()
 {
     currentProjectFilePath_.clear();
+    classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     vegetationRiskResults_.clear();
     selectedVegetationRiskIndex_ = -1;
@@ -5422,6 +6235,11 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
     const QString dockTitleBackground = useDarkChrome ? QStringLiteral("#1f2937") : QStringLiteral("#e2e8f0");
     const QString dockTitleText = useDarkChrome ? QStringLiteral("#f1f5f9") : QStringLiteral("#0f172a");
     const QString dockBorder = useDarkChrome ? QStringLiteral("#475569") : QStringLiteral("#cbd5e1");
+    const QString dockTabBackground = QStringLiteral("#e2e8f0");
+    const QString dockTabText = QStringLiteral("#334155");
+    const QString dockTabSelectedBackground = QStringLiteral("#ffffff");
+    const QString dockTabSelectedText = QStringLiteral("#0f172a");
+    const QString dockTabHoverBackground = QStringLiteral("#dbeafe");
 
     QPalette windowPalette = palette();
     windowPalette.setColor(QPalette::Window, frameColor);
@@ -5484,6 +6302,28 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
         "QDockWidget {"
         "border: 1px solid %1;"
         "}"
+        "QMainWindow::tab-bar {"
+        "alignment: left;"
+        "}"
+        "QMainWindow QTabBar::tab {"
+        "background-color: %4;"
+        "color: %5;"
+        "border: 1px solid %1;"
+        "border-bottom: none;"
+        "border-top-left-radius: 6px;"
+        "border-top-right-radius: 6px;"
+        "padding: 6px 12px;"
+        "margin-right: 2px;"
+        "font-weight: 600;"
+        "}"
+        "QMainWindow QTabBar::tab:selected {"
+        "background-color: %6;"
+        "color: %7;"
+        "}"
+        "QMainWindow QTabBar::tab:hover:!selected {"
+        "background-color: %8;"
+        "color: %7;"
+        "}"
         "QDockWidget::title {"
         "background-color: %2;"
         "color: %3;"
@@ -5492,7 +6332,9 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
         "border-bottom: 1px solid %1;"
         "font-weight: 600;"
         "}")
-            .arg(dockBorder, dockTitleBackground, dockTitleText));
+            .arg(dockBorder, dockTitleBackground, dockTitleText,
+                dockTabBackground, dockTabText, dockTabSelectedBackground,
+                dockTabSelectedText, dockTabHoverBackground));
 
     updateWindowControlAppearance(theme);
     updateWindowControlButtons();
@@ -5787,6 +6629,7 @@ void MainWindow::updateDatasetPanel()
 void MainWindow::updateActionState()
 {
     const bool hasPointCloud = viewer_->hasPointCloud();
+    const bool profileClassificationReady = hasPointCloud;
     const bool hasTowerMarkers = viewer_ != nullptr && !viewer_->towerMarkers().isEmpty();
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
     const bool towerToolActive = viewer_ != nullptr && viewer_->towerEditMode() != TowerEditMode::None;
@@ -5817,6 +6660,10 @@ void MainWindow::updateActionState()
     frontViewAction_->setEnabled(hasPointCloud);
     rightViewAction_->setEnabled(hasPointCloud);
     measureAction_->setEnabled(hasPointCloud);
+    profileClassificationAction_->setEnabled(profileClassificationReady);
+    showProfileClassificationDockAction_->setEnabled(true);
+    showProfileClassificationDockAction_->setChecked(profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+    saveProfileClassificationEditsAction_->setEnabled(hasPointCloud && viewer_->classificationEditedPointCount() > 0);
     clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
     analyzeVegetationRisksAction_->setEnabled(hasPointCloud && hasMeasuredCorridor);
     exportClearanceCsvAction_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
@@ -6138,8 +6985,12 @@ void MainWindow::loadWindowSettings()
 
     if (!restoredState) {
         const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
+        const bool showProfileClassification = settings.value(QStringLiteral("window/showProfileClassification"), false).toBool();
         if (logDock_ != nullptr) {
             logDock_->setVisible(showLog);
+        }
+        if (profileClassificationDock_ != nullptr) {
+            profileClassificationDock_->setVisible(showProfileClassification);
         }
     }
 
@@ -6153,6 +7004,15 @@ void MainWindow::loadWindowSettings()
         const QSignalBlocker blocker(showProfileDockAction_);
         showProfileDockAction_->setChecked(profileDock_ != nullptr && profileDock_->isVisible());
     }
+    if (showProfileClassificationDockAction_ != nullptr) {
+        const QSignalBlocker blocker(showProfileClassificationDockAction_);
+        showProfileClassificationDockAction_->setChecked(profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+    }
+
+    if (projectDock_ != nullptr) {
+        projectDock_->show();
+        projectDock_->raise();
+    }
 }
 
 void MainWindow::persistWindowSettings() const
@@ -6163,6 +7023,9 @@ void MainWindow::persistWindowSettings() const
     settings.setValue(QStringLiteral("window/maximized"), isMaximized());
     settings.setValue(QStringLiteral("window/showLog"), logDock_ != nullptr && logDock_->isVisible());
     settings.setValue(QStringLiteral("window/showProfile"), profileDock_ != nullptr && profileDock_->isVisible());
+    settings.setValue(
+        QStringLiteral("window/showProfileClassification"),
+        profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
     settings.setValue(
         QStringLiteral("window/inspectorTab"),
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);

@@ -10,6 +10,7 @@
 
 struct PointCloudDatasetInfo
 {
+    int datasetId = -1;
     QString filePath;
     std::size_t pointCount = 0;
     PointRecord minBounds;

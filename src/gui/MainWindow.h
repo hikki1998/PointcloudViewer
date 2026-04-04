@@ -29,6 +29,8 @@ class QGroupBox;
 class QIcon;
 class QLabel;
 class QLineEdit;
+class QListWidget;
+class QListWidgetItem;
 class QObject;
 class QPlainTextEdit;
 class QProgressBar;
@@ -95,6 +97,7 @@ private:
     void createWindowControls();
     void createProjectDock();
     void createInspectorPanel();
+    void createProfileClassificationDock();
     void createProfileDock();
     void createLogDock();
     void createStatusBar();
@@ -170,6 +173,9 @@ private:
     void updateVisualizationTooltips();
     void adjustClassificationColorTableHeight();
     void updateClassificationColorTable();
+    void updateProfileClassificationPanel();
+    bool saveProfileClassificationEditsToLas();
+    void promptSaveProfileClassificationEditsIfNeeded();
     QString nextDefaultTowerName() const;
     QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
@@ -182,6 +188,7 @@ private:
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
     QDockWidget* projectDock_ = nullptr;
     QDockWidget* inspectorDock_ = nullptr;
+    QDockWidget* profileClassificationDock_ = nullptr;
     QDockWidget* profileDock_ = nullptr;
     QDockWidget* logDock_ = nullptr;
     QTabWidget* inspectorTabWidget_ = nullptr;
@@ -206,6 +213,7 @@ private:
     QFormLayout* datasetLayout_ = nullptr;
     QGroupBox* renderingGroupBox_ = nullptr;
     QGroupBox* classificationColorsGroupBox_ = nullptr;
+    QGroupBox* profileClassificationGroupBox_ = nullptr;
     QFormLayout* renderingLayout_ = nullptr;
     QGroupBox* measurementGroupBox_ = nullptr;
     QFormLayout* measurementLayout_ = nullptr;
@@ -290,6 +298,8 @@ private:
     QCheckBox* preferVegetationClassificationCheckBox_ = nullptr;
     QLabel* navigationTipsLabel_ = nullptr;
     QLineEdit* projectSearchEdit_ = nullptr;
+    QListWidget* profileClassificationSourceListWidget_ = nullptr;
+    QListWidget* profileClassificationTargetListWidget_ = nullptr;
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
     QTableWidget* issueTableWidget_ = nullptr;
@@ -321,6 +331,14 @@ private:
     QLineEdit* issueImagePathEdit_ = nullptr;
     QPlainTextEdit* issueDescriptionEdit_ = nullptr;
     QPushButton* resetClassificationColorsButton_ = nullptr;
+    QPushButton* profileClassificationToggleButton_ = nullptr;
+    QPushButton* profileClassificationSelectAllButton_ = nullptr;
+    QPushButton* profileClassificationClearSelectionButton_ = nullptr;
+    QPushButton* profileClassificationUndoButton_ = nullptr;
+    QPushButton* profileClassificationRedoButton_ = nullptr;
+    QPushButton* profileClassificationClearEditsButton_ = nullptr;
+    QPushButton* profileClassificationSaveButton_ = nullptr;
+    QLabel* profileClassificationStatusLabel_ = nullptr;
     QWidget* windowControlsWidget_ = nullptr;
     QToolButton* minimizeButton_ = nullptr;
     QToolButton* maximizeButton_ = nullptr;
@@ -356,6 +374,12 @@ private:
     QAction* themeWhiteAction_ = nullptr;
     QAction* themeDarkGrayAction_ = nullptr;
     QAction* measureAction_ = nullptr;
+    QAction* profileClassificationAction_ = nullptr;
+    QAction* showProfileClassificationDockAction_ = nullptr;
+    QAction* saveProfileClassificationEditsAction_ = nullptr;
+    QAction* undoProfileClassificationAction_ = nullptr;
+    QAction* redoProfileClassificationAction_ = nullptr;
+    QAction* clearProfileClassificationEditsAction_ = nullptr;
     QAction* clearMeasurementAction_ = nullptr;
     QAction* exportClearanceCsvAction_ = nullptr;
     QAction* showProfileDockAction_ = nullptr;
@@ -419,5 +443,8 @@ private:
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
     bool updatingClassificationColorTable_ = false;
+    bool classificationEditsDirty_ = false;
+    bool handlingProfileClassificationExitPrompt_ = false;
+    bool savingProfileClassificationEdits_ = false;
     QMap<int, QString> classificationNameOverrides_;
 };

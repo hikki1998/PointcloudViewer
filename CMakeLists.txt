@@ -494,6 +494,7 @@ set(SOURCES
     src/crs/ProjectCoordinateSystemsDialog.cpp
     src/crs/RecentCrsStore.cpp
     src/domain/AnalysisData.cpp
+    src/domain/ClassificationEditStore.cpp
     src/domain/ClearanceAnalysis.cpp
     src/domain/ClearanceReportExporter.cpp
     src/domain/DataManager.cpp
@@ -524,6 +525,7 @@ set(HEADERS
     src/crs/ProjectCoordinateSystemsDialog.h
     src/crs/RecentCrsStore.h
     src/domain/AnalysisData.h
+    src/domain/ClassificationEditStore.h
     src/domain/ClearanceAnalysis.h
     src/domain/ClearanceReportExporter.h
     src/domain/DataManager.h
@@ -585,6 +587,7 @@ set(COMMON_SOURCES
     src/crs/ProjectCoordinateSystemsDialog.cpp
     src/crs/RecentCrsStore.cpp
     src/domain/AnalysisData.cpp
+    src/domain/ClassificationEditStore.cpp
     src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
     src/domain/InspectionRoutePlanning.cpp
@@ -609,6 +612,7 @@ set(COMMON_HEADERS
     src/crs/ProjectCoordinateSystemsDialog.h
     src/crs/RecentCrsStore.h
     src/domain/AnalysisData.h
+    src/domain/ClassificationEditStore.h
     src/domain/DataManager.h
     src/domain/InspectionData.h
     src/domain/InspectionRoutePlanning.h

@@ -13,7 +13,9 @@
 #include <QOpenGLContext>
 #include <QPainter>
 #include <QPixmap>
+#include <QRubberBand>
 #include <QResizeEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -477,6 +479,17 @@ void OsgWidget::setSceneClickModeEnabled(bool enabled)
     rightButtonDragDetected_ = false;
 }
 
+void OsgWidget::setRectangleSelectionEnabled(bool enabled)
+{
+    rectangleSelectionEnabled_ = enabled;
+    selectionDragActive_ = false;
+    leftButtonPressed_ = false;
+    leftButtonDragDetected_ = false;
+    leftButtonEventDispatched_ = false;
+    rightButtonPressed_ = false;
+    rightButtonDragDetected_ = false;
+}
+
 OsgWidget::~OsgWidget()
 {
     if (viewer_.valid()) {
@@ -522,6 +535,18 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
         return;
     }
 
+    const bool selectionDragRequested =
+        rectangleSelectionEnabled_
+        && event->button() == Qt::LeftButton
+        && (event->modifiers() & Qt::AltModifier) == 0;
+    if (selectionDragRequested) {
+        selectionDragActive_ = true;
+        selectionAnchor_ = event->localPos();
+        emit selectionRectangleChanged(QRectF(selectionAnchor_, selectionAnchor_).normalized(), true);
+        update();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton) {
         leftButtonPressed_ = true;
         leftButtonAnchor_ = event->localPos();
@@ -558,6 +583,17 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
+    if (rectangleSelectionEnabled_ && event->button() == Qt::LeftButton && selectionDragActive_) {
+        const QRectF selectionRect(selectionAnchor_, event->localPos());
+        selectionDragActive_ = false;
+        emit selectionRectangleChanged(selectionRect.normalized(), false);
+        if (selectionRect.normalized().width() >= 4.0 && selectionRect.normalized().height() >= 4.0) {
+            emit selectionRectangleFinished(selectionRect.normalized());
+        }
+        update();
+        return;
+    }
+
     if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
         if (leftButtonEventDispatched_) {
             dispatchMouseButtonEvent(event->localPos(), event->button(), false);
@@ -588,6 +624,12 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
 void OsgWidget::mouseMoveEvent(QMouseEvent* event)
 {
     if (event == nullptr) {
+        return;
+    }
+
+    if (rectangleSelectionEnabled_ && selectionDragActive_) {
+        emit selectionRectangleChanged(QRectF(selectionAnchor_, event->localPos()).normalized(), true);
+        update();
         return;
     }
 
@@ -699,6 +741,14 @@ void OsgWidget::wheelEvent(QWheelEvent* event)
 
 void OsgWidget::keyPressEvent(QKeyEvent* event)
 {
+    if (rectangleSelectionEnabled_ && event != nullptr && event->key() == Qt::Key_Escape) {
+        selectionDragActive_ = false;
+        emit selectionRectangleChanged(QRectF(), false);
+        emit selectionEscapePressed();
+        update();
+        return;
+    }
+
     if (eventQueue() != nullptr) {
         eventQueue()->keyPress(static_cast<osgGA::GUIEventAdapter::KeySymbol>(event->key()));
     }
@@ -771,6 +821,8 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     axisIndicatorOverlay_ = new AxisIndicatorOverlay(osgWidget_);
     axisIndicatorOverlay_->show();
     axisIndicatorOverlay_->raise();
+    selectionRubberBand_ = new QRubberBand(QRubberBand::Rectangle, osgWidget_);
+    selectionRubberBand_->hide();
 
     layout_->addWidget(osgWidget_, 0, 0);
     layout_->addWidget(statusPanel_, 1, 0);
@@ -804,11 +856,27 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::sceneSecondaryClicked, this, &PointCloudViewer::handleSceneSecondaryClick);
     connect(osgWidget_, &OsgWidget::sceneHovered, this, &PointCloudViewer::handleSceneHover);
     connect(osgWidget_, &OsgWidget::sceneHoverEnded, this, &PointCloudViewer::clearHoveredPoint);
+    connect(osgWidget_, &OsgWidget::selectionRectangleChanged, this, &PointCloudViewer::handleSelectionRectangleChanged);
+    connect(osgWidget_, &OsgWidget::selectionRectangleFinished, this, &PointCloudViewer::handleSelectionRectangleFinished);
+    connect(osgWidget_, &OsgWidget::selectionEscapePressed, this, &PointCloudViewer::handleSelectionEscapePressed);
     connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
         updateMeasurementOverlayWidgets();
         updateTowerOverlayWidgets();
         updateInspectionIssueOverlayWidgets();
+        if (selectionRubberBand_ != nullptr && selectionRubberBand_->isVisible()) {
+            selectionRubberBand_->raise();
+        }
         updateAxisIndicator();
+    });
+
+    classificationTaskStatusTimer_ = new QTimer(this);
+    classificationTaskStatusTimer_->setInterval(250);
+    connect(classificationTaskStatusTimer_, &QTimer::timeout, this, [this]() {
+        if (!profileClassificationTaskActive_) {
+            classificationTaskStatusTimer_->stop();
+            return;
+        }
+        updateFooter();
     });
 
     applyClearColor();
@@ -819,6 +887,10 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
 
 PointCloudViewer::~PointCloudViewer()
 {
+    if (classificationTaskThread_.joinable()) {
+        classificationTaskThread_.join();
+    }
+
     if (osgWidget_ != nullptr) {
         if (osgViewer::Viewer* viewer = osgWidget_->getViewer()) {
             viewer->setDone(true);
@@ -859,6 +931,7 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     QStringList normalizedFilePaths;
     QList<LoadedPointCloudDataset> loadedDatasets;
     QList<PointCloudDatasetInfo> datasetInfos;
+    nextDatasetId_ = 1;
 
     for (const QString& filePath : filePaths) {
         const QString absolutePath = QFileInfo(filePath).absoluteFilePath();
@@ -936,6 +1009,7 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
             return false;
         }
         PointCloudDatasetInfo datasetInfo;
+        datasetInfo.datasetId = nextDatasetId_++;
         datasetInfo.filePath = filePath;
         datasetInfo.pointCount = metadata.pointCount;
         datasetInfo.minBounds = metadata.minBounds;
@@ -952,6 +1026,11 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
         LoadedPointCloudDataset loadedDataset;
         loadedDataset.info = datasetInfo;
         loadedDataset.pointCloud = std::make_shared<PointCloudData>(std::move(datasetPointCloud));
+        std::vector<PointRecord>& sourcePoints = loadedDataset.pointCloud->mutablePoints();
+        for (std::size_t pointIndex = 0; pointIndex < sourcePoints.size(); ++pointIndex) {
+            sourcePoints[pointIndex].sourceDatasetId = datasetInfo.datasetId;
+            sourcePoints[pointIndex].sourcePointIndex = static_cast<std::uint32_t>(pointIndex);
+        }
         loadedDatasets.append(std::move(loadedDataset));
     }
 
@@ -976,7 +1055,11 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     inspectionRouteVisible_ = true;
     DataManager::instance().clearTrajectory();
     selectedInspectionRouteWaypointIndex_ = -1;
+    classificationEditStore_.clear();
+    classificationUndoStack_.clear();
+    classificationRedoStack_.clear();
     updateSceneClickCapture();
+    syncVisualizationClassificationState();
     resetMeasurementState(false);
 
     if (currentPointCloud_ != nullptr && !currentPointCloud_->hasColor() && visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
@@ -1105,6 +1188,7 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
         }
 
         PointCloudDatasetInfo datasetInfo;
+        datasetInfo.datasetId = nextDatasetId_++;
         datasetInfo.filePath = filePath;
         datasetInfo.pointCount = metadata.pointCount;
         datasetInfo.minBounds = metadata.minBounds;
@@ -1121,6 +1205,11 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
         LoadedPointCloudDataset loadedDataset;
         loadedDataset.info = datasetInfo;
         loadedDataset.pointCloud = std::make_shared<PointCloudData>(std::move(datasetPointCloud));
+        std::vector<PointRecord>& sourcePoints = loadedDataset.pointCloud->mutablePoints();
+        for (std::size_t pointIndex = 0; pointIndex < sourcePoints.size(); ++pointIndex) {
+            sourcePoints[pointIndex].sourceDatasetId = datasetInfo.datasetId;
+            sourcePoints[pointIndex].sourcePointIndex = static_cast<std::uint32_t>(pointIndex);
+        }
         newDatasets.append(std::move(loadedDataset));
     }
 
@@ -1136,6 +1225,7 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
     lastHoverQueryPosition_ = QPointF();
     lastHoverQueryTime_ = {};
 
+    syncVisualizationClassificationState();
     rebuildMergedPointCloud();
     rebuildScene();
     updateFooter();
@@ -1182,7 +1272,24 @@ void PointCloudViewer::clearPointCloud()
     inspectionRouteLabels_.clear();
     inspectionRouteVisible_ = true;
     selectedInspectionRouteWaypointIndex_ = -1;
+    profileClassificationModeEnabled_ = false;
+    profileClassificationTaskActive_ = false;
+    profileClassificationSelectionActive_ = false;
+    profileClassificationSelectionRect_ = QRectF();
+    classificationTaskStartTime_ = {};
+    classificationTaskScannedPoints_.store(0);
+    lastClassificationTaskScannedPoints_ = 0;
+    lastClassificationTaskElapsedMilliseconds_ = 0;
+    if (classificationTaskStatusTimer_ != nullptr) {
+        classificationTaskStatusTimer_->stop();
+    }
+    classificationEditStore_.clear();
+    classificationUndoStack_.clear();
+    classificationRedoStack_.clear();
+    nextDatasetId_ = 1;
+    clearSelectionRubberBand();
     updateSceneClickCapture();
+    syncVisualizationClassificationState();
     resetMeasurementState(false);
 
     if (rootGroup_.valid()) {
@@ -1263,6 +1370,16 @@ bool PointCloudViewer::measurementEnabled() const
     return measurementEnabled_;
 }
 
+bool PointCloudViewer::profileClassificationModeEnabled() const
+{
+    return profileClassificationModeEnabled_;
+}
+
+bool PointCloudViewer::profileClassificationTaskActive() const
+{
+    return profileClassificationTaskActive_;
+}
+
 const MeasurementResult& PointCloudViewer::measurementResult() const
 {
     return measurementResult_;
@@ -1321,6 +1438,36 @@ int PointCloudViewer::towerEditTargetIndex() const
 IssueEditMode PointCloudViewer::issueEditMode() const
 {
     return issueEditMode_;
+}
+
+const QSet<int>& PointCloudViewer::profileClassificationSourceClasses() const
+{
+    return profileClassificationSourceClasses_;
+}
+
+int PointCloudViewer::profileClassificationTargetClass() const
+{
+    return profileClassificationTargetClass_;
+}
+
+bool PointCloudViewer::canUndoClassificationEdits() const
+{
+    return !classificationUndoStack_.isEmpty();
+}
+
+bool PointCloudViewer::canRedoClassificationEdits() const
+{
+    return !classificationRedoStack_.isEmpty();
+}
+
+int PointCloudViewer::classificationEditedPointCount() const
+{
+    return classificationEditStore_.editedPointCount();
+}
+
+const ClassificationEditStore& PointCloudViewer::classificationEditStore() const
+{
+    return classificationEditStore_;
 }
 
 void PointCloudViewer::setPointSize(int pointSize)
@@ -1627,6 +1774,206 @@ void PointCloudViewer::setInvertWheelZoom(bool invert)
     setInteractionOptions(options);
 }
 
+void PointCloudViewer::setProfileClassificationModeEnabled(bool enabled)
+{
+    if (enabled && (!hasPointCloud() || pointCloudLoadingActive_ || tiledPointCloudModeActive_)) {
+        emit measurementMessage(tr("Wait until the current point cloud is fully ready before starting profile classification."), true);
+        return;
+    }
+
+    if (profileClassificationModeEnabled_ == enabled) {
+        return;
+    }
+
+    if (enabled) {
+        if (measurementEnabled_) {
+            setMeasurementEnabled(false);
+        }
+        if (towerEditMode_ != TowerEditMode::None) {
+            cancelTowerEditMode();
+        }
+        if (issueEditMode_ != IssueEditMode::None) {
+            cancelIssueEditMode();
+        }
+    } else {
+        clearSelectionRubberBand();
+    }
+
+    profileClassificationModeEnabled_ = enabled;
+    profileClassificationSelectionActive_ = false;
+    profileClassificationSelectionRect_ = QRectF();
+    updateSceneClickCapture();
+    updateFooter();
+    emit profileClassificationModeChanged(profileClassificationModeEnabled_);
+    emit profileClassificationStateChanged();
+    emit measurementMessage(
+        profileClassificationModeEnabled_
+            ? tr("Profile classification mode enabled. Drag a rectangle to classify source classes, hold Alt and drag left mouse to adjust view, right-click to exit, and press Esc to cancel.")
+            : tr("Profile classification mode disabled."),
+        false);
+}
+
+void PointCloudViewer::setProfileClassificationSourceClasses(const QSet<int>& classifications)
+{
+    if (profileClassificationSourceClasses_ == classifications) {
+        return;
+    }
+
+    profileClassificationSourceClasses_ = classifications;
+    emit profileClassificationStateChanged();
+}
+
+void PointCloudViewer::setProfileClassificationTargetClass(int classification)
+{
+    if (profileClassificationTargetClass_ == classification) {
+        return;
+    }
+
+    profileClassificationTargetClass_ = classification;
+    emit profileClassificationStateChanged();
+}
+
+void PointCloudViewer::undoClassificationEdit()
+{
+    if (classificationUndoStack_.isEmpty() || profileClassificationTaskActive_) {
+        return;
+    }
+
+    const ClassificationEditBatch batch = classificationUndoStack_.takeLast();
+    classificationEditStore_.revertBatch(batch);
+    classificationRedoStack_.append(batch);
+    syncVisualizationClassificationState();
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+    emit classificationEditsChanged();
+    emit profileClassificationStateChanged();
+    emit measurementMessage(
+        tr("Reverted %1 profile classification point(s).")
+            .arg(QLocale().toString(batch.changedCount)),
+        false);
+}
+
+void PointCloudViewer::redoClassificationEdit()
+{
+    if (classificationRedoStack_.isEmpty() || profileClassificationTaskActive_) {
+        return;
+    }
+
+    const ClassificationEditBatch batch = classificationRedoStack_.takeLast();
+    classificationEditStore_.applyBatch(batch);
+    classificationUndoStack_.append(batch);
+    syncVisualizationClassificationState();
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+    emit classificationEditsChanged();
+    emit profileClassificationStateChanged();
+    emit measurementMessage(
+        tr("Reapplied %1 profile classification point(s).")
+            .arg(QLocale().toString(batch.changedCount)),
+        false);
+}
+
+void PointCloudViewer::clearClassificationEdits()
+{
+    if (classificationEditStore_.isEmpty() && classificationUndoStack_.isEmpty() && classificationRedoStack_.isEmpty()) {
+        return;
+    }
+
+    classificationEditStore_.clear();
+    classificationUndoStack_.clear();
+    classificationRedoStack_.clear();
+    syncVisualizationClassificationState();
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+    emit classificationEditsChanged();
+    emit profileClassificationStateChanged();
+    emit measurementMessage(tr("Cleared all project profile classification edits."), false);
+}
+
+void PointCloudViewer::setClassificationEditStore(const ClassificationEditStore& store)
+{
+    classificationEditStore_ = store;
+    classificationUndoStack_.clear();
+    classificationRedoStack_.clear();
+    syncVisualizationClassificationState();
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+    emit classificationEditsChanged();
+    emit profileClassificationStateChanged();
+}
+
+void PointCloudViewer::commitClassificationEditsToPointCloudData()
+{
+    if (classificationEditStore_.isEmpty()) {
+        return;
+    }
+
+    const ClassificationEditStore::StoreMap editsByDataset = classificationEditStore_.editsByDataset();
+    bool changedAnyPoint = false;
+    QList<PointCloudDatasetInfo> datasetInfos = DataManager::instance().pointCloudDatasets();
+
+    for (LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (dataset.pointCloud == nullptr) {
+            continue;
+        }
+
+        auto editsIt = editsByDataset.constFind(dataset.info.filePath);
+        if (editsIt == editsByDataset.constEnd()) {
+            for (auto probeIt = editsByDataset.constBegin(); probeIt != editsByDataset.constEnd(); ++probeIt) {
+                if (probeIt.key().compare(dataset.info.filePath, Qt::CaseInsensitive) == 0) {
+                    editsIt = probeIt;
+                    break;
+                }
+            }
+        }
+        if (editsIt == editsByDataset.constEnd()) {
+            continue;
+        }
+
+        std::vector<PointRecord>& points = dataset.pointCloud->mutablePoints();
+        bool datasetHasClassification = dataset.info.hasClassification;
+        for (auto pointIt = editsIt->constBegin(); pointIt != editsIt->constEnd(); ++pointIt) {
+            const std::size_t pointIndex = static_cast<std::size_t>(pointIt.key());
+            if (pointIndex >= points.size()) {
+                continue;
+            }
+
+            PointRecord& point = points[pointIndex];
+            point.classification = static_cast<std::uint8_t>(std::clamp(pointIt.value(), 0, 255));
+            point.hasClassification = true;
+            datasetHasClassification = true;
+            changedAnyPoint = true;
+        }
+
+        dataset.info.hasClassification = datasetHasClassification;
+        for (PointCloudDatasetInfo& info : datasetInfos) {
+            if (info.filePath.compare(dataset.info.filePath, Qt::CaseInsensitive) == 0) {
+                info.hasClassification = datasetHasClassification;
+                break;
+            }
+        }
+    }
+
+    if (changedAnyPoint) {
+        DataManager::instance().setPointCloudDatasets(datasetInfos);
+    }
+
+    classificationEditStore_.clear();
+    classificationUndoStack_.clear();
+    classificationRedoStack_.clear();
+    syncVisualizationClassificationState();
+    rebuildMergedPointCloud();
+    rebuildScene();
+    updateFooter();
+    emit visualizationOptionsChanged();
+    emit classificationEditsChanged();
+    emit profileClassificationStateChanged();
+}
+
 void PointCloudViewer::setMeasurementEnabled(bool enabled)
 {
     if (enabled && !hasPointCloud()) {
@@ -1642,6 +1989,10 @@ void PointCloudViewer::setMeasurementEnabled(bool enabled)
         towerEditMode_ = TowerEditMode::None;
         towerEditTargetIndex_ = -1;
         emit towerEditModeChanged();
+    }
+
+    if (enabled && profileClassificationModeEnabled_) {
+        setProfileClassificationModeEnabled(false);
     }
 
     measurementEnabled_ = enabled;
@@ -1675,12 +2026,14 @@ void PointCloudViewer::updateSceneClickCapture()
         return;
     }
 
+    osgWidget_->setRectangleSelectionEnabled(profileClassificationModeEnabled_);
     const bool sceneClickEnabled =
-        measurementEnabled_
+        !profileClassificationModeEnabled_
+        && (measurementEnabled_
         || towerEditMode_ != TowerEditMode::None
         || issueEditMode_ != IssueEditMode::None
         || !towerMarkers_.isEmpty()
-        || !inspectionIssues_.isEmpty();
+        || !inspectionIssues_.isEmpty());
     osgWidget_->setSceneClickModeEnabled(sceneClickEnabled);
 }
 
@@ -1851,6 +2204,9 @@ void PointCloudViewer::clearTowerMarkers()
 
 void PointCloudViewer::beginTowerAddMode()
 {
+    if (profileClassificationModeEnabled_) {
+        setProfileClassificationModeEnabled(false);
+    }
     towerEditMode_ = TowerEditMode::AddAfterLast;
     towerEditTargetIndex_ = -1;
     towerAddModeStartCount_ = towerMarkers_.size();
@@ -1865,6 +2221,9 @@ void PointCloudViewer::beginTowerAddMode()
 
 void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
 {
+    if (profileClassificationModeEnabled_) {
+        setProfileClassificationModeEnabled(false);
+    }
     if (beforeIndex < 0 || beforeIndex >= towerMarkers_.size()) {
         return;
     }
@@ -1887,6 +2246,9 @@ void PointCloudViewer::beginTowerInsertMode(int beforeIndex)
 
 void PointCloudViewer::beginTowerMoveMode(int towerIndex)
 {
+    if (profileClassificationModeEnabled_) {
+        setProfileClassificationModeEnabled(false);
+    }
     if (towerIndex < 0 || towerIndex >= towerMarkers_.size()) {
         return;
     }
@@ -2102,6 +2464,9 @@ void PointCloudViewer::setSelectedInspectionRouteWaypointIndex(int index)
 
 void PointCloudViewer::beginIssueAddMode()
 {
+    if (profileClassificationModeEnabled_) {
+        setProfileClassificationModeEnabled(false);
+    }
     issueEditMode_ = IssueEditMode::Add;
     cancelTowerEditMode();
     if (measurementEnabled_) {
@@ -2602,6 +2967,30 @@ void PointCloudViewer::updateFooter()
         }
     }
 
+    if (profileClassificationModeEnabled_) {
+        if (profileClassificationTaskActive_) {
+            detail += tr(" | Profile classify: processing");
+            const std::uint64_t scannedPointCount = classificationTaskScannedPoints_.load();
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsed = classificationTaskStartTime_.time_since_epoch().count() == 0
+                ? std::chrono::milliseconds(0)
+                : std::chrono::duration_cast<std::chrono::milliseconds>(now - classificationTaskStartTime_);
+            detail += QStringLiteral(" (%1, %2ms)")
+                .arg(QLocale().toString(static_cast<qlonglong>(scannedPointCount)))
+                .arg(QLocale().toString(static_cast<qlonglong>(elapsed.count())));
+        } else {
+            detail += tr(" | Profile classify: source %1 -> target %2 | edits %3")
+                .arg(QLocale().toString(profileClassificationSourceClasses_.size()))
+                .arg(QLocale().toString(profileClassificationTargetClass_))
+                .arg(QLocale().toString(classificationEditStore_.editedPointCount()));
+            if (lastClassificationTaskElapsedMilliseconds_ > 0) {
+                detail += QStringLiteral(" (%1, %2ms)")
+                    .arg(QLocale().toString(static_cast<qlonglong>(lastClassificationTaskScannedPoints_)))
+                    .arg(QLocale().toString(static_cast<qlonglong>(lastClassificationTaskElapsedMilliseconds_)));
+            }
+        }
+    }
+
     if (issueEditMode_ == IssueEditMode::Add) {
         detail += tr(" | Issue marking: click a point to add an issue, right-click to cancel");
     }
@@ -2704,6 +3093,11 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
 
 void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 {
+    if (profileClassificationModeEnabled_) {
+        Q_UNUSED(localPos);
+        return;
+    }
+
     if (towerEditMode_ == TowerEditMode::None
         && issueEditMode_ == IssueEditMode::None
         && !measurementEnabled_
@@ -2764,6 +3158,16 @@ void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
 {
     Q_UNUSED(localPos);
 
+    if (profileClassificationModeEnabled_) {
+        if (profileClassificationSelectionActive_) {
+            clearSelectionRubberBand();
+            emit measurementMessage(tr("Profile classification selection cancelled."), false);
+        } else {
+            setProfileClassificationModeEnabled(false);
+        }
+        return;
+    }
+
     if (towerEditMode_ == TowerEditMode::AddAfterLast) {
         if (towerMarkers_.size() > towerAddModeStartCount_) {
             if (removeTowerMarker(towerMarkers_.size() - 1)) {
@@ -2812,6 +3216,10 @@ void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
 
 void PointCloudViewer::handleSceneHover(const QPointF& localPos)
 {
+    if (profileClassificationModeEnabled_) {
+        return;
+    }
+
     if (!hasPointCloud()) {
         clearHoveredPoint();
         return;
@@ -2860,6 +3268,250 @@ void PointCloudViewer::updateHoveredPoint(const PointRecord* hoveredPoint)
     hoveredPoint_ = *hoveredPoint;
     hoveredPointValid_ = true;
     updateFooter();
+}
+
+void PointCloudViewer::syncVisualizationClassificationState()
+{
+    visualizationOptions_.classificationEditStore =
+        std::make_shared<ClassificationEditStore>(classificationEditStore_);
+    visualizationOptions_.classificationDatasetPathsById.clear();
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        visualizationOptions_.classificationDatasetPathsById.insert(
+            dataset.info.datasetId,
+            dataset.info.filePath);
+    }
+}
+
+void PointCloudViewer::clearSelectionRubberBand()
+{
+    profileClassificationSelectionActive_ = false;
+    profileClassificationSelectionRect_ = QRectF();
+    if (selectionRubberBand_ != nullptr) {
+        selectionRubberBand_->hide();
+    }
+}
+
+void PointCloudViewer::handleSelectionRectangleChanged(const QRectF& localRect, bool active)
+{
+    profileClassificationSelectionActive_ = active;
+    profileClassificationSelectionRect_ = active ? localRect.normalized() : QRectF();
+    if (selectionRubberBand_ == nullptr) {
+        return;
+    }
+
+    if (!active || localRect.isNull()) {
+        selectionRubberBand_->hide();
+        return;
+    }
+
+    selectionRubberBand_->setGeometry(localRect.normalized().toRect());
+    selectionRubberBand_->show();
+    selectionRubberBand_->raise();
+}
+
+void PointCloudViewer::handleSelectionRectangleFinished(const QRectF& localRect)
+{
+    clearSelectionRubberBand();
+    beginProfileClassificationSelection(localRect.normalized());
+}
+
+void PointCloudViewer::handleSelectionEscapePressed()
+{
+    if (!profileClassificationModeEnabled_) {
+        return;
+    }
+
+    clearSelectionRubberBand();
+    setProfileClassificationModeEnabled(false);
+}
+
+void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewportRect)
+{
+    if (!profileClassificationModeEnabled_ || profileClassificationTaskActive_) {
+        return;
+    }
+    if (profileClassificationSourceClasses_.isEmpty()) {
+        emit measurementMessage(tr("Choose at least one source classification before profile classification."), true);
+        return;
+    }
+    if (!hasPointCloud() || osgWidget_ == nullptr) {
+        return;
+    }
+
+    if (classificationTaskThread_.joinable()) {
+        classificationTaskThread_.join();
+    }
+
+    struct DatasetSnapshot
+    {
+        QString datasetPath;
+        std::shared_ptr<PointCloudData> pointCloud;
+    };
+
+    QList<DatasetSnapshot> datasets;
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr) {
+            continue;
+        }
+        datasets.append({ dataset.info.filePath, dataset.pointCloud });
+    }
+
+    if (datasets.isEmpty()) {
+        emit measurementMessage(tr("No visible datasets are available for profile classification."), true);
+        return;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr || viewer->getCamera()->getViewport() == nullptr) {
+        return;
+    }
+
+    const osg::Matrixd worldToWindow =
+        viewer->getCamera()->getViewMatrix()
+        * viewer->getCamera()->getProjectionMatrix()
+        * viewer->getCamera()->getViewport()->computeWindowMatrix();
+    const QSet<int> sourceClasses = profileClassificationSourceClasses_;
+    const int targetClassification = profileClassificationTargetClass_;
+    const QRectF selectionRect = viewportRect.normalized();
+    const std::shared_ptr<const ClassificationEditStore> editSnapshot =
+        std::make_shared<ClassificationEditStore>(classificationEditStore_);
+    const qreal devicePixelRatio = osgWidget_->devicePixelRatioF();
+    const int widgetHeight = osgWidget_->height();
+    const std::uint64_t token = ++classificationTaskToken_;
+    const auto taskStartTime = std::chrono::steady_clock::now();
+
+    profileClassificationTaskActive_ = true;
+    classificationTaskStartTime_ = taskStartTime;
+    classificationTaskScannedPoints_.store(0);
+    updateFooter();
+    if (classificationTaskStatusTimer_ != nullptr) {
+        classificationTaskStatusTimer_->start();
+    }
+    emit profileClassificationStateChanged();
+    emit measurementMessage(tr("Applying profile classification selection..."), false);
+
+    classificationTaskThread_ = std::thread([this, token, datasets, sourceClasses, targetClassification, selectionRect, worldToWindow, editSnapshot, devicePixelRatio, widgetHeight, taskStartTime]() {
+        ClassificationEditBatch batch;
+        batch.targetClassification = targetClassification;
+        std::uint64_t scannedPointCount = 0;
+
+        const double minX = selectionRect.left();
+        const double maxX = selectionRect.right();
+        const double minY = selectionRect.top();
+        const double maxY = selectionRect.bottom();
+
+        for (const DatasetSnapshot& dataset : datasets) {
+            if (dataset.pointCloud == nullptr) {
+                continue;
+            }
+
+            const std::vector<PointRecord>& points = dataset.pointCloud->points();
+            for (const PointRecord& point : points) {
+                ++scannedPointCount;
+                if ((scannedPointCount & 0x1FFFu) == 0u) {
+                    classificationTaskScannedPoints_.store(scannedPointCount);
+                }
+                const osg::Vec3d projected = osg::Vec3d(point.x, point.y, point.z) * worldToWindow;
+                if (projected.z() < 0.0 || projected.z() > 1.0) {
+                    continue;
+                }
+
+                const QPointF viewportPoint(
+                    projected.x() / devicePixelRatio,
+                    static_cast<double>(widgetHeight) - projected.y() / devicePixelRatio);
+                if (viewportPoint.x() < minX || viewportPoint.x() > maxX || viewportPoint.y() < minY || viewportPoint.y() > maxY) {
+                    continue;
+                }
+
+                const int rawClassification = point.hasClassification ? static_cast<int>(point.classification) : -1;
+                const int effectiveClassification = editSnapshot != nullptr
+                    ? editSnapshot->effectiveClassification(dataset.datasetPath, point.sourcePointIndex, rawClassification)
+                    : rawClassification;
+                if (!sourceClasses.contains(effectiveClassification)) {
+                    continue;
+                }
+
+                ++batch.hitCount;
+                if (effectiveClassification == targetClassification) {
+                    continue;
+                }
+
+                ClassificationEditBatchItem item;
+                item.datasetPath = dataset.datasetPath;
+                item.pointIndex = point.sourcePointIndex;
+                item.previousEffectiveClassification = effectiveClassification;
+                item.targetClassification = targetClassification;
+                item.hadPreviousOverride = editSnapshot != nullptr
+                    && editSnapshot->tryGetOverride(dataset.datasetPath, point.sourcePointIndex, &item.previousOverrideClassification);
+                batch.items.append(item);
+            }
+        }
+
+        batch.changedCount = batch.items.size();
+        classificationTaskScannedPoints_.store(scannedPointCount);
+        const auto elapsedMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - taskStartTime);
+        QMetaObject::invokeMethod(
+            this,
+            [this, token, batch, scannedPointCount, elapsedMilliseconds]() {
+                finalizeProfileClassificationTask(
+                    token,
+                    batch,
+                    scannedPointCount,
+                    static_cast<std::uint64_t>(std::max<std::int64_t>(0, elapsedMilliseconds.count())));
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void PointCloudViewer::finalizeProfileClassificationTask(
+    std::uint64_t token,
+    const ClassificationEditBatch& batch,
+    std::uint64_t scannedPointCount,
+    std::uint64_t elapsedMilliseconds)
+{
+    if (token != classificationTaskToken_) {
+        return;
+    }
+
+    if (classificationTaskThread_.joinable()) {
+        classificationTaskThread_.join();
+    }
+
+    profileClassificationTaskActive_ = false;
+    lastClassificationTaskScannedPoints_ = scannedPointCount;
+    lastClassificationTaskElapsedMilliseconds_ = elapsedMilliseconds;
+    if (classificationTaskStatusTimer_ != nullptr) {
+        classificationTaskStatusTimer_->stop();
+    }
+    if (!batch.isEmpty()) {
+        classificationEditStore_.applyBatch(batch);
+        classificationUndoStack_.append(batch);
+        classificationRedoStack_.clear();
+        syncVisualizationClassificationState();
+        rebuildScene();
+        emit visualizationOptionsChanged();
+        emit classificationEditsChanged();
+    }
+
+    updateFooter();
+    emit profileClassificationStateChanged();
+    const QString completionStats = QStringLiteral(" (%1, %2ms)")
+        .arg(QLocale().toString(static_cast<qlonglong>(scannedPointCount)))
+        .arg(QLocale().toString(static_cast<qlonglong>(elapsedMilliseconds)));
+    emit measurementMessage(
+        tr("Profile classification completed. %1 point(s) hit, %2 point(s) changed to class %3.")
+            .arg(QLocale().toString(batch.hitCount))
+            .arg(QLocale().toString(batch.changedCount))
+            .arg(QLocale().toString(batch.targetClassification))
+            + completionStats,
+        false);
+}
+
+int PointCloudViewer::effectiveClassificationForPoint(const QString& datasetPath, const PointRecord& point) const
+{
+    const int rawClassification = point.hasClassification ? static_cast<int>(point.classification) : -1;
+    return classificationEditStore_.effectiveClassification(datasetPath, point.sourcePointIndex, rawClassification);
 }
 
 bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels) const

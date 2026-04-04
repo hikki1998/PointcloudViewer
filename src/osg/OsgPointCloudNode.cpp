@@ -17,6 +17,7 @@
 #include <osg/StateSet>
 #include <osg/Uniform>
 
+#include "domain/ClassificationEditStore.h"
 #include "pointcloud/PointCloudData.h"
 
 namespace
@@ -164,7 +165,16 @@ QColor colorForClassification(
         return visualizationOptions.classificationFallbackColor;
     }
 
-    const int classification = static_cast<int>(point.classification);
+    int classification = static_cast<int>(point.classification);
+    if (visualizationOptions.classificationEditStore != nullptr && point.sourceDatasetId >= 0) {
+        const auto datasetPathIt = visualizationOptions.classificationDatasetPathsById.constFind(point.sourceDatasetId);
+        if (datasetPathIt != visualizationOptions.classificationDatasetPathsById.constEnd()) {
+            classification = visualizationOptions.classificationEditStore->effectiveClassification(
+                datasetPathIt.value(),
+                point.sourcePointIndex,
+                classification);
+        }
+    }
     const auto colorIt = visualizationOptions.classificationColors.constFind(classification);
     if (colorIt != visualizationOptions.classificationColors.constEnd()) {
         return colorIt.value();
@@ -182,8 +192,19 @@ bool pointVisibleForClassification(
         return fallbackVisible;
     }
 
+    int classification = static_cast<int>(point.classification);
+    if (visualizationOptions.classificationEditStore != nullptr && point.sourceDatasetId >= 0) {
+        const auto datasetPathIt = visualizationOptions.classificationDatasetPathsById.constFind(point.sourceDatasetId);
+        if (datasetPathIt != visualizationOptions.classificationDatasetPathsById.constEnd()) {
+            classification = visualizationOptions.classificationEditStore->effectiveClassification(
+                datasetPathIt.value(),
+                point.sourcePointIndex,
+                classification);
+        }
+    }
+
     return visualizationOptions.classificationVisibility.value(
-        static_cast<int>(point.classification),
+        classification,
         fallbackVisible);
 }
 

@@ -136,6 +136,11 @@ const std::vector<PointRecord>& PointCloudData::points() const
     return points_;
 }
 
+std::vector<PointRecord>& PointCloudData::mutablePoints()
+{
+    return points_;
+}
+
 bool PointCloudData::hasColor() const
 {
     return hasColor_;

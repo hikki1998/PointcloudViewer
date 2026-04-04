@@ -19,6 +19,8 @@ struct PointRecord
     std::uint8_t returnNumber = 0;
     std::uint8_t numberOfReturns = 0;
     double gpsTime = 0.0;
+    int sourceDatasetId = -1;
+    std::uint32_t sourcePointIndex = std::numeric_limits<std::uint32_t>::max();
     bool hasIntensity = false;
     bool hasClassification = false;
     bool hasReturnInfo = false;
@@ -63,6 +65,7 @@ public:
     [[nodiscard]] bool empty() const;
     [[nodiscard]] std::size_t size() const;
     [[nodiscard]] const std::vector<PointRecord>& points() const;
+    [[nodiscard]] std::vector<PointRecord>& mutablePoints();
     [[nodiscard]] bool hasColor() const;
     [[nodiscard]] bool hasIntensity() const;
     [[nodiscard]] bool hasClassification() const;

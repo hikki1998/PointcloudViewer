@@ -1,7 +1,12 @@
 #pragma once
 
+#include <memory>
+
 #include <QColor>
+#include <QHash>
 #include <QMap>
+
+class ClassificationEditStore;
 
 enum class PointCloudColorMode
 {
@@ -81,6 +86,8 @@ struct PointCloudVisualizationOptions
     QMap<int, QColor> classificationColors = defaultPointClassificationColors();
     QMap<int, bool> classificationVisibility = defaultPointClassificationVisibility();
     QColor classificationFallbackColor = defaultPointClassificationFallbackColor();
+    std::shared_ptr<const ClassificationEditStore> classificationEditStore;
+    QHash<int, QString> classificationDatasetPathsById;
     QColor backgroundColor = QColor(241, 244, 249);
     float depthCueStrength = 0.0f;
     float edlStrength = 0.0f;

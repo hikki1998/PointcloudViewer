@@ -9,6 +9,7 @@
 #include <QColor>
 #include <QList>
 #include <QPointF>
+#include <QRectF>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -22,6 +23,7 @@
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 
+#include "domain/ClassificationEditStore.h"
 #include "domain/DataManager.h"
 #include "domain/InspectionData.h"
 #include "osg/PointCloudVisualization.h"
@@ -32,6 +34,7 @@ class QLabel;
 class QEvent;
 class QKeyEvent;
 class QMouseEvent;
+class QRubberBand;
 class QResizeEvent;
 class QTimer;
 class QWheelEvent;
@@ -99,6 +102,7 @@ public:
     const InteractionOptions& interactionOptions() const { return interactionOptions_; }
     void setInteractionOptions(const InteractionOptions& options);
     void setSceneClickModeEnabled(bool enabled);
+    void setRectangleSelectionEnabled(bool enabled);
 
 protected:
     void initializeGL() override;
@@ -118,6 +122,9 @@ signals:
     void sceneSecondaryClicked(const QPointF& localPos);
     void sceneHovered(const QPointF& localPos);
     void sceneHoverEnded();
+    void selectionRectangleChanged(const QRectF& localRect, bool active);
+    void selectionRectangleFinished(const QRectF& localRect);
+    void selectionEscapePressed();
     void frameRendered();
 
 private:
@@ -139,9 +146,12 @@ private:
     bool leftButtonDragDetected_ = false;
     bool leftButtonEventDispatched_ = false;
     bool rightButtonDragDetected_ = false;
+    bool rectangleSelectionEnabled_ = false;
+    bool selectionDragActive_ = false;
     QPointF leftButtonAnchor_;
     QPointF middleButtonAnchor_;
     QPointF rightButtonAnchor_;
+    QPointF selectionAnchor_;
     QPointF lastOrbitCursorPosition_;
     QPointF lastOrbitEventPosition_;
     QPointF lastPanCursorPosition_;
@@ -175,6 +185,8 @@ public:
     const PointCloudVisualizationOptions& visualizationOptions() const;
     const InteractionOptions& interactionOptions() const;
     bool measurementEnabled() const;
+    bool profileClassificationModeEnabled() const;
+    bool profileClassificationTaskActive() const;
     const MeasurementResult& measurementResult() const;
     bool hasHoveredPoint() const;
     PointRecord hoveredPoint() const;
@@ -187,6 +199,12 @@ public:
     TowerEditMode towerEditMode() const;
     int towerEditTargetIndex() const;
     IssueEditMode issueEditMode() const;
+    const QSet<int>& profileClassificationSourceClasses() const;
+    int profileClassificationTargetClass() const;
+    bool canUndoClassificationEdits() const;
+    bool canRedoClassificationEdits() const;
+    int classificationEditedPointCount() const;
+    const ClassificationEditStore& classificationEditStore() const;
     bool focusOnPoint(const PointRecord& point, double distanceScale = 0.35);
     bool focusOnBounds(const PointRecord& minBounds, const PointRecord& maxBounds, double distanceScale = 1.0);
     bool setPointCloudDatasetVisible(const QString& filePath, bool visible);
@@ -220,6 +238,14 @@ public slots:
     void setInvertPanDrag(bool invert);
     void setInvertWheelZoom(bool invert);
     void setMeasurementEnabled(bool enabled);
+    void setProfileClassificationModeEnabled(bool enabled);
+    void setProfileClassificationSourceClasses(const QSet<int>& classifications);
+    void setProfileClassificationTargetClass(int classification);
+    void undoClassificationEdit();
+    void redoClassificationEdit();
+    void clearClassificationEdits();
+    void setClassificationEditStore(const ClassificationEditStore& store);
+    void commitClassificationEditsToPointCloudData();
     void clearMeasurement();
     bool addTowerMarker(const QString& name, const PointRecord& point);
     bool insertTowerMarker(int index, const QString& name, const PointRecord& point);
@@ -258,6 +284,9 @@ signals:
     void measurementChanged();
     void measurementModeChanged();
     void measurementMessage(const QString& message, bool error);
+    void profileClassificationModeChanged(bool enabled);
+    void profileClassificationStateChanged();
+    void classificationEditsChanged();
     void towerMarkersChanged();
     void selectedTowerChanged(int index);
     void towerEditModeChanged();
@@ -318,8 +347,20 @@ private:
     void handleSceneClick(const QPointF& localPos);
     void handleSceneSecondaryClick(const QPointF& localPos);
     void handleSceneHover(const QPointF& localPos);
+    void handleSelectionRectangleChanged(const QRectF& localRect, bool active);
+    void handleSelectionRectangleFinished(const QRectF& localRect);
+    void handleSelectionEscapePressed();
     void clearHoveredPoint();
     void updateHoveredPoint(const PointRecord* hoveredPoint);
+    void syncVisualizationClassificationState();
+    void clearSelectionRubberBand();
+    void beginProfileClassificationSelection(const QRectF& viewportRect);
+    void finalizeProfileClassificationTask(
+        std::uint64_t token,
+        const ClassificationEditBatch& batch,
+        std::uint64_t scannedPointCount,
+        std::uint64_t elapsedMilliseconds);
+    int effectiveClassificationForPoint(const QString& datasetPath, const PointRecord& point) const;
     bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels = 14.0f) const;
     int pickTowerMarkerAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     int pickInspectionIssueAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
@@ -365,6 +406,7 @@ private:
     QLabel* measurementEndOverlayLabel_ = nullptr;
     QLabel* measurementSummaryOverlayLabel_ = nullptr;
     QWidget* axisIndicatorOverlay_ = nullptr;
+    QRubberBand* selectionRubberBand_ = nullptr;
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
 
@@ -381,6 +423,9 @@ private:
     QString pointCloudLoadingDetail_;
     int pointCloudLoadingProgressPercent_ = -1;
     bool measurementEnabled_ = false;
+    bool profileClassificationModeEnabled_ = false;
+    bool profileClassificationTaskActive_ = false;
+    bool profileClassificationSelectionActive_ = false;
     MeasurementResult measurementResult_;
     bool hoveredPointValid_ = false;
     PointRecord hoveredPoint_;
@@ -397,6 +442,12 @@ private:
     int towerEditTargetIndex_ = -1;
     int towerAddModeStartCount_ = 0;
     IssueEditMode issueEditMode_ = IssueEditMode::None;
+    QSet<int> profileClassificationSourceClasses_;
+    int profileClassificationTargetClass_ = 16;
+    QRectF profileClassificationSelectionRect_;
+    ClassificationEditStore classificationEditStore_;
+    QList<ClassificationEditBatch> classificationUndoStack_;
+    QList<ClassificationEditBatch> classificationRedoStack_;
     QList<QLabel*> towerOverlayLabels_;
     QList<QLabel*> issueOverlayLabels_;
     QList<QLabel*> inspectionRouteOverlayLabels_;
@@ -413,6 +464,14 @@ private:
     std::uint64_t asyncLoadToken_ = 0;
     std::atomic_bool asyncLoadCancellationRequested_ = false;
     std::thread asyncLoadThread_;
+    std::uint64_t classificationTaskToken_ = 0;
+    std::chrono::steady_clock::time_point classificationTaskStartTime_{};
+    std::atomic<std::uint64_t> classificationTaskScannedPoints_ { 0 };
+    std::uint64_t lastClassificationTaskScannedPoints_ = 0;
+    std::uint64_t lastClassificationTaskElapsedMilliseconds_ = 0;
+    std::thread classificationTaskThread_;
+    int nextDatasetId_ = 1;
+    QTimer* classificationTaskStatusTimer_ = nullptr;
     QTimer* refineIdleTimer_ = nullptr;
     QTimer* refineBatchTimer_ = nullptr;
 

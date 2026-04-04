@@ -2,5 +2,10 @@
     <qresource prefix="/assets">
         <file alias="icon/software.png">Icon/software.PNG</file>
         <file alias="icon/Splash.png">Icon/Splash.PNG</file>
+        <file alias="icon/addTower.png">Icon/addTower.png</file>
+        <file alias="icon/addTowerPrevious.png">Icon/addTowerPrevious.png</file>
+        <file alias="icon/modifyTower.png">Icon/modifyTower.png</file>
+        <file alias="icon/focusTower.png">Icon/focusTower.png</file>
+        <file alias="icon/deleteTower.png">Icon/deleteTower.png</file>
     </qresource>
 </RCC>
