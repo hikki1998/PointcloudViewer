@@ -21,10 +21,19 @@ enum class IssueStatus
     Resolved
 };
 
+enum class TowerType
+{
+    Unknown = 0,
+    Tangent,
+    Strain
+};
+
 struct TowerRecord
 {
+    int index = 0;
     QString name;
     PointRecord point;
+    TowerType towerType = TowerType::Unknown;
     QString code;
     QString lineName;
     QString voltageLevel;
@@ -53,6 +62,9 @@ struct InspectionIssue
 
 QString issueSeverityDisplayName(IssueSeverity severity);
 QString issueStatusDisplayName(IssueStatus status);
+QString towerTypeDisplayName(TowerType towerType);
+QString towerTypeToLiTowerString(TowerType towerType);
+TowerType towerTypeFromLiTowerString(const QString& value);
 
 QJsonObject towerRecordToJson(const TowerRecord& towerRecord);
 TowerRecord towerRecordFromJson(const QJsonObject& object);

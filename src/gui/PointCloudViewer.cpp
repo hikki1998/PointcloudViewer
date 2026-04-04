@@ -2050,9 +2050,11 @@ bool PointCloudViewer::insertTowerMarker(int index, const QString& name, const P
     }
 
     TowerRecord towerMarker;
+    towerMarker.index = index;
     towerMarker.name = trimmedName;
     towerMarker.point = point;
     towerMarkers_.insert(index, towerMarker);
+    normalizeTowerMarkerIndices();
     selectedTowerIndex_ = index;
     if (towerEditMode_ == TowerEditMode::InsertBeforeSelected) {
         towerEditTargetIndex_ = selectedTowerIndex_;
@@ -2087,6 +2089,7 @@ bool PointCloudViewer::addTowerMarkerFromHoveredPoint(const QString& name, QStri
 void PointCloudViewer::setTowerMarkers(const QList<TowerRecord>& towerMarkers)
 {
     towerMarkers_ = towerMarkers;
+    normalizeTowerMarkerIndices();
     selectedTowerIndex_ = towerMarkers_.isEmpty() ? -1 : std::clamp(selectedTowerIndex_, 0, towerMarkers_.size() - 1);
     updateSceneClickCapture();
     refreshTowerMarkersOverlay();
@@ -2123,6 +2126,7 @@ bool PointCloudViewer::setTowerRecord(int index, const TowerRecord& towerRecord)
     }
 
     towerMarkers_[index] = towerRecord;
+    towerMarkers_[index].index = index;
     towerMarkers_[index].name = towerRecord.name.trimmed();
     refreshTowerMarkersOverlay();
     emit towerMarkersChanged();
@@ -2155,6 +2159,7 @@ bool PointCloudViewer::removeTowerMarker(int index)
     }
 
     towerMarkers_.removeAt(index);
+    normalizeTowerMarkerIndices();
     if (towerMarkers_.isEmpty()) {
         selectedTowerIndex_ = -1;
     } else {
@@ -2175,6 +2180,7 @@ bool PointCloudViewer::moveTowerMarker(int index, const PointRecord& point)
     }
 
     towerMarkers_[index].point = point;
+    towerMarkers_[index].index = index;
     selectedTowerIndex_ = index;
     if (towerEditMode_ == TowerEditMode::MoveSelected) {
         towerEditTargetIndex_ = selectedTowerIndex_;
@@ -2200,6 +2206,13 @@ void PointCloudViewer::clearTowerMarkers()
     updateFooter();
     emit selectedTowerChanged(selectedTowerIndex_);
     emit towerMarkersChanged();
+}
+
+void PointCloudViewer::normalizeTowerMarkerIndices()
+{
+    for (int index = 0; index < towerMarkers_.size(); ++index) {
+        towerMarkers_[index].index = index;
+    }
 }
 
 void PointCloudViewer::beginTowerAddMode()

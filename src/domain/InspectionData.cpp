@@ -41,13 +41,55 @@ QString issueStatusDisplayName(IssueStatus status)
     }
 }
 
+QString towerTypeDisplayName(TowerType towerType)
+{
+    switch (towerType) {
+    case TowerType::Tangent:
+        return QCoreApplication::translate("InspectionData", "Tangent Tower");
+    case TowerType::Strain:
+        return QCoreApplication::translate("InspectionData", "Strain Tower");
+    case TowerType::Unknown:
+    default:
+        return QCoreApplication::translate("InspectionData", "Unknown Tower");
+    }
+}
+
+QString towerTypeToLiTowerString(TowerType towerType)
+{
+    switch (towerType) {
+    case TowerType::Tangent:
+        return QStringLiteral("\u76f4\u7ebf\u5854");
+    case TowerType::Strain:
+        return QStringLiteral("\u8010\u5f20\u5854");
+    case TowerType::Unknown:
+    default:
+        return QStringLiteral("\u672a\u77e5\u5854");
+    }
+}
+
+TowerType towerTypeFromLiTowerString(const QString& value)
+{
+    const QString normalized = value.trimmed();
+    if (normalized.compare(QStringLiteral("\u76f4\u7ebf\u5854"), Qt::CaseInsensitive) == 0
+        || normalized.compare(QStringLiteral("tangent"), Qt::CaseInsensitive) == 0) {
+        return TowerType::Tangent;
+    }
+    if (normalized.compare(QStringLiteral("\u8010\u5f20\u5854"), Qt::CaseInsensitive) == 0
+        || normalized.compare(QStringLiteral("strain"), Qt::CaseInsensitive) == 0) {
+        return TowerType::Strain;
+    }
+    return TowerType::Unknown;
+}
+
 QJsonObject towerRecordToJson(const TowerRecord& towerRecord)
 {
     return QJsonObject {
+        { QStringLiteral("index"), towerRecord.index },
         { QStringLiteral("name"), towerRecord.name },
         { QStringLiteral("x"), towerRecord.point.x },
         { QStringLiteral("y"), towerRecord.point.y },
         { QStringLiteral("z"), towerRecord.point.z },
+        { QStringLiteral("towerType"), static_cast<int>(towerRecord.towerType) },
         { QStringLiteral("code"), towerRecord.code },
         { QStringLiteral("lineName"), towerRecord.lineName },
         { QStringLiteral("voltageLevel"), towerRecord.voltageLevel },
@@ -61,10 +103,17 @@ QJsonObject towerRecordToJson(const TowerRecord& towerRecord)
 TowerRecord towerRecordFromJson(const QJsonObject& object)
 {
     TowerRecord towerRecord;
+    towerRecord.index = object.value(QStringLiteral("index")).toInt(-1);
     towerRecord.name = object.value(QStringLiteral("name")).toString().trimmed();
     towerRecord.point.x = static_cast<float>(object.value(QStringLiteral("x")).toDouble());
     towerRecord.point.y = static_cast<float>(object.value(QStringLiteral("y")).toDouble());
     towerRecord.point.z = static_cast<float>(object.value(QStringLiteral("z")).toDouble());
+    const int towerTypeValue = object.value(QStringLiteral("towerType")).toInt(static_cast<int>(TowerType::Unknown));
+    if (towerTypeValue < static_cast<int>(TowerType::Unknown) || towerTypeValue > static_cast<int>(TowerType::Strain)) {
+        towerRecord.towerType = TowerType::Unknown;
+    } else {
+        towerRecord.towerType = static_cast<TowerType>(towerTypeValue);
+    }
     towerRecord.code = object.value(QStringLiteral("code")).toString().trimmed();
     towerRecord.lineName = object.value(QStringLiteral("lineName")).toString().trimmed();
     towerRecord.voltageLevel = object.value(QStringLiteral("voltageLevel")).toString().trimmed();
@@ -72,6 +121,9 @@ TowerRecord towerRecordFromJson(const QJsonObject& object)
     towerRecord.inspectionDate = object.value(QStringLiteral("inspectionDate")).toString().trimmed();
     towerRecord.status = object.value(QStringLiteral("status")).toString().trimmed();
     towerRecord.notes = object.value(QStringLiteral("notes")).toString().trimmed();
+    if (towerRecord.towerType == TowerType::Unknown && !towerRecord.structureType.isEmpty()) {
+        towerRecord.towerType = towerTypeFromLiTowerString(towerRecord.structureType);
+    }
     return towerRecord;
 }
 

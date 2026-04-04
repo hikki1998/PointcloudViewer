@@ -384,6 +384,7 @@ private:
     void setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent);
     void updateWelcomeOverlayVisibility();
     void syncCurrentFilePath();
+    void normalizeTowerMarkerIndices();
     void recalculateMeasurementResult();
     bool undoLastMeasurementPoint();
     void resetMeasurementState(bool notifyChange = true);
