@@ -147,6 +147,21 @@ constexpr int kProjectTreeItemTypeRole = Qt::UserRole;
 constexpr int kProjectTreeFilePathRole = Qt::UserRole + 1;
 constexpr int kProjectTreeIssueIndexRole = Qt::UserRole + 2;
 constexpr int kProjectTreeRouteIndexRole = Qt::UserRole + 3;
+constexpr int kRouteWaypointColumnPart = 1;
+constexpr int kRouteWaypointColumnX = 2;
+constexpr int kRouteWaypointColumnY = 3;
+constexpr int kRouteWaypointColumnZ = 4;
+constexpr int kRouteWaypointColumnAircraftYaw = 5;
+constexpr int kRouteWaypointColumnGimbalPitch = 6;
+constexpr int kRouteWaypointColumnCameraYaw = 7;
+constexpr int kRouteWaypointColumnCameraPitch = 8;
+constexpr int kRoutePartColumnPartName = 1;
+constexpr int kRoutePartColumnHardware = 2;
+constexpr int kRoutePartColumnPhase = 3;
+constexpr int kRoutePartColumnCameraAngle = 4;
+constexpr int kRoutePartColumnX = 5;
+constexpr int kRoutePartColumnY = 6;
+constexpr int kRoutePartColumnZ = 7;
 
 struct ClassificationDisplayItem
 {
@@ -3239,6 +3254,24 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointModeLayout->addStretch(1);
     routeWaypointModeLayout->addWidget(routeWaypointLabelModeComboBox_, 0);
 
+    auto* routeWaypointOptionsRow = new QWidget(routeWaypointsGroupBox_);
+    auto* routeWaypointOptionsLayout = new QHBoxLayout(routeWaypointOptionsRow);
+    routeWaypointOptionsLayout->setContentsMargins(0, 0, 0, 0);
+    routeWaypointOptionsLayout->setSpacing(8);
+    routeWaypointShowCoordinatesCheckBox_ = new QCheckBox(tr("Show Coordinates"), routeWaypointOptionsRow);
+    routeWaypointShowCaptureAnglesCheckBox_ = new QCheckBox(tr("Show Capture Angles"), routeWaypointOptionsRow);
+    routeWaypointShowCoordinatesCheckBox_->setChecked(true);
+    routeWaypointShowCaptureAnglesCheckBox_->setChecked(true);
+    routeTrajectoryColorButton_ = new QPushButton(tr("Trajectory Color"), routeWaypointOptionsRow);
+    routeWaypointColorButton_ = new QPushButton(tr("Waypoint Color"), routeWaypointOptionsRow);
+    routeTrajectoryColorButton_->setMinimumWidth(124);
+    routeWaypointColorButton_->setMinimumWidth(124);
+    routeWaypointOptionsLayout->addWidget(routeWaypointShowCoordinatesCheckBox_);
+    routeWaypointOptionsLayout->addWidget(routeWaypointShowCaptureAnglesCheckBox_);
+    routeWaypointOptionsLayout->addStretch(1);
+    routeWaypointOptionsLayout->addWidget(routeTrajectoryColorButton_);
+    routeWaypointOptionsLayout->addWidget(routeWaypointColorButton_);
+
     routeWaypointsTableWidget_ = new QTableWidget(routeWaypointsGroupBox_);
     routeWaypointsTableWidget_->setColumnCount(9);
     routeWaypointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -3257,21 +3290,24 @@ void MainWindow::createRouteDetailsDock()
         tr("Camera Pitch")
     });
     routeWaypointsTableWidget_->verticalHeader()->setVisible(false);
-    routeWaypointsTableWidget_->horizontalHeader()->setStretchLastSection(false);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(8, QHeaderView::ResizeToContents);
+    QHeaderView* waypointHeader = routeWaypointsTableWidget_->horizontalHeader();
+    waypointHeader->setStretchLastSection(false);
+    waypointHeader->setSectionResizeMode(QHeaderView::Interactive);
+    routeWaypointsTableWidget_->setColumnWidth(0, 68);
+    routeWaypointsTableWidget_->setColumnWidth(1, 220);
+    routeWaypointsTableWidget_->setColumnWidth(2, 98);
+    routeWaypointsTableWidget_->setColumnWidth(3, 98);
+    routeWaypointsTableWidget_->setColumnWidth(4, 98);
+    routeWaypointsTableWidget_->setColumnWidth(5, 116);
+    routeWaypointsTableWidget_->setColumnWidth(6, 116);
+    routeWaypointsTableWidget_->setColumnWidth(7, 116);
+    routeWaypointsTableWidget_->setColumnWidth(8, 116);
     routeWaypointsTableWidget_->setStyleSheet(routeTableStyleSheet());
     routeWaypointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     routeWaypointsLayout->addWidget(routeToolbarHost);
     routeWaypointsLayout->addWidget(routeWaypointModeRow);
+    routeWaypointsLayout->addWidget(routeWaypointOptionsRow);
     routeWaypointsLayout->addWidget(routeWaypointsTableWidget_, 1);
     waypointsTabLayout->addWidget(routeWaypointsGroupBox_, 1);
 
@@ -3297,8 +3333,23 @@ void MainWindow::createRouteDetailsDock()
     routePartModeLayout->addStretch(1);
     routePartModeLayout->addWidget(routePartLabelModeComboBox_, 0);
 
+    auto* routePartOptionsRow = new QWidget(routePartsGroupBox_);
+    auto* routePartOptionsLayout = new QHBoxLayout(routePartOptionsRow);
+    routePartOptionsLayout->setContentsMargins(0, 0, 0, 0);
+    routePartOptionsLayout->setSpacing(8);
+    routePartShowCoordinatesCheckBox_ = new QCheckBox(tr("Show Coordinates"), routePartOptionsRow);
+    routePartShowCaptureAnglesCheckBox_ = new QCheckBox(tr("Show Capture Angles"), routePartOptionsRow);
+    routePartShowCoordinatesCheckBox_->setChecked(true);
+    routePartShowCaptureAnglesCheckBox_->setChecked(true);
+    routePartPointColorButton_ = new QPushButton(tr("Part Point Color"), routePartOptionsRow);
+    routePartPointColorButton_->setMinimumWidth(124);
+    routePartOptionsLayout->addWidget(routePartShowCoordinatesCheckBox_);
+    routePartOptionsLayout->addWidget(routePartShowCaptureAnglesCheckBox_);
+    routePartOptionsLayout->addStretch(1);
+    routePartOptionsLayout->addWidget(routePartPointColorButton_);
+
     routePartPointsTableWidget_ = new QTableWidget(routePartsGroupBox_);
-    routePartPointsTableWidget_->setColumnCount(7);
+    routePartPointsTableWidget_->setColumnCount(8);
     routePartPointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     routePartPointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     routePartPointsTableWidget_->setAlternatingRowColors(true);
@@ -3308,23 +3359,28 @@ void MainWindow::createRouteDetailsDock()
         tr("Part Name"),
         tr("Hardware"),
         tr("Phase"),
+        tr("Camera Angle"),
         tr("X"),
         tr("Y"),
         tr("Z")
     });
     routePartPointsTableWidget_->verticalHeader()->setVisible(false);
-    routePartPointsTableWidget_->horizontalHeader()->setStretchLastSection(false);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
-    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    QHeaderView* routePartHeader = routePartPointsTableWidget_->horizontalHeader();
+    routePartHeader->setStretchLastSection(false);
+    routePartHeader->setSectionResizeMode(QHeaderView::Interactive);
+    routePartPointsTableWidget_->setColumnWidth(0, 68);
+    routePartPointsTableWidget_->setColumnWidth(1, 180);
+    routePartPointsTableWidget_->setColumnWidth(2, 122);
+    routePartPointsTableWidget_->setColumnWidth(3, 108);
+    routePartPointsTableWidget_->setColumnWidth(4, 108);
+    routePartPointsTableWidget_->setColumnWidth(5, 98);
+    routePartPointsTableWidget_->setColumnWidth(6, 98);
+    routePartPointsTableWidget_->setColumnWidth(7, 98);
     routePartPointsTableWidget_->setStyleSheet(routeTableStyleSheet());
     routePartPointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     routePartsLayout->addWidget(routePartModeRow);
+    routePartsLayout->addWidget(routePartOptionsRow);
     routePartsLayout->addWidget(routePartPointsTableWidget_, 1);
     partPointsTabLayout->addWidget(routePartsGroupBox_, 1);
 
@@ -3388,6 +3444,14 @@ void MainWindow::createRouteDetailsDock()
         "min-height: 24px;"
         "padding: 4px 10px;"
         "}");
+
+    if (viewer_ != nullptr) {
+        setColorButtonAppearance(routeWaypointColorButton_, viewer_->inspectionRouteWaypointColor(), tr("Waypoint Color"));
+        setColorButtonAppearance(routePartPointColorButton_, viewer_->inspectionRoutePartPointColor(), tr("Part Point Color"));
+        setColorButtonAppearance(routeTrajectoryColorButton_, viewer_->inspectionRouteTrajectoryColor(), tr("Trajectory Color"));
+    }
+    applyRouteWaypointTableColumnVisibility();
+    applyRoutePartTableColumnVisibility();
 
     routeDetailsDock_->setWidget(routeDetailsTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, routeDetailsDock_);
@@ -4316,10 +4380,24 @@ void MainWindow::retranslateUi()
             tr("Part Name"),
             tr("Hardware"),
             tr("Phase"),
+            tr("Camera Angle"),
             tr("X"),
             tr("Y"),
             tr("Z")
         });
+    }
+
+    if (routeWaypointShowCoordinatesCheckBox_ != nullptr) {
+        routeWaypointShowCoordinatesCheckBox_->setText(tr("Show Coordinates"));
+    }
+    if (routeWaypointShowCaptureAnglesCheckBox_ != nullptr) {
+        routeWaypointShowCaptureAnglesCheckBox_->setText(tr("Show Capture Angles"));
+    }
+    if (routePartShowCoordinatesCheckBox_ != nullptr) {
+        routePartShowCoordinatesCheckBox_->setText(tr("Show Coordinates"));
+    }
+    if (routePartShowCaptureAnglesCheckBox_ != nullptr) {
+        routePartShowCaptureAnglesCheckBox_->setText(tr("Show Capture Angles"));
     }
 
     invertOrbitCheckBox_->setText(tr("Invert orbit drag"));
@@ -4338,6 +4416,9 @@ void MainWindow::retranslateUi()
     if (viewer_ != nullptr) {
         setColorButtonAppearance(pointColorButton_, viewer_->visualizationOptions().singleColor, tr("Pick Color"));
         setColorButtonAppearance(backgroundColorButton_, viewer_->visualizationOptions().backgroundColor, tr("Pick Background"));
+        setColorButtonAppearance(routeWaypointColorButton_, viewer_->inspectionRouteWaypointColor(), tr("Waypoint Color"));
+        setColorButtonAppearance(routePartPointColorButton_, viewer_->inspectionRoutePartPointColor(), tr("Part Point Color"));
+        setColorButtonAppearance(routeTrajectoryColorButton_, viewer_->inspectionRouteTrajectoryColor(), tr("Trajectory Color"));
     }
     updateClassificationColorTable();
     updateProfileClassificationPanel();
@@ -5348,6 +5429,46 @@ void MainWindow::createConnections()
         });
     }
 
+    if (routeWaypointShowCoordinatesCheckBox_ != nullptr) {
+        connect(routeWaypointShowCoordinatesCheckBox_, &QCheckBox::toggled, this, [this](bool) {
+            applyRouteWaypointTableColumnVisibility();
+            persistWindowSettings();
+        });
+    }
+
+    if (routeWaypointShowCaptureAnglesCheckBox_ != nullptr) {
+        connect(routeWaypointShowCaptureAnglesCheckBox_, &QCheckBox::toggled, this, [this](bool) {
+            applyRouteWaypointTableColumnVisibility();
+            persistWindowSettings();
+        });
+    }
+
+    if (routePartShowCoordinatesCheckBox_ != nullptr) {
+        connect(routePartShowCoordinatesCheckBox_, &QCheckBox::toggled, this, [this](bool) {
+            applyRoutePartTableColumnVisibility();
+            persistWindowSettings();
+        });
+    }
+
+    if (routePartShowCaptureAnglesCheckBox_ != nullptr) {
+        connect(routePartShowCaptureAnglesCheckBox_, &QCheckBox::toggled, this, [this](bool) {
+            applyRoutePartTableColumnVisibility();
+            persistWindowSettings();
+        });
+    }
+
+    if (routeWaypointColorButton_ != nullptr) {
+        connect(routeWaypointColorButton_, &QPushButton::clicked, this, [this]() { chooseRouteWaypointColor(); });
+    }
+
+    if (routePartPointColorButton_ != nullptr) {
+        connect(routePartPointColorButton_, &QPushButton::clicked, this, [this]() { chooseRoutePartPointColor(); });
+    }
+
+    if (routeTrajectoryColorButton_ != nullptr) {
+        connect(routeTrajectoryColorButton_, &QPushButton::clicked, this, [this]() { chooseRouteTrajectoryColor(); });
+    }
+
     if (routePartPointsTableWidget_ != nullptr) {
         routePartPointsTableWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(routePartPointsTableWidget_, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
@@ -5357,7 +5478,7 @@ void MainWindow::createConnections()
 
             const QModelIndex index = routePartPointsTableWidget_->indexAt(pos);
             if (index.isValid()) {
-                routePartPointsTableWidget_->setCurrentCell(index.row(), 1);
+                routePartPointsTableWidget_->setCurrentCell(index.row(), kRoutePartColumnPartName);
             }
 
             QMenu menu(routePartPointsTableWidget_);
@@ -5402,7 +5523,7 @@ void MainWindow::createConnections()
 
             const QModelIndex index = routeWaypointsTableWidget_->indexAt(pos);
             if (index.isValid()) {
-                routeWaypointsTableWidget_->setCurrentCell(index.row(), 1);
+                routeWaypointsTableWidget_->setCurrentCell(index.row(), kRouteWaypointColumnPart);
             }
 
             QMenu menu(routeWaypointsTableWidget_);
@@ -5442,7 +5563,7 @@ void MainWindow::createConnections()
                     for (int row = 0; row < routePartPointsTableWidget_->rowCount(); ++row) {
                         QTableWidgetItem* item = routePartPointsTableWidget_->item(row, 0);
                         if (item != nullptr && item->data(Qt::UserRole).toInt() == partIndex) {
-                            routePartPointsTableWidget_->setCurrentCell(row, 1);
+                            routePartPointsTableWidget_->setCurrentCell(row, kRoutePartColumnPartName);
                             break;
                         }
                     }
@@ -7341,6 +7462,15 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     viewer_->setColorMode(visualizationObject.value(QStringLiteral("colorMode")).toInt(static_cast<int>(defaults.colorMode)));
     viewer_->setSingleColor(colorFromJson(visualizationObject.value(QStringLiteral("singleColor")).toObject(), defaults.singleColor));
     viewer_->setBackgroundColor(colorFromJson(visualizationObject.value(QStringLiteral("backgroundColor")).toObject(), defaults.backgroundColor));
+    viewer_->setInspectionRouteWaypointColor(colorFromJson(
+        visualizationObject.value(QStringLiteral("routeWaypointColor")).toObject(),
+        viewer_->inspectionRouteWaypointColor()));
+    viewer_->setInspectionRoutePartPointColor(colorFromJson(
+        visualizationObject.value(QStringLiteral("routePartPointColor")).toObject(),
+        viewer_->inspectionRoutePartPointColor()));
+    viewer_->setInspectionRouteTrajectoryColor(colorFromJson(
+        visualizationObject.value(QStringLiteral("routeTrajectoryColor")).toObject(),
+        viewer_->inspectionRouteTrajectoryColor()));
     viewer_->setUseRoundSplats(visualizationObject.value(QStringLiteral("useRoundSplats")).toBool(defaults.useRoundSplats));
     viewer_->setShowAxes(visualizationObject.value(QStringLiteral("showAxes")).toBool(defaults.showAxes));
     viewer_->setShowBoundingBox(visualizationObject.value(QStringLiteral("showBoundingBox")).toBool(defaults.showBoundingBox));
@@ -7541,6 +7671,9 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("classificationNameOverrides"), classificationNameMapToJson(classificationNameOverrides_) },
         { QStringLiteral("classificationFallbackColor"), colorToJson(viewer_->visualizationOptions().classificationFallbackColor) },
         { QStringLiteral("backgroundColor"), colorToJson(viewer_->visualizationOptions().backgroundColor) },
+        { QStringLiteral("routeWaypointColor"), colorToJson(viewer_->inspectionRouteWaypointColor()) },
+        { QStringLiteral("routePartPointColor"), colorToJson(viewer_->inspectionRoutePartPointColor()) },
+        { QStringLiteral("routeTrajectoryColor"), colorToJson(viewer_->inspectionRouteTrajectoryColor()) },
         { QStringLiteral("useRoundSplats"), viewer_->visualizationOptions().useRoundSplats },
         { QStringLiteral("showAxes"), viewer_->visualizationOptions().showAxes },
         { QStringLiteral("showBoundingBox"), viewer_->visualizationOptions().showBoundingBox }
@@ -7871,6 +8004,57 @@ void MainWindow::chooseBackgroundColor()
     if (chosenColor.isValid()) {
         viewer_->setBackgroundColor(chosenColor);
     }
+}
+
+void MainWindow::chooseRouteWaypointColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRouteWaypointColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Waypoint Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRouteWaypointColor(chosenColor);
+    setColorButtonAppearance(routeWaypointColorButton_, chosenColor, tr("Waypoint Color"));
+    persistVisualizationSettings();
+}
+
+void MainWindow::chooseRoutePartPointColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRoutePartPointColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Part Point Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRoutePartPointColor(chosenColor);
+    setColorButtonAppearance(routePartPointColorButton_, chosenColor, tr("Part Point Color"));
+    persistVisualizationSettings();
+}
+
+void MainWindow::chooseRouteTrajectoryColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRouteTrajectoryColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Trajectory Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRouteTrajectoryColor(chosenColor);
+    setColorButtonAppearance(routeTrajectoryColorButton_, chosenColor, tr("Trajectory Color"));
+    persistVisualizationSettings();
 }
 
 void MainWindow::applyOfficeTheme(Qtitan::RibbonStyle::Theme theme)
@@ -8225,6 +8409,9 @@ void MainWindow::syncUiFromViewer()
 
     setColorButtonAppearance(pointColorButton_, options.singleColor, tr("Pick Color"));
     setColorButtonAppearance(backgroundColorButton_, options.backgroundColor, tr("Pick Background"));
+    setColorButtonAppearance(routeWaypointColorButton_, viewer_->inspectionRouteWaypointColor(), tr("Waypoint Color"));
+    setColorButtonAppearance(routePartPointColorButton_, viewer_->inspectionRoutePartPointColor(), tr("Part Point Color"));
+    setColorButtonAppearance(routeTrajectoryColorButton_, viewer_->inspectionRouteTrajectoryColor(), tr("Trajectory Color"));
     updateClassificationColorTable();
     updateNavigationHelpText();
     updateDatasetPanel();
@@ -8629,6 +8816,12 @@ void MainWindow::loadVisualizationSettings()
     viewer_->setClassificationFallbackColor(
         settings.value(QStringLiteral("visualization/classificationFallbackColor"), defaults.classificationFallbackColor).value<QColor>());
     viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
+    viewer_->setInspectionRouteWaypointColor(
+        settings.value(QStringLiteral("visualization/routeWaypointColor"), viewer_->inspectionRouteWaypointColor()).value<QColor>());
+    viewer_->setInspectionRoutePartPointColor(
+        settings.value(QStringLiteral("visualization/routePartPointColor"), viewer_->inspectionRoutePartPointColor()).value<QColor>());
+    viewer_->setInspectionRouteTrajectoryColor(
+        settings.value(QStringLiteral("visualization/routeTrajectoryColor"), viewer_->inspectionRouteTrajectoryColor()).value<QColor>());
     viewer_->setUseRoundSplats(settings.value(QStringLiteral("visualization/useRoundSplats"), defaults.useRoundSplats).toBool());
     viewer_->setShowAxes(settings.value(QStringLiteral("visualization/showAxes"), defaults.showAxes).toBool());
     viewer_->setShowBoundingBox(settings.value(QStringLiteral("visualization/showBoundingBox"), defaults.showBoundingBox).toBool());
@@ -8659,6 +8852,9 @@ void MainWindow::persistVisualizationSettings() const
         QJsonDocument(classificationNameMapToJson(classificationNameOverrides_)).toJson(QJsonDocument::Compact));
     settings.setValue(QStringLiteral("visualization/classificationFallbackColor"), options.classificationFallbackColor);
     settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
+    settings.setValue(QStringLiteral("visualization/routeWaypointColor"), viewer_->inspectionRouteWaypointColor());
+    settings.setValue(QStringLiteral("visualization/routePartPointColor"), viewer_->inspectionRoutePartPointColor());
+    settings.setValue(QStringLiteral("visualization/routeTrajectoryColor"), viewer_->inspectionRouteTrajectoryColor());
     settings.setValue(QStringLiteral("visualization/useRoundSplats"), options.useRoundSplats);
     settings.setValue(QStringLiteral("visualization/showAxes"), options.showAxes);
     settings.setValue(QStringLiteral("visualization/showBoundingBox"), options.showBoundingBox);
@@ -8717,6 +8913,26 @@ void MainWindow::loadWindowSettings()
         const int partLabelModeIndex = routePartLabelModeComboBox_->findData(savedPartLabelMode);
         routePartLabelModeComboBox_->setCurrentIndex(partLabelModeIndex >= 0 ? partLabelModeIndex : 0);
     }
+    if (routeWaypointShowCoordinatesCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(routeWaypointShowCoordinatesCheckBox_);
+        routeWaypointShowCoordinatesCheckBox_->setChecked(
+            settings.value(QStringLiteral("window/routeWaypointShowCoordinates"), true).toBool());
+    }
+    if (routeWaypointShowCaptureAnglesCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(routeWaypointShowCaptureAnglesCheckBox_);
+        routeWaypointShowCaptureAnglesCheckBox_->setChecked(
+            settings.value(QStringLiteral("window/routeWaypointShowCaptureAngles"), true).toBool());
+    }
+    if (routePartShowCoordinatesCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(routePartShowCoordinatesCheckBox_);
+        routePartShowCoordinatesCheckBox_->setChecked(
+            settings.value(QStringLiteral("window/routePartShowCoordinates"), true).toBool());
+    }
+    if (routePartShowCaptureAnglesCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(routePartShowCaptureAnglesCheckBox_);
+        routePartShowCaptureAnglesCheckBox_->setChecked(
+            settings.value(QStringLiteral("window/routePartShowCaptureAngles"), true).toBool());
+    }
     if (viewer_ != nullptr) {
         if (routeWaypointLabelModeComboBox_ != nullptr) {
             viewer_->setInspectionRouteWaypointLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
@@ -8727,6 +8943,8 @@ void MainWindow::loadWindowSettings()
                 routePartLabelModeComboBox_->currentData().toInt()));
         }
     }
+    applyRouteWaypointTableColumnVisibility();
+    applyRoutePartTableColumnVisibility();
 
     if (logLevelFilterComboBox_ != nullptr) {
         const int savedFilterLevel = settings.value(QStringLiteral("window/logFilterLevel"), -1).toInt();
@@ -8808,6 +9026,18 @@ void MainWindow::persistWindowSettings() const
         routePartLabelModeComboBox_ != nullptr
             ? routePartLabelModeComboBox_->currentData().toInt()
             : static_cast<int>(RouteLabelDisplayMode::Name));
+    settings.setValue(
+        QStringLiteral("window/routeWaypointShowCoordinates"),
+        routeWaypointShowCoordinatesCheckBox_ == nullptr || routeWaypointShowCoordinatesCheckBox_->isChecked());
+    settings.setValue(
+        QStringLiteral("window/routeWaypointShowCaptureAngles"),
+        routeWaypointShowCaptureAnglesCheckBox_ == nullptr || routeWaypointShowCaptureAnglesCheckBox_->isChecked());
+    settings.setValue(
+        QStringLiteral("window/routePartShowCoordinates"),
+        routePartShowCoordinatesCheckBox_ == nullptr || routePartShowCoordinatesCheckBox_->isChecked());
+    settings.setValue(
+        QStringLiteral("window/routePartShowCaptureAngles"),
+        routePartShowCaptureAnglesCheckBox_ == nullptr || routePartShowCaptureAnglesCheckBox_->isChecked());
     settings.setValue(
         QStringLiteral("window/logFilterLevel"),
         logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1);
@@ -9228,12 +9458,13 @@ void MainWindow::updateRoutePlanningPanel()
         QTableWidgetItem* indexItem = createReadOnlyItem(QLocale().toString(partPoint.partIndex), Qt::AlignCenter);
         indexItem->setData(Qt::UserRole, partPoint.partIndex);
         routePartPointsTableWidget_->setItem(partRow, 0, indexItem);
-        routePartPointsTableWidget_->setItem(partRow, 1, createReadOnlyItem(routePartDisplayName(partPoint)));
-        routePartPointsTableWidget_->setItem(partRow, 2, createReadOnlyItem(partPoint.hardwareType));
-        routePartPointsTableWidget_->setItem(partRow, 3, createReadOnlyItem(partPoint.phaseSequence, Qt::AlignCenter));
-        routePartPointsTableWidget_->setItem(partRow, 4, createReadOnlyItem(formatCoordinate(partPoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
-        routePartPointsTableWidget_->setItem(partRow, 5, createReadOnlyItem(formatCoordinate(partPoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
-        routePartPointsTableWidget_->setItem(partRow, 6, createReadOnlyItem(formatCoordinate(partPoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnPartName, createReadOnlyItem(routePartDisplayName(partPoint)));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnHardware, createReadOnlyItem(partPoint.hardwareType));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnPhase, createReadOnlyItem(partPoint.phaseSequence, Qt::AlignCenter));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnCameraAngle, createReadOnlyItem(QLocale().toString(partPoint.cameraAngle), Qt::AlignCenter));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnX, createReadOnlyItem(formatCoordinate(partPoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnY, createReadOnlyItem(formatCoordinate(partPoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
+        routePartPointsTableWidget_->setItem(partRow, kRoutePartColumnZ, createReadOnlyItem(formatCoordinate(partPoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
     }
 
     for (int waypointIndex = 0; waypointIndex < currentPowerlineRoute_.waypoints.size(); ++waypointIndex) {
@@ -9247,35 +9478,35 @@ void MainWindow::updateRoutePlanningPanel()
             createReadOnlyItem(QLocale().toString(waypointIndex + 1), Qt::AlignCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            1,
+            kRouteWaypointColumnPart,
             createReadOnlyItem(routeWaypointPartSummary(waypoint, partPointByIndex)));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            2,
+            kRouteWaypointColumnX,
             createReadOnlyItem(formatCoordinate(waypoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            3,
+            kRouteWaypointColumnY,
             createReadOnlyItem(formatCoordinate(waypoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            4,
+            kRouteWaypointColumnZ,
             createReadOnlyItem(formatCoordinate(waypoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            5,
+            kRouteWaypointColumnAircraftYaw,
             createReadOnlyItem(formatCoordinate(waypoint.aircraftYawDeg), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            6,
+            kRouteWaypointColumnGimbalPitch,
             createReadOnlyItem(formatCoordinate(waypoint.gimbalPitchDeg), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            7,
+            kRouteWaypointColumnCameraYaw,
             createReadOnlyItem(formatCoordinate(firstTarget.cameraYawDeg), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
-            8,
+            kRouteWaypointColumnCameraPitch,
             createReadOnlyItem(formatCoordinate(firstTarget.cameraPitchDeg), Qt::AlignRight | Qt::AlignVCenter));
     }
 
@@ -9298,18 +9529,62 @@ void MainWindow::updateRoutePlanningPanel()
 
     if (selectedPartRow >= 0) {
         selectedRoutePartIndex_ = targetPartIndex;
-        routePartPointsTableWidget_->setCurrentCell(selectedPartRow, 1);
+        routePartPointsTableWidget_->setCurrentCell(selectedPartRow, kRoutePartColumnPartName);
     } else {
         routePartPointsTableWidget_->clearSelection();
         selectedRoutePartIndex_ = -1;
     }
 
     if (selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < routeWaypointsTableWidget_->rowCount()) {
-        routeWaypointsTableWidget_->setCurrentCell(selectedRouteWaypointIndex_, 1);
+        routeWaypointsTableWidget_->setCurrentCell(selectedRouteWaypointIndex_, kRouteWaypointColumnPart);
     } else {
         routeWaypointsTableWidget_->clearSelection();
     }
+
+    applyRouteWaypointTableColumnVisibility();
+    applyRoutePartTableColumnVisibility();
     updatingRouteTables_ = false;
+}
+
+void MainWindow::applyRouteWaypointTableColumnVisibility()
+{
+    if (routeWaypointsTableWidget_ == nullptr) {
+        return;
+    }
+
+    const bool showCoordinates =
+        routeWaypointShowCoordinatesCheckBox_ == nullptr
+        || routeWaypointShowCoordinatesCheckBox_->isChecked();
+    const bool showCaptureAngles =
+        routeWaypointShowCaptureAnglesCheckBox_ == nullptr
+        || routeWaypointShowCaptureAnglesCheckBox_->isChecked();
+
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnX, !showCoordinates);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnY, !showCoordinates);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnZ, !showCoordinates);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnAircraftYaw, !showCaptureAngles);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnGimbalPitch, !showCaptureAngles);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnCameraYaw, !showCaptureAngles);
+    routeWaypointsTableWidget_->setColumnHidden(kRouteWaypointColumnCameraPitch, !showCaptureAngles);
+}
+
+void MainWindow::applyRoutePartTableColumnVisibility()
+{
+    if (routePartPointsTableWidget_ == nullptr) {
+        return;
+    }
+
+    const bool showCoordinates =
+        routePartShowCoordinatesCheckBox_ == nullptr
+        || routePartShowCoordinatesCheckBox_->isChecked();
+    const bool showCaptureAngles =
+        routePartShowCaptureAnglesCheckBox_ == nullptr
+        || routePartShowCaptureAnglesCheckBox_->isChecked();
+
+    routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnCameraAngle, !showCaptureAngles);
+    routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnX, !showCoordinates);
+    routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnY, !showCoordinates);
+    routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnZ, !showCoordinates);
 }
 
 void MainWindow::rebuildProjectTree()

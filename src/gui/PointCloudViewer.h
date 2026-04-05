@@ -241,6 +241,9 @@ public:
     void setInspectionIssueVisible(int index, bool visible);
     bool inspectionRouteVisible() const;
     void setInspectionRouteVisible(bool visible);
+    QColor inspectionRouteWaypointColor() const;
+    QColor inspectionRoutePartPointColor() const;
+    QColor inspectionRouteTrajectoryColor() const;
 
 public slots:
     void setPointSize(int pointSize);
@@ -302,6 +305,9 @@ public slots:
     RouteLabelDisplayMode inspectionRoutePartLabelDisplayMode() const;
     void setInspectionRouteWaypointLabelDisplayMode(RouteLabelDisplayMode mode);
     void setInspectionRoutePartLabelDisplayMode(RouteLabelDisplayMode mode);
+    void setInspectionRouteWaypointColor(const QColor& color);
+    void setInspectionRoutePartPointColor(const QColor& color);
+    void setInspectionRouteTrajectoryColor(const QColor& color);
     void clearInspectionRouteWaypoints();
     void setSelectedInspectionRouteWaypointIndex(int index);
     void beginIssueAddMode();
@@ -495,6 +501,9 @@ private:
     bool inspectionRouteVisible_ = true;
     RouteLabelDisplayMode routeWaypointLabelDisplayMode_ = RouteLabelDisplayMode::Name;
     RouteLabelDisplayMode routePartLabelDisplayMode_ = RouteLabelDisplayMode::Name;
+    QColor inspectionRouteWaypointColor_ = QColor(38, 189, 245);
+    QColor inspectionRoutePartPointColor_ = QColor(245, 115, 31);
+    QColor inspectionRouteTrajectoryColor_ = QColor(41, 209, 242);
     int selectedTowerIndex_ = -1;
     int selectedIssueIndex_ = -1;
     int selectedInspectionRouteWaypointIndex_ = -1;

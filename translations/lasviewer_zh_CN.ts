@@ -3234,6 +3234,10 @@ Extent: %5</source>
         <translation>相序</translation>
     </message>
     <message>
+        <source>Camera Angle</source>
+        <translation>拍摄角度</translation>
+    </message>
+    <message>
         <location filename="../src/gui/MainWindow.cpp" line="3014"/>
         <location filename="../src/gui/MainWindow.cpp" line="4153"/>
         <source>Part</source>
@@ -3266,6 +3270,26 @@ Extent: %5</source>
         <location filename="../src/gui/MainWindow.cpp" line="6719"/>
         <source>Camera Pitch</source>
         <translation>相机俯仰</translation>
+    </message>
+    <message>
+        <source>Show Coordinates</source>
+        <translation>显示坐标</translation>
+    </message>
+    <message>
+        <source>Show Capture Angles</source>
+        <translation>显示拍摄角度</translation>
+    </message>
+    <message>
+        <source>Waypoint Color</source>
+        <translation>航点颜色</translation>
+    </message>
+    <message>
+        <source>Part Point Color</source>
+        <translation>部件点颜色</translation>
+    </message>
+    <message>
+        <source>Trajectory Color</source>
+        <translation>轨迹颜色</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="3277"/>
@@ -3761,6 +3785,18 @@ Chainage: %4 - %5 m</source>
         <location filename="../src/gui/MainWindow.cpp" line="7681"/>
         <source>Choose Background Color</source>
         <translation>选择背景颜色</translation>
+    </message>
+    <message>
+        <source>Choose Waypoint Color</source>
+        <translation>选择航点颜色</translation>
+    </message>
+    <message>
+        <source>Choose Part Point Color</source>
+        <translation>选择部件点颜色</translation>
+    </message>
+    <message>
+        <source>Choose Trajectory Color</source>
+        <translation>选择轨迹颜色</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="7694"/>

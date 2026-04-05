@@ -58,6 +58,16 @@ constexpr int kRoutePreviewOverlayHeight = 292;
 constexpr int kRoutePreviewRenderWidth = 300;
 constexpr int kRoutePreviewRenderHeight = 156;
 
+osg::Vec4 qColorToVec4(const QColor& color, float alphaScale = 1.0f)
+{
+    const float alpha = std::clamp(alphaScale, 0.0f, 1.0f) * static_cast<float>(color.alphaF());
+    return osg::Vec4(
+        static_cast<float>(color.redF()),
+        static_cast<float>(color.greenF()),
+        static_cast<float>(color.blueF()),
+        alpha);
+}
+
 class RouteCameraPreviewOverlay final : public QWidget
 {
 public:
@@ -517,7 +527,8 @@ osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>
 
 osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
     const QList<PointRecord>& waypoints,
-    int selectedIndex)
+    int selectedIndex,
+    const osg::Vec4& waypointColor)
 {
     if (waypoints.isEmpty()) {
         return nullptr;
@@ -531,7 +542,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
         if (index == selectedIndex) {
             colors->push_back(osg::Vec4(0.99f, 0.92f, 0.23f, 1.0f));
         } else {
-            colors->push_back(osg::Vec4(0.15f, 0.74f, 0.96f, 1.0f));
+            colors->push_back(waypointColor);
         }
     }
 
@@ -550,7 +561,9 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(const QList<PointRecord>& partPoints)
+osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(
+    const QList<PointRecord>& partPoints,
+    const osg::Vec4& partPointColor)
 {
     if (partPoints.isEmpty()) {
         return nullptr;
@@ -560,7 +573,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(const QList<PointRe
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     for (const PointRecord& partPoint : partPoints) {
         vertices->push_back(osg::Vec3(partPoint.x, partPoint.y, partPoint.z));
-        colors->push_back(osg::Vec4(0.96f, 0.45f, 0.12f, 1.0f));
+        colors->push_back(partPointColor);
     }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
@@ -578,7 +591,9 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(const QList<PointRe
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(const QList<PointRecord>& waypoints)
+osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(
+    const QList<PointRecord>& waypoints,
+    const osg::Vec4& lineColor)
 {
     if (waypoints.size() < 2) {
         return nullptr;
@@ -589,7 +604,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(const QList<PointRecord>&
         vertices->push_back(osg::Vec3(waypoint.x, waypoint.y, waypoint.z));
     }
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
-    colors->push_back(osg::Vec4(0.16f, 0.82f, 0.95f, 1.0f));
+    colors->push_back(lineColor);
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
     geometry->setUseDisplayList(false);
@@ -639,11 +654,11 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteWaypointPartLinksGeode(
         }
         direction /= distance;
 
-        const float dashLength = std::clamp(distance * 0.12f, 0.8f, 3.2f);
-        const float gapLength = std::clamp(dashLength * 0.6f, 0.45f, 2.0f);
+        const float dashLength = std::clamp(distance * 0.06f, 0.35f, 1.2f);
+        const float gapLength = std::clamp(dashLength * 0.45f, 0.2f, 0.7f);
         const osg::Vec4 linkColor = index == selectedIndex
-            ? osg::Vec4(0.99f, 0.90f, 0.27f, 0.95f)
-            : osg::Vec4(0.98f, 0.58f, 0.17f, 0.82f);
+            ? osg::Vec4(0.95f, 0.27f, 0.63f, 0.94f)
+            : osg::Vec4(0.72f, 0.25f, 0.86f, 0.76f);
 
         float cursor = 0.0f;
         while (cursor < distance) {
@@ -1844,6 +1859,21 @@ const QList<PointRecord>& PointCloudViewer::inspectionRouteWaypoints() const
     return inspectionRouteWaypoints_;
 }
 
+QColor PointCloudViewer::inspectionRouteWaypointColor() const
+{
+    return inspectionRouteWaypointColor_;
+}
+
+QColor PointCloudViewer::inspectionRoutePartPointColor() const
+{
+    return inspectionRoutePartPointColor_;
+}
+
+QColor PointCloudViewer::inspectionRouteTrajectoryColor() const
+{
+    return inspectionRouteTrajectoryColor_;
+}
+
 int PointCloudViewer::selectedTowerIndex() const
 {
     return selectedTowerIndex_;
@@ -2996,6 +3026,36 @@ void PointCloudViewer::setInspectionRoutePartLabelDisplayMode(RouteLabelDisplayM
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }
+}
+
+void PointCloudViewer::setInspectionRouteWaypointColor(const QColor& color)
+{
+    if (!color.isValid() || inspectionRouteWaypointColor_ == color) {
+        return;
+    }
+
+    inspectionRouteWaypointColor_ = color;
+    refreshInspectionRouteOverlay();
+}
+
+void PointCloudViewer::setInspectionRoutePartPointColor(const QColor& color)
+{
+    if (!color.isValid() || inspectionRoutePartPointColor_ == color) {
+        return;
+    }
+
+    inspectionRoutePartPointColor_ = color;
+    refreshInspectionRouteOverlay();
+}
+
+void PointCloudViewer::setInspectionRouteTrajectoryColor(const QColor& color)
+{
+    if (!color.isValid() || inspectionRouteTrajectoryColor_ == color) {
+        return;
+    }
+
+    inspectionRouteTrajectoryColor_ = color;
+    refreshInspectionRouteOverlay();
 }
 
 void PointCloudViewer::clearInspectionRouteWaypoints()
@@ -4519,8 +4579,12 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         overlayWaypoints[routeWaypointDragIndex_] = routeWaypointDragPreviewPoint_;
     }
 
+    const osg::Vec4 waypointColor = qColorToVec4(inspectionRouteWaypointColor_);
+    const osg::Vec4 partPointColor = qColorToVec4(inspectionRoutePartPointColor_);
+    const osg::Vec4 trajectoryColor = qColorToVec4(inspectionRouteTrajectoryColor_);
+
     osg::ref_ptr<osg::Group> overlay = new osg::Group();
-    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(overlayWaypoints);
+    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(overlayWaypoints, trajectoryColor);
     if (routeLineGeode.valid()) {
         overlay->addChild(routeLineGeode.get());
     }
@@ -4543,14 +4607,17 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         overlay->addChild(routeFrustumGeode.get());
     }
 
-    osg::ref_ptr<osg::Geode> routePartPointsGeode = buildInspectionRoutePartPointsGeode(inspectionRoutePartPoints_);
+    osg::ref_ptr<osg::Geode> routePartPointsGeode = buildInspectionRoutePartPointsGeode(
+        inspectionRoutePartPoints_,
+        partPointColor);
     if (routePartPointsGeode.valid()) {
         overlay->addChild(routePartPointsGeode.get());
     }
 
     osg::ref_ptr<osg::Geode> routePointsGeode = buildInspectionRoutePointsGeode(
         overlayWaypoints,
-        selectedInspectionRouteWaypointIndex_);
+        selectedInspectionRouteWaypointIndex_,
+        waypointColor);
     if (routePointsGeode.valid()) {
         overlay->addChild(routePointsGeode.get());
     }

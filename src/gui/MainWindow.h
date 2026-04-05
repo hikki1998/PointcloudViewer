@@ -120,6 +120,9 @@ private:
     void removeSelectedDataset();
     void choosePointColor();
     void chooseBackgroundColor();
+    void chooseRouteWaypointColor();
+    void chooseRoutePartPointColor();
+    void chooseRouteTrajectoryColor();
     void applyOfficeTheme(Qtitan::RibbonStyle::Theme theme);
     void updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme);
     void updateWindowControlButtons();
@@ -157,6 +160,8 @@ private:
     void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
     void updateVegetationRiskPanel();
     void updateRoutePlanningPanel();
+    void applyRouteWaypointTableColumnVisibility();
+    void applyRoutePartTableColumnVisibility();
     void focusRoutePartPoint(int partIndex);
     void focusRouteWaypoint(int waypointIndex);
     bool editRouteWaypoint(int waypointIndex);
@@ -314,9 +319,16 @@ private:
     QDoubleSpinBox* routeHeightOffsetSpinBox_ = nullptr;
     QComboBox* routeWaypointLabelModeComboBox_ = nullptr;
     QComboBox* routePartLabelModeComboBox_ = nullptr;
+    QPushButton* routeWaypointColorButton_ = nullptr;
+    QPushButton* routePartPointColorButton_ = nullptr;
+    QPushButton* routeTrajectoryColorButton_ = nullptr;
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
+    QCheckBox* routeWaypointShowCoordinatesCheckBox_ = nullptr;
+    QCheckBox* routeWaypointShowCaptureAnglesCheckBox_ = nullptr;
+    QCheckBox* routePartShowCoordinatesCheckBox_ = nullptr;
+    QCheckBox* routePartShowCaptureAnglesCheckBox_ = nullptr;
     QCheckBox* invertOrbitCheckBox_ = nullptr;
     QCheckBox* invertPanCheckBox_ = nullptr;
     QCheckBox* invertWheelCheckBox_ = nullptr;
