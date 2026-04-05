@@ -42,7 +42,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 .\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
 - 涉及 UI、翻译、渲染、点选、量测、构建脚本时，默认至少做一次构建验证；如果改动影响显示结果，优先再跑 smoke test。
-- 涉及 UI 样式或主题改动时，额外检查 dock、Ribbon、Message Box、表格和覆盖层，确认没有“黑色背景覆盖深色文字/文字不可读”的回归。
+- 涉及 UI 样式或主题改动时，额外检查 dock、Ribbon、Message Box、表格、ComboBox（含下拉列表）和覆盖层，确认没有“黑色背景覆盖深色文字/文字不可读”的回归。
 
 ## Current Product State
 - 当前应用支持加载多个 `.las/.laz`、基础浏览、视角预设、RGB/高程/单色配色。
@@ -63,7 +63,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 - 头文件引用分组：Qt、第三方、项目头文件，组间空一行。
 - 渲染参数统一收口在 [src/osg/PointCloudVisualization.h](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/osg/PointCloudVisualization.h)，不要把同一参数散落在多个地方各自定义。
 - UI 可读性为强约束：除非用户明确要求深色风格，所有新增或改造的 UI 默认使用浅色背景 + 深色高对比文字。
-- 该约束必须覆盖 dock、Ribbon、Message Box、面板、表格、工具栏、菜单、提示气泡和覆盖层，避免出现黑色或深色遮罩压住文字导致内容看不清。
+- 该约束必须覆盖 dock、Ribbon、Message Box、面板、表格、工具栏、菜单、提示气泡、覆盖层和输入控件（尤其 ComboBox 本体与下拉列表），避免出现黑色或深色背景压住深色文字，或选中/悬停态文字不可读。
 - 对 Message Box、自定义弹窗和临时浮层，禁止使用深色底叠加深色文字；如使用样式表或调色板，需显式指定浅色背景与可读文本颜色。
 
 ## Common Change Paths
