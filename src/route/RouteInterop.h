@@ -2,7 +2,7 @@
 
 #include <QString>
 
-#include "domain/InspectionRoutePlanning.h"
+#include "route/InspectionRoutePlanning.h"
 
 bool exportRouteKml(
     const QString& filePath,

@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QFrame>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLocale>
@@ -16,6 +17,7 @@
 #include <QRubberBand>
 #include <QResizeEvent>
 #include <QTimer>
+#include <QtMath>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -26,6 +28,7 @@
 #include <utility>
 
 #include <osg/Array>
+#include <osg/BlendFunc>
 #include <osg/Camera>
 #include <osg/Depth>
 #include <osg/Geode>
@@ -50,6 +53,145 @@ namespace
 constexpr int kMeasurementOverlayRenderBin = 100;
 constexpr int kAxisIndicatorSize = 112;
 constexpr float kHoverPickTolerancePixels = 12.0f;
+constexpr int kRoutePreviewOverlayWidth = 320;
+constexpr int kRoutePreviewOverlayHeight = 292;
+constexpr int kRoutePreviewRenderWidth = 300;
+constexpr int kRoutePreviewRenderHeight = 156;
+
+class RouteCameraPreviewOverlay final : public QWidget
+{
+public:
+    explicit RouteCameraPreviewOverlay(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        setFixedSize(kRoutePreviewOverlayWidth, kRoutePreviewOverlayHeight);
+    }
+
+    void setPreviewState(
+        bool hasPreview,
+        const QImage& previewImage,
+        const QString& title,
+        const QString& subtitle,
+        const QString& footer,
+        const QString& targetStatus,
+        const QString& alignmentHint,
+        bool hasTarget,
+        bool targetVisible,
+        const QPointF& targetNormalizedPoint,
+        const QColor& statusColor)
+    {
+        hasPreview_ = hasPreview;
+        previewImage_ = previewImage;
+        title_ = title;
+        subtitle_ = subtitle;
+        footer_ = footer;
+        targetStatus_ = targetStatus;
+        alignmentHint_ = alignmentHint;
+        hasTarget_ = hasTarget;
+        targetVisible_ = targetVisible;
+        targetNormalizedPoint_ = targetNormalizedPoint;
+        statusColor_ = statusColor;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        const QRectF cardRect = rect().adjusted(1, 1, -1, -1);
+        painter.setBrush(QColor(255, 255, 255, 238));
+        painter.setPen(QPen(QColor(203, 213, 225, 232), 1.2));
+        painter.drawRoundedRect(cardRect, 18.0, 18.0);
+
+        const QRectF titleRect(16.0, 14.0, width() - 32.0, 22.0);
+        QFont titleFont(QStringLiteral("Segoe UI"), 11, QFont::DemiBold);
+        painter.setFont(titleFont);
+        painter.setPen(QColor(15, 23, 42));
+        painter.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter, title_);
+
+        const QRectF subtitleRect(16.0, 38.0, width() - 32.0, 18.0);
+        QFont subtitleFont(QStringLiteral("Segoe UI"), 9);
+        painter.setFont(subtitleFont);
+        painter.setPen(QColor(71, 85, 105));
+        painter.drawText(subtitleRect, Qt::AlignLeft | Qt::AlignVCenter, subtitle_);
+
+        const QRectF previewRect(16.0, 64.0, width() - 32.0, 156.0);
+        painter.setBrush(QColor(9, 16, 27, 244));
+        painter.setPen(QPen(QColor(30, 41, 59, 220), 1.0));
+        painter.drawRoundedRect(previewRect, 14.0, 14.0);
+
+        if (hasPreview_ && !previewImage_.isNull()) {
+            painter.save();
+            painter.setClipRect(previewRect.adjusted(1, 1, -1, -1));
+            painter.drawImage(previewRect, previewImage_);
+
+            painter.setPen(QPen(QColor(226, 232, 240, 186), 1.0));
+            const QPointF center = previewRect.center();
+            painter.drawLine(QPointF(center.x() - 18.0, center.y()), QPointF(center.x() + 18.0, center.y()));
+            painter.drawLine(QPointF(center.x(), center.y() - 18.0), QPointF(center.x(), center.y() + 18.0));
+
+            if (hasTarget_) {
+                if (targetVisible_) {
+                    const QPointF targetPoint(
+                        previewRect.left() + targetNormalizedPoint_.x() * previewRect.width(),
+                        previewRect.top() + targetNormalizedPoint_.y() * previewRect.height());
+                    painter.setPen(QPen(QColor(251, 146, 60), 2.0));
+                    painter.setBrush(QColor(255, 237, 213, 140));
+                    painter.drawEllipse(targetPoint, 6.5, 6.5);
+                    painter.drawLine(QPointF(targetPoint.x() - 10.0, targetPoint.y()), QPointF(targetPoint.x() + 10.0, targetPoint.y()));
+                    painter.drawLine(QPointF(targetPoint.x(), targetPoint.y() - 10.0), QPointF(targetPoint.x(), targetPoint.y() + 10.0));
+                } else {
+                    const QRectF badgeRect(previewRect.right() - 116.0, previewRect.top() + 10.0, 104.0, 26.0);
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(statusColor_.isValid() ? statusColor_ : QColor(127, 29, 29, 232));
+                    painter.drawRoundedRect(badgeRect, 13.0, 13.0);
+                    painter.setPen(QColor(255, 237, 213));
+                    painter.drawText(badgeRect, Qt::AlignCenter, targetStatus_);
+                }
+            }
+            painter.restore();
+        } else {
+            painter.setPen(QColor(203, 213, 225));
+            painter.drawText(
+                previewRect,
+                Qt::AlignCenter,
+                targetStatus_.isEmpty()
+                    ? QCoreApplication::translate("PointCloudViewer", "Camera preview unavailable")
+                    : targetStatus_);
+        }
+
+        const QRectF footerRect(16.0, 228.0, width() - 32.0, 18.0);
+        painter.setPen(QColor(71, 85, 105));
+        painter.drawText(footerRect, Qt::AlignLeft | Qt::AlignVCenter, footer_);
+
+        const QRectF targetRect(16.0, 248.0, width() - 32.0, 16.0);
+        painter.setPen(statusColor_.isValid() ? statusColor_ : QColor(30, 64, 175));
+        painter.drawText(targetRect, Qt::AlignLeft | Qt::AlignVCenter, targetStatus_);
+
+        const QRectF alignmentRect(16.0, 266.0, width() - 32.0, 16.0);
+        painter.setPen(QColor(100, 116, 139));
+        painter.drawText(alignmentRect, Qt::AlignLeft | Qt::AlignVCenter, alignmentHint_);
+    }
+
+private:
+    bool hasPreview_ = false;
+    QImage previewImage_;
+    QString title_;
+    QString subtitle_;
+    QString footer_;
+    QString targetStatus_;
+    QString alignmentHint_;
+    bool hasTarget_ = false;
+    bool targetVisible_ = false;
+    QPointF targetNormalizedPoint_;
+    QColor statusColor_;
+};
 
 class AxisIndicatorOverlay final : public QWidget
 {
@@ -408,6 +550,34 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
     return geode;
 }
 
+osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(const QList<PointRecord>& partPoints)
+{
+    if (partPoints.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+    for (const PointRecord& partPoint : partPoints) {
+        vertices->push_back(osg::Vec3(partPoint.x, partPoint.y, partPoint.z));
+        colors->push_back(osg::Vec4(0.96f, 0.45f, 0.12f, 1.0f));
+    }
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setAttributeAndModes(new osg::Point(9.0f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+    return geode;
+}
+
 osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(const QList<PointRecord>& waypoints)
 {
     if (waypoints.size() < 2) {
@@ -432,6 +602,200 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(const QList<PointRecord>&
     geode->addDrawable(geometry.get());
     osg::StateSet* stateSet = geode->getOrCreateStateSet();
     stateSet->setAttributeAndModes(new osg::LineWidth(2.6f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+    return geode;
+}
+
+osg::ref_ptr<osg::Geode> buildInspectionRouteWaypointPartLinksGeode(
+    const QList<PointRecord>& waypoints,
+    const QList<PointRecord>& targetPoints,
+    const QList<bool>& hasTargetPoints,
+    int selectedIndex)
+{
+    if (waypoints.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
+
+    for (int index = 0; index < waypoints.size(); ++index) {
+        const bool hasTarget =
+            index < hasTargetPoints.size()
+            && hasTargetPoints.at(index)
+            && index < targetPoints.size();
+        if (!hasTarget) {
+            continue;
+        }
+
+        const PointRecord& waypoint = waypoints.at(index);
+        const PointRecord& targetPoint = targetPoints.at(index);
+        osg::Vec3 startPoint(waypoint.x, waypoint.y, waypoint.z);
+        osg::Vec3 endPoint(targetPoint.x, targetPoint.y, targetPoint.z);
+        osg::Vec3 direction = endPoint - startPoint;
+        const float distance = direction.length();
+        if (distance <= 0.001f) {
+            continue;
+        }
+        direction /= distance;
+
+        const float dashLength = std::clamp(distance * 0.12f, 0.8f, 3.2f);
+        const float gapLength = std::clamp(dashLength * 0.6f, 0.45f, 2.0f);
+        const osg::Vec4 linkColor = index == selectedIndex
+            ? osg::Vec4(0.99f, 0.90f, 0.27f, 0.95f)
+            : osg::Vec4(0.98f, 0.58f, 0.17f, 0.82f);
+
+        float cursor = 0.0f;
+        while (cursor < distance) {
+            const float segmentStart = cursor;
+            const float segmentEnd = std::min(distance, segmentStart + dashLength);
+
+            vertices->push_back(startPoint + direction * segmentStart);
+            vertices->push_back(startPoint + direction * segmentEnd);
+            colors->push_back(linkColor);
+            colors->push_back(linkColor);
+
+            cursor = segmentEnd + gapLength;
+        }
+    }
+
+    if (vertices->empty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
+    geometry->setUseDisplayList(false);
+    geometry->setUseVertexBufferObjects(true);
+    geometry->setVertexArray(vertices.get());
+    geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->addPrimitiveSet(new osg::DrawArrays(GL_LINES, 0, static_cast<GLsizei>(vertices->size())));
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(geometry.get());
+
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    stateSet->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA), osg::StateAttribute::ON);
+    stateSet->setAttributeAndModes(new osg::LineWidth(1.5f), osg::StateAttribute::ON);
+    applyMeasurementForegroundState(stateSet);
+    return geode;
+}
+
+osg::ref_ptr<osg::Geode> buildInspectionRouteFrustumGeode(
+    const QList<PointRecord>& waypoints,
+    const QList<PointRecord>& targetPoints,
+    const QList<bool>& hasTargetPoints,
+    int selectedIndex)
+{
+    if (waypoints.isEmpty()) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Vec3Array> edgeVertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> edgeColors = new osg::Vec4Array();
+    osg::ref_ptr<osg::Vec3Array> faceVertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec4Array> faceColors = new osg::Vec4Array();
+
+    for (int index = 0; index < waypoints.size(); ++index) {
+        const bool hasTarget =
+            index < hasTargetPoints.size()
+            && hasTargetPoints.at(index)
+            && index < targetPoints.size();
+        if (!hasTarget) {
+            continue;
+        }
+
+        const PointRecord& waypoint = waypoints.at(index);
+        const PointRecord& targetPoint = targetPoints.at(index);
+        osg::Vec3 apex(waypoint.x, waypoint.y, waypoint.z);
+        osg::Vec3 direction(
+            targetPoint.x - waypoint.x,
+            targetPoint.y - waypoint.y,
+            targetPoint.z - waypoint.z);
+        const float distance = direction.length();
+        if (distance <= 0.001f) {
+            continue;
+        }
+
+        direction /= distance;
+        osg::Vec3 upReference = std::abs(direction.z()) >= 0.92f
+            ? osg::Vec3(0.0f, 1.0f, 0.0f)
+            : osg::Vec3(0.0f, 0.0f, 1.0f);
+        osg::Vec3 right = direction ^ upReference;
+        if (right.length2() <= 0.00001f) {
+            continue;
+        }
+        right.normalize();
+        osg::Vec3 up = right ^ direction;
+        up.normalize();
+
+        const float frustumLength = std::clamp(distance * 0.22f, 1.4f, 7.0f);
+        const float halfWidth = std::clamp(frustumLength * 0.18f, 0.35f, 1.25f);
+        const float halfHeight = std::clamp(frustumLength * 0.14f, 0.28f, 1.0f);
+        const osg::Vec3 baseCenter = apex + direction * frustumLength;
+        const std::array<osg::Vec3, 4> corners = {
+            baseCenter + right * halfWidth + up * halfHeight,
+            baseCenter - right * halfWidth + up * halfHeight,
+            baseCenter - right * halfWidth - up * halfHeight,
+            baseCenter + right * halfWidth - up * halfHeight
+        };
+
+        const osg::Vec4 edgeColor = index == selectedIndex
+            ? osg::Vec4(0.99f, 0.87f, 0.27f, 0.95f)
+            : osg::Vec4(0.98f, 0.58f, 0.17f, 0.88f);
+        const osg::Vec4 faceColor = index == selectedIndex
+            ? osg::Vec4(0.99f, 0.87f, 0.27f, 0.18f)
+            : osg::Vec4(0.98f, 0.58f, 0.17f, 0.13f);
+
+        for (int cornerIndex = 0; cornerIndex < 4; ++cornerIndex) {
+            const osg::Vec3& currentCorner = corners.at(cornerIndex);
+            const osg::Vec3& nextCorner = corners.at((cornerIndex + 1) % 4);
+            edgeVertices->push_back(apex);
+            edgeVertices->push_back(currentCorner);
+            edgeVertices->push_back(currentCorner);
+            edgeVertices->push_back(nextCorner);
+            edgeColors->push_back(edgeColor);
+            edgeColors->push_back(edgeColor);
+            edgeColors->push_back(edgeColor);
+            edgeColors->push_back(edgeColor);
+
+            faceVertices->push_back(apex);
+            faceVertices->push_back(currentCorner);
+            faceVertices->push_back(nextCorner);
+            faceColors->push_back(faceColor);
+            faceColors->push_back(faceColor);
+            faceColors->push_back(faceColor);
+        }
+    }
+
+    if (edgeVertices->size() == 0u) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+
+    if (faceVertices->size() > 0u) {
+        osg::ref_ptr<osg::Geometry> faceGeometry = new osg::Geometry();
+        faceGeometry->setUseDisplayList(false);
+        faceGeometry->setUseVertexBufferObjects(true);
+        faceGeometry->setVertexArray(faceVertices.get());
+        faceGeometry->setColorArray(faceColors.get(), osg::Array::BIND_PER_VERTEX);
+        faceGeometry->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(faceVertices->size())));
+        geode->addDrawable(faceGeometry.get());
+    }
+
+    osg::ref_ptr<osg::Geometry> edgeGeometry = new osg::Geometry();
+    edgeGeometry->setUseDisplayList(false);
+    edgeGeometry->setUseVertexBufferObjects(true);
+    edgeGeometry->setVertexArray(edgeVertices.get());
+    edgeGeometry->setColorArray(edgeColors.get(), osg::Array::BIND_PER_VERTEX);
+    edgeGeometry->addPrimitiveSet(new osg::DrawArrays(GL_LINES, 0, static_cast<GLsizei>(edgeVertices->size())));
+    geode->addDrawable(edgeGeometry.get());
+
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    stateSet->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA), osg::StateAttribute::ON);
+    stateSet->setAttributeAndModes(new osg::LineWidth(1.6f), osg::StateAttribute::ON);
     applyMeasurementForegroundState(stateSet);
     return geode;
 }
@@ -472,6 +836,7 @@ void OsgWidget::setInteractionOptions(const InteractionOptions& options)
 void OsgWidget::setSceneClickModeEnabled(bool enabled)
 {
     sceneClickModeEnabled_ = enabled;
+    sceneDragCaptureEnabled_ = false;
     leftButtonPressed_ = false;
     leftButtonDragDetected_ = false;
     leftButtonEventDispatched_ = false;
@@ -488,6 +853,11 @@ void OsgWidget::setRectangleSelectionEnabled(bool enabled)
     leftButtonEventDispatched_ = false;
     rightButtonPressed_ = false;
     rightButtonDragDetected_ = false;
+}
+
+void OsgWidget::setSceneDragCaptureEnabled(bool enabled)
+{
+    sceneDragCaptureEnabled_ = enabled;
 }
 
 OsgWidget::~OsgWidget()
@@ -568,6 +938,7 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
     }
 
     if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
+        emit scenePressed(event->localPos());
         update();
         return;
     }
@@ -575,6 +946,24 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
     dispatchMouseButtonEvent(event->localPos(), event->button(), true);
 
     update();
+}
+
+void OsgWidget::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (event == nullptr) {
+        return;
+    }
+
+    if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
+        leftButtonPressed_ = false;
+        leftButtonDragDetected_ = true;
+        leftButtonEventDispatched_ = false;
+        emit sceneDoubleClicked(event->localPos());
+        update();
+        return;
+    }
+
+    QOpenGLWidget::mouseDoubleClickEvent(event);
 }
 
 void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
@@ -595,7 +984,10 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
     }
 
     if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
-        if (leftButtonEventDispatched_) {
+        if (sceneDragCaptureEnabled_) {
+            emit sceneDragReleased(event->localPos());
+            sceneDragCaptureEnabled_ = false;
+        } else if (leftButtonEventDispatched_) {
             dispatchMouseButtonEvent(event->localPos(), event->button(), false);
         } else if (!leftButtonDragDetected_) {
             emit sceneClicked(event->localPos());
@@ -664,6 +1056,12 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         adjustedPosition = lastOrbitEventPosition_ + delta;
         lastOrbitCursorPosition_ = event->localPos();
         lastOrbitEventPosition_ = adjustedPosition;
+    }
+
+    if (sceneClickModeEnabled_ && leftButtonPressed_ && sceneDragCaptureEnabled_) {
+        emit sceneDragged(event->localPos());
+        update();
+        return;
     }
 
     if (sceneClickModeEnabled_ && leftButtonPressed_ && leftButtonDragDetected_ && !leftButtonEventDispatched_) {
@@ -749,6 +1147,12 @@ void OsgWidget::keyPressEvent(QKeyEvent* event)
         return;
     }
 
+    if (sceneClickModeEnabled_ && event != nullptr && event->key() == Qt::Key_Escape) {
+        emit sceneEscapePressed();
+        update();
+        return;
+    }
+
     if (eventQueue() != nullptr) {
         eventQueue()->keyPress(static_cast<osgGA::GUIEventAdapter::KeySymbol>(event->key()));
     }
@@ -818,6 +1222,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     createStatusPanel();
     createMeasurementOverlayWidgets();
     createWelcomeOverlay();
+    createRouteCameraPreviewOverlay();
     axisIndicatorOverlay_ = new AxisIndicatorOverlay(osgWidget_);
     axisIndicatorOverlay_->show();
     axisIndicatorOverlay_->raise();
@@ -852,7 +1257,12 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
         "font-size: 11px;"
         "}");
 
+    connect(osgWidget_, &OsgWidget::scenePressed, this, &PointCloudViewer::handleScenePress);
     connect(osgWidget_, &OsgWidget::sceneClicked, this, &PointCloudViewer::handleSceneClick);
+    connect(osgWidget_, &OsgWidget::sceneDoubleClicked, this, &PointCloudViewer::handleSceneDoubleClick);
+    connect(osgWidget_, &OsgWidget::sceneDragged, this, &PointCloudViewer::handleSceneDrag);
+    connect(osgWidget_, &OsgWidget::sceneDragReleased, this, &PointCloudViewer::handleSceneDragRelease);
+    connect(osgWidget_, &OsgWidget::sceneEscapePressed, this, &PointCloudViewer::handleSceneEscapePressed);
     connect(osgWidget_, &OsgWidget::sceneSecondaryClicked, this, &PointCloudViewer::handleSceneSecondaryClick);
     connect(osgWidget_, &OsgWidget::sceneHovered, this, &PointCloudViewer::handleSceneHover);
     connect(osgWidget_, &OsgWidget::sceneHoverEnded, this, &PointCloudViewer::clearHoveredPoint);
@@ -863,6 +1273,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
         updateMeasurementOverlayWidgets();
         updateTowerOverlayWidgets();
         updateInspectionIssueOverlayWidgets();
+        updateInspectionRouteOverlayWidgets();
         if (selectionRubberBand_ != nullptr && selectionRubberBand_->isVisible()) {
             selectionRubberBand_->raise();
         }
@@ -882,6 +1293,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     applyClearColor();
     updateWelcomeOverlayVisibility();
     positionAxisIndicator();
+    positionRouteCameraPreviewOverlay();
     retranslateUi();
 }
 
@@ -1052,7 +1464,18 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
     issueEditMode_ = IssueEditMode::None;
     inspectionRouteWaypoints_.clear();
     inspectionRouteLabels_.clear();
+    inspectionRoutePartPoints_.clear();
+    inspectionRouteWaypointTargetPoints_.clear();
+    inspectionRouteWaypointHasTargetPoints_.clear();
+    inspectionRouteWaypointAircraftYawDegs_.clear();
+    inspectionRouteWaypointGimbalPitchDegs_.clear();
+    inspectionRouteWaypointCameraYawDegs_.clear();
+    inspectionRouteWaypointCameraPitchDegs_.clear();
+    inspectionRouteWaypointTargetLabels_.clear();
     inspectionRouteVisible_ = true;
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
     DataManager::instance().clearTrajectory();
     selectedInspectionRouteWaypointIndex_ = -1;
     classificationEditStore_.clear();
@@ -1270,7 +1693,18 @@ void PointCloudViewer::clearPointCloud()
     issueEditMode_ = IssueEditMode::None;
     inspectionRouteWaypoints_.clear();
     inspectionRouteLabels_.clear();
+    inspectionRoutePartPoints_.clear();
+    inspectionRouteWaypointTargetPoints_.clear();
+    inspectionRouteWaypointHasTargetPoints_.clear();
+    inspectionRouteWaypointAircraftYawDegs_.clear();
+    inspectionRouteWaypointGimbalPitchDegs_.clear();
+    inspectionRouteWaypointCameraYawDegs_.clear();
+    inspectionRouteWaypointCameraPitchDegs_.clear();
+    inspectionRouteWaypointTargetLabels_.clear();
     inspectionRouteVisible_ = true;
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
     selectedInspectionRouteWaypointIndex_ = -1;
     profileClassificationModeEnabled_ = false;
     profileClassificationTaskActive_ = false;
@@ -2033,7 +2467,8 @@ void PointCloudViewer::updateSceneClickCapture()
         || towerEditMode_ != TowerEditMode::None
         || issueEditMode_ != IssueEditMode::None
         || !towerMarkers_.isEmpty()
-        || !inspectionIssues_.isEmpty());
+        || !inspectionIssues_.isEmpty()
+        || (inspectionRouteVisible_ && !inspectionRouteWaypoints_.isEmpty()));
     osgWidget_->setSceneClickModeEnabled(sceneClickEnabled);
 }
 
@@ -2412,11 +2847,23 @@ void PointCloudViewer::setSelectedIssueIndex(int index)
     emit selectedIssueChanged(selectedIssueIndex_);
 }
 
-void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& waypoints, const QStringList& labels)
+void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDisplayData& displayData)
 {
-    inspectionRouteWaypoints_ = waypoints;
-    inspectionRouteLabels_ = labels;
+    inspectionRouteWaypoints_ = displayData.waypoints;
+    inspectionRouteLabels_ = displayData.labels;
+    inspectionRoutePartPoints_ = displayData.partPoints;
+    inspectionRoutePartLabels_ = displayData.partLabels;
+    inspectionRouteWaypointTargetPoints_ = displayData.waypointTargetPoints;
+    inspectionRouteWaypointHasTargetPoints_ = displayData.waypointHasTargetPoints;
+    inspectionRouteWaypointAircraftYawDegs_ = displayData.waypointAircraftYawDegs;
+    inspectionRouteWaypointGimbalPitchDegs_ = displayData.waypointGimbalPitchDegs;
+    inspectionRouteWaypointCameraYawDegs_ = displayData.waypointCameraYawDegs;
+    inspectionRouteWaypointCameraPitchDegs_ = displayData.waypointCameraPitchDegs;
+    inspectionRouteWaypointTargetLabels_ = displayData.waypointTargetLabels;
     inspectionRouteVisible_ = true;
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
     DataManager::instance().setTrajectory(
         DataManager::instance().trajectoryItem().name.trimmed().isEmpty()
             ? tr("Inspection Route")
@@ -2433,6 +2880,68 @@ void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& way
             inspectionRouteLabels_.end());
     }
 
+    while (inspectionRoutePartLabels_.size() < inspectionRoutePartPoints_.size()) {
+        inspectionRoutePartLabels_.append(QString());
+    }
+    while (inspectionRoutePartLabels_.size() > inspectionRoutePartPoints_.size()) {
+        inspectionRoutePartLabels_.removeLast();
+    }
+
+    if (inspectionRouteWaypointTargetPoints_.size() < inspectionRouteWaypoints_.size()) {
+        while (inspectionRouteWaypointTargetPoints_.size() < inspectionRouteWaypoints_.size()) {
+            inspectionRouteWaypointTargetPoints_.append(PointRecord());
+        }
+    } else if (inspectionRouteWaypointTargetPoints_.size() > inspectionRouteWaypoints_.size()) {
+        while (inspectionRouteWaypointTargetPoints_.size() > inspectionRouteWaypoints_.size()) {
+            inspectionRouteWaypointTargetPoints_.removeLast();
+        }
+    }
+
+    if (inspectionRouteWaypointHasTargetPoints_.size() < inspectionRouteWaypoints_.size()) {
+        while (inspectionRouteWaypointHasTargetPoints_.size() < inspectionRouteWaypoints_.size()) {
+            inspectionRouteWaypointHasTargetPoints_.append(false);
+        }
+    } else if (inspectionRouteWaypointHasTargetPoints_.size() > inspectionRouteWaypoints_.size()) {
+        while (inspectionRouteWaypointHasTargetPoints_.size() > inspectionRouteWaypoints_.size()) {
+            inspectionRouteWaypointHasTargetPoints_.removeLast();
+        }
+    }
+
+    while (inspectionRouteWaypointAircraftYawDegs_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointAircraftYawDegs_.append(0.0);
+    }
+    while (inspectionRouteWaypointAircraftYawDegs_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointAircraftYawDegs_.removeLast();
+    }
+
+    while (inspectionRouteWaypointGimbalPitchDegs_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointGimbalPitchDegs_.append(0.0);
+    }
+    while (inspectionRouteWaypointGimbalPitchDegs_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointGimbalPitchDegs_.removeLast();
+    }
+
+    while (inspectionRouteWaypointCameraYawDegs_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointCameraYawDegs_.append(0.0);
+    }
+    while (inspectionRouteWaypointCameraYawDegs_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointCameraYawDegs_.removeLast();
+    }
+
+    while (inspectionRouteWaypointCameraPitchDegs_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointCameraPitchDegs_.append(0.0);
+    }
+    while (inspectionRouteWaypointCameraPitchDegs_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointCameraPitchDegs_.removeLast();
+    }
+
+    while (inspectionRouteWaypointTargetLabels_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointTargetLabels_.append(QString());
+    }
+    while (inspectionRouteWaypointTargetLabels_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointTargetLabels_.removeLast();
+    }
+
     selectedInspectionRouteWaypointIndex_ =
         inspectionRouteWaypoints_.isEmpty()
             ? -1
@@ -2444,6 +2953,51 @@ void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& way
     emit inspectionRouteChanged();
 }
 
+void PointCloudViewer::setInspectionRouteWaypoints(const QList<PointRecord>& waypoints, const QStringList& labels)
+{
+    InspectionRouteDisplayData displayData;
+    displayData.waypoints = waypoints;
+    displayData.labels = labels;
+    setInspectionRouteDisplayData(displayData);
+}
+
+RouteLabelDisplayMode PointCloudViewer::inspectionRouteWaypointLabelDisplayMode() const
+{
+    return routeWaypointLabelDisplayMode_;
+}
+
+RouteLabelDisplayMode PointCloudViewer::inspectionRoutePartLabelDisplayMode() const
+{
+    return routePartLabelDisplayMode_;
+}
+
+void PointCloudViewer::setInspectionRouteWaypointLabelDisplayMode(RouteLabelDisplayMode mode)
+{
+    if (routeWaypointLabelDisplayMode_ == mode) {
+        return;
+    }
+
+    routeWaypointLabelDisplayMode_ = mode;
+    updateInspectionRouteOverlayWidgets();
+    updateRouteCameraPreviewOverlay();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
+void PointCloudViewer::setInspectionRoutePartLabelDisplayMode(RouteLabelDisplayMode mode)
+{
+    if (routePartLabelDisplayMode_ == mode) {
+        return;
+    }
+
+    routePartLabelDisplayMode_ = mode;
+    updateInspectionRouteOverlayWidgets();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
 void PointCloudViewer::clearInspectionRouteWaypoints()
 {
     if (inspectionRouteWaypoints_.isEmpty()) {
@@ -2452,7 +3006,19 @@ void PointCloudViewer::clearInspectionRouteWaypoints()
 
     inspectionRouteWaypoints_.clear();
     inspectionRouteLabels_.clear();
+    inspectionRoutePartPoints_.clear();
+    inspectionRoutePartLabels_.clear();
+    inspectionRouteWaypointTargetPoints_.clear();
+    inspectionRouteWaypointHasTargetPoints_.clear();
+    inspectionRouteWaypointAircraftYawDegs_.clear();
+    inspectionRouteWaypointGimbalPitchDegs_.clear();
+    inspectionRouteWaypointCameraYawDegs_.clear();
+    inspectionRouteWaypointCameraPitchDegs_.clear();
+    inspectionRouteWaypointTargetLabels_.clear();
     inspectionRouteVisible_ = true;
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
     DataManager::instance().clearTrajectory();
     selectedInspectionRouteWaypointIndex_ = -1;
     refreshInspectionRouteOverlay();
@@ -2706,6 +3272,7 @@ void PointCloudViewer::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
     positionAxisIndicator();
+    positionRouteCameraPreviewOverlay();
     updateWelcomeOverlayVisibility();
 }
 
@@ -2805,6 +3372,12 @@ void PointCloudViewer::createWelcomeOverlay()
     welcomeOverlay_->hide();
 }
 
+void PointCloudViewer::createRouteCameraPreviewOverlay()
+{
+    routeCameraPreviewOverlay_ = new RouteCameraPreviewOverlay(osgWidget_);
+    routeCameraPreviewOverlay_->hide();
+}
+
 void PointCloudViewer::setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent)
 {
     pointCloudLoadingActive_ = active;
@@ -2888,6 +3461,7 @@ void PointCloudViewer::rebuildScene()
         updateTowerOverlayWidgets();
         updateInspectionIssueOverlayWidgets();
         updateInspectionRouteOverlayWidgets();
+        updateRouteCameraPreviewOverlay();
         updateMeasurementOverlayWidgets();
         return;
     }
@@ -3115,7 +3689,8 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
         && issueEditMode_ == IssueEditMode::None
         && !measurementEnabled_
         && towerMarkers_.isEmpty()
-        && inspectionIssues_.isEmpty()) {
+        && inspectionIssues_.isEmpty()
+        && inspectionRouteWaypoints_.isEmpty()) {
         return;
     }
 
@@ -3126,7 +3701,20 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
             return;
         }
 
-        setSelectedTowerIndex(pickTowerMarkerAtScreenPosition(localPos));
+        const int pickedTowerIndex = pickTowerMarkerAtScreenPosition(localPos);
+        if (pickedTowerIndex >= 0) {
+            setSelectedTowerIndex(pickedTowerIndex);
+            return;
+        }
+
+        const int pickedRouteWaypointIndex = pickInspectionRouteWaypointAtScreenPosition(localPos);
+        if (pickedRouteWaypointIndex >= 0) {
+            setSelectedInspectionRouteWaypointIndex(pickedRouteWaypointIndex);
+            return;
+        }
+
+        setSelectedTowerIndex(-1);
+        setSelectedInspectionRouteWaypointIndex(-1);
         return;
     }
 
@@ -3165,6 +3753,127 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
     refreshMeasurementOverlay();
     updateFooter();
     emit measurementChanged();
+}
+
+void PointCloudViewer::handleScenePress(const QPointF& localPos)
+{
+    if (osgWidget_ == nullptr) {
+        return;
+    }
+
+    osgWidget_->setSceneDragCaptureEnabled(false);
+    osgWidget_->unsetCursor();
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
+
+    if (profileClassificationModeEnabled_
+        || measurementEnabled_
+        || towerEditMode_ != TowerEditMode::None
+        || issueEditMode_ != IssueEditMode::None
+        || !inspectionRouteVisible_
+        || inspectionRouteWaypoints_.isEmpty()) {
+        return;
+    }
+
+    const int pickedRouteWaypointIndex = pickInspectionRouteWaypointAtScreenPosition(localPos);
+    if (pickedRouteWaypointIndex < 0) {
+        return;
+    }
+
+    routeWaypointDragIndex_ = pickedRouteWaypointIndex;
+    routeWaypointDragAnchor_ = localPos;
+    routeWaypointDragPreviewPoint_ = inspectionRouteWaypoints_.at(pickedRouteWaypointIndex);
+    routeWaypointDragPreviewValid_ = true;
+    setSelectedInspectionRouteWaypointIndex(pickedRouteWaypointIndex);
+    osgWidget_->setSceneDragCaptureEnabled(true);
+    osgWidget_->setCursor(Qt::OpenHandCursor);
+}
+
+void PointCloudViewer::handleSceneDoubleClick(const QPointF& localPos)
+{
+    if (profileClassificationModeEnabled_
+        || measurementEnabled_
+        || towerEditMode_ != TowerEditMode::None
+        || issueEditMode_ != IssueEditMode::None) {
+        return;
+    }
+
+    const int pickedRouteWaypointIndex = pickInspectionRouteWaypointAtScreenPosition(localPos);
+    if (pickedRouteWaypointIndex < 0) {
+        return;
+    }
+
+    setSelectedInspectionRouteWaypointIndex(pickedRouteWaypointIndex);
+    emit inspectionRouteWaypointDoubleClicked(pickedRouteWaypointIndex);
+}
+
+void PointCloudViewer::handleSceneDrag(const QPointF& localPos)
+{
+    if (routeWaypointDragIndex_ < 0 || routeWaypointDragIndex_ >= inspectionRouteWaypoints_.size()) {
+        return;
+    }
+
+    const QPointF dragDelta = localPos - routeWaypointDragAnchor_;
+    if (!routeWaypointDragActive_ && std::hypot(dragDelta.x(), dragDelta.y()) < 4.0) {
+        return;
+    }
+
+    PointRecord pickedPoint;
+    if (!pickPointAtScreenPosition(localPos, &pickedPoint, 18.0f)) {
+        return;
+    }
+
+    routeWaypointDragActive_ = true;
+    routeWaypointDragPreviewPoint_ = pickedPoint;
+    routeWaypointDragPreviewValid_ = true;
+    if (osgWidget_ != nullptr) {
+        osgWidget_->setCursor(Qt::ClosedHandCursor);
+    }
+    refreshInspectionRouteOverlay();
+}
+
+void PointCloudViewer::handleSceneDragRelease(const QPointF& localPos)
+{
+    Q_UNUSED(localPos);
+
+    if (osgWidget_ != nullptr) {
+        osgWidget_->setSceneDragCaptureEnabled(false);
+        osgWidget_->unsetCursor();
+    }
+
+    const int draggedWaypointIndex = routeWaypointDragIndex_;
+    const bool shouldCommit =
+        routeWaypointDragActive_
+        && routeWaypointDragPreviewValid_
+        && draggedWaypointIndex >= 0
+        && draggedWaypointIndex < inspectionRouteWaypoints_.size();
+    const PointRecord draggedPoint = routeWaypointDragPreviewPoint_;
+
+    routeWaypointDragActive_ = false;
+    routeWaypointDragIndex_ = -1;
+    routeWaypointDragPreviewValid_ = false;
+    refreshInspectionRouteOverlay();
+
+    if (shouldCommit) {
+        emit inspectionRouteWaypointDragFinished(draggedWaypointIndex, draggedPoint);
+    }
+}
+
+void PointCloudViewer::handleSceneEscapePressed()
+{
+    if (osgWidget_ != nullptr) {
+        osgWidget_->setSceneDragCaptureEnabled(false);
+        osgWidget_->unsetCursor();
+    }
+
+    if (routeWaypointDragActive_ || routeWaypointDragPreviewValid_) {
+        routeWaypointDragActive_ = false;
+        routeWaypointDragIndex_ = -1;
+        routeWaypointDragPreviewValid_ = false;
+        refreshInspectionRouteOverlay();
+        emit measurementMessage(tr("Route waypoint move cancelled."), false);
+    }
 }
 
 void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
@@ -3689,6 +4398,59 @@ int PointCloudViewer::pickInspectionIssueAtScreenPosition(const QPointF& localPo
     return bestIndex;
 }
 
+int PointCloudViewer::pickInspectionRouteWaypointAtScreenPosition(const QPointF& localPos, float tolerancePixels) const
+{
+    if (!inspectionRouteVisible_ || inspectionRouteWaypoints_.isEmpty() || osgWidget_ == nullptr) {
+        return -1;
+    }
+
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr || viewer->getCamera()->getViewport() == nullptr) {
+        return -1;
+    }
+
+    osg::Camera* camera = viewer->getCamera();
+    const osg::Matrixd worldToWindow =
+        camera->getViewMatrix() *
+        camera->getProjectionMatrix() *
+        camera->getViewport()->computeWindowMatrix();
+
+    const double devicePixelRatio = osgWidget_->devicePixelRatioF();
+    const double clickX = localPos.x() * devicePixelRatio;
+    const double clickY = (static_cast<double>(osgWidget_->height()) - localPos.y()) * devicePixelRatio;
+    const double tolerance = static_cast<double>(tolerancePixels) * devicePixelRatio;
+    const double toleranceSquared = tolerance * tolerance;
+
+    int bestIndex = -1;
+    double bestDistanceSquared = toleranceSquared;
+    double bestDepth = std::numeric_limits<double>::max();
+
+    for (int waypointIndex = 0; waypointIndex < inspectionRouteWaypoints_.size(); ++waypointIndex) {
+        const PointRecord& waypoint = inspectionRouteWaypoints_.at(waypointIndex);
+        const osg::Vec3d projected = osg::Vec3d(waypoint.x, waypoint.y, waypoint.z) * worldToWindow;
+        if (projected.z() < 0.0 || projected.z() > 1.0) {
+            continue;
+        }
+
+        const double dx = projected.x() - clickX;
+        const double dy = projected.y() - clickY;
+        const double distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > bestDistanceSquared) {
+            continue;
+        }
+
+        if (bestIndex < 0
+            || distanceSquared < bestDistanceSquared - 0.001
+            || (std::abs(distanceSquared - bestDistanceSquared) <= 0.001 && projected.z() < bestDepth)) {
+            bestIndex = waypointIndex;
+            bestDistanceSquared = distanceSquared;
+            bestDepth = projected.z();
+        }
+    }
+
+    return bestIndex;
+}
+
 osg::ref_ptr<osg::Node> PointCloudViewer::buildMeasurementOverlay() const
 {
     if (!measurementResult_.hasStartPoint) {
@@ -3749,14 +4511,45 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         return nullptr;
     }
 
+    QList<PointRecord> overlayWaypoints = inspectionRouteWaypoints_;
+    if (routeWaypointDragActive_
+        && routeWaypointDragPreviewValid_
+        && routeWaypointDragIndex_ >= 0
+        && routeWaypointDragIndex_ < overlayWaypoints.size()) {
+        overlayWaypoints[routeWaypointDragIndex_] = routeWaypointDragPreviewPoint_;
+    }
+
     osg::ref_ptr<osg::Group> overlay = new osg::Group();
-    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(inspectionRouteWaypoints_);
+    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(overlayWaypoints);
     if (routeLineGeode.valid()) {
         overlay->addChild(routeLineGeode.get());
     }
 
+    osg::ref_ptr<osg::Geode> routeWaypointPartLinksGeode = buildInspectionRouteWaypointPartLinksGeode(
+        overlayWaypoints,
+        inspectionRouteWaypointTargetPoints_,
+        inspectionRouteWaypointHasTargetPoints_,
+        selectedInspectionRouteWaypointIndex_);
+    if (routeWaypointPartLinksGeode.valid()) {
+        overlay->addChild(routeWaypointPartLinksGeode.get());
+    }
+
+    osg::ref_ptr<osg::Geode> routeFrustumGeode = buildInspectionRouteFrustumGeode(
+        overlayWaypoints,
+        inspectionRouteWaypointTargetPoints_,
+        inspectionRouteWaypointHasTargetPoints_,
+        selectedInspectionRouteWaypointIndex_);
+    if (routeFrustumGeode.valid()) {
+        overlay->addChild(routeFrustumGeode.get());
+    }
+
+    osg::ref_ptr<osg::Geode> routePartPointsGeode = buildInspectionRoutePartPointsGeode(inspectionRoutePartPoints_);
+    if (routePartPointsGeode.valid()) {
+        overlay->addChild(routePartPointsGeode.get());
+    }
+
     osg::ref_ptr<osg::Geode> routePointsGeode = buildInspectionRoutePointsGeode(
-        inspectionRouteWaypoints_,
+        overlayWaypoints,
         selectedInspectionRouteWaypointIndex_);
     if (routePointsGeode.valid()) {
         overlay->addChild(routePointsGeode.get());
@@ -4018,7 +4811,20 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
                 label->hide();
             }
         }
+        for (QLabel* label : inspectionRoutePartOverlayLabels_) {
+            if (label != nullptr) {
+                label->hide();
+            }
+        }
         return;
+    }
+
+    QList<PointRecord> overlayWaypoints = inspectionRouteWaypoints_;
+    if (routeWaypointDragActive_
+        && routeWaypointDragPreviewValid_
+        && routeWaypointDragIndex_ >= 0
+        && routeWaypointDragIndex_ < overlayWaypoints.size()) {
+        overlayWaypoints[routeWaypointDragIndex_] = routeWaypointDragPreviewPoint_;
     }
 
     while (inspectionRouteOverlayLabels_.size() < inspectionRouteWaypoints_.size()) {
@@ -4040,7 +4846,7 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
         }
 
         bool pointVisible = false;
-        const PointRecord& waypoint = inspectionRouteWaypoints_.at(waypointIndex);
+        const PointRecord& waypoint = overlayWaypoints.at(waypointIndex);
         const QPointF anchor = projectPointToViewport(waypoint, &pointVisible);
         if (!pointVisible) {
             label->hide();
@@ -4048,24 +4854,344 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
         }
 
         const bool isSelected = waypointIndex == selectedInspectionRouteWaypointIndex_;
-        const QString labelText = waypointIndex < inspectionRouteLabels_.size()
-            ? inspectionRouteLabels_.at(waypointIndex)
-            : QString::number(waypointIndex + 1);
+        const QString labelText = inspectionRouteWaypointLabelText(waypointIndex);
         label->setText(labelText);
         label->setStyleSheet(QStringLiteral(
             "QLabel {"
             "background-color: %1;"
-            "color: #e0f2fe;"
+            "color: #0f172a;"
             "border: 1px solid %2;"
             "border-radius: 8px;"
             "padding: 3px 8px;"
             "font-size: 11px;"
             "font-weight: 700;"
             "}").arg(
-                isSelected ? QStringLiteral("rgba(14, 116, 144, 235)") : QStringLiteral("rgba(8, 47, 73, 220)"),
-                isSelected ? QStringLiteral("rgba(125, 211, 252, 235)") : QStringLiteral("rgba(56, 189, 248, 180)")));
+                isSelected ? QStringLiteral("rgba(254, 240, 138, 236)") : QStringLiteral("rgba(224, 242, 254, 232)"),
+                isSelected ? QStringLiteral("rgba(245, 158, 11, 220)") : QStringLiteral("rgba(56, 189, 248, 180)")));
         positionOverlayLabel(label, anchor, QPoint(14, -16));
     }
+
+    while (inspectionRoutePartOverlayLabels_.size() < inspectionRoutePartPoints_.size()) {
+        auto* label = new QLabel(osgWidget_);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        label->hide();
+        inspectionRoutePartOverlayLabels_.append(label);
+    }
+
+    for (int partIndex = 0; partIndex < inspectionRoutePartOverlayLabels_.size(); ++partIndex) {
+        QLabel* label = inspectionRoutePartOverlayLabels_.at(partIndex);
+        if (label == nullptr) {
+            continue;
+        }
+
+        if (partIndex >= inspectionRoutePartPoints_.size()) {
+            label->hide();
+            continue;
+        }
+
+        bool pointVisible = false;
+        const PointRecord& partPoint = inspectionRoutePartPoints_.at(partIndex);
+        const QPointF anchor = projectPointToViewport(partPoint, &pointVisible);
+        if (!pointVisible) {
+            label->hide();
+            continue;
+        }
+
+        label->setText(inspectionRoutePartLabelText(partIndex));
+        label->setStyleSheet(QStringLiteral(
+            "QLabel {"
+            "background-color: rgba(255, 237, 213, 236);"
+            "color: #7c2d12;"
+            "border: 1px solid rgba(251, 146, 60, 200);"
+            "border-radius: 8px;"
+            "padding: 3px 8px;"
+            "font-size: 11px;"
+            "font-weight: 700;"
+            "}"));
+        positionOverlayLabel(label, anchor, QPoint(14, 16));
+    }
+}
+
+void PointCloudViewer::updateRouteCameraPreviewOverlay()
+{
+    auto* previewOverlay = static_cast<RouteCameraPreviewOverlay*>(routeCameraPreviewOverlay_);
+    if (previewOverlay == nullptr || osgWidget_ == nullptr) {
+        return;
+    }
+
+    positionRouteCameraPreviewOverlay();
+
+    if (!inspectionRouteVisible_
+        || !hasPointCloud()
+        || selectedInspectionRouteWaypointIndex_ < 0
+        || selectedInspectionRouteWaypointIndex_ >= inspectionRouteWaypoints_.size()) {
+        previewOverlay->hide();
+        return;
+    }
+
+    QList<PointRecord> previewWaypoints = inspectionRouteWaypoints_;
+    if (routeWaypointDragActive_
+        && routeWaypointDragPreviewValid_
+        && routeWaypointDragIndex_ >= 0
+        && routeWaypointDragIndex_ < previewWaypoints.size()) {
+        previewWaypoints[routeWaypointDragIndex_] = routeWaypointDragPreviewPoint_;
+    }
+
+    const int waypointIndex = selectedInspectionRouteWaypointIndex_;
+    const PointRecord& cameraPoint = previewWaypoints.at(waypointIndex);
+    const bool hasTarget =
+        waypointIndex < inspectionRouteWaypointHasTargetPoints_.size()
+        && inspectionRouteWaypointHasTargetPoints_.at(waypointIndex)
+        && waypointIndex < inspectionRouteWaypointTargetPoints_.size();
+    const PointRecord targetPoint = hasTarget
+        ? inspectionRouteWaypointTargetPoints_.at(waypointIndex)
+        : PointRecord();
+    const double aircraftYawDeg = waypointIndex < inspectionRouteWaypointAircraftYawDegs_.size()
+        ? inspectionRouteWaypointAircraftYawDegs_.at(waypointIndex)
+        : 0.0;
+    const double gimbalPitchDeg = waypointIndex < inspectionRouteWaypointGimbalPitchDegs_.size()
+        ? inspectionRouteWaypointGimbalPitchDegs_.at(waypointIndex)
+        : 0.0;
+    const double cameraYawDeg = waypointIndex < inspectionRouteWaypointCameraYawDegs_.size()
+        ? inspectionRouteWaypointCameraYawDegs_.at(waypointIndex)
+        : 0.0;
+    const double cameraPitchDeg = waypointIndex < inspectionRouteWaypointCameraPitchDegs_.size()
+        ? inspectionRouteWaypointCameraPitchDegs_.at(waypointIndex)
+        : 0.0;
+
+    const double yawRadians = qDegreesToRadians(aircraftYawDeg + cameraYawDeg);
+    const double pitchRadians = qDegreesToRadians(gimbalPitchDeg + cameraPitchDeg);
+    osg::Vec3d forward(
+        std::sin(yawRadians) * std::cos(pitchRadians),
+        std::cos(yawRadians) * std::cos(pitchRadians),
+        std::sin(pitchRadians));
+    if (forward.length2() <= 0.00001) {
+        forward = osg::Vec3d(0.0, 1.0, 0.0);
+    }
+    forward.normalize();
+
+    osg::Vec3d worldUp(0.0, 0.0, 1.0);
+    osg::Vec3d right = forward ^ worldUp;
+    if (right.length2() <= 0.00001) {
+        worldUp = osg::Vec3d(0.0, 1.0, 0.0);
+        right = forward ^ worldUp;
+    }
+    right.normalize();
+    osg::Vec3d up = right ^ forward;
+    up.normalize();
+
+    QImage previewImage(kRoutePreviewRenderWidth, kRoutePreviewRenderHeight, QImage::Format_ARGB32_Premultiplied);
+    previewImage.fill(QColor(8, 15, 25, 255));
+    std::vector<float> depthBuffer(static_cast<std::size_t>(previewImage.width() * previewImage.height()), std::numeric_limits<float>::max());
+
+    const double aspectRatio = static_cast<double>(previewImage.width()) / static_cast<double>(previewImage.height());
+    const double verticalFovRadians = qDegreesToRadians(42.0);
+    const double tanHalfFov = std::tan(verticalFovRadians * 0.5);
+    const double nearPlane = 0.35;
+    const std::vector<PointRecord>& points = currentPointCloud_->points();
+    const std::size_t pointStride = std::max<std::size_t>(1u, points.size() / 140000u);
+
+    for (std::size_t pointIndex = 0; pointIndex < points.size(); pointIndex += pointStride) {
+        const PointRecord& point = points[pointIndex];
+        const osg::Vec3d relativePoint(
+            static_cast<double>(point.x) - static_cast<double>(cameraPoint.x),
+            static_cast<double>(point.y) - static_cast<double>(cameraPoint.y),
+            static_cast<double>(point.z) - static_cast<double>(cameraPoint.z));
+        const double zCamera = relativePoint * forward;
+        if (zCamera <= nearPlane) {
+            continue;
+        }
+
+        const double xCamera = relativePoint * right;
+        const double yCamera = relativePoint * up;
+        const double normalizedX = xCamera / (zCamera * tanHalfFov * aspectRatio);
+        const double normalizedY = yCamera / (zCamera * tanHalfFov);
+        if (std::abs(normalizedX) > 1.05 || std::abs(normalizedY) > 1.05) {
+            continue;
+        }
+
+        const int pixelX = std::clamp(
+            static_cast<int>(std::lround((normalizedX * 0.5 + 0.5) * static_cast<double>(previewImage.width() - 1))),
+            0,
+            previewImage.width() - 1);
+        const int pixelY = std::clamp(
+            static_cast<int>(std::lround((0.5 - normalizedY * 0.5) * static_cast<double>(previewImage.height() - 1))),
+            0,
+            previewImage.height() - 1);
+        const std::size_t depthIndex = static_cast<std::size_t>(pixelY * previewImage.width() + pixelX);
+        if (zCamera >= depthBuffer[depthIndex]) {
+            continue;
+        }
+
+        depthBuffer[depthIndex] = static_cast<float>(zCamera);
+        const QRgb pointColor = qRgba(
+            point.r,
+            point.g,
+            point.b,
+            255);
+        reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY))[pixelX] = pointColor;
+        if (pixelX + 1 < previewImage.width()) {
+            reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY))[pixelX + 1] = pointColor;
+        }
+        if (pixelY + 1 < previewImage.height()) {
+            reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY + 1))[pixelX] = pointColor;
+        }
+    }
+
+    bool targetVisible = false;
+    QPointF targetNormalizedPoint(0.5, 0.5);
+    QString alignmentHint = tr("Link a part point to enable aiming guidance.");
+    QColor statusColor(30, 64, 175);
+    if (hasTarget) {
+        const osg::Vec3d relativeTarget(
+            static_cast<double>(targetPoint.x) - static_cast<double>(cameraPoint.x),
+            static_cast<double>(targetPoint.y) - static_cast<double>(cameraPoint.y),
+            static_cast<double>(targetPoint.z) - static_cast<double>(cameraPoint.z));
+        const double zCamera = relativeTarget * forward;
+        if (zCamera > nearPlane) {
+            const double xCamera = relativeTarget * right;
+            const double yCamera = relativeTarget * up;
+            const double normalizedX = xCamera / (zCamera * tanHalfFov * aspectRatio);
+            const double normalizedY = yCamera / (zCamera * tanHalfFov);
+            targetNormalizedPoint = QPointF(
+                normalizedX * 0.5 + 0.5,
+                0.5 - normalizedY * 0.5);
+            targetVisible =
+                targetNormalizedPoint.x() >= 0.0
+                && targetNormalizedPoint.x() <= 1.0
+                && targetNormalizedPoint.y() >= 0.0
+                && targetNormalizedPoint.y() <= 1.0;
+        }
+
+        if (targetVisible) {
+            const double deltaXNormalized = targetNormalizedPoint.x() - 0.5;
+            const double deltaYNormalized = 0.5 - targetNormalizedPoint.y();
+            const double deltaXPixels = deltaXNormalized * static_cast<double>(previewImage.width());
+            const double deltaYPixels = deltaYNormalized * static_cast<double>(previewImage.height());
+            const double radialErrorPixels = std::hypot(deltaXPixels, deltaYPixels);
+
+            auto directionText = [](double deltaX, double deltaY) {
+                if (std::abs(deltaX) <= 6.0 && std::abs(deltaY) <= 6.0) {
+                    return QCoreApplication::translate("PointCloudViewer", "Target nearly centered");
+                }
+
+                QStringList parts;
+                if (deltaX < -2.0) {
+                    parts.append(QCoreApplication::translate("PointCloudViewer", "move left"));
+                } else if (deltaX > 2.0) {
+                    parts.append(QCoreApplication::translate("PointCloudViewer", "move right"));
+                }
+                if (deltaY < -2.0) {
+                    parts.append(QCoreApplication::translate("PointCloudViewer", "move down"));
+                } else if (deltaY > 2.0) {
+                    parts.append(QCoreApplication::translate("PointCloudViewer", "move up"));
+                }
+                return parts.join(QCoreApplication::translate("PointCloudViewer", " + "));
+            };
+
+            alignmentHint = tr("Offset %1 px | %2")
+                .arg(QLocale().toString(radialErrorPixels, 'f', 1))
+                .arg(directionText(deltaXPixels, deltaYPixels));
+
+            if (radialErrorPixels <= 10.0) {
+                statusColor = QColor(22, 163, 74);
+            } else if (radialErrorPixels <= 28.0) {
+                statusColor = QColor(202, 138, 4);
+            } else {
+                statusColor = QColor(220, 38, 38);
+            }
+        } else {
+            alignmentHint = tr("Drag waypoint or adjust yaw/pitch until the target returns to frame.");
+            statusColor = QColor(185, 28, 28);
+        }
+    }
+
+    const QString labelText = inspectionRouteWaypointLabelText(waypointIndex);
+    const QString targetLabel =
+        waypointIndex < inspectionRouteWaypointTargetLabels_.size()
+        && !inspectionRouteWaypointTargetLabels_.at(waypointIndex).trimmed().isEmpty()
+            ? inspectionRouteWaypointTargetLabels_.at(waypointIndex)
+            : tr("Unlinked");
+    const QString title =
+        routeWaypointDragActive_ && waypointIndex == routeWaypointDragIndex_
+            ? tr("Route Camera Preview | Dragging %1").arg(labelText)
+            : tr("Route Camera Preview | %1").arg(labelText);
+    const QString subtitle = tr("Target: %1").arg(targetLabel);
+    const QString footer = tr("Yaw %1 | Pitch %2 | Cam %3 / %4")
+        .arg(QLocale().toString(aircraftYawDeg, 'f', 1))
+        .arg(QLocale().toString(gimbalPitchDeg, 'f', 1))
+        .arg(QLocale().toString(cameraYawDeg, 'f', 1))
+        .arg(QLocale().toString(cameraPitchDeg, 'f', 1));
+    const QString targetStatus = !hasTarget
+        ? tr("No linked part point")
+        : (targetVisible ? tr("Target in frame") : tr("Target off-screen"));
+
+    previewOverlay->setPreviewState(
+        true,
+        previewImage,
+        title,
+        subtitle,
+        footer,
+        targetStatus,
+        alignmentHint,
+        hasTarget,
+        targetVisible,
+        targetNormalizedPoint,
+        statusColor);
+    previewOverlay->show();
+    previewOverlay->raise();
+}
+
+void PointCloudViewer::positionRouteCameraPreviewOverlay()
+{
+    if (routeCameraPreviewOverlay_ == nullptr || osgWidget_ == nullptr) {
+        return;
+    }
+
+    routeCameraPreviewOverlay_->move(
+        std::max(12, osgWidget_->width() - routeCameraPreviewOverlay_->width() - 16),
+        std::max(12, osgWidget_->height() - routeCameraPreviewOverlay_->height() - 16));
+    routeCameraPreviewOverlay_->raise();
+}
+
+QString PointCloudViewer::inspectionRouteWaypointLabelText(int index) const
+{
+    if (index < 0) {
+        return QString();
+    }
+
+    if (routeWaypointLabelDisplayMode_ == RouteLabelDisplayMode::Sequence) {
+        return QLocale().toString(index + 1);
+    }
+
+    if (index < inspectionRouteLabels_.size()) {
+        const QString label = inspectionRouteLabels_.at(index).trimmed();
+        if (!label.isEmpty()) {
+            return label;
+        }
+    }
+
+    return QLocale().toString(index + 1);
+}
+
+QString PointCloudViewer::inspectionRoutePartLabelText(int index) const
+{
+    if (index < 0) {
+        return QString();
+    }
+
+    if (routePartLabelDisplayMode_ == RouteLabelDisplayMode::Sequence) {
+        return QLocale().toString(index + 1);
+    }
+
+    if (index < inspectionRoutePartLabels_.size()) {
+        const QString label = inspectionRoutePartLabels_.at(index).trimmed();
+        if (!label.isEmpty()) {
+            return label;
+        }
+    }
+
+    return QLocale().toString(index + 1);
 }
 
 void PointCloudViewer::refreshMeasurementOverlay()
@@ -4143,6 +5269,7 @@ void PointCloudViewer::refreshInspectionRouteOverlay()
     }
 
     updateInspectionRouteOverlayWidgets();
+    updateRouteCameraPreviewOverlay();
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }
@@ -4300,5 +5427,6 @@ void PointCloudViewer::retranslateUi()
     updateFooter();
     updateMeasurementOverlayWidgets();
     updateInspectionRouteOverlayWidgets();
+    updateRouteCameraPreviewOverlay();
     updateAxisIndicator();
 }

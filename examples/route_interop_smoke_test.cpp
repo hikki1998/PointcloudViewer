@@ -6,8 +6,9 @@
 #include <iostream>
 
 #include "crs/CrsAuthorityService.h"
-#include "domain/InspectionRoutePlanning.h"
-#include "domain/RouteInterop.h"
+#include "route/InspectionRoutePlanning.h"
+#include "route/PowerlineRouteBridge.h"
+#include "route/RouteInterop.h"
 
 namespace
 {
@@ -89,6 +90,24 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    const PowerlineRouteDocument routeDocument =
+        createPowerlineRouteFromInspectionRoute(localRoute, QStringLiteral("Smoke Route"));
+    if (!verify(routeDocument.waypoints.size() == localRoute.waypoints.size(), "Bridge document size mismatch")) {
+        return 1;
+    }
+
+    const InspectionRoute bridgedLocalRoute = toInspectionRouteExportView(routeDocument);
+    if (!verify(bridgedLocalRoute.waypoints.size() == localRoute.waypoints.size(), "Bridge export size mismatch")) {
+        return 1;
+    }
+    if (!verify(
+            !bridgedLocalRoute.waypoints.isEmpty()
+                && bridgedLocalRoute.waypoints.first().localPoint.x == localRoute.waypoints.first().localPoint.x
+                && bridgedLocalRoute.waypoints.first().localPoint.y == localRoute.waypoints.first().localPoint.y,
+            "Bridge export should preserve waypoint coordinates")) {
+        return 1;
+    }
+
     RoutePlanningOptions planningOptions;
     planningOptions.generation = generationOptions;
     planningOptions.safety = safetyOptions;
@@ -105,11 +124,11 @@ int main(int argc, char* argv[])
 
     InspectionRoute routeWgs84;
     QString errorMessage;
-    if (!transformRouteToWgs84(localRoute, coordinateSystems, &routeWgs84, &errorMessage)) {
+    if (!transformRouteToWgs84(bridgedLocalRoute, coordinateSystems, &routeWgs84, &errorMessage)) {
         std::cerr << "[FAIL] transformRouteToWgs84: " << errorMessage.toStdString() << std::endl;
         return 1;
     }
-    if (!verify(routeWgs84.waypoints.size() == localRoute.waypoints.size(), "Transformed route size mismatch")) {
+    if (!verify(routeWgs84.waypoints.size() == bridgedLocalRoute.waypoints.size(), "Transformed route size mismatch")) {
         return 1;
     }
 

@@ -499,10 +499,8 @@ set(SOURCES
     src/domain/ClearanceReportExporter.cpp
     src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
-    src/domain/InspectionRoutePlanning.cpp
     src/domain/InspectionReportExporter.cpp
     src/domain/ProfileMarkerProjection.cpp
-    src/domain/RouteInterop.cpp
     src/domain/RuleBasedClearanceEngine.cpp
     src/domain/TowerFileInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
@@ -514,6 +512,10 @@ set(SOURCES
     src/pointcloud/PointCloudData.cpp
     src/pointcloud/PointCloudTileStore.cpp
     src/osg/OsgPointCloudNode.cpp
+    src/route/InspectionRoutePlanning.cpp
+    src/route/PowerlineRouteBridge.cpp
+    src/route/PowerlineRouteJson.cpp
+    src/route/RouteInterop.cpp
 )
 
 set(HEADERS
@@ -532,11 +534,9 @@ set(HEADERS
     src/domain/ClearanceReportExporter.h
     src/domain/DataManager.h
     src/domain/InspectionData.h
-    src/domain/InspectionRoutePlanning.h
     src/domain/InspectionReportExporter.h
     src/domain/ProjectMetadata.h
     src/domain/ProfileMarkerProjection.h
-    src/domain/RouteInterop.h
     src/domain/RuleBasedClearanceEngine.h
     src/domain/TowerFileInterop.h
     src/domain/VegetationRiskAnalysis.h
@@ -549,6 +549,11 @@ set(HEADERS
     src/pointcloud/PointCloudTileStore.h
     src/osg/PointCloudVisualization.h
     src/osg/OsgPointCloudNode.h
+    src/route/InspectionRoutePlanning.h
+    src/route/PowerlineRouteBridge.h
+    src/route/PowerlineRouteJson.h
+    src/route/PowerlineRouteTypes.h
+    src/route/RouteInterop.h
 )
 
 set(APP_TRANSLATION_SOURCES
@@ -594,9 +599,7 @@ set(COMMON_SOURCES
     src/domain/ClassificationEditStore.cpp
     src/domain/DataManager.cpp
     src/domain/InspectionData.cpp
-    src/domain/InspectionRoutePlanning.cpp
     src/domain/RuleBasedClearanceEngine.cpp
-    src/domain/RouteInterop.cpp
     src/domain/TowerFileInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
     src/gui/PointCloudViewer.cpp
@@ -604,6 +607,10 @@ set(COMMON_SOURCES
     src/pointcloud/PointCloudData.cpp
     src/pointcloud/PointCloudTileStore.cpp
     src/osg/OsgPointCloudNode.cpp
+    src/route/InspectionRoutePlanning.cpp
+    src/route/PowerlineRouteBridge.cpp
+    src/route/PowerlineRouteJson.cpp
+    src/route/RouteInterop.cpp
 )
 
 set(COMMON_HEADERS
@@ -620,9 +627,7 @@ set(COMMON_HEADERS
     src/domain/ClassificationEditStore.h
     src/domain/DataManager.h
     src/domain/InspectionData.h
-    src/domain/InspectionRoutePlanning.h
     src/domain/RuleBasedClearanceEngine.h
-    src/domain/RouteInterop.h
     src/domain/TowerFileInterop.h
     src/domain/VegetationRiskAnalysis.h
     src/gui/PointCloudViewer.h
@@ -631,6 +636,11 @@ set(COMMON_HEADERS
     src/pointcloud/PointCloudTileStore.h
     src/osg/PointCloudVisualization.h
     src/osg/OsgPointCloudNode.h
+    src/route/InspectionRoutePlanning.h
+    src/route/PowerlineRouteBridge.h
+    src/route/PowerlineRouteJson.h
+    src/route/PowerlineRouteTypes.h
+    src/route/RouteInterop.h
 )
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
@@ -1047,8 +1057,9 @@ add_executable(LASViewerRouteInteropSmokeTest
     src/crs/CrsTypes.cpp
     src/domain/AnalysisData.cpp
     src/domain/InspectionData.cpp
-    src/domain/InspectionRoutePlanning.cpp
-    src/domain/RouteInterop.cpp
+    src/route/InspectionRoutePlanning.cpp
+    src/route/PowerlineRouteBridge.cpp
+    src/route/RouteInterop.cpp
 )
 target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE
     "${CMAKE_SOURCE_DIR}/src"
@@ -1060,6 +1071,19 @@ if(LAS_VIEWER_HAS_PROJ)
     target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_LIBRARY}")
 endif()
 set_target_properties(LASViewerRouteInteropSmokeTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
+add_executable(LASViewerRouteJsonSmokeTest
+    examples/route_json_smoke_test.cpp
+    src/route/PowerlineRouteBridge.cpp
+    src/route/PowerlineRouteJson.cpp
+)
+target_include_directories(LASViewerRouteJsonSmokeTest PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+)
+target_link_libraries(LASViewerRouteJsonSmokeTest PRIVATE Qt5::Core)
+set_target_properties(LASViewerRouteJsonSmokeTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
@@ -1102,6 +1126,9 @@ if(WIN32)
     deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
     deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
     deploy_proj_runtime_assets(LASViewerRouteInteropSmokeTest)
+    deploy_qt_runtime(LASViewerRouteJsonSmokeTest FALSE)
+    deploy_runtime_dependencies(LASViewerRouteJsonSmokeTest FALSE)
+    deploy_proj_runtime_assets(LASViewerRouteJsonSmokeTest)
     deploy_qt_runtime(LASViewerTowerFileInteropSmokeTest FALSE)
     deploy_runtime_dependencies(LASViewerTowerFileInteropSmokeTest FALSE)
     deploy_proj_runtime_assets(LASViewerTowerFileInteropSmokeTest)

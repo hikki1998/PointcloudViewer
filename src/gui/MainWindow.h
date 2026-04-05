@@ -10,8 +10,9 @@
 
 #include "crs/CrsTypes.h"
 #include "domain/AnalysisData.h"
-#include "domain/InspectionRoutePlanning.h"
 #include "domain/RuleBasedClearanceEngine.h"
+#include "route/InspectionRoutePlanning.h"
+#include "route/PowerlineRouteTypes.h"
 
 class QAction;
 class QActionGroup;
@@ -97,6 +98,7 @@ private:
     void createWindowControls();
     void createProjectDock();
     void createInspectorPanel();
+    void createRouteDetailsDock();
     void createProfileClassificationDock();
     void createProfileDock();
     void createLogDock();
@@ -155,6 +157,11 @@ private:
     void updateClearanceSegmentsTable(const ClearanceAnalysisResult& clearanceAnalysis);
     void updateVegetationRiskPanel();
     void updateRoutePlanningPanel();
+    void focusRoutePartPoint(int partIndex);
+    void focusRouteWaypoint(int waypointIndex);
+    bool editRouteWaypoint(int waypointIndex);
+    bool removeRoutePartPoint(int partIndex, bool notify = true);
+    bool removeRouteWaypoint(int waypointIndex, bool notify = true);
     void rebuildProjectTree();
     void refreshProjectTreeFilter();
     void focusProjectTreeItem(QTreeWidgetItem* item);
@@ -181,6 +188,11 @@ private:
     bool importTowerFile(const QString& filePath, bool updateLink = true, bool notify = true);
     bool exportTowerFile(const QString& filePath, bool updateLink = true, bool notify = true);
     bool reloadLinkedTowerFile(bool notify = true);
+    bool importRouteFile(const QString& filePath, bool updateLink = true, bool notify = true);
+    bool exportRouteFile(const QString& filePath, bool updateLink = true, bool notify = true);
+    bool reloadLinkedRouteFile(bool notify = true);
+    void applyCurrentRouteToViewer();
+    void showRouteDetailsDock(int preferredTab = 0);
     QString nextDefaultTowerName() const;
     QString nextDefaultIssueTitle() const;
     QString selectedDatasetPath() const;
@@ -193,10 +205,12 @@ private:
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
     QDockWidget* projectDock_ = nullptr;
     QDockWidget* inspectorDock_ = nullptr;
+    QDockWidget* routeDetailsDock_ = nullptr;
     QDockWidget* profileClassificationDock_ = nullptr;
     QDockWidget* profileDock_ = nullptr;
     QDockWidget* logDock_ = nullptr;
     QTabWidget* inspectorTabWidget_ = nullptr;
+    QTabWidget* routeDetailsTabWidget_ = nullptr;
     QTranslator* appTranslator_ = nullptr;
     QTranslator* qtTranslator_ = nullptr;
     UiLanguage currentLanguage_ = UiLanguage::English;
@@ -232,6 +246,7 @@ private:
     QFormLayout* analysisParametersLayout_ = nullptr;
     QGroupBox* vegetationRisksGroupBox_ = nullptr;
     QGroupBox* routePlanningGroupBox_ = nullptr;
+    QGroupBox* routePartsGroupBox_ = nullptr;
     QGroupBox* routeWaypointsGroupBox_ = nullptr;
     QGroupBox* navigationGroupBox_ = nullptr;
     QFormLayout* navigationToggleLayout_ = nullptr;
@@ -297,6 +312,8 @@ private:
     QDoubleSpinBox* routeWaypointSpacingSpinBox_ = nullptr;
     QDoubleSpinBox* routeSmoothingStrengthSpinBox_ = nullptr;
     QDoubleSpinBox* routeHeightOffsetSpinBox_ = nullptr;
+    QComboBox* routeWaypointLabelModeComboBox_ = nullptr;
+    QComboBox* routePartLabelModeComboBox_ = nullptr;
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
@@ -314,6 +331,7 @@ private:
     QTableWidget* classificationColorsTableWidget_ = nullptr;
     QTableWidget* clearanceSegmentsTableWidget_ = nullptr;
     QTableWidget* vegetationRisksTableWidget_ = nullptr;
+    QTableWidget* routePartPointsTableWidget_ = nullptr;
     QTableWidget* routeWaypointsTableWidget_ = nullptr;
     QToolBar* measurementToolBar_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
@@ -407,6 +425,10 @@ private:
     QAction* regenerateInspectionRouteAction_ = nullptr;
     QAction* clearInspectionRouteAction_ = nullptr;
     QAction* focusRouteWaypointAction_ = nullptr;
+    QAction* importRouteFileAction_ = nullptr;
+    QAction* saveRouteFileAction_ = nullptr;
+    QAction* saveRouteFileAsAction_ = nullptr;
+    QAction* reloadRouteFileAction_ = nullptr;
     QAction* importRouteKmlAction_ = nullptr;
     QAction* exportRouteKmlAction_ = nullptr;
     QAction* exportRouteDjiKmzAction_ = nullptr;
@@ -443,6 +465,7 @@ private:
     QActionGroup* languageActionGroup_ = nullptr;
     QString currentProjectFilePath_;
     QString linkedTowerFilePath_;
+    QString linkedRouteFilePath_;
     bool updatingProjectTree_ = false;
     bool towerEditingEnabled_ = false;
     double clearanceWarningThresholdMeters_ = 10.0;
@@ -458,8 +481,10 @@ private:
         lasviewer::crs::defaultGeographicCoordinateSystem()
     };
     RoutePlanningOptions routePlanningOptions_;
-    InspectionRoute inspectionRoute_;
+    PowerlineRouteDocument currentPowerlineRoute_;
+    int selectedRoutePartIndex_ = -1;
     int selectedRouteWaypointIndex_ = -1;
+    bool updatingRouteTables_ = false;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
     bool updatingClassificationColorTable_ = false;

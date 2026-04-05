@@ -98,6 +98,7 @@
 #include "QtnRibbonQuickAccessBar.h"
 
 #include "crs/CrsAuthorityService.h"
+#include "crs/CrsTransformService.h"
 #include "crs/ProjectCoordinateSystemsDialog.h"
 #include "crs/CrsTypes.h"
 #include "domain/ClearanceAnalysis.h"
@@ -105,10 +106,8 @@
 #include "domain/ClassificationEditStore.h"
 #include "domain/DataManager.h"
 #include "domain/InspectionData.h"
-#include "domain/InspectionRoutePlanning.h"
 #include "domain/InspectionReportExporter.h"
 #include "domain/ProfileMarkerProjection.h"
-#include "domain/RouteInterop.h"
 #include "domain/RuleBasedClearanceEngine.h"
 #include "domain/TowerFileInterop.h"
 #include "domain/VegetationRiskAnalysis.h"
@@ -118,6 +117,10 @@
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
 #include "pointcloud/PointCloudData.h"
+#include "route/InspectionRoutePlanning.h"
+#include "route/PowerlineRouteBridge.h"
+#include "route/PowerlineRouteJson.h"
+#include "route/RouteInterop.h"
 
 #ifdef LAS_VIEWER_HAS_LASLIB
 #include "lasreader.hpp"
@@ -127,6 +130,7 @@
 using lasviewer::crs::CoordinateSystemKind;
 using lasviewer::crs::CoordinateSystemRef;
 using lasviewer::crs::CrsAuthorityService;
+using lasviewer::crs::CrsTransformService;
 using lasviewer::crs::ProjectCoordinateSystemsDialog;
 
 namespace
@@ -573,6 +577,129 @@ QString datasetPathSummary(const QStringList& filePaths)
                 .arg(QLocale().toString(filePaths.size() - visibleCount)));
     }
     return lines.join(QLatin1Char('\n'));
+}
+
+QString routeTableStyleSheet()
+{
+    return QStringLiteral(
+        "QTableWidget {"
+        "background-color: #ffffff;"
+        "alternate-background-color: #f8fafc;"
+        "gridline-color: #e2e8f0;"
+        "color: #0f172a;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "}"
+        "QHeaderView::section {"
+        "background-color: #e2e8f0;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "padding: 4px 8px;"
+        "font-weight: 600;"
+        "}"
+        "QHeaderView::section:hover {"
+        "background-color: #dbeafe;"
+        "}"
+        "QHeaderView::section:pressed {"
+        "background-color: #bfdbfe;"
+        "}"
+        "QTableCornerButton::section {"
+        "background-color: #e2e8f0;"
+        "border: 1px solid #cbd5e1;"
+        "}");
+}
+
+QString routePartDisplayName(const RoutePartPoint& partPoint)
+{
+    return partPoint.partName.trimmed().isEmpty()
+        ? QCoreApplication::translate("MainWindow", "Part %1").arg(QLocale().toString(partPoint.partIndex))
+        : partPoint.partName.trimmed();
+}
+
+QString routeWaypointPartSummary(
+    const RouteWaypoint& waypoint,
+    const QHash<int, RoutePartPoint>& partPointByIndex)
+{
+    QStringList partNames;
+    for (const RouteCaptureTarget& captureTarget : waypoint.captureTargets) {
+        if (captureTarget.partIndex > 0 && partPointByIndex.contains(captureTarget.partIndex)) {
+            const QString partName = routePartDisplayName(partPointByIndex.value(captureTarget.partIndex));
+            if (!partNames.contains(partName)) {
+                partNames.append(partName);
+            }
+        } else if (!captureTarget.partName.trimmed().isEmpty() && !partNames.contains(captureTarget.partName.trimmed())) {
+            partNames.append(captureTarget.partName.trimmed());
+        }
+    }
+
+    if (partNames.isEmpty() && waypoint.primaryPartIndex > 0 && partPointByIndex.contains(waypoint.primaryPartIndex)) {
+        partNames.append(routePartDisplayName(partPointByIndex.value(waypoint.primaryPartIndex)));
+    }
+
+    if (partNames.isEmpty()) {
+        return waypoint.isHelperWaypoint
+            ? QCoreApplication::translate("MainWindow", "Helper Waypoint")
+            : QCoreApplication::translate("MainWindow", "Unlinked");
+    }
+
+    return partNames.join(QStringLiteral(", "));
+}
+
+int routeWaypointRepresentativePartIndex(const RouteWaypoint& waypoint)
+{
+    if (!waypoint.captureTargets.isEmpty() && waypoint.captureTargets.first().partIndex > 0) {
+        return waypoint.captureTargets.first().partIndex;
+    }
+
+    return waypoint.primaryPartIndex;
+}
+
+InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteDocument& route)
+{
+    InspectionRouteDisplayData displayData;
+    displayData.waypoints = toRouteDisplayPoints(route);
+    displayData.labels = toRouteDisplayLabels(route);
+    displayData.partPoints.reserve(route.partPoints.size());
+    displayData.partLabels.reserve(route.partPoints.size());
+    displayData.waypointTargetPoints.reserve(route.waypoints.size());
+    displayData.waypointHasTargetPoints.reserve(route.waypoints.size());
+    displayData.waypointAircraftYawDegs.reserve(route.waypoints.size());
+    displayData.waypointGimbalPitchDegs.reserve(route.waypoints.size());
+    displayData.waypointCameraYawDegs.reserve(route.waypoints.size());
+    displayData.waypointCameraPitchDegs.reserve(route.waypoints.size());
+    displayData.waypointTargetLabels.reserve(route.waypoints.size());
+
+    QHash<int, PointRecord> partPointByIndex;
+    QHash<int, RoutePartPoint> routePartPointByIndex;
+    for (const RoutePartPoint& partPoint : route.partPoints) {
+        displayData.partPoints.append(partPoint.localPoint);
+        displayData.partLabels.append(routePartDisplayName(partPoint));
+        if (partPoint.partIndex > 0) {
+            partPointByIndex.insert(partPoint.partIndex, partPoint.localPoint);
+            routePartPointByIndex.insert(partPoint.partIndex, partPoint);
+        }
+    }
+
+    for (const RouteWaypoint& waypoint : route.waypoints) {
+        const int targetPartIndex = routeWaypointRepresentativePartIndex(waypoint);
+        const RouteCaptureTarget primaryTarget = waypoint.captureTargets.isEmpty()
+            ? RouteCaptureTarget()
+            : waypoint.captureTargets.first();
+        if (targetPartIndex > 0 && partPointByIndex.contains(targetPartIndex)) {
+            displayData.waypointHasTargetPoints.append(true);
+            displayData.waypointTargetPoints.append(partPointByIndex.value(targetPartIndex));
+        } else {
+            displayData.waypointHasTargetPoints.append(false);
+            displayData.waypointTargetPoints.append(PointRecord());
+        }
+        displayData.waypointAircraftYawDegs.append(waypoint.aircraftYawDeg);
+        displayData.waypointGimbalPitchDegs.append(waypoint.gimbalPitchDeg);
+        displayData.waypointCameraYawDegs.append(primaryTarget.cameraYawDeg);
+        displayData.waypointCameraPitchDegs.append(primaryTarget.cameraPitchDeg);
+        displayData.waypointTargetLabels.append(routeWaypointPartSummary(waypoint, routePartPointByIndex));
+    }
+
+    return displayData;
 }
 
 QString projectRelativePathFor(const QString& projectFilePath, const QString& targetFilePath)
@@ -1452,6 +1579,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     createRibbon();
     createProjectDock();
     createInspectorPanel();
+    createRouteDetailsDock();
     createProfileClassificationDock();
     createProfileDock();
     createLogDock();
@@ -1749,6 +1877,10 @@ void MainWindow::createActions()
     regenerateInspectionRouteAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Regenerate Route"), this);
     clearInspectionRouteAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Route"), this);
     focusRouteWaypointAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Route Point"), this);
+    importRouteFileAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Import Route File"), this);
+    saveRouteFileAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Route File"), this);
+    saveRouteFileAsAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Route File As"), this);
+    reloadRouteFileAction_ = new QAction(style()->standardIcon(QStyle::SP_BrowserReload), tr("Reload Route File"), this);
     importRouteKmlAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Import Route KML"), this);
     exportRouteKmlAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Route KML"), this);
     exportRouteDjiKmzAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export DJI KMZ"), this);
@@ -1894,6 +2026,9 @@ void MainWindow::createRibbon()
     routeRibbonGroup_->addAction(regenerateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routeRibbonGroup_->addAction(clearInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routeRibbonGroup_->addAction(focusRouteWaypointAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(importRouteFileAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(saveRouteFileAction_, Qt::ToolButtonTextUnderIcon);
+    routeRibbonGroup_->addAction(reloadRouteFileAction_, Qt::ToolButtonTextUnderIcon);
     routeRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     routeRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     routeRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
@@ -2809,57 +2944,6 @@ void MainWindow::createInspectorPanel()
     routePlanningLayout->addRow(tr("Status"), routeStatusValueLabel_);
     routePlanningLayout->addRow(tr("Summary"), routeSummaryValueLabel_);
 
-    routeWaypointsGroupBox_ = new QGroupBox(tr("Route Waypoints"), analysisTab.first);
-    auto* routeWaypointsLayout = new QVBoxLayout(routeWaypointsGroupBox_);
-    routeWaypointsLayout->setContentsMargins(12, 12, 12, 12);
-    routeWaypointsLayout->setSpacing(8);
-
-    auto* routeToolbarHost = new QWidget(routeWaypointsGroupBox_);
-    auto* routeToolbarLayout = new QHBoxLayout(routeToolbarHost);
-    routeToolbarLayout->setContentsMargins(0, 0, 0, 0);
-    routeToolbarLayout->setSpacing(8);
-    auto* routeToolBar = new QToolBar(routeToolbarHost);
-    routeToolBar->setIconSize(QSize(16, 16));
-    routeToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    routeToolBar->setMovable(false);
-    routeToolBar->setFloatable(false);
-    routeToolBar->addAction(generateInspectionRouteAction_);
-    routeToolBar->addAction(regenerateInspectionRouteAction_);
-    routeToolBar->addAction(clearInspectionRouteAction_);
-    routeToolBar->addSeparator();
-    routeToolBar->addAction(focusRouteWaypointAction_);
-    routeToolBar->addAction(importRouteKmlAction_);
-    routeToolBar->addAction(exportRouteKmlAction_);
-    routeToolBar->addAction(exportRouteDjiKmzAction_);
-    routeToolbarLayout->addWidget(routeToolBar, 1);
-
-    routeWaypointsTableWidget_ = new QTableWidget(routeWaypointsGroupBox_);
-    routeWaypointsTableWidget_->setColumnCount(6);
-    routeWaypointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-    routeWaypointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    routeWaypointsTableWidget_->setAlternatingRowColors(true);
-    routeWaypointsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    routeWaypointsTableWidget_->setHorizontalHeaderLabels({
-        tr("Index"),
-        tr("X"),
-        tr("Y"),
-        tr("Z"),
-        tr("Speed"),
-        tr("Chainage")
-    });
-    routeWaypointsTableWidget_->verticalHeader()->setVisible(false);
-    routeWaypointsTableWidget_->horizontalHeader()->setStretchLastSection(false);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
-    routeWaypointsTableWidget_->setMinimumHeight(220);
-
-    routeWaypointsLayout->addWidget(routeToolbarHost);
-    routeWaypointsLayout->addWidget(routeWaypointsTableWidget_, 1);
-
     navigationGroupBox_ = new QGroupBox(tr("Navigation"), navigationTab.first);
     auto* tipsLayout = new QVBoxLayout(navigationGroupBox_);
     navigationTipsLabel_ = new QLabel(navigationGroupBox_);
@@ -2898,7 +2982,6 @@ void MainWindow::createInspectorPanel()
     analysisTab.second->addWidget(analysisParametersGroupBox_);
     analysisTab.second->addWidget(vegetationRisksGroupBox_, 1);
     analysisTab.second->addWidget(routePlanningGroupBox_);
-    analysisTab.second->addWidget(routeWaypointsGroupBox_, 1);
     analysisTab.second->addStretch(1);
     navigationTab.second->addWidget(navigationGroupBox_);
     navigationTab.second->addStretch(1);
@@ -3092,6 +3175,226 @@ void MainWindow::createInspectorPanel()
 
     inspectorDock_->setWidget(inspectorTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
+}
+
+void MainWindow::createRouteDetailsDock()
+{
+    routeDetailsDock_ = new QDockWidget(tr("Route Waypoints"), this);
+    routeDetailsDock_->setObjectName(QStringLiteral("routeDetailsDock"));
+    routeDetailsDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    routeDetailsDock_->setFeatures(
+        QDockWidget::DockWidgetClosable
+        | QDockWidget::DockWidgetMovable
+        | QDockWidget::DockWidgetFloatable);
+    routeDetailsDock_->setMinimumWidth(460);
+
+    routeDetailsTabWidget_ = new QTabWidget(routeDetailsDock_);
+    routeDetailsTabWidget_->setObjectName(QStringLiteral("routeDetailsTabs"));
+    routeDetailsTabWidget_->setDocumentMode(true);
+    routeDetailsTabWidget_->setMovable(false);
+
+    auto* waypointsTab = new QWidget(routeDetailsTabWidget_);
+    auto* waypointsTabLayout = new QVBoxLayout(waypointsTab);
+    waypointsTabLayout->setContentsMargins(10, 10, 10, 10);
+    waypointsTabLayout->setSpacing(8);
+
+    routeWaypointsGroupBox_ = new QGroupBox(tr("Route Waypoints"), waypointsTab);
+    auto* routeWaypointsLayout = new QVBoxLayout(routeWaypointsGroupBox_);
+    routeWaypointsLayout->setContentsMargins(10, 10, 10, 10);
+    routeWaypointsLayout->setSpacing(8);
+
+    auto* routeToolbarHost = new QWidget(routeWaypointsGroupBox_);
+    auto* routeToolbarLayout = new QHBoxLayout(routeToolbarHost);
+    routeToolbarLayout->setContentsMargins(0, 0, 0, 0);
+    routeToolbarLayout->setSpacing(8);
+    auto* routeToolBar = new QToolBar(routeToolbarHost);
+    routeToolBar->setIconSize(QSize(16, 16));
+    routeToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    routeToolBar->setMovable(false);
+    routeToolBar->setFloatable(false);
+    routeToolBar->addAction(generateInspectionRouteAction_);
+    routeToolBar->addAction(regenerateInspectionRouteAction_);
+    routeToolBar->addAction(clearInspectionRouteAction_);
+    routeToolBar->addSeparator();
+    routeToolBar->addAction(focusRouteWaypointAction_);
+    routeToolBar->addAction(importRouteFileAction_);
+    routeToolBar->addAction(saveRouteFileAction_);
+    routeToolBar->addAction(saveRouteFileAsAction_);
+    routeToolBar->addAction(reloadRouteFileAction_);
+    routeToolBar->addSeparator();
+    routeToolBar->addAction(importRouteKmlAction_);
+    routeToolBar->addAction(exportRouteKmlAction_);
+    routeToolBar->addAction(exportRouteDjiKmzAction_);
+    routeToolbarLayout->addWidget(routeToolBar, 1);
+
+    auto* routeWaypointModeRow = new QWidget(routeWaypointsGroupBox_);
+    auto* routeWaypointModeLayout = new QHBoxLayout(routeWaypointModeRow);
+    routeWaypointModeLayout->setContentsMargins(0, 0, 0, 0);
+    routeWaypointModeLayout->setSpacing(8);
+    routeWaypointLabelModeComboBox_ = new QComboBox(routeWaypointModeRow);
+    routeWaypointLabelModeComboBox_->setMinimumWidth(120);
+    routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
+    routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+    routeWaypointLabelModeComboBox_->setCurrentIndex(0);
+    routeWaypointModeLayout->addStretch(1);
+    routeWaypointModeLayout->addWidget(routeWaypointLabelModeComboBox_, 0);
+
+    routeWaypointsTableWidget_ = new QTableWidget(routeWaypointsGroupBox_);
+    routeWaypointsTableWidget_->setColumnCount(9);
+    routeWaypointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    routeWaypointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    routeWaypointsTableWidget_->setAlternatingRowColors(true);
+    routeWaypointsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routeWaypointsTableWidget_->setHorizontalHeaderLabels({
+        tr("Index"),
+        tr("Part"),
+        tr("X"),
+        tr("Y"),
+        tr("Z"),
+        tr("Aircraft Yaw"),
+        tr("Gimbal Pitch"),
+        tr("Camera Yaw"),
+        tr("Camera Pitch")
+    });
+    routeWaypointsTableWidget_->verticalHeader()->setVisible(false);
+    routeWaypointsTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(7, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->horizontalHeader()->setSectionResizeMode(8, QHeaderView::ResizeToContents);
+    routeWaypointsTableWidget_->setStyleSheet(routeTableStyleSheet());
+    routeWaypointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    routeWaypointsLayout->addWidget(routeToolbarHost);
+    routeWaypointsLayout->addWidget(routeWaypointModeRow);
+    routeWaypointsLayout->addWidget(routeWaypointsTableWidget_, 1);
+    waypointsTabLayout->addWidget(routeWaypointsGroupBox_, 1);
+
+    auto* partPointsTab = new QWidget(routeDetailsTabWidget_);
+    auto* partPointsTabLayout = new QVBoxLayout(partPointsTab);
+    partPointsTabLayout->setContentsMargins(10, 10, 10, 10);
+    partPointsTabLayout->setSpacing(8);
+
+    routePartsGroupBox_ = new QGroupBox(tr("Route Part Points"), partPointsTab);
+    auto* routePartsLayout = new QVBoxLayout(routePartsGroupBox_);
+    routePartsLayout->setContentsMargins(10, 10, 10, 10);
+    routePartsLayout->setSpacing(8);
+
+    auto* routePartModeRow = new QWidget(routePartsGroupBox_);
+    auto* routePartModeLayout = new QHBoxLayout(routePartModeRow);
+    routePartModeLayout->setContentsMargins(0, 0, 0, 0);
+    routePartModeLayout->setSpacing(8);
+    routePartLabelModeComboBox_ = new QComboBox(routePartModeRow);
+    routePartLabelModeComboBox_->setMinimumWidth(120);
+    routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
+    routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+    routePartLabelModeComboBox_->setCurrentIndex(0);
+    routePartModeLayout->addStretch(1);
+    routePartModeLayout->addWidget(routePartLabelModeComboBox_, 0);
+
+    routePartPointsTableWidget_ = new QTableWidget(routePartsGroupBox_);
+    routePartPointsTableWidget_->setColumnCount(7);
+    routePartPointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+    routePartPointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
+    routePartPointsTableWidget_->setAlternatingRowColors(true);
+    routePartPointsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routePartPointsTableWidget_->setHorizontalHeaderLabels({
+        tr("Index"),
+        tr("Part Name"),
+        tr("Hardware"),
+        tr("Phase"),
+        tr("X"),
+        tr("Y"),
+        tr("Z")
+    });
+    routePartPointsTableWidget_->verticalHeader()->setVisible(false);
+    routePartPointsTableWidget_->horizontalHeader()->setStretchLastSection(false);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->horizontalHeader()->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    routePartPointsTableWidget_->setStyleSheet(routeTableStyleSheet());
+    routePartPointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    routePartsLayout->addWidget(routePartModeRow);
+    routePartsLayout->addWidget(routePartPointsTableWidget_, 1);
+    partPointsTabLayout->addWidget(routePartsGroupBox_, 1);
+
+    routeDetailsTabWidget_->addTab(waypointsTab, tr("Route Waypoints"));
+    routeDetailsTabWidget_->addTab(partPointsTab, tr("Route Part Points"));
+
+    routeDetailsTabWidget_->setStyleSheet(
+        "QWidget {"
+        "background-color: #f6f8fb;"
+        "color: #1f2937;"
+        "}"
+        "QTabWidget::pane {"
+        "border: 1px solid #d6dde8;"
+        "border-radius: 10px;"
+        "top: -1px;"
+        "}"
+        "QTabBar::tab {"
+        "background-color: #eef2f7;"
+        "border: 1px solid #d6dde8;"
+        "border-bottom: none;"
+        "border-top-left-radius: 8px;"
+        "border-top-right-radius: 8px;"
+        "padding: 8px 14px;"
+        "margin-right: 4px;"
+        "color: #475569;"
+        "font-weight: 600;"
+        "}"
+        "QTabBar::tab:selected {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "}"
+        "QTabBar::tab:hover:!selected {"
+        "background-color: #e2e8f0;"
+        "}"
+        "QComboBox {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 4px 28px 4px 10px;"
+        "min-height: 30px;"
+        "}"
+        "QComboBox:hover {"
+        "border-color: #94a3b8;"
+        "}"
+        "QComboBox::drop-down {"
+        "subcontrol-origin: padding;"
+        "subcontrol-position: top right;"
+        "width: 24px;"
+        "border: none;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "outline: none;"
+        "}"
+        "QComboBox QAbstractItemView::item {"
+        "min-height: 24px;"
+        "padding: 4px 10px;"
+        "}");
+
+    routeDetailsDock_->setWidget(routeDetailsTabWidget_);
+    addDockWidget(Qt::RightDockWidgetArea, routeDetailsDock_);
+    if (inspectorDock_ != nullptr) {
+        tabifyDockWidget(inspectorDock_, routeDetailsDock_);
+    }
+    routeDetailsDock_->hide();
 }
 
 void MainWindow::createProfileClassificationDock()
@@ -3604,6 +3907,10 @@ void MainWindow::retranslateUi()
     regenerateInspectionRouteAction_->setText(tr("Regenerate Route"));
     clearInspectionRouteAction_->setText(tr("Clear Route"));
     focusRouteWaypointAction_->setText(tr("Focus Route Point"));
+    importRouteFileAction_->setText(tr("Import Route File"));
+    saveRouteFileAction_->setText(tr("Save Route File"));
+    saveRouteFileAsAction_->setText(tr("Save Route File As"));
+    reloadRouteFileAction_->setText(tr("Reload Route File"));
     importRouteKmlAction_->setText(tr("Import Route KML"));
     exportRouteKmlAction_->setText(tr("Export Route KML"));
     exportRouteDjiKmzAction_->setText(tr("Export DJI KMZ"));
@@ -3693,6 +4000,9 @@ void MainWindow::retranslateUi()
     if (inspectorDock_ != nullptr) {
         inspectorDock_->setWindowTitle(tr("Scene Inspector"));
     }
+    if (routeDetailsDock_ != nullptr) {
+        routeDetailsDock_->setWindowTitle(tr("Route Waypoints"));
+    }
     if (profileDock_ != nullptr) {
         profileDock_->setWindowTitle(tr("Span Profile"));
     }
@@ -3734,6 +4044,28 @@ void MainWindow::retranslateUi()
         inspectorTabWidget_->setTabText(4, tr("Measurement"));
         inspectorTabWidget_->setTabText(5, tr("Analysis"));
         inspectorTabWidget_->setTabText(6, tr("Navigation"));
+    }
+    if (routeDetailsTabWidget_ != nullptr && routeDetailsTabWidget_->count() >= 2) {
+        routeDetailsTabWidget_->setTabText(0, tr("Route Waypoints"));
+        routeDetailsTabWidget_->setTabText(1, tr("Route Part Points"));
+    }
+    if (routeWaypointLabelModeComboBox_ != nullptr) {
+        const int selectedMode = routeWaypointLabelModeComboBox_->currentData().toInt();
+        const QSignalBlocker blocker(routeWaypointLabelModeComboBox_);
+        routeWaypointLabelModeComboBox_->clear();
+        routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
+        routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+        const int selectedModeIndex = routeWaypointLabelModeComboBox_->findData(selectedMode);
+        routeWaypointLabelModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
+    }
+    if (routePartLabelModeComboBox_ != nullptr) {
+        const int selectedMode = routePartLabelModeComboBox_->currentData().toInt();
+        const QSignalBlocker blocker(routePartLabelModeComboBox_);
+        routePartLabelModeComboBox_->clear();
+        routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
+        routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+        const int selectedModeIndex = routePartLabelModeComboBox_->findData(selectedMode);
+        routePartLabelModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
     }
     if (datasetGroupBox_ != nullptr) {
         datasetGroupBox_->setTitle(tr("Dataset Summary"));
@@ -3781,6 +4113,9 @@ void MainWindow::retranslateUi()
     }
     if (routePlanningGroupBox_ != nullptr) {
         routePlanningGroupBox_->setTitle(tr("Inspection Route Planning"));
+    }
+    if (routePartsGroupBox_ != nullptr) {
+        routePartsGroupBox_->setTitle(tr("Route Part Points"));
     }
     if (routeWaypointsGroupBox_ != nullptr) {
         routeWaypointsGroupBox_->setTitle(tr("Route Waypoints"));
@@ -3965,11 +4300,25 @@ void MainWindow::retranslateUi()
     if (routeWaypointsTableWidget_ != nullptr) {
         routeWaypointsTableWidget_->setHorizontalHeaderLabels({
             tr("Index"),
+            tr("Part"),
             tr("X"),
             tr("Y"),
             tr("Z"),
-            tr("Speed"),
-            tr("Chainage")
+            tr("Aircraft Yaw"),
+            tr("Gimbal Pitch"),
+            tr("Camera Yaw"),
+            tr("Camera Pitch")
+        });
+    }
+    if (routePartPointsTableWidget_ != nullptr) {
+        routePartPointsTableWidget_->setHorizontalHeaderLabels({
+            tr("Index"),
+            tr("Part Name"),
+            tr("Hardware"),
+            tr("Phase"),
+            tr("X"),
+            tr("Y"),
+            tr("Z")
         });
     }
 
@@ -4752,20 +5101,7 @@ void MainWindow::createConnections()
         }
     };
 
-    const auto applyRouteToViewer = [this]() {
-        QList<PointRecord> waypointPoints;
-        QStringList waypointLabels;
-        waypointPoints.reserve(inspectionRoute_.waypoints.size());
-        waypointLabels.reserve(inspectionRoute_.waypoints.size());
-        for (int waypointIndex = 0; waypointIndex < inspectionRoute_.waypoints.size(); ++waypointIndex) {
-            const InspectionWaypoint& waypoint = inspectionRoute_.waypoints.at(waypointIndex);
-            waypointPoints.append(waypoint.localPoint);
-            waypointLabels.append(waypoint.id.isEmpty() ? QString::number(waypointIndex + 1) : waypoint.id);
-        }
-        viewer_->setInspectionRouteWaypoints(waypointPoints, waypointLabels);
-    };
-
-    const auto regenerateInspectionRoute = [this, syncRoutePlanningOptionsFromUi, applyRouteToViewer]() {
+    const auto regenerateInspectionRoute = [this, syncRoutePlanningOptionsFromUi]() {
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before generating an inspection route."), 3000);
             return;
@@ -4776,23 +5112,25 @@ void MainWindow::createConnections()
         }
 
         syncRoutePlanningOptionsFromUi();
-        inspectionRoute_ = generateInspectionRouteFromRisks(
+        const InspectionRoute generatedRoute = generateInspectionRouteFromRisks(
             vegetationRiskResults_,
             viewer_->towerMarkers(),
             routePlanningOptions_.generation,
             routePlanningOptions_.safety);
-        selectedRouteWaypointIndex_ = inspectionRoute_.waypoints.isEmpty() ? -1 : 0;
-        applyRouteToViewer();
-        viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+        currentPowerlineRoute_ = createPowerlineRouteFromInspectionRoute(
+            generatedRoute,
+            tr("Generated Inspection Route"));
+        selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
+        applyCurrentRouteToViewer();
         updateRoutePlanningPanel();
         rebuildProjectTree();
         updateActionState();
         showUserMessage(
             LogLevel::Info,
-            inspectionRoute_.waypoints.isEmpty()
+            currentPowerlineRoute_.waypoints.isEmpty()
                 ? tr("No route waypoints were generated.")
                 : tr("Generated inspection route with %1 waypoint(s).")
-                    .arg(QLocale().toString(inspectionRoute_.waypoints.size())),
+                    .arg(QLocale().toString(currentPowerlineRoute_.waypoints.size())),
             3500);
     };
 
@@ -4800,8 +5138,9 @@ void MainWindow::createConnections()
     connect(regenerateInspectionRouteAction_, &QAction::triggered, this, regenerateInspectionRoute);
 
     connect(clearInspectionRouteAction_, &QAction::triggered, this, [this]() {
-        inspectionRoute_ = InspectionRoute();
+        currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
+        linkedRouteFilePath_.clear();
         viewer_->clearInspectionRouteWaypoints();
         updateRoutePlanningPanel();
         rebuildProjectTree();
@@ -4810,13 +5149,72 @@ void MainWindow::createConnections()
     });
 
     connect(focusRouteWaypointAction_, &QAction::triggered, this, [this]() {
-        if (viewer_ == nullptr || selectedRouteWaypointIndex_ < 0 || selectedRouteWaypointIndex_ >= inspectionRoute_.waypoints.size()) {
+        if (viewer_ == nullptr
+            || selectedRouteWaypointIndex_ < 0
+            || selectedRouteWaypointIndex_ >= currentPowerlineRoute_.waypoints.size()) {
             return;
         }
-        viewer_->focusOnPoint(inspectionRoute_.waypoints.at(selectedRouteWaypointIndex_).localPoint, 0.22);
+        viewer_->focusOnPoint(currentPowerlineRoute_.waypoints.at(selectedRouteWaypointIndex_).localPoint, 0.22);
     });
 
-    connect(importRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi, applyRouteToViewer]() {
+    connect(importRouteFileAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before importing route files."), 3000);
+            return;
+        }
+        const QString filePath = showStyledOpenFileNameDialog(
+            this,
+            tr("Import Route File"),
+            QString(),
+            tr("Route JSON Files (*.json);;All Files (*.*)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+        importRouteFile(filePath, true, true);
+    });
+
+    connect(saveRouteFileAction_, &QAction::triggered, this, [this]() {
+        if (currentPowerlineRoute_.waypoints.isEmpty()) {
+            return;
+        }
+        if (linkedRouteFilePath_.trimmed().isEmpty()) {
+            const QString filePath = showStyledSaveFileNameDialog(
+                this,
+                tr("Save Route File"),
+                QStringLiteral("route.json"),
+                tr("Route JSON Files (*.json)"));
+            if (filePath.isEmpty()) {
+                return;
+            }
+            exportRouteFile(filePath, true, true);
+            return;
+        }
+        exportRouteFile(linkedRouteFilePath_, true, true);
+    });
+
+    connect(saveRouteFileAsAction_, &QAction::triggered, this, [this]() {
+        if (currentPowerlineRoute_.waypoints.isEmpty()) {
+            return;
+        }
+        const QString initialPath = linkedRouteFilePath_.trimmed().isEmpty()
+            ? QStringLiteral("route.json")
+            : linkedRouteFilePath_;
+        const QString filePath = showStyledSaveFileNameDialog(
+            this,
+            tr("Save Route File As"),
+            initialPath,
+            tr("Route JSON Files (*.json)"));
+        if (filePath.isEmpty()) {
+            return;
+        }
+        exportRouteFile(filePath, true, true);
+    });
+
+    connect(reloadRouteFileAction_, &QAction::triggered, this, [this]() {
+        reloadLinkedRouteFile(true);
+    });
+
+    connect(importRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
         syncRoutePlanningOptionsFromUi();
         if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
             showUserMessage(LogLevel::Error, tr("Set the project point cloud CRS before importing route KML."), 4500);
@@ -4845,21 +5243,19 @@ void MainWindow::createConnections()
             return;
         }
 
-        inspectionRoute_ = importedLocal;
-        if (inspectionRoute_.name.trimmed().isEmpty()) {
-            inspectionRoute_.name = QFileInfo(filePath).baseName();
-        }
-        selectedRouteWaypointIndex_ = inspectionRoute_.waypoints.isEmpty() ? -1 : 0;
-        applyRouteToViewer();
-        viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+        currentPowerlineRoute_ = createPowerlineRouteFromInspectionRoute(importedLocal, QFileInfo(filePath).baseName());
+        selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
+        linkedRouteFilePath_.clear();
+        applyCurrentRouteToViewer();
         updateRoutePlanningPanel();
         rebuildProjectTree();
         updateActionState();
+        showRouteDetailsDock(0);
         showUserMessage(LogLevel::Info, tr("Imported route KML: %1").arg(QFileInfo(filePath).fileName()), 3500);
     });
 
     connect(exportRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
-        if (inspectionRoute_.waypoints.isEmpty()) {
+        if (currentPowerlineRoute_.waypoints.isEmpty()) {
             showUserMessage(LogLevel::Warning, tr("Generate a route before exporting KML."), 3000);
             return;
         }
@@ -4870,9 +5266,10 @@ void MainWindow::createConnections()
             return;
         }
 
+        const InspectionRoute routeLocal = toInspectionRouteExportView(currentPowerlineRoute_);
         InspectionRoute routeWgs84;
         QString errorMessage;
-        if (!transformRouteToWgs84(inspectionRoute_, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
+        if (!transformRouteToWgs84(routeLocal, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -4894,7 +5291,7 @@ void MainWindow::createConnections()
     });
 
     connect(exportRouteDjiKmzAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
-        if (inspectionRoute_.waypoints.size() < 2) {
+        if (currentPowerlineRoute_.waypoints.size() < 2) {
             showUserMessage(LogLevel::Warning, tr("Route needs at least 2 waypoints for DJI KMZ export."), 3500);
             return;
         }
@@ -4905,9 +5302,10 @@ void MainWindow::createConnections()
             return;
         }
 
+        const InspectionRoute routeLocal = toInspectionRouteExportView(currentPowerlineRoute_);
         InspectionRoute routeWgs84;
         QString errorMessage;
-        if (!transformRouteToWgs84(inspectionRoute_, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
+        if (!transformRouteToWgs84(routeLocal, projectCoordinateSystems_, &routeWgs84, &errorMessage)) {
             showUserMessage(LogLevel::Error, errorMessage, 5000);
             return;
         }
@@ -4928,20 +5326,188 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("DJI KMZ exported: %1").arg(QFileInfo(filePath).fileName()), 3500);
     });
 
-    connect(routeWaypointsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
-        selectedRouteWaypointIndex_ =
-            (currentRow >= 0 && currentRow < inspectionRoute_.waypoints.size())
-                ? currentRow
-                : -1;
-        if (viewer_ != nullptr) {
-            viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
-        }
-        updateActionState();
-    });
+    if (routeWaypointLabelModeComboBox_ != nullptr) {
+        connect(routeWaypointLabelModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            if (viewer_ == nullptr || routeWaypointLabelModeComboBox_ == nullptr) {
+                return;
+            }
+            viewer_->setInspectionRouteWaypointLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routeWaypointLabelModeComboBox_->currentData().toInt()));
+            persistWindowSettings();
+        });
+    }
+
+    if (routePartLabelModeComboBox_ != nullptr) {
+        connect(routePartLabelModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            if (viewer_ == nullptr || routePartLabelModeComboBox_ == nullptr) {
+                return;
+            }
+            viewer_->setInspectionRoutePartLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routePartLabelModeComboBox_->currentData().toInt()));
+            persistWindowSettings();
+        });
+    }
+
+    if (routePartPointsTableWidget_ != nullptr) {
+        routePartPointsTableWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(routePartPointsTableWidget_, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+            if (routePartPointsTableWidget_ == nullptr) {
+                return;
+            }
+
+            const QModelIndex index = routePartPointsTableWidget_->indexAt(pos);
+            if (index.isValid()) {
+                routePartPointsTableWidget_->setCurrentCell(index.row(), 1);
+            }
+
+            QMenu menu(routePartPointsTableWidget_);
+            QAction* focusAction = menu.addAction(tr("Focus Part Point"));
+            QAction* removeAction = menu.addAction(tr("Delete Part Point"));
+            removeAction->setEnabled(selectedRoutePartIndex_ > 0);
+            QAction* chosenAction = menu.exec(routePartPointsTableWidget_->viewport()->mapToGlobal(pos));
+            if (chosenAction == focusAction) {
+                focusRoutePartPoint(selectedRoutePartIndex_);
+            } else if (chosenAction == removeAction) {
+                removeRoutePartPoint(selectedRoutePartIndex_, true);
+            }
+        });
+        connect(routePartPointsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
+            if (updatingRouteTables_ || routePartPointsTableWidget_ == nullptr) {
+                return;
+            }
+
+            if (currentRow >= 0 && currentRow < routePartPointsTableWidget_->rowCount()) {
+                QTableWidgetItem* indexItem = routePartPointsTableWidget_->item(currentRow, 0);
+                selectedRoutePartIndex_ = indexItem != nullptr ? indexItem->data(Qt::UserRole).toInt() : -1;
+            } else {
+                selectedRoutePartIndex_ = -1;
+            }
+        });
+        connect(routePartPointsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
+            if (routePartPointsTableWidget_ == nullptr || row < 0 || row >= routePartPointsTableWidget_->rowCount()) {
+                return;
+            }
+
+            QTableWidgetItem* indexItem = routePartPointsTableWidget_->item(row, 0);
+            focusRoutePartPoint(indexItem != nullptr ? indexItem->data(Qt::UserRole).toInt() : -1);
+        });
+    }
+
+    if (routeWaypointsTableWidget_ != nullptr) {
+        routeWaypointsTableWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(routeWaypointsTableWidget_, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+            if (routeWaypointsTableWidget_ == nullptr) {
+                return;
+            }
+
+            const QModelIndex index = routeWaypointsTableWidget_->indexAt(pos);
+            if (index.isValid()) {
+                routeWaypointsTableWidget_->setCurrentCell(index.row(), 1);
+            }
+
+            QMenu menu(routeWaypointsTableWidget_);
+            QAction* editAction = menu.addAction(tr("Edit Waypoint"));
+            QAction* focusAction = menu.addAction(tr("Focus Waypoint"));
+            QAction* removeAction = menu.addAction(tr("Delete Waypoint"));
+            editAction->setEnabled(selectedRouteWaypointIndex_ >= 0);
+            removeAction->setEnabled(selectedRouteWaypointIndex_ >= 0);
+            QAction* chosenAction = menu.exec(routeWaypointsTableWidget_->viewport()->mapToGlobal(pos));
+            if (chosenAction == editAction) {
+                editRouteWaypoint(selectedRouteWaypointIndex_);
+            } else if (chosenAction == focusAction) {
+                focusRouteWaypoint(selectedRouteWaypointIndex_);
+            } else if (chosenAction == removeAction) {
+                removeRouteWaypoint(selectedRouteWaypointIndex_, true);
+            }
+        });
+        connect(routeWaypointsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
+            if (updatingRouteTables_) {
+                return;
+            }
+
+            selectedRouteWaypointIndex_ =
+                (currentRow >= 0 && currentRow < currentPowerlineRoute_.waypoints.size())
+                    ? currentRow
+                    : -1;
+            if (viewer_ != nullptr) {
+                viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+            }
+
+            if (routePartPointsTableWidget_ != nullptr) {
+                const int partIndex =
+                    selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < currentPowerlineRoute_.waypoints.size()
+                    ? routeWaypointRepresentativePartIndex(currentPowerlineRoute_.waypoints.at(selectedRouteWaypointIndex_))
+                    : -1;
+                if (partIndex > 0) {
+                    for (int row = 0; row < routePartPointsTableWidget_->rowCount(); ++row) {
+                        QTableWidgetItem* item = routePartPointsTableWidget_->item(row, 0);
+                        if (item != nullptr && item->data(Qt::UserRole).toInt() == partIndex) {
+                            routePartPointsTableWidget_->setCurrentCell(row, 1);
+                            break;
+                        }
+                    }
+                } else {
+                    selectedRoutePartIndex_ = -1;
+                    routePartPointsTableWidget_->clearSelection();
+                }
+            }
+            updateActionState();
+        });
+        connect(routeWaypointsTableWidget_, &QTableWidget::cellDoubleClicked, this, [this](int row, int) {
+            focusRouteWaypoint(row);
+        });
+    }
     connect(viewer_, &PointCloudViewer::selectedInspectionRouteWaypointChanged, this, [this](int index) {
         selectedRouteWaypointIndex_ = index;
         updateRoutePlanningPanel();
         updateActionState();
+    });
+    connect(viewer_, &PointCloudViewer::inspectionRouteWaypointDoubleClicked, this, [this](int index) {
+        editRouteWaypoint(index);
+    });
+    connect(viewer_, &PointCloudViewer::inspectionRouteWaypointDragFinished, this, [this](int index, const PointRecord& point) {
+        if (index < 0 || index >= currentPowerlineRoute_.waypoints.size()) {
+            return;
+        }
+
+        RouteWaypoint& waypoint = currentPowerlineRoute_.waypoints[index];
+        waypoint.localPoint = point;
+        waypoint.dh = point.z;
+        waypoint.height = point.z;
+
+        QString geographicWarning;
+        if (projectCoordinateSystems_.pointCloudCrs.code > 0 && projectCoordinateSystems_.geographicCrs.code > 0) {
+            QPointF geographicPoint;
+            QString errorMessage;
+            if (CrsTransformService::transformPoint(
+                    projectCoordinateSystems_.pointCloudCrs,
+                    projectCoordinateSystems_.geographicCrs,
+                    QPointF(point.x, point.y),
+                    &geographicPoint,
+                    &errorMessage)) {
+                waypoint.longitude = geographicPoint.x();
+                waypoint.latitude = geographicPoint.y();
+            } else {
+                geographicWarning = errorMessage.isEmpty()
+                    ? tr("Waypoint local position was updated, but geographic coordinates could not be synchronized.")
+                    : errorMessage;
+            }
+        }
+
+        selectedRouteWaypointIndex_ = index;
+        applyCurrentRouteToViewer();
+        updateRoutePlanningPanel();
+        rebuildProjectTree();
+        updateActionState();
+
+        if (!geographicWarning.isEmpty()) {
+            showUserMessage(LogLevel::Warning, geographicWarning, 4500);
+        } else {
+            showUserMessage(
+                LogLevel::Info,
+                tr("Updated route waypoint #%1.").arg(QLocale().toString(index + 1)),
+                2200);
+        }
     });
     connect(aircraftProfileComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
         const QVariant profileValue = aircraftProfileComboBox_->currentData();
@@ -5667,7 +6233,7 @@ void MainWindow::createConnections()
             viewer_->setSelectedIssueIndex(issueIndex);
             updateIssuePanel();
         } else if (itemType == QStringLiteral("trajectoryItem")) {
-            selectedRouteWaypointIndex_ = inspectionRoute_.waypoints.isEmpty() ? -1 : 0;
+            selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
             viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
             updateRoutePlanningPanel();
         } else if (itemType == QStringLiteral("pointCloudItem")) {
@@ -5836,8 +6402,9 @@ void MainWindow::createConnections()
         endOperationProgress();
         classificationEditsDirty_ = false;
         linkedTowerFilePath_.clear();
+        linkedRouteFilePath_.clear();
         setTowerEditingEnabled(false);
-        inspectionRoute_ = InspectionRoute();
+        currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
@@ -5876,7 +6443,8 @@ void MainWindow::createConnections()
     connect(viewer_, &PointCloudViewer::measurementChanged, this, [this]() {
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
-        inspectionRoute_ = InspectionRoute();
+        currentPowerlineRoute_ = PowerlineRouteDocument();
+        linkedRouteFilePath_.clear();
         selectedRouteWaypointIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
@@ -5886,7 +6454,8 @@ void MainWindow::createConnections()
         if (!viewer_->measurementEnabled()) {
             vegetationRiskResults_.clear();
             selectedVegetationRiskIndex_ = -1;
-            inspectionRoute_ = InspectionRoute();
+            currentPowerlineRoute_ = PowerlineRouteDocument();
+            linkedRouteFilePath_.clear();
             selectedRouteWaypointIndex_ = -1;
             viewer_->clearInspectionRouteWaypoints();
         }
@@ -5897,7 +6466,8 @@ void MainWindow::createConnections()
     connect(viewer_, &PointCloudViewer::towerMarkersChanged, this, [this]() {
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
-        inspectionRoute_ = InspectionRoute();
+        currentPowerlineRoute_ = PowerlineRouteDocument();
+        linkedRouteFilePath_.clear();
         selectedRouteWaypointIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
@@ -6136,6 +6706,478 @@ void MainWindow::syncRoutePlanningFromProjectCoordinateSystems()
 
     routePlanningOptions_.crs.sourceEpsg = projectCoordinateSystems_.pointCloudCrs.code;
     routePlanningOptions_.crs.targetEpsg = projectCoordinateSystems_.geographicCrs.code;
+}
+
+void MainWindow::focusRoutePartPoint(int partIndex)
+{
+    if (viewer_ == nullptr || partIndex <= 0) {
+        return;
+    }
+
+    for (const RoutePartPoint& partPoint : currentPowerlineRoute_.partPoints) {
+        if (partPoint.partIndex == partIndex) {
+            viewer_->focusOnPoint(partPoint.localPoint, 0.18);
+            return;
+        }
+    }
+}
+
+void MainWindow::focusRouteWaypoint(int waypointIndex)
+{
+    if (viewer_ == nullptr
+        || waypointIndex < 0
+        || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+        return;
+    }
+
+    viewer_->focusOnPoint(currentPowerlineRoute_.waypoints.at(waypointIndex).localPoint, 0.22);
+}
+
+bool MainWindow::editRouteWaypoint(int waypointIndex)
+{
+    if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+        return false;
+    }
+
+    RouteWaypoint& waypoint = currentPowerlineRoute_.waypoints[waypointIndex];
+    const RouteCaptureTarget firstTarget = waypoint.captureTargets.isEmpty() ? RouteCaptureTarget() : waypoint.captureTargets.first();
+
+    QHash<int, RoutePartPoint> partPointByIndex;
+    for (const RoutePartPoint& partPoint : currentPowerlineRoute_.partPoints) {
+        if (partPoint.partIndex > 0) {
+            partPointByIndex.insert(partPoint.partIndex, partPoint);
+        }
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Edit Route Waypoint"));
+    dialog.setModal(true);
+    dialog.resize(540, 440);
+    dialog.setStyleSheet(QStringLiteral(
+        "QDialog {"
+        "background-color: #f3f7fb;"
+        "}"
+        "QFrame#routeEditCard {"
+        "background-color: rgba(255, 255, 255, 0.97);"
+        "border: 1px solid rgba(148, 163, 184, 0.22);"
+        "border-radius: 16px;"
+        "}"
+        "QLabel#routeEditTitle {"
+        "color: #0f172a;"
+        "font-size: 20px;"
+        "font-weight: 700;"
+        "}"
+        "QLabel#routeEditSubtitle {"
+        "color: #475569;"
+        "font-size: 13px;"
+        "line-height: 1.4em;"
+        "}"
+        "QLabel#routeEditHint {"
+        "color: #92400e;"
+        "background-color: #fffbeb;"
+        "border: 1px solid #fcd34d;"
+        "border-radius: 10px;"
+        "padding: 8px 10px;"
+        "}"
+        "QLabel {"
+        "color: #0f172a;"
+        "}"
+        "QDoubleSpinBox {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 8px;"
+        "padding: 6px 10px;"
+        "min-height: 28px;"
+        "}"
+        "QDoubleSpinBox:disabled {"
+        "background-color: #f8fafc;"
+        "color: #94a3b8;"
+        "}"
+        "QDialogButtonBox QPushButton {"
+        "min-width: 96px;"
+        "padding: 8px 18px;"
+        "border-radius: 10px;"
+        "border: 1px solid #cbd5e1;"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "font-weight: 600;"
+        "}"
+        "QDialogButtonBox QPushButton:hover {"
+        "background-color: #eff6ff;"
+        "border-color: #93c5fd;"
+        "}"));
+
+    auto* rootLayout = new QVBoxLayout(&dialog);
+    rootLayout->setContentsMargins(24, 22, 24, 20);
+    rootLayout->setSpacing(16);
+
+    auto* headerCard = new QFrame(&dialog);
+    headerCard->setObjectName(QStringLiteral("routeEditCard"));
+    auto* headerLayout = new QVBoxLayout(headerCard);
+    headerLayout->setContentsMargins(22, 18, 22, 18);
+    headerLayout->setSpacing(8);
+
+    auto* titleLabel = new QLabel(
+        tr("Waypoint #%1").arg(QLocale().toString(waypointIndex + 1)),
+        headerCard);
+    titleLabel->setObjectName(QStringLiteral("routeEditTitle"));
+    headerLayout->addWidget(titleLabel);
+
+    auto* subtitleLabel = new QLabel(
+        tr("Linked part: %1").arg(routeWaypointPartSummary(waypoint, partPointByIndex)),
+        headerCard);
+    subtitleLabel->setObjectName(QStringLiteral("routeEditSubtitle"));
+    subtitleLabel->setWordWrap(true);
+    headerLayout->addWidget(subtitleLabel);
+
+    if (waypoint.captureTargets.isEmpty()) {
+        auto* hintLabel = new QLabel(
+            tr("This waypoint has no linked capture target. Camera yaw and camera pitch are read-only for this edit."),
+            headerCard);
+        hintLabel->setObjectName(QStringLiteral("routeEditHint"));
+        hintLabel->setWordWrap(true);
+        headerLayout->addWidget(hintLabel);
+    }
+
+    rootLayout->addWidget(headerCard);
+
+    auto* formCard = new QFrame(&dialog);
+    formCard->setObjectName(QStringLiteral("routeEditCard"));
+    auto* formLayout = new QFormLayout(formCard);
+    formLayout->setContentsMargins(22, 18, 22, 18);
+    formLayout->setHorizontalSpacing(14);
+    formLayout->setVerticalSpacing(12);
+    formLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    auto configureCoordinateSpin = [](QDoubleSpinBox* spinBox, double value) {
+        spinBox->setRange(-1000000000.0, 1000000000.0);
+        spinBox->setDecimals(3);
+        spinBox->setSingleStep(0.5);
+        spinBox->setValue(value);
+    };
+    auto configureAngleSpin = [](QDoubleSpinBox* spinBox, double minimum, double maximum, double value) {
+        spinBox->setRange(minimum, maximum);
+        spinBox->setDecimals(2);
+        spinBox->setSingleStep(1.0);
+        spinBox->setValue(value);
+    };
+
+    auto* xSpinBox = new QDoubleSpinBox(formCard);
+    auto* ySpinBox = new QDoubleSpinBox(formCard);
+    auto* zSpinBox = new QDoubleSpinBox(formCard);
+    auto* aircraftYawSpinBox = new QDoubleSpinBox(formCard);
+    auto* gimbalPitchSpinBox = new QDoubleSpinBox(formCard);
+    auto* cameraYawSpinBox = new QDoubleSpinBox(formCard);
+    auto* cameraPitchSpinBox = new QDoubleSpinBox(formCard);
+
+    configureCoordinateSpin(xSpinBox, waypoint.localPoint.x);
+    configureCoordinateSpin(ySpinBox, waypoint.localPoint.y);
+    configureCoordinateSpin(zSpinBox, waypoint.localPoint.z);
+    configureAngleSpin(aircraftYawSpinBox, -360.0, 360.0, waypoint.aircraftYawDeg);
+    configureAngleSpin(gimbalPitchSpinBox, -180.0, 180.0, waypoint.gimbalPitchDeg);
+    configureAngleSpin(cameraYawSpinBox, -360.0, 360.0, firstTarget.cameraYawDeg);
+    configureAngleSpin(cameraPitchSpinBox, -180.0, 180.0, firstTarget.cameraPitchDeg);
+
+    const bool hasCaptureTargets = !waypoint.captureTargets.isEmpty();
+    cameraYawSpinBox->setEnabled(hasCaptureTargets);
+    cameraPitchSpinBox->setEnabled(hasCaptureTargets);
+
+    formLayout->addRow(tr("X"), xSpinBox);
+    formLayout->addRow(tr("Y"), ySpinBox);
+    formLayout->addRow(tr("Z"), zSpinBox);
+    formLayout->addRow(tr("Aircraft Yaw"), aircraftYawSpinBox);
+    formLayout->addRow(tr("Gimbal Pitch"), gimbalPitchSpinBox);
+    formLayout->addRow(tr("Camera Yaw"), cameraYawSpinBox);
+    formLayout->addRow(tr("Camera Pitch"), cameraPitchSpinBox);
+    rootLayout->addWidget(formCard, 1);
+
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    rootLayout->addWidget(buttonBox);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return false;
+    }
+
+    waypoint.localPoint.x = static_cast<float>(xSpinBox->value());
+    waypoint.localPoint.y = static_cast<float>(ySpinBox->value());
+    waypoint.localPoint.z = static_cast<float>(zSpinBox->value());
+    waypoint.dh = zSpinBox->value();
+    waypoint.height = zSpinBox->value();
+    waypoint.aircraftYawDeg = aircraftYawSpinBox->value();
+    waypoint.gimbalPitchDeg = gimbalPitchSpinBox->value();
+
+    if (hasCaptureTargets) {
+        const double cameraYaw = cameraYawSpinBox->value();
+        const double cameraPitch = cameraPitchSpinBox->value();
+        for (RouteCaptureTarget& captureTarget : waypoint.captureTargets) {
+            captureTarget.aircraftYawDeg = waypoint.aircraftYawDeg;
+            captureTarget.gimbalPitchDeg = waypoint.gimbalPitchDeg;
+            captureTarget.cameraYawDeg = cameraYaw;
+            captureTarget.cameraPitchDeg = cameraPitch;
+        }
+    }
+
+    QString geographicWarning;
+    if (projectCoordinateSystems_.pointCloudCrs.code > 0 && projectCoordinateSystems_.geographicCrs.code > 0) {
+        QPointF geographicPoint;
+        QString errorMessage;
+        if (CrsTransformService::transformPoint(
+                projectCoordinateSystems_.pointCloudCrs,
+                projectCoordinateSystems_.geographicCrs,
+                QPointF(waypoint.localPoint.x, waypoint.localPoint.y),
+                &geographicPoint,
+                &errorMessage)) {
+            waypoint.longitude = geographicPoint.x();
+            waypoint.latitude = geographicPoint.y();
+        } else {
+            geographicWarning = errorMessage.isEmpty()
+                ? tr("Waypoint local position was updated, but geographic coordinates could not be synchronized.")
+                : errorMessage;
+        }
+    }
+
+    selectedRouteWaypointIndex_ = waypointIndex;
+    applyCurrentRouteToViewer();
+    updateRoutePlanningPanel();
+    rebuildProjectTree();
+    updateActionState();
+    if (viewer_ != nullptr) {
+        viewer_->focusOnPoint(waypoint.localPoint, 0.2);
+    }
+
+    if (!geographicWarning.isEmpty()) {
+        showUserMessage(LogLevel::Warning, geographicWarning, 4500);
+    } else {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Updated route waypoint #%1.").arg(QLocale().toString(waypointIndex + 1)),
+            3000);
+    }
+    return true;
+}
+
+bool MainWindow::removeRoutePartPoint(int partIndex, bool notify)
+{
+    if (partIndex <= 0) {
+        return false;
+    }
+
+    int removeIndex = -1;
+    RoutePartPoint removedPartPoint;
+    for (int index = 0; index < currentPowerlineRoute_.partPoints.size(); ++index) {
+        if (currentPowerlineRoute_.partPoints.at(index).partIndex == partIndex) {
+            removeIndex = index;
+            removedPartPoint = currentPowerlineRoute_.partPoints.at(index);
+            break;
+        }
+    }
+    if (removeIndex < 0) {
+        return false;
+    }
+
+    currentPowerlineRoute_.partPoints.removeAt(removeIndex);
+    for (RouteWaypoint& waypoint : currentPowerlineRoute_.waypoints) {
+        for (int captureIndex = waypoint.captureTargets.size() - 1; captureIndex >= 0; --captureIndex) {
+            if (waypoint.captureTargets.at(captureIndex).partIndex == partIndex) {
+                waypoint.captureTargets.removeAt(captureIndex);
+            }
+        }
+
+        if (waypoint.primaryPartIndex == partIndex) {
+            waypoint.primaryPartIndex = waypoint.captureTargets.isEmpty()
+                ? -1
+                : waypoint.captureTargets.first().partIndex;
+        }
+
+        if (waypoint.primaryPartIndex > 0 && !waypoint.captureTargets.isEmpty()) {
+            const int candidateFileId = waypoint.captureTargets.first().partFileId;
+            if (candidateFileId > 0) {
+                waypoint.rawKeyId = candidateFileId;
+            }
+        } else if (waypoint.rawKeyId > 0) {
+            waypoint.rawKeyId = -1;
+        }
+
+        waypoint.isHelperWaypoint = waypoint.rawKeyId < 0 || waypoint.captureTargets.isEmpty();
+    }
+
+    selectedRoutePartIndex_ = -1;
+    applyCurrentRouteToViewer();
+    updateRoutePlanningPanel();
+    rebuildProjectTree();
+    updateActionState();
+    if (notify) {
+        showUserMessage(LogLevel::Info, tr("Deleted route part point: %1").arg(routePartDisplayName(removedPartPoint)), 3000);
+    }
+    return true;
+}
+
+bool MainWindow::removeRouteWaypoint(int waypointIndex, bool notify)
+{
+    if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+        return false;
+    }
+
+    currentPowerlineRoute_.waypoints.removeAt(waypointIndex);
+    for (int index = 0; index < currentPowerlineRoute_.waypoints.size(); ++index) {
+        currentPowerlineRoute_.waypoints[index].sequenceIndex = index;
+    }
+
+    selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty()
+        ? -1
+        : std::clamp(waypointIndex, 0, currentPowerlineRoute_.waypoints.size() - 1);
+    applyCurrentRouteToViewer();
+    updateRoutePlanningPanel();
+    rebuildProjectTree();
+    updateActionState();
+    if (notify) {
+        showUserMessage(LogLevel::Info, tr("Deleted route waypoint #%1.").arg(QLocale().toString(waypointIndex + 1)), 3000);
+    }
+    return true;
+}
+
+void MainWindow::applyCurrentRouteToViewer()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    if (currentPowerlineRoute_.waypoints.isEmpty()) {
+        viewer_->clearInspectionRouteWaypoints();
+        selectedRoutePartIndex_ = -1;
+        selectedRouteWaypointIndex_ = -1;
+        return;
+    }
+
+    viewer_->setInspectionRouteDisplayData(buildInspectionRouteDisplayData(currentPowerlineRoute_));
+
+    selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty()
+        ? -1
+        : std::clamp(selectedRouteWaypointIndex_, 0, currentPowerlineRoute_.waypoints.size() - 1);
+    viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+}
+
+void MainWindow::showRouteDetailsDock(int preferredTab)
+{
+    if (routeDetailsDock_ == nullptr) {
+        return;
+    }
+
+    if (routeDetailsTabWidget_ != nullptr && routeDetailsTabWidget_->count() > 0) {
+        const int normalizedTab = std::clamp(preferredTab, 0, routeDetailsTabWidget_->count() - 1);
+        routeDetailsTabWidget_->setCurrentIndex(normalizedTab);
+    }
+
+    routeDetailsDock_->show();
+    routeDetailsDock_->raise();
+}
+
+bool MainWindow::importRouteFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    PowerlineRouteDocument importedRoute;
+    QString errorMessage;
+    if (!importPowerlineRouteJson(filePath, &importedRoute, &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to import route file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    currentPowerlineRoute_ = importedRoute;
+    selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
+    if (updateLink) {
+        linkedRouteFilePath_ = QFileInfo(filePath).absoluteFilePath();
+    }
+    applyCurrentRouteToViewer();
+    updateRoutePlanningPanel();
+    rebuildProjectTree();
+    updateActionState();
+    showRouteDetailsDock(0);
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Imported route file: %1").arg(QFileInfo(filePath).fileName()),
+            3500);
+    }
+    return true;
+}
+
+bool MainWindow::exportRouteFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    QString normalizedPath = filePath;
+    if (QFileInfo(normalizedPath).suffix().isEmpty()) {
+        normalizedPath += QStringLiteral(".json");
+    }
+
+    PowerlineRouteDocument routeToSave = currentPowerlineRoute_;
+    routeToSave.updatedAt = QDateTime::currentDateTimeUtc();
+
+    QString errorMessage;
+    if (!exportPowerlineRouteJson(normalizedPath, routeToSave, &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to save route file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    currentPowerlineRoute_ = routeToSave;
+    if (updateLink) {
+        linkedRouteFilePath_ = QFileInfo(normalizedPath).absoluteFilePath();
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Route file saved: %1").arg(QFileInfo(normalizedPath).fileName()),
+            3000);
+    }
+    updateActionState();
+    return true;
+}
+
+bool MainWindow::reloadLinkedRouteFile(bool notify)
+{
+    const QString linkedPath = linkedRouteFilePath_.trimmed();
+    if (linkedPath.isEmpty()) {
+        if (notify) {
+            showUserMessage(LogLevel::Warning, tr("No linked route file to reload."), 3000);
+        }
+        return false;
+    }
+
+    if (!QFileInfo::exists(linkedPath)) {
+        if (notify) {
+            showUserMessage(LogLevel::Error, tr("Linked route file was not found."), 4000);
+        }
+        return false;
+    }
+
+    if (!importRouteFile(linkedPath, false, false)) {
+        return false;
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Reloaded route file: %1").arg(QFileInfo(linkedPath).fileName()),
+            3000);
+    }
+    return true;
 }
 
 bool MainWindow::importTowerFile(const QString& filePath, bool updateLink, bool notify)
@@ -6416,29 +7458,30 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
     selectedVegetationRiskIndex_ = vegetationRiskResults_.isEmpty() ? -1 : 0;
 
-    inspectionRoute_ = InspectionRoute();
-    const QJsonArray routesArray = projectObject.value(QStringLiteral("routes")).toArray();
-    if (!routesArray.isEmpty()) {
-        const InspectionRoute route = inspectionRouteFromJson(routesArray.first().toObject());
-        if (!route.waypoints.isEmpty()) {
-            inspectionRoute_ = route;
+    currentPowerlineRoute_ = PowerlineRouteDocument();
+    linkedRouteFilePath_.clear();
+    const QJsonObject routeFileObject = projectObject.value(QStringLiteral("routeFile")).toObject();
+    const QString storedRouteRelativePath = routeFileObject.value(QStringLiteral("relativePath")).toString().trimmed();
+    if (!storedRouteRelativePath.isEmpty()) {
+        linkedRouteFilePath_ = resolveProjectPath(filePath, storedRouteRelativePath);
+        if (QFileInfo::exists(linkedRouteFilePath_)) {
+            importRouteFile(linkedRouteFilePath_, false, false);
+        } else {
+            showUserMessage(
+                LogLevel::Warning,
+                tr("Linked route file is missing: %1").arg(QFileInfo(storedRouteRelativePath).fileName()),
+                5000);
         }
-    }
-    selectedRouteWaypointIndex_ = inspectionRoute_.waypoints.isEmpty() ? -1 : 0;
-    if (inspectionRoute_.waypoints.isEmpty()) {
-        viewer_->clearInspectionRouteWaypoints();
     } else {
-        QList<PointRecord> routePoints;
-        QStringList routeLabels;
-        routePoints.reserve(inspectionRoute_.waypoints.size());
-        routeLabels.reserve(inspectionRoute_.waypoints.size());
-        for (int waypointIndex = 0; waypointIndex < inspectionRoute_.waypoints.size(); ++waypointIndex) {
-            const InspectionWaypoint& waypoint = inspectionRoute_.waypoints.at(waypointIndex);
-            routePoints.append(waypoint.localPoint);
-            routeLabels.append(waypoint.id.isEmpty() ? QString::number(waypointIndex + 1) : waypoint.id);
+        const QJsonArray routesArray = projectObject.value(QStringLiteral("routes")).toArray();
+        if (!routesArray.isEmpty()) {
+            const InspectionRoute legacyRoute = inspectionRouteFromJson(routesArray.first().toObject());
+            if (!legacyRoute.waypoints.isEmpty()) {
+                currentPowerlineRoute_ = createPowerlineRouteFromInspectionRoute(legacyRoute, legacyRoute.name);
+            }
         }
-        viewer_->setInspectionRouteWaypoints(routePoints, routeLabels);
-        viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+        selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
+        applyCurrentRouteToViewer();
     }
 
     currentProjectFilePath_ = filePath;
@@ -6551,9 +7594,17 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
     analysisObject.insert(QStringLiteral("vegetationRisks"), vegetationRisksArray);
 
+    QJsonObject routeFileObject;
+    if (!linkedRouteFilePath_.trimmed().isEmpty()) {
+        routeFileObject.insert(QStringLiteral("format"), QStringLiteral("PowerlineJson"));
+        routeFileObject.insert(
+            QStringLiteral("relativePath"),
+            projectRelativePathFor(filePath, linkedRouteFilePath_));
+    }
+
     QJsonArray routesArray;
-    if (!inspectionRoute_.waypoints.isEmpty()) {
-        routesArray.append(inspectionRouteToJson(inspectionRoute_));
+    if (!currentPowerlineRoute_.waypoints.isEmpty()) {
+        routesArray.append(inspectionRouteToJson(toInspectionRouteExportView(currentPowerlineRoute_)));
     }
 
     QJsonArray pointCloudFilesArray;
@@ -6574,6 +7625,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("routePlanning"), routePlanningObject },
         { QStringLiteral("classificationEdits"), classificationEditsObject },
         { QStringLiteral("routes"), routesArray },
+        { QStringLiteral("routeFile"), routeFileObject },
         { QStringLiteral("towerFile"), towerFileObject },
         { QStringLiteral("towerMarkers"), towersArray },
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
@@ -6588,6 +7640,15 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented));
     file.close();
 
+    bool routeFileSyncOk = true;
+    QString routeFileSyncError;
+    if (!linkedRouteFilePath_.trimmed().isEmpty() && !currentPowerlineRoute_.waypoints.isEmpty()) {
+        if (!exportRouteFile(linkedRouteFilePath_, false, false)) {
+            routeFileSyncOk = false;
+            routeFileSyncError = tr("Failed to sync linked route JSON.");
+        }
+    }
+
     bool towerFileSyncOk = true;
     QString towerFileSyncError;
     if (!linkedTowerFilePath_.trimmed().isEmpty()) {
@@ -6599,8 +7660,14 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     currentProjectFilePath_ = filePath;
     classificationEditsDirty_ = false;
     rebuildProjectTree();
-    if (towerFileSyncOk) {
+    if (towerFileSyncOk && routeFileSyncOk) {
         showUserMessage(LogLevel::Info, tr("Project saved: %1").arg(QFileInfo(filePath).fileName()), 3000);
+    } else if (!routeFileSyncOk && towerFileSyncOk) {
+        showUserMessage(
+            LogLevel::Warning,
+            tr("Project saved, but route file sync failed: %1")
+                .arg(routeFileSyncError.isEmpty() ? tr("Unknown error") : routeFileSyncError),
+            5000);
     } else {
         showUserMessage(
             LogLevel::Warning,
@@ -6658,9 +7725,12 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
     if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
         linkedTowerFilePath_.clear();
+        linkedRouteFilePath_.clear();
         setTowerEditingEnabled(false);
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
+        currentPowerlineRoute_ = PowerlineRouteDocument();
+        selectedRouteWaypointIndex_ = -1;
         const QString successMessage = filePaths.size() == 1
             ? tr("Loaded %1. %2").arg(QFileInfo(filePaths.constFirst()).fileName(), errorMessage)
             : tr("Loaded %1 datasets. %2")
@@ -6695,9 +7765,12 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
 
     currentProjectFilePath_.clear();
     linkedTowerFilePath_.clear();
+    linkedRouteFilePath_.clear();
     setTowerEditingEnabled(false);
     vegetationRiskResults_.clear();
     selectedVegetationRiskIndex_ = -1;
+    currentPowerlineRoute_ = PowerlineRouteDocument();
+    selectedRouteWaypointIndex_ = -1;
     syncUiFromViewer();
     showUserMessage(
         LogLevel::Info,
@@ -6710,11 +7783,12 @@ void MainWindow::clearPointCloud()
 {
     currentProjectFilePath_.clear();
     linkedTowerFilePath_.clear();
+    linkedRouteFilePath_.clear();
     classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     vegetationRiskResults_.clear();
     selectedVegetationRiskIndex_ = -1;
-    inspectionRoute_ = InspectionRoute();
+    currentPowerlineRoute_ = PowerlineRouteDocument();
     selectedRouteWaypointIndex_ = -1;
     viewer_->clearPointCloud();
 }
@@ -6750,6 +7824,7 @@ void MainWindow::removeSelectedDataset()
     QString errorMessage;
     if (viewer_->loadPointCloudFiles(remainingFilePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
+        linkedRouteFilePath_.clear();
         setTowerEditingEnabled(false);
         for (const PointCloudDatasetInfo& datasetInfo : DataManager::instance().pointCloudDatasets()) {
             const auto visibilityIt = datasetVisibility.constFind(datasetInfo.filePath.toLower());
@@ -6763,7 +7838,7 @@ void MainWindow::removeSelectedDataset()
         viewer_->setSelectedIssueIndex(selectedIssueIndex);
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
-        inspectionRoute_ = InspectionRoute();
+        currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
@@ -7216,13 +8291,14 @@ void MainWindow::updateActionState()
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
     const bool towerToolActive = viewer_ != nullptr && viewer_->towerEditMode() != TowerEditMode::None;
     const bool hasLinkedTowerFile = !linkedTowerFilePath_.trimmed().isEmpty();
+    const bool hasLinkedRouteFile = !linkedRouteFilePath_.trimmed().isEmpty();
     const bool hasIssues = viewer_ != nullptr && !viewer_->inspectionIssues().isEmpty();
     const bool hasIssueSelection = viewer_ != nullptr && viewer_->selectedIssueIndex() >= 0;
     const bool issueToolActive = viewer_ != nullptr && viewer_->issueEditMode() != IssueEditMode::None;
     const bool hasVegetationRisks = !vegetationRiskResults_.isEmpty();
     const bool hasVegetationRiskSelection = selectedVegetationRiskIndex_ >= 0 && selectedVegetationRiskIndex_ < vegetationRiskResults_.size();
-    const bool hasInspectionRoute = !inspectionRoute_.waypoints.isEmpty();
-    const bool hasRouteWaypointSelection = selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < inspectionRoute_.waypoints.size();
+    const bool hasInspectionRoute = !currentPowerlineRoute_.waypoints.isEmpty();
+    const bool hasRouteWaypointSelection = selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < currentPowerlineRoute_.waypoints.size();
     const bool hasMeasuredCorridor = viewer_ != nullptr && viewer_->measurementResult().isComplete();
     const QTreeWidgetItem* currentProjectItem = projectTreeWidget_ != nullptr ? projectTreeWidget_->currentItem() : nullptr;
     const bool hasDatasetSelection = !selectedDatasetPath().isEmpty();
@@ -7293,9 +8369,13 @@ void MainWindow::updateActionState()
     regenerateInspectionRouteAction_->setEnabled(hasVegetationRisks && hasPointCloud);
     clearInspectionRouteAction_->setEnabled(hasInspectionRoute);
     focusRouteWaypointAction_->setEnabled(hasRouteWaypointSelection);
+    importRouteFileAction_->setEnabled(hasPointCloud);
+    saveRouteFileAction_->setEnabled(hasInspectionRoute);
+    saveRouteFileAsAction_->setEnabled(hasInspectionRoute);
+    reloadRouteFileAction_->setEnabled(hasLinkedRouteFile && hasPointCloud);
     importRouteKmlAction_->setEnabled(hasPointCloud);
     exportRouteKmlAction_->setEnabled(hasInspectionRoute);
-    exportRouteDjiKmzAction_->setEnabled(hasInspectionRoute && inspectionRoute_.waypoints.size() >= 2);
+    exportRouteDjiKmzAction_->setEnabled(hasInspectionRoute && currentPowerlineRoute_.waypoints.size() >= 2);
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const
@@ -7619,6 +8699,34 @@ void MainWindow::loadWindowSettings()
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/inspectorTab"), 0).toInt());
     }
+    if (routeDetailsTabWidget_ != nullptr) {
+        routeDetailsTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/routeDetailsTab"), 0).toInt());
+    }
+
+    if (routeWaypointLabelModeComboBox_ != nullptr) {
+        const int savedWaypointLabelMode = settings.value(
+            QStringLiteral("window/routeWaypointLabelMode"),
+            static_cast<int>(RouteLabelDisplayMode::Name)).toInt();
+        const int waypointLabelModeIndex = routeWaypointLabelModeComboBox_->findData(savedWaypointLabelMode);
+        routeWaypointLabelModeComboBox_->setCurrentIndex(waypointLabelModeIndex >= 0 ? waypointLabelModeIndex : 0);
+    }
+    if (routePartLabelModeComboBox_ != nullptr) {
+        const int savedPartLabelMode = settings.value(
+            QStringLiteral("window/routePartLabelMode"),
+            static_cast<int>(RouteLabelDisplayMode::Name)).toInt();
+        const int partLabelModeIndex = routePartLabelModeComboBox_->findData(savedPartLabelMode);
+        routePartLabelModeComboBox_->setCurrentIndex(partLabelModeIndex >= 0 ? partLabelModeIndex : 0);
+    }
+    if (viewer_ != nullptr) {
+        if (routeWaypointLabelModeComboBox_ != nullptr) {
+            viewer_->setInspectionRouteWaypointLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routeWaypointLabelModeComboBox_->currentData().toInt()));
+        }
+        if (routePartLabelModeComboBox_ != nullptr) {
+            viewer_->setInspectionRoutePartLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routePartLabelModeComboBox_->currentData().toInt()));
+        }
+    }
 
     if (logLevelFilterComboBox_ != nullptr) {
         const int savedFilterLevel = settings.value(QStringLiteral("window/logFilterLevel"), -1).toInt();
@@ -7635,11 +8743,15 @@ void MainWindow::loadWindowSettings()
     if (!restoredState) {
         const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
         const bool showProfileClassification = settings.value(QStringLiteral("window/showProfileClassification"), false).toBool();
+        const bool showRouteDetails = settings.value(QStringLiteral("window/showRouteDetails"), false).toBool();
         if (logDock_ != nullptr) {
             logDock_->setVisible(showLog);
         }
         if (profileClassificationDock_ != nullptr) {
             profileClassificationDock_->setVisible(showProfileClassification);
+        }
+        if (routeDetailsDock_ != nullptr) {
+            routeDetailsDock_->setVisible(showRouteDetails);
         }
     }
 
@@ -7678,8 +8790,24 @@ void MainWindow::persistWindowSettings() const
         QStringLiteral("window/showProfileClassification"),
         profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
     settings.setValue(
+        QStringLiteral("window/showRouteDetails"),
+        routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible());
+    settings.setValue(
         QStringLiteral("window/inspectorTab"),
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
+    settings.setValue(
+        QStringLiteral("window/routeDetailsTab"),
+        routeDetailsTabWidget_ != nullptr ? routeDetailsTabWidget_->currentIndex() : 0);
+    settings.setValue(
+        QStringLiteral("window/routeWaypointLabelMode"),
+        routeWaypointLabelModeComboBox_ != nullptr
+            ? routeWaypointLabelModeComboBox_->currentData().toInt()
+            : static_cast<int>(RouteLabelDisplayMode::Name));
+    settings.setValue(
+        QStringLiteral("window/routePartLabelMode"),
+        routePartLabelModeComboBox_ != nullptr
+            ? routePartLabelModeComboBox_->currentData().toInt()
+            : static_cast<int>(RouteLabelDisplayMode::Name));
     settings.setValue(
         QStringLiteral("window/logFilterLevel"),
         logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1);
@@ -8054,15 +9182,19 @@ void MainWindow::updateVegetationRiskPanel()
 
 void MainWindow::updateRoutePlanningPanel()
 {
-    if (routeStatusValueLabel_ == nullptr || routeSummaryValueLabel_ == nullptr || routeWaypointsTableWidget_ == nullptr) {
+    if (routeStatusValueLabel_ == nullptr
+        || routeSummaryValueLabel_ == nullptr
+        || routePartPointsTableWidget_ == nullptr
+        || routeWaypointsTableWidget_ == nullptr) {
         return;
     }
 
     routeStatusValueLabel_->setText(
-        inspectionRoute_.waypoints.isEmpty()
+        currentPowerlineRoute_.waypoints.isEmpty()
             ? tr("No route generated. Analyze vegetation risks first, then generate inspection route.")
-            : tr("%1 waypoint(s) ready for KML/KMZ interoperability.")
-                .arg(QLocale().toString(inspectionRoute_.waypoints.size())));
+            : tr("%1 waypoint(s), %2 part point(s) ready for scene review and KML/KMZ interoperability.")
+                .arg(QLocale().toString(currentPowerlineRoute_.waypoints.size()))
+                .arg(QLocale().toString(currentPowerlineRoute_.partPoints.size())));
     routeSummaryValueLabel_->setText(
         tr("%1 -> %2 | DJI profile: %3 | Safety %4 m | Speed %5 m/s | Spacing %6 m | Smoothing %7%% | Height offset %8 m")
             .arg(formatCoordinateSystemCode(projectCoordinateSystems_.pointCloudCrs, tr("Unset")))
@@ -8074,7 +9206,10 @@ void MainWindow::updateRoutePlanningPanel()
             .arg(formatCoordinate(routePlanningOptions_.generation.smoothingStrengthPercent))
             .arg(formatCoordinate(routePlanningOptions_.safety.heightOffsetMeters)));
 
-    const QSignalBlocker blocker(routeWaypointsTableWidget_);
+    const QSignalBlocker partBlocker(routePartPointsTableWidget_);
+    const QSignalBlocker waypointBlocker(routeWaypointsTableWidget_);
+    updatingRouteTables_ = true;
+    routePartPointsTableWidget_->setRowCount(0);
     routeWaypointsTableWidget_->setRowCount(0);
 
     auto createReadOnlyItem = [](const QString& text, Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter) {
@@ -8084,8 +9219,27 @@ void MainWindow::updateRoutePlanningPanel()
         return item;
     };
 
-    for (int waypointIndex = 0; waypointIndex < inspectionRoute_.waypoints.size(); ++waypointIndex) {
-        const InspectionWaypoint& waypoint = inspectionRoute_.waypoints.at(waypointIndex);
+    QHash<int, RoutePartPoint> partPointByIndex;
+    for (int partRow = 0; partRow < currentPowerlineRoute_.partPoints.size(); ++partRow) {
+        const RoutePartPoint& partPoint = currentPowerlineRoute_.partPoints.at(partRow);
+        partPointByIndex.insert(partPoint.partIndex, partPoint);
+
+        routePartPointsTableWidget_->insertRow(partRow);
+        QTableWidgetItem* indexItem = createReadOnlyItem(QLocale().toString(partPoint.partIndex), Qt::AlignCenter);
+        indexItem->setData(Qt::UserRole, partPoint.partIndex);
+        routePartPointsTableWidget_->setItem(partRow, 0, indexItem);
+        routePartPointsTableWidget_->setItem(partRow, 1, createReadOnlyItem(routePartDisplayName(partPoint)));
+        routePartPointsTableWidget_->setItem(partRow, 2, createReadOnlyItem(partPoint.hardwareType));
+        routePartPointsTableWidget_->setItem(partRow, 3, createReadOnlyItem(partPoint.phaseSequence, Qt::AlignCenter));
+        routePartPointsTableWidget_->setItem(partRow, 4, createReadOnlyItem(formatCoordinate(partPoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
+        routePartPointsTableWidget_->setItem(partRow, 5, createReadOnlyItem(formatCoordinate(partPoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
+        routePartPointsTableWidget_->setItem(partRow, 6, createReadOnlyItem(formatCoordinate(partPoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
+    }
+
+    for (int waypointIndex = 0; waypointIndex < currentPowerlineRoute_.waypoints.size(); ++waypointIndex) {
+        const RouteWaypoint& waypoint = currentPowerlineRoute_.waypoints.at(waypointIndex);
+        const RouteCaptureTarget firstTarget = waypoint.captureTargets.isEmpty() ? RouteCaptureTarget() : waypoint.captureTargets.first();
+
         routeWaypointsTableWidget_->insertRow(waypointIndex);
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
@@ -8094,23 +9248,60 @@ void MainWindow::updateRoutePlanningPanel()
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
             1,
-            createReadOnlyItem(formatCoordinate(waypoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
+            createReadOnlyItem(routeWaypointPartSummary(waypoint, partPointByIndex)));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
             2,
-            createReadOnlyItem(formatCoordinate(waypoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
+            createReadOnlyItem(formatCoordinate(waypoint.localPoint.x), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
             3,
-            createReadOnlyItem(formatCoordinate(waypoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
+            createReadOnlyItem(formatCoordinate(waypoint.localPoint.y), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
             4,
-            createReadOnlyItem(formatCoordinate(waypoint.speedMps), Qt::AlignRight | Qt::AlignVCenter));
+            createReadOnlyItem(formatCoordinate(waypoint.localPoint.z), Qt::AlignRight | Qt::AlignVCenter));
         routeWaypointsTableWidget_->setItem(
             waypointIndex,
             5,
-            createReadOnlyItem(formatCoordinate(waypoint.chainage), Qt::AlignRight | Qt::AlignVCenter));
+            createReadOnlyItem(formatCoordinate(waypoint.aircraftYawDeg), Qt::AlignRight | Qt::AlignVCenter));
+        routeWaypointsTableWidget_->setItem(
+            waypointIndex,
+            6,
+            createReadOnlyItem(formatCoordinate(waypoint.gimbalPitchDeg), Qt::AlignRight | Qt::AlignVCenter));
+        routeWaypointsTableWidget_->setItem(
+            waypointIndex,
+            7,
+            createReadOnlyItem(formatCoordinate(firstTarget.cameraYawDeg), Qt::AlignRight | Qt::AlignVCenter));
+        routeWaypointsTableWidget_->setItem(
+            waypointIndex,
+            8,
+            createReadOnlyItem(formatCoordinate(firstTarget.cameraPitchDeg), Qt::AlignRight | Qt::AlignVCenter));
+    }
+
+    const int linkedPartIndex =
+        selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < currentPowerlineRoute_.waypoints.size()
+        ? routeWaypointRepresentativePartIndex(currentPowerlineRoute_.waypoints.at(selectedRouteWaypointIndex_))
+        : -1;
+    const int targetPartIndex = linkedPartIndex > 0 ? linkedPartIndex : selectedRoutePartIndex_;
+
+    int selectedPartRow = -1;
+    if (targetPartIndex > 0) {
+        for (int row = 0; row < routePartPointsTableWidget_->rowCount(); ++row) {
+            QTableWidgetItem* item = routePartPointsTableWidget_->item(row, 0);
+            if (item != nullptr && item->data(Qt::UserRole).toInt() == targetPartIndex) {
+                selectedPartRow = row;
+                break;
+            }
+        }
+    }
+
+    if (selectedPartRow >= 0) {
+        selectedRoutePartIndex_ = targetPartIndex;
+        routePartPointsTableWidget_->setCurrentCell(selectedPartRow, 1);
+    } else {
+        routePartPointsTableWidget_->clearSelection();
+        selectedRoutePartIndex_ = -1;
     }
 
     if (selectedRouteWaypointIndex_ >= 0 && selectedRouteWaypointIndex_ < routeWaypointsTableWidget_->rowCount()) {
@@ -8118,6 +9309,7 @@ void MainWindow::updateRoutePlanningPanel()
     } else {
         routeWaypointsTableWidget_->clearSelection();
     }
+    updatingRouteTables_ = false;
 }
 
 void MainWindow::rebuildProjectTree()
@@ -8364,11 +9556,7 @@ void MainWindow::focusProjectTreeItem(QTreeWidgetItem* item)
     if (itemType == QStringLiteral("trajectoryItem")) {
         PointRecord minBounds;
         PointRecord maxBounds;
-        QList<PointRecord> routePoints;
-        routePoints.reserve(inspectionRoute_.waypoints.size());
-        for (const InspectionWaypoint& waypoint : inspectionRoute_.waypoints) {
-            routePoints.append(waypoint.localPoint);
-        }
+        const QList<PointRecord> routePoints = toRouteDisplayPoints(currentPowerlineRoute_);
         if (boundsFromPoints(routePoints, &minBounds, &maxBounds)) {
             viewer_->focusOnBounds(minBounds, maxBounds, 1.15);
         }
@@ -8635,7 +9823,8 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
             rebuildProjectTree();
             updateActionState();
         } else if (chosenAction == clearAction) {
-            inspectionRoute_ = InspectionRoute();
+            currentPowerlineRoute_ = PowerlineRouteDocument();
+            linkedRouteFilePath_.clear();
             selectedRouteWaypointIndex_ = -1;
             viewer_->clearInspectionRouteWaypoints();
             updateRoutePlanningPanel();
@@ -8694,6 +9883,7 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     }
 
     if (itemType == QStringLiteral("trajectoryGroup")) {
+        QAction* importJsonAction = menu.addAction(tr("Import Route File"));
         QAction* importAction = menu.addAction(tr("Import Route KML"));
         menu.addSeparator();
         QAction* showAllAction = menu.addAction(tr("Show All"));
@@ -8705,14 +9895,17 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
         removeAction->setEnabled(DataManager::instance().hasTrajectory());
 
         QAction* chosenAction = menu.exec(globalPos);
-        if (chosenAction == importAction) {
+        if (chosenAction == importJsonAction) {
+            importRouteFileAction_->trigger();
+        } else if (chosenAction == importAction) {
             importRouteKmlAction_->trigger();
         } else if (chosenAction == showAllAction) {
             setProjectTreeGroupVisibility(itemType, true);
         } else if (chosenAction == hideAllAction) {
             setProjectTreeGroupVisibility(itemType, false);
         } else if (chosenAction == removeAction) {
-            inspectionRoute_ = InspectionRoute();
+            currentPowerlineRoute_ = PowerlineRouteDocument();
+            linkedRouteFilePath_.clear();
             selectedRouteWaypointIndex_ = -1;
             viewer_->clearInspectionRouteWaypoints();
             updateRoutePlanningPanel();
@@ -8818,14 +10011,10 @@ void MainWindow::showInspectionRouteDetails() const
 
 void MainWindow::syncDataManagerTrajectory() const
 {
-    QList<PointRecord> routePoints;
-    routePoints.reserve(inspectionRoute_.waypoints.size());
-    for (const InspectionWaypoint& waypoint : inspectionRoute_.waypoints) {
-        routePoints.append(waypoint.localPoint);
-    }
+    const QList<PointRecord> routePoints = toRouteDisplayPoints(currentPowerlineRoute_);
 
     DataManager::instance().setTrajectory(
-        inspectionRoute_.name.trimmed().isEmpty() ? tr("Inspection Route") : inspectionRoute_.name.trimmed(),
+        currentPowerlineRoute_.taskName.trimmed().isEmpty() ? tr("Inspection Route") : currentPowerlineRoute_.taskName.trimmed(),
         routePoints,
         viewer_ != nullptr ? viewer_->inspectionRouteVisible() : true);
 }

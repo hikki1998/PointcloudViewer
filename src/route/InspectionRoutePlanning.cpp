@@ -1,4 +1,4 @@
-#include "domain/InspectionRoutePlanning.h"
+#include "route/InspectionRoutePlanning.h"
 
 #include <QPointF>
 #include <QCoreApplication>

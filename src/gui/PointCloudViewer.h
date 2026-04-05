@@ -76,6 +76,27 @@ struct MeasurementResult
     }
 };
 
+struct InspectionRouteDisplayData
+{
+    QList<PointRecord> waypoints;
+    QStringList labels;
+    QList<PointRecord> partPoints;
+    QStringList partLabels;
+    QList<PointRecord> waypointTargetPoints;
+    QList<bool> waypointHasTargetPoints;
+    QList<double> waypointAircraftYawDegs;
+    QList<double> waypointGimbalPitchDegs;
+    QList<double> waypointCameraYawDegs;
+    QList<double> waypointCameraPitchDegs;
+    QStringList waypointTargetLabels;
+};
+
+enum class RouteLabelDisplayMode
+{
+    Sequence = 0,
+    Name
+};
+
 enum class TowerEditMode
 {
     None = 0,
@@ -103,6 +124,7 @@ public:
     void setInteractionOptions(const InteractionOptions& options);
     void setSceneClickModeEnabled(bool enabled);
     void setRectangleSelectionEnabled(bool enabled);
+    void setSceneDragCaptureEnabled(bool enabled);
 
 protected:
     void initializeGL() override;
@@ -111,6 +133,7 @@ protected:
     void leaveEvent(QEvent* event) override;
 
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
@@ -118,7 +141,12 @@ protected:
     void keyReleaseEvent(QKeyEvent* event) override;
 
 signals:
+    void scenePressed(const QPointF& localPos);
     void sceneClicked(const QPointF& localPos);
+    void sceneDoubleClicked(const QPointF& localPos);
+    void sceneDragged(const QPointF& localPos);
+    void sceneDragReleased(const QPointF& localPos);
+    void sceneEscapePressed();
     void sceneSecondaryClicked(const QPointF& localPos);
     void sceneHovered(const QPointF& localPos);
     void sceneHoverEnded();
@@ -140,6 +168,7 @@ private:
     bool initialized_ = false;
     InteractionOptions interactionOptions_;
     bool sceneClickModeEnabled_ = false;
+    bool sceneDragCaptureEnabled_ = false;
     bool leftButtonPressed_ = false;
     bool middleButtonPressed_ = false;
     bool rightButtonPressed_ = false;
@@ -267,7 +296,12 @@ public slots:
     bool removeInspectionIssue(int index);
     void clearInspectionIssues();
     void setSelectedIssueIndex(int index);
+    void setInspectionRouteDisplayData(const InspectionRouteDisplayData& displayData);
     void setInspectionRouteWaypoints(const QList<PointRecord>& waypoints, const QStringList& labels = QStringList());
+    RouteLabelDisplayMode inspectionRouteWaypointLabelDisplayMode() const;
+    RouteLabelDisplayMode inspectionRoutePartLabelDisplayMode() const;
+    void setInspectionRouteWaypointLabelDisplayMode(RouteLabelDisplayMode mode);
+    void setInspectionRoutePartLabelDisplayMode(RouteLabelDisplayMode mode);
     void clearInspectionRouteWaypoints();
     void setSelectedInspectionRouteWaypointIndex(int index);
     void beginIssueAddMode();
@@ -297,6 +331,8 @@ signals:
     void issueEditRequested(const PointRecord& point);
     void inspectionRouteChanged();
     void selectedInspectionRouteWaypointChanged(int index);
+    void inspectionRouteWaypointDoubleClicked(int index);
+    void inspectionRouteWaypointDragFinished(int index, const PointRecord& point);
 
 private:
     void changeEvent(QEvent* event) override;
@@ -304,6 +340,7 @@ private:
     void createStatusPanel();
     void createMeasurementOverlayWidgets();
     void createWelcomeOverlay();
+    void createRouteCameraPreviewOverlay();
     void startAsyncSingleFileLoad(const QString& filePath);
     void cancelAsyncPointCloudLoad();
     void completeAsyncLoadFailure(std::uint64_t token, const QString& errorMessage);
@@ -344,7 +381,12 @@ private:
     void updateMessage(const QString& title, const QString& detail);
     void applyClearColor();
     void applyViewPreset(PointCloudViewPreset viewPreset);
+    void handleScenePress(const QPointF& localPos);
     void handleSceneClick(const QPointF& localPos);
+    void handleSceneDoubleClick(const QPointF& localPos);
+    void handleSceneDrag(const QPointF& localPos);
+    void handleSceneDragRelease(const QPointF& localPos);
+    void handleSceneEscapePressed();
     void handleSceneSecondaryClick(const QPointF& localPos);
     void handleSceneHover(const QPointF& localPos);
     void handleSelectionRectangleChanged(const QRectF& localRect, bool active);
@@ -364,6 +406,7 @@ private:
     bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels = 14.0f) const;
     int pickTowerMarkerAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     int pickInspectionIssueAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
+    int pickInspectionRouteWaypointAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     osg::ref_ptr<osg::Node> buildMeasurementOverlay() const;
     osg::ref_ptr<osg::Node> buildTowerMarkersOverlay() const;
     osg::ref_ptr<osg::Node> buildInspectionIssuesOverlay() const;
@@ -377,9 +420,13 @@ private:
     void updateTowerOverlayWidgets();
     void updateInspectionIssueOverlayWidgets();
     void updateInspectionRouteOverlayWidgets();
+    void updateRouteCameraPreviewOverlay();
     void updateSceneClickCapture();
     void updateAxisIndicator();
     void positionAxisIndicator();
+    void positionRouteCameraPreviewOverlay();
+    QString inspectionRouteWaypointLabelText(int index) const;
+    QString inspectionRoutePartLabelText(int index) const;
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
     void setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent);
     void updateWelcomeOverlayVisibility();
@@ -410,6 +457,7 @@ private:
     QRubberBand* selectionRubberBand_ = nullptr;
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
+    QWidget* routeCameraPreviewOverlay_ = nullptr;
 
     std::shared_ptr<PointCloudData> currentPointCloud_;
     std::shared_ptr<PointCloudData> previewPointCloud_;
@@ -434,8 +482,19 @@ private:
     QList<InspectionIssue> inspectionIssues_;
     QList<PointRecord> inspectionRouteWaypoints_;
     QStringList inspectionRouteLabels_;
+    QList<PointRecord> inspectionRoutePartPoints_;
+    QStringList inspectionRoutePartLabels_;
+    QList<PointRecord> inspectionRouteWaypointTargetPoints_;
+    QList<bool> inspectionRouteWaypointHasTargetPoints_;
+    QList<double> inspectionRouteWaypointAircraftYawDegs_;
+    QList<double> inspectionRouteWaypointGimbalPitchDegs_;
+    QList<double> inspectionRouteWaypointCameraYawDegs_;
+    QList<double> inspectionRouteWaypointCameraPitchDegs_;
+    QStringList inspectionRouteWaypointTargetLabels_;
     QSet<int> hiddenInspectionIssueIndices_;
     bool inspectionRouteVisible_ = true;
+    RouteLabelDisplayMode routeWaypointLabelDisplayMode_ = RouteLabelDisplayMode::Name;
+    RouteLabelDisplayMode routePartLabelDisplayMode_ = RouteLabelDisplayMode::Name;
     int selectedTowerIndex_ = -1;
     int selectedIssueIndex_ = -1;
     int selectedInspectionRouteWaypointIndex_ = -1;
@@ -452,6 +511,12 @@ private:
     QList<QLabel*> towerOverlayLabels_;
     QList<QLabel*> issueOverlayLabels_;
     QList<QLabel*> inspectionRouteOverlayLabels_;
+    QList<QLabel*> inspectionRoutePartOverlayLabels_;
+    bool routeWaypointDragActive_ = false;
+    int routeWaypointDragIndex_ = -1;
+    QPointF routeWaypointDragAnchor_;
+    PointRecord routeWaypointDragPreviewPoint_;
+    bool routeWaypointDragPreviewValid_ = false;
     QPointF lastHoverQueryPosition_;
     std::chrono::steady_clock::time_point lastHoverQueryTime_{};
     PointCloudTileSet previewTileSet_;
