@@ -509,6 +509,7 @@ set(SOURCES
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
     src/gui/ProfilePlotWidget.cpp
+    src/logging/ApplicationLogger.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
     src/pointcloud/PointCloudTileStore.cpp
@@ -542,6 +543,7 @@ set(HEADERS
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
     src/gui/ProfilePlotWidget.h
+    src/logging/ApplicationLogger.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
     src/pointcloud/PointCloudTileStore.h

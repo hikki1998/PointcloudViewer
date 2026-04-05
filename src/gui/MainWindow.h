@@ -132,6 +132,8 @@ private:
     void setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const;
     void appendLog(LogLevel level, const QString& message);
     void showUserMessage(LogLevel level, const QString& message, int timeoutMs = 3000);
+    void refreshLogPanel();
+    void exportLogEntries();
     void loadVisualizationSettings();
     void persistVisualizationSettings() const;
     void loadInteractionSettings();
@@ -321,6 +323,12 @@ private:
     ProfilePlotWidget* profilePlotWidget_ = nullptr;
     QToolButton* issueMenuButton_ = nullptr;
     QMenu* issueActionsMenu_ = nullptr;
+    QComboBox* logLevelFilterComboBox_ = nullptr;
+    QLineEdit* logSearchLineEdit_ = nullptr;
+    QCheckBox* logAutoScrollCheckBox_ = nullptr;
+    QPushButton* logClearButton_ = nullptr;
+    QPushButton* logExportButton_ = nullptr;
+    QLabel* logStatsLabel_ = nullptr;
     QTextEdit* logTextEdit_ = nullptr;
     QLineEdit* towerCodeEdit_ = nullptr;
     QLineEdit* towerLineNameEdit_ = nullptr;

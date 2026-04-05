@@ -55,6 +55,7 @@
 #include <QGuiApplication>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSizePolicy>
@@ -113,6 +114,7 @@
 #include "domain/VegetationRiskAnalysis.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfilePlotWidget.h"
+#include "logging/ApplicationLogger.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
 #include "pointcloud/PointCloudData.h"
@@ -323,6 +325,104 @@ QString classificationDisplayName(
     return customName.isEmpty()
         ? defaultClassificationDisplayName(classificationCode)
         : customName;
+}
+
+struct LogVisualStyle
+{
+    QString token;
+    QString accentColor;
+    QString badgeBackground;
+    QString badgeForeground;
+    QString messageColor;
+};
+
+LogVisualStyle logVisualStyleForLevel(lasviewer::logging::LogLevel level)
+{
+    switch (level) {
+    case lasviewer::logging::LogLevel::Warning:
+        return {
+            QStringLiteral("WARN"),
+            QStringLiteral("#d97706"),
+            QStringLiteral("#fef3c7"),
+            QStringLiteral("#92400e"),
+            QStringLiteral("#78350f")
+        };
+    case lasviewer::logging::LogLevel::Error:
+        return {
+            QStringLiteral("ERROR"),
+            QStringLiteral("#dc2626"),
+            QStringLiteral("#fee2e2"),
+            QStringLiteral("#991b1b"),
+            QStringLiteral("#7f1d1d")
+        };
+    case lasviewer::logging::LogLevel::Info:
+    default:
+        return {
+            QStringLiteral("INFO"),
+            QStringLiteral("#2563eb"),
+            QStringLiteral("#dbeafe"),
+            QStringLiteral("#1d4ed8"),
+            QStringLiteral("#0f172a")
+        };
+    }
+}
+
+QString highlightLogKeyword(const QString& text, const QString& keyword)
+{
+    const QString normalizedKeyword = keyword.trimmed();
+    if (normalizedKeyword.isEmpty()) {
+        return text.toHtmlEscaped().replace(QStringLiteral("\n"), QStringLiteral("<br/>"));
+    }
+
+    QString html;
+    html.reserve(text.size() + 48);
+
+    int cursor = 0;
+    while (cursor < text.size()) {
+        const int hitIndex = text.indexOf(normalizedKeyword, cursor, Qt::CaseInsensitive);
+        if (hitIndex < 0) {
+            html += text.mid(cursor).toHtmlEscaped();
+            break;
+        }
+
+        html += text.mid(cursor, hitIndex - cursor).toHtmlEscaped();
+        const QString hitText = text.mid(hitIndex, normalizedKeyword.size());
+        html += QStringLiteral("<span style='background:#fde68a; color:#111827; border-radius:3px; padding:0 2px;'>%1</span>")
+            .arg(hitText.toHtmlEscaped());
+        cursor = hitIndex + normalizedKeyword.size();
+    }
+
+    return html.replace(QStringLiteral("\n"), QStringLiteral("<br/>"));
+}
+
+QString logEntryHtml(const lasviewer::logging::LogEntry& entry, const QString& keyword)
+{
+    const LogVisualStyle style = logVisualStyleForLevel(entry.level);
+    const QString timestamp = QDateTime::fromMSecsSinceEpoch(entry.timestampMs).toString(QStringLiteral("HH:mm:ss"));
+    const QString moduleText = entry.module.trimmed().isEmpty() ? QStringLiteral("APP") : entry.module;
+    const QString moduleHtml = moduleText.toHtmlEscaped();
+    const QString messageHtml = highlightLogKeyword(entry.message, keyword);
+
+    return QStringLiteral(
+        "<div style='margin:0 0 10px 0; padding:10px 12px; border-left:4px solid %1; "
+        "background:#ffffff; border-radius:9px; border:1px solid #d9e5f2;'>"
+        "<div>"
+        "<span style='color:#64748b; font-family:Consolas, \"Courier New\", monospace; font-size:12px;'>%2</span>"
+        "<span style='display:inline-block; padding:2px 8px; border-radius:999px; "
+        "margin-left:8px; background:%3; color:%4; font-family:Consolas, \"Courier New\", monospace; font-size:11px; font-weight:700;'>%5</span>"
+        "<span style='display:inline-block; padding:2px 8px; border-radius:999px; "
+        "margin-left:8px; background:#eef2f7; color:#334155; font-size:11px; font-weight:600;'>%6</span>"
+        "</div>"
+        "<div style='margin-top:7px; color:%7; font-size:13px; line-height:1.55;'>%8</div>"
+        "</div>")
+        .arg(style.accentColor)
+        .arg(timestamp)
+        .arg(style.badgeBackground)
+        .arg(style.badgeForeground)
+        .arg(style.token)
+        .arg(moduleHtml)
+        .arg(style.messageColor)
+        .arg(messageHtml);
 }
 
 QJsonObject colorToJson(const QColor& color);
@@ -3173,30 +3273,148 @@ void MainWindow::createLogDock()
         QDockWidget::DockWidgetClosable
         | QDockWidget::DockWidgetMovable
         | QDockWidget::DockWidgetFloatable);
-    logDock_->setMinimumHeight(140);
-    logDock_->setMaximumHeight(260);
+    logDock_->setMinimumHeight(180);
+    logDock_->setMaximumHeight(460);
 
-    logTextEdit_ = new QTextEdit(logDock_);
+    auto* logSurface = new QWidget(logDock_);
+    logSurface->setObjectName(QStringLiteral("applicationLogSurface"));
+    auto* logSurfaceLayout = new QVBoxLayout(logSurface);
+    logSurfaceLayout->setContentsMargins(10, 10, 10, 10);
+    logSurfaceLayout->setSpacing(8);
+
+    auto* logControlsRow = new QWidget(logSurface);
+    logControlsRow->setObjectName(QStringLiteral("applicationLogToolsRow"));
+    auto* logControlsLayout = new QHBoxLayout(logControlsRow);
+    logControlsLayout->setContentsMargins(8, 8, 8, 8);
+    logControlsLayout->setSpacing(8);
+
+    logLevelFilterComboBox_ = new QComboBox(logControlsRow);
+    logLevelFilterComboBox_->setObjectName(QStringLiteral("applicationLogLevelFilter"));
+    logLevelFilterComboBox_->setMinimumWidth(138);
+    logLevelFilterComboBox_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+
+    logSearchLineEdit_ = new QLineEdit(logControlsRow);
+    logSearchLineEdit_->setObjectName(QStringLiteral("applicationLogSearchEdit"));
+    logSearchLineEdit_->setClearButtonEnabled(true);
+    logSearchLineEdit_->setMinimumWidth(240);
+
+    logAutoScrollCheckBox_ = new QCheckBox(logControlsRow);
+    logAutoScrollCheckBox_->setObjectName(QStringLiteral("applicationLogAutoScrollCheck"));
+    logAutoScrollCheckBox_->setChecked(true);
+
+    logClearButton_ = new QPushButton(logControlsRow);
+    logClearButton_->setObjectName(QStringLiteral("applicationLogClearButton"));
+
+    logExportButton_ = new QPushButton(logControlsRow);
+    logExportButton_->setObjectName(QStringLiteral("applicationLogExportButton"));
+
+    logStatsLabel_ = new QLabel(logControlsRow);
+    logStatsLabel_->setObjectName(QStringLiteral("applicationLogStatsLabel"));
+    logStatsLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    logStatsLabel_->setMinimumWidth(180);
+
+    logControlsLayout->addWidget(logLevelFilterComboBox_, 0);
+    logControlsLayout->addWidget(logSearchLineEdit_, 1);
+    logControlsLayout->addWidget(logAutoScrollCheckBox_, 0);
+    logControlsLayout->addWidget(logClearButton_, 0);
+    logControlsLayout->addWidget(logExportButton_, 0);
+    logControlsLayout->addStretch(1);
+    logControlsLayout->addWidget(logStatsLabel_, 0);
+
+    logTextEdit_ = new QTextEdit(logSurface);
     logTextEdit_->setReadOnly(true);
     logTextEdit_->setUndoRedoEnabled(false);
     logTextEdit_->setAcceptRichText(true);
     logTextEdit_->setLineWrapMode(QTextEdit::WidgetWidth);
-    logTextEdit_->document()->setMaximumBlockCount(500);
-    logTextEdit_->document()->setDocumentMargin(12);
+    logTextEdit_->document()->setMaximumBlockCount(0);
+    logTextEdit_->document()->setDocumentMargin(14);
     logTextEdit_->setStyleSheet(QStringLiteral(
         "QTextEdit {"
-        "background-color: #08111d;"
-        "color: #dbe4f0;"
-        "border: none;"
-        "selection-background-color: #1d4ed8;"
-        "selection-color: #f8fafc;"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #d6e1ee;"
+        "border-radius: 8px;"
+        "selection-background-color: #bfdbfe;"
+        "selection-color: #0f172a;"
         "font-family: 'Segoe UI', 'Microsoft YaHei UI';"
-        "font-size: 11px;"
+        "font-size: 13px;"
         "}"));
 
-    logDock_->setWidget(logTextEdit_);
+    logSurfaceLayout->addWidget(logControlsRow, 0);
+    logSurfaceLayout->addWidget(logTextEdit_, 1);
+
+    logSurface->setStyleSheet(QStringLiteral(
+        "QWidget#applicationLogSurface {"
+        "background-color: #edf3fb;"
+        "border-top: 1px solid #d6e2ef;"
+        "}"
+        "QWidget#applicationLogToolsRow {"
+        "background: #f8fbff;"
+        "border: 1px solid #d5e3f2;"
+        "border-radius: 8px;"
+        "}"
+        "QComboBox#applicationLogLevelFilter,"
+        "QLineEdit#applicationLogSearchEdit {"
+        "background: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #c8d6e8;"
+        "border-radius: 5px;"
+        "padding: 4px 8px;"
+        "font-size: 13px;"
+        "min-height: 28px;"
+        "}"
+        "QCheckBox#applicationLogAutoScrollCheck {"
+        "color: #334155;"
+        "font-size: 13px;"
+        "font-weight: 600;"
+        "}"
+        "QPushButton#applicationLogClearButton,"
+        "QPushButton#applicationLogExportButton {"
+        "background: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #c8d6e8;"
+        "border-radius: 5px;"
+        "padding: 5px 12px;"
+        "font-size: 13px;"
+        "font-weight: 600;"
+        "min-height: 28px;"
+        "}"
+        "QPushButton#applicationLogClearButton:hover,"
+        "QPushButton#applicationLogExportButton:hover {"
+        "background: #eff6ff;"
+        "border-color: #9fb8d6;"
+        "}"
+        "QLabel#applicationLogStatsLabel {"
+        "color: #64748b;"
+        "font-size: 12px;"
+        "font-weight: 600;"
+        "}"));
+
+    logDock_->setWidget(logSurface);
     addDockWidget(Qt::BottomDockWidgetArea, logDock_);
     logDock_->hide();
+
+    if (logLevelFilterComboBox_ != nullptr) {
+        logLevelFilterComboBox_->addItem(tr("All levels"), -1);
+        logLevelFilterComboBox_->addItem(tr("Info"), static_cast<int>(lasviewer::logging::LogLevel::Info));
+        logLevelFilterComboBox_->addItem(tr("Warning"), static_cast<int>(lasviewer::logging::LogLevel::Warning));
+        logLevelFilterComboBox_->addItem(tr("Error"), static_cast<int>(lasviewer::logging::LogLevel::Error));
+        logLevelFilterComboBox_->setCurrentIndex(0);
+    }
+    if (logSearchLineEdit_ != nullptr) {
+        logSearchLineEdit_->setPlaceholderText(tr("Search module or message"));
+    }
+    if (logAutoScrollCheckBox_ != nullptr) {
+        logAutoScrollCheckBox_->setText(tr("Auto-scroll"));
+    }
+    if (logClearButton_ != nullptr) {
+        logClearButton_->setText(tr("Clear"));
+    }
+    if (logExportButton_ != nullptr) {
+        logExportButton_->setText(tr("Export"));
+    }
+
+    refreshLogPanel();
 }
 
 void MainWindow::createStatusBar()
@@ -3484,6 +3702,30 @@ void MainWindow::retranslateUi()
     if (logDock_ != nullptr) {
         logDock_->setWindowTitle(tr("Application Log"));
     }
+    if (logLevelFilterComboBox_ != nullptr) {
+        const int selectedFilter = logLevelFilterComboBox_->currentData().toInt();
+        const QSignalBlocker blocker(logLevelFilterComboBox_);
+        logLevelFilterComboBox_->clear();
+        logLevelFilterComboBox_->addItem(tr("All levels"), -1);
+        logLevelFilterComboBox_->addItem(tr("Info"), static_cast<int>(lasviewer::logging::LogLevel::Info));
+        logLevelFilterComboBox_->addItem(tr("Warning"), static_cast<int>(lasviewer::logging::LogLevel::Warning));
+        logLevelFilterComboBox_->addItem(tr("Error"), static_cast<int>(lasviewer::logging::LogLevel::Error));
+
+        const int index = logLevelFilterComboBox_->findData(selectedFilter);
+        logLevelFilterComboBox_->setCurrentIndex(index >= 0 ? index : 0);
+    }
+    if (logSearchLineEdit_ != nullptr) {
+        logSearchLineEdit_->setPlaceholderText(tr("Search module or message"));
+    }
+    if (logAutoScrollCheckBox_ != nullptr) {
+        logAutoScrollCheckBox_->setText(tr("Auto-scroll"));
+    }
+    if (logClearButton_ != nullptr) {
+        logClearButton_->setText(tr("Clear"));
+    }
+    if (logExportButton_ != nullptr) {
+        logExportButton_->setText(tr("Export"));
+    }
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setTabText(0, tr("Overview"));
         inspectorTabWidget_->setTabText(1, tr("Tower"));
@@ -3520,6 +3762,7 @@ void MainWindow::retranslateUi()
     if (resetClassificationColorsButton_ != nullptr) {
         resetClassificationColorsButton_->setText(tr("Reset Defaults"));
     }
+    refreshLogPanel();
     updateProfileClassificationPanel();
     if (measurementGroupBox_ != nullptr) {
         measurementGroupBox_->setTitle(tr("Measurement"));
@@ -5445,11 +5688,91 @@ void MainWindow::createConnections()
     connect(languageEnglishAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::English); });
     connect(languageChineseAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::Chinese); });
 
+    if (logLevelFilterComboBox_ != nullptr) {
+        connect(logLevelFilterComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            refreshLogPanel();
+            persistWindowSettings();
+        });
+    }
+    if (logSearchLineEdit_ != nullptr) {
+        connect(logSearchLineEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
+            refreshLogPanel();
+            persistWindowSettings();
+        });
+    }
+    if (logAutoScrollCheckBox_ != nullptr) {
+        connect(logAutoScrollCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
+            if (checked && logTextEdit_ != nullptr) {
+                if (QScrollBar* scrollBar = logTextEdit_->verticalScrollBar()) {
+                    scrollBar->setValue(scrollBar->maximum());
+                }
+            }
+            persistWindowSettings();
+        });
+    }
+    if (logClearButton_ != nullptr) {
+        connect(logClearButton_, &QPushButton::clicked, this, [this]() {
+            lasviewer::logging::ApplicationLogger::instance().clear();
+            if (statusBar() != nullptr) {
+                statusBar()->showMessage(tr("Log entries cleared."), 2500);
+            }
+        });
+    }
+    if (logExportButton_ != nullptr) {
+        connect(logExportButton_, &QPushButton::clicked, this, [this]() {
+            exportLogEntries();
+        });
+    }
+    connect(&lasviewer::logging::ApplicationLogger::instance(), &lasviewer::logging::ApplicationLogger::entryAdded, this, [this]() {
+        refreshLogPanel();
+    });
+    connect(&lasviewer::logging::ApplicationLogger::instance(), &lasviewer::logging::ApplicationLogger::entriesCleared, this, [this]() {
+        refreshLogPanel();
+    });
+
+    if (logDock_ != nullptr) {
+        auto* focusLogSearchShortcut = new QShortcut(QKeySequence::Find, this);
+        focusLogSearchShortcut->setContext(Qt::WindowShortcut);
+        connect(focusLogSearchShortcut, &QShortcut::activated, this, [this]() {
+            if (logDock_ == nullptr || logSearchLineEdit_ == nullptr) {
+                return;
+            }
+
+            if (!logDock_->isVisible()) {
+                if (showLogAction_ != nullptr) {
+                    showLogAction_->setChecked(true);
+                } else {
+                    logDock_->show();
+                }
+            }
+
+            logDock_->raise();
+            logSearchLineEdit_->setFocus(Qt::ShortcutFocusReason);
+            logSearchLineEdit_->selectAll();
+        });
+
+        auto* clearLogSearchShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), logDock_);
+        clearLogSearchShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+        connect(clearLogSearchShortcut, &QShortcut::activated, this, [this]() {
+            if (logSearchLineEdit_ == nullptr) {
+                return;
+            }
+
+            if (!logSearchLineEdit_->text().isEmpty()) {
+                logSearchLineEdit_->clear();
+            } else if (logSearchLineEdit_->hasFocus()) {
+                logSearchLineEdit_->clearFocus();
+            }
+        });
+    }
+
     connect(showLogAction_, &QAction::toggled, this, [this](bool visible) {
         if (logDock_ != nullptr) {
             if (visible) {
                 logDock_->show();
-                resizeDocks({logDock_}, {190}, Qt::Vertical);
+                logDock_->raise();
+                resizeDocks({logDock_}, {280}, Qt::Vertical);
+                refreshLogPanel();
             } else {
                 logDock_->hide();
             }
@@ -6997,62 +7320,112 @@ void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& col
 
 void MainWindow::appendLog(LogLevel level, const QString& message)
 {
-    if (logTextEdit_ == nullptr || message.trimmed().isEmpty()) {
+    const QString normalizedMessage = message.trimmed();
+    if (normalizedMessage.isEmpty()) {
         return;
     }
 
-    QString levelText;
-    QString accentColor;
-    QString badgeBackground;
-    QString badgeForeground;
-    QString messageColor;
+    lasviewer::logging::LogLevel loggerLevel = lasviewer::logging::LogLevel::Info;
     switch (level) {
     case LogLevel::Warning:
-        levelText = QStringLiteral("WARN");
-        accentColor = QStringLiteral("#f59e0b");
-        badgeBackground = QStringLiteral("#3b2a06");
-        badgeForeground = QStringLiteral("#fde68a");
-        messageColor = QStringLiteral("#fef3c7");
+        loggerLevel = lasviewer::logging::LogLevel::Warning;
         break;
     case LogLevel::Error:
-        levelText = QStringLiteral("ERROR");
-        accentColor = QStringLiteral("#ef4444");
-        badgeBackground = QStringLiteral("#3f1319");
-        badgeForeground = QStringLiteral("#fecaca");
-        messageColor = QStringLiteral("#fee2e2");
+        loggerLevel = lasviewer::logging::LogLevel::Error;
         break;
     case LogLevel::Info:
     default:
-        levelText = QStringLiteral("INFO");
-        accentColor = QStringLiteral("#38bdf8");
-        badgeBackground = QStringLiteral("#0f2c3d");
-        badgeForeground = QStringLiteral("#d7f0ff");
-        messageColor = QStringLiteral("#e2e8f0");
+        loggerLevel = lasviewer::logging::LogLevel::Info;
         break;
     }
 
-    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss"));
-    const QString entryHtml = QStringLiteral(
-        "<div style='margin:0 0 8px 0; padding:8px 10px; "
-        "border-left:4px solid %1; background-color:#0f172a; border-radius:8px;'>"
-        "<span style='color:#94a3b8; font-family:Consolas, \"Courier New\", monospace; font-size:10px;'>%2</span>"
-        "<span style='display:inline-block; margin-left:8px; padding:2px 7px; border-radius:999px; "
-        "background-color:%3; color:%4; font-family:Consolas, \"Courier New\", monospace; font-size:10px; font-weight:700;'>%5</span>"
-        "<div style='margin-top:6px; color:%6; line-height:1.45;'>%7</div>"
-        "</div>")
-            .arg(accentColor)
-            .arg(timestamp)
-            .arg(badgeBackground)
-            .arg(badgeForeground)
-            .arg(levelText)
-            .arg(messageColor)
-            .arg(message.toHtmlEscaped().replace(QStringLiteral("\n"), QStringLiteral("<br/>")));
-    QTextCursor cursor = logTextEdit_->textCursor();
-    cursor.movePosition(QTextCursor::End);
-    logTextEdit_->setTextCursor(cursor);
-    logTextEdit_->insertHtml(entryHtml);
-    logTextEdit_->insertHtml(QStringLiteral("<div style='height:2px;'></div>"));
-    logTextEdit_->verticalScrollBar()->setValue(logTextEdit_->verticalScrollBar()->maximum());
+    lasviewer::logging::ApplicationLogger::instance().log(
+        loggerLevel,
+        QStringLiteral("UI"),
+        normalizedMessage);
+}
+
+void MainWindow::refreshLogPanel()
+{
+    if (logTextEdit_ == nullptr) {
+        return;
+    }
+
+    const QVector<lasviewer::logging::LogEntry> entries = lasviewer::logging::ApplicationLogger::instance().entries();
+    const int selectedLevel = logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1;
+    const QString keyword = logSearchLineEdit_ != nullptr ? logSearchLineEdit_->text().trimmed() : QString();
+
+    int visibleCount = 0;
+    QString html;
+    html.reserve(entries.size() * 240);
+    for (const lasviewer::logging::LogEntry& entry : entries) {
+        if (selectedLevel >= 0 && static_cast<int>(entry.level) != selectedLevel) {
+            continue;
+        }
+
+        const LogVisualStyle style = logVisualStyleForLevel(entry.level);
+        if (!keyword.isEmpty()
+            && !entry.message.contains(keyword, Qt::CaseInsensitive)
+            && !entry.module.contains(keyword, Qt::CaseInsensitive)
+            && !style.token.contains(keyword, Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        html += logEntryHtml(entry, keyword);
+        ++visibleCount;
+    }
+
+    if (visibleCount == 0) {
+        const QString emptyText = entries.isEmpty()
+            ? tr("No log entries yet.")
+            : tr("No log entries match current filters.");
+        html = QStringLiteral(
+            "<div style='margin:20px 16px; padding:12px; border:1px dashed #c6d4e6; border-radius:8px; "
+            "background:#ffffff; color:#64748b; font-size:13px;'>%1</div>")
+                .arg(emptyText.toHtmlEscaped());
+    }
+
+    logTextEdit_->setHtml(html);
+
+    if (logStatsLabel_ != nullptr) {
+        logStatsLabel_->setText(tr("%1 shown / %2 total")
+            .arg(QLocale().toString(visibleCount))
+            .arg(QLocale().toString(entries.size())));
+    }
+
+    if (logAutoScrollCheckBox_ == nullptr || logAutoScrollCheckBox_->isChecked()) {
+        if (QScrollBar* scrollBar = logTextEdit_->verticalScrollBar()) {
+            scrollBar->setValue(scrollBar->maximum());
+        }
+    }
+}
+
+void MainWindow::exportLogEntries()
+{
+    const QString defaultPath = QDir::home().filePath(
+        QStringLiteral("lasviewer-log-%1.csv")
+            .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))));
+
+    const QString filePath = showStyledSaveFileNameDialog(
+        this,
+        tr("Export Application Log"),
+        defaultPath,
+        tr("CSV Files (*.csv);;Text Files (*.txt)"));
+    if (filePath.isEmpty()) {
+        return;
+    }
+
+    const bool asCsv = QFileInfo(filePath).suffix().compare(QStringLiteral("csv"), Qt::CaseInsensitive) == 0;
+    QString errorMessage;
+    if (!lasviewer::logging::ApplicationLogger::instance().exportEntries(filePath, asCsv, &errorMessage)) {
+        showUserMessage(LogLevel::Error, tr("Failed to export log: %1").arg(errorMessage), 4500);
+        return;
+    }
+
+    showUserMessage(
+        LogLevel::Info,
+        tr("Log exported to %1").arg(QDir::toNativeSeparators(filePath)),
+        3500);
 }
 
 void MainWindow::showUserMessage(LogLevel level, const QString& message, int timeoutMs)
@@ -7247,6 +7620,18 @@ void MainWindow::loadWindowSettings()
         inspectorTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/inspectorTab"), 0).toInt());
     }
 
+    if (logLevelFilterComboBox_ != nullptr) {
+        const int savedFilterLevel = settings.value(QStringLiteral("window/logFilterLevel"), -1).toInt();
+        const int filterIndex = logLevelFilterComboBox_->findData(savedFilterLevel);
+        logLevelFilterComboBox_->setCurrentIndex(filterIndex >= 0 ? filterIndex : 0);
+    }
+    if (logSearchLineEdit_ != nullptr) {
+        logSearchLineEdit_->setText(settings.value(QStringLiteral("window/logSearchKeyword")).toString());
+    }
+    if (logAutoScrollCheckBox_ != nullptr) {
+        logAutoScrollCheckBox_->setChecked(settings.value(QStringLiteral("window/logAutoScroll"), true).toBool());
+    }
+
     if (!restoredState) {
         const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
         const bool showProfileClassification = settings.value(QStringLiteral("window/showProfileClassification"), false).toBool();
@@ -7273,6 +7658,8 @@ void MainWindow::loadWindowSettings()
         showProfileClassificationDockAction_->setChecked(profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
     }
 
+    refreshLogPanel();
+
     if (projectDock_ != nullptr) {
         projectDock_->show();
         projectDock_->raise();
@@ -7293,6 +7680,15 @@ void MainWindow::persistWindowSettings() const
     settings.setValue(
         QStringLiteral("window/inspectorTab"),
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
+    settings.setValue(
+        QStringLiteral("window/logFilterLevel"),
+        logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1);
+    settings.setValue(
+        QStringLiteral("window/logSearchKeyword"),
+        logSearchLineEdit_ != nullptr ? logSearchLineEdit_->text() : QString());
+    settings.setValue(
+        QStringLiteral("window/logAutoScroll"),
+        logAutoScrollCheckBox_ == nullptr || logAutoScrollCheckBox_->isChecked());
 }
 
 void MainWindow::loadThemeSettings()
