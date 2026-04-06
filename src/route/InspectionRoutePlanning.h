@@ -10,6 +10,7 @@
 #include "domain/InspectionData.h"
 #include "domain/ProjectMetadata.h"
 #include "pointcloud/PointCloudData.h"
+#include "route/PowerlineRouteTypes.h"
 
 enum class DjiAircraftProfile
 {
@@ -78,9 +79,74 @@ struct RoutePlanningOptions
     DjiAircraftProfile aircraftProfile = DjiAircraftProfile::M30Series;
 };
 
+enum class RouteQaSeverity
+{
+    Info = 0,
+    Warning,
+    Blocking
+};
+
+enum class RouteQaIssueType
+{
+    WaypointCountInsufficient = 0,
+    WaypointSpacingTooSmall,
+    WaypointSpacingTooLarge,
+    TargetDistanceTooNear,
+    TargetDistanceTooFar,
+    AttitudeJumpTooLarge,
+    HelperWaypointMissing,
+    MissingPartCoverage,
+    DuplicatePartCoverage,
+    UnsupportedActionCombination
+};
+
+struct RouteQaIssue
+{
+    RouteQaSeverity severity = RouteQaSeverity::Info;
+    RouteQaIssueType type = RouteQaIssueType::WaypointSpacingTooSmall;
+    int waypointIndex = -1;
+    int relatedWaypointIndex = -1;
+    int partIndex = -1;
+    int targetIndex = -1;
+    QString message;
+    QString detail;
+};
+
+struct RouteQaThresholds
+{
+    double minWaypointSpacingMeters = 4.0;
+    double maxWaypointSpacingMeters = 80.0;
+    double minTargetDistanceMeters = 2.0;
+    double maxTargetDistanceMeters = 120.0;
+    double maxYawDeltaDeg = 85.0;
+    double maxGimbalPitchDeltaDeg = 50.0;
+    double maxCameraYawDeltaDeg = 85.0;
+    double maxCameraPitchDeltaDeg = 50.0;
+    double helperWaypointYawThresholdDeg = 45.0;
+};
+
+struct RouteQaReport
+{
+    QList<RouteQaIssue> issues;
+    int infoIssueCount = 0;
+    int warningIssueCount = 0;
+    int blockingIssueCount = 0;
+
+    bool hasBlockingIssues() const;
+    bool hasWarnings() const;
+};
+
 QString djiAircraftProfileDisplayName(DjiAircraftProfile profile);
 DjiAircraftProfileMapping djiAircraftProfileMapping(DjiAircraftProfile profile);
 QList<DjiAircraftProfile> supportedDjiAircraftProfiles();
+
+RouteQaThresholds defaultRouteQaThresholds();
+QString routeQaSeverityDisplayName(RouteQaSeverity severity);
+QString routeQaIssueTypeDisplayName(RouteQaIssueType issueType);
+RouteQaReport evaluatePowerlineRouteQa(
+    const PowerlineRouteDocument& route,
+    DjiAircraftProfile aircraftProfile,
+    const RouteQaThresholds& thresholds = defaultRouteQaThresholds());
 
 InspectionRoute generateInspectionRouteFromRisks(
     const QList<VegetationRiskRecord>& risks,

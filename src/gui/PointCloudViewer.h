@@ -20,6 +20,7 @@
 
 #include <osg/ref_ptr>
 #include <osg/Matrix>
+#include <osg/Vec3>
 #include <osgViewer/GraphicsWindow>
 #include <osgViewer/Viewer>
 
@@ -48,11 +49,18 @@ class Group;
 class Node;
 }
 
+namespace osgGA
+{
+class EventQueue;
+class CameraManipulator;
+}
+
 struct InteractionOptions
 {
     bool invertOrbitDrag = false;
     bool invertPanDrag = false;
     bool invertWheelZoom = false;
+    int wheelZoomSensitivityPercent = 100;
 };
 
 struct MeasurementResult
@@ -82,6 +90,7 @@ struct InspectionRouteDisplayData
     QStringList labels;
     QList<PointRecord> partPoints;
     QStringList partLabels;
+    QList<int> partPointIndices;
     QList<PointRecord> waypointTargetPoints;
     QList<bool> waypointHasTargetPoints;
     QList<double> waypointAircraftYawDegs;
@@ -89,12 +98,23 @@ struct InspectionRouteDisplayData
     QList<double> waypointCameraYawDegs;
     QList<double> waypointCameraPitchDegs;
     QStringList waypointTargetLabels;
+    QList<QList<PointRecord>> waypointAllTargetPoints;
+    QList<QList<int>> waypointAllTargetPartIndices;
+    QList<QList<double>> waypointAllCameraYawDegs;
+    QList<QList<double>> waypointAllCameraPitchDegs;
+    QList<QStringList> waypointAllTargetLabels;
 };
 
 enum class RouteLabelDisplayMode
 {
     Sequence = 0,
     Name
+};
+
+enum class RouteRoamViewMode
+{
+    FirstPerson = 0,
+    ThirdPerson
 };
 
 enum class TowerEditMode
@@ -225,6 +245,7 @@ public:
     int selectedTowerIndex() const;
     int selectedIssueIndex() const;
     int selectedInspectionRouteWaypointIndex() const;
+    int selectedInspectionRouteWaypointTargetIndex() const;
     TowerEditMode towerEditMode() const;
     int towerEditTargetIndex() const;
     IssueEditMode issueEditMode() const;
@@ -241,6 +262,11 @@ public:
     void setInspectionIssueVisible(int index, bool visible);
     bool inspectionRouteVisible() const;
     void setInspectionRouteVisible(bool visible);
+    bool inspectionRouteRoamActive() const;
+    bool inspectionRouteRoamPlaying() const;
+    bool inspectionRouteRoamPaused() const;
+    double inspectionRouteRoamSpeedMetersPerSecond() const;
+    RouteRoamViewMode inspectionRouteRoamViewMode() const;
     QColor inspectionRouteWaypointColor() const;
     QColor inspectionRoutePartPointColor() const;
     QColor inspectionRouteTrajectoryColor() const;
@@ -269,6 +295,7 @@ public slots:
     void setInvertOrbitDrag(bool invert);
     void setInvertPanDrag(bool invert);
     void setInvertWheelZoom(bool invert);
+    void setWheelZoomSensitivityPercent(int percent);
     void setMeasurementEnabled(bool enabled);
     void setProfileClassificationModeEnabled(bool enabled);
     void setProfileClassificationSourceClasses(const QSet<int>& classifications);
@@ -310,6 +337,15 @@ public slots:
     void setInspectionRouteTrajectoryColor(const QColor& color);
     void clearInspectionRouteWaypoints();
     void setSelectedInspectionRouteWaypointIndex(int index);
+    void setSelectedInspectionRouteWaypointTargetIndex(int index);
+    bool inspectionRouteEditingEnabled() const;
+    void setInspectionRouteEditingEnabled(bool enabled);
+    void setInspectionRouteRoamSpeedMetersPerSecond(double speedMetersPerSecond);
+    void setInspectionRouteRoamViewMode(RouteRoamViewMode mode);
+    void startInspectionRouteRoam(int startWaypointIndex = -1);
+    void pauseInspectionRouteRoam();
+    void resumeInspectionRouteRoam();
+    void stopInspectionRouteRoam(bool restoreManualView = false);
     void beginIssueAddMode();
     void cancelIssueEditMode();
 
@@ -339,6 +375,8 @@ signals:
     void selectedInspectionRouteWaypointChanged(int index);
     void inspectionRouteWaypointDoubleClicked(int index);
     void inspectionRouteWaypointDragFinished(int index, const PointRecord& point);
+    void inspectionRouteRoamStateChanged();
+    void inspectionRouteRoamPhotoCaptured(int waypointIndex, int targetIndex, const QString& targetLabel, int captureCount);
 
 private:
     void changeEvent(QEvent* event) override;
@@ -427,12 +465,29 @@ private:
     void updateInspectionIssueOverlayWidgets();
     void updateInspectionRouteOverlayWidgets();
     void updateRouteCameraPreviewOverlay();
+    void updateInspectionRouteRoam();
     void updateSceneClickCapture();
     void updateAxisIndicator();
     void positionAxisIndicator();
     void positionRouteCameraPreviewOverlay();
     QString inspectionRouteWaypointLabelText(int index) const;
     QString inspectionRoutePartLabelText(int index) const;
+    int normalizeInspectionRouteWaypointTargetIndex(int waypointIndex, int targetIndex) const;
+    void routeRoamUpdateSelectionState(int waypointIndex);
+    void routeRoamTriggerPhotoCapture(int waypointIndex, int targetIndex);
+    bool routeRoamComputeWaypointPose(
+        int waypointIndex,
+        const QList<PointRecord>& waypoints,
+        osg::Vec3d* position,
+        osg::Vec3d* forward,
+        osg::Vec3d* up) const;
+    bool routeRoamApplyPose(
+        const osg::Vec3d& position,
+        const osg::Vec3d& forward,
+        const osg::Vec3d& up);
+    void routeRoamCaptureManualView();
+    void routeRoamRestoreManualView();
+    void routeRoamStopInternal(bool restoreManualView);
     void positionOverlayLabel(QLabel* label, const QPointF& anchor, const QPoint& offset) const;
     void setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent);
     void updateWelcomeOverlayVisibility();
@@ -490,6 +545,7 @@ private:
     QStringList inspectionRouteLabels_;
     QList<PointRecord> inspectionRoutePartPoints_;
     QStringList inspectionRoutePartLabels_;
+    QList<int> inspectionRoutePartPointIndices_;
     QList<PointRecord> inspectionRouteWaypointTargetPoints_;
     QList<bool> inspectionRouteWaypointHasTargetPoints_;
     QList<double> inspectionRouteWaypointAircraftYawDegs_;
@@ -497,8 +553,37 @@ private:
     QList<double> inspectionRouteWaypointCameraYawDegs_;
     QList<double> inspectionRouteWaypointCameraPitchDegs_;
     QStringList inspectionRouteWaypointTargetLabels_;
+    QList<QList<PointRecord>> inspectionRouteWaypointAllTargetPoints_;
+    QList<QList<int>> inspectionRouteWaypointAllTargetPartIndices_;
+    QList<QList<double>> inspectionRouteWaypointAllCameraYawDegs_;
+    QList<QList<double>> inspectionRouteWaypointAllCameraPitchDegs_;
+    QList<QStringList> inspectionRouteWaypointAllTargetLabels_;
     QSet<int> hiddenInspectionIssueIndices_;
     bool inspectionRouteVisible_ = true;
+    bool inspectionRouteEditingEnabled_ = false;
+    QTimer* routeRoamTimer_ = nullptr;
+    enum class InspectionRouteRoamPlaybackState
+    {
+        Stopped = 0,
+        Playing,
+        Paused
+    };
+    InspectionRouteRoamPlaybackState inspectionRouteRoamPlaybackState_ = InspectionRouteRoamPlaybackState::Stopped;
+    RouteRoamViewMode inspectionRouteRoamViewMode_ = RouteRoamViewMode::ThirdPerson;
+    double inspectionRouteRoamSpeedMetersPerSecond_ = 6.0;
+    int inspectionRouteRoamCurrentSegmentIndex_ = 0;
+    double inspectionRouteRoamSegmentProgressMeters_ = 0.0;
+    bool inspectionRouteRoamDwelling_ = false;
+    double inspectionRouteRoamDwellRemainingSeconds_ = 0.0;
+    int inspectionRouteRoamLastCaptureWaypointIndex_ = -1;
+    int inspectionRouteRoamCaptureCount_ = 0;
+    double inspectionRouteRoamCaptureFlashRemainingSeconds_ = 0.0;
+    std::chrono::steady_clock::time_point inspectionRouteRoamLastUpdateTime_ {};
+    bool inspectionRouteRoamManualViewCaptured_ = false;
+    osg::Vec3d inspectionRouteRoamSavedEye_;
+    osg::Vec3d inspectionRouteRoamSavedCenter_;
+    osg::Vec3d inspectionRouteRoamSavedUp_;
+    osg::ref_ptr<osgGA::CameraManipulator> inspectionRouteRoamSavedManipulator_;
     RouteLabelDisplayMode routeWaypointLabelDisplayMode_ = RouteLabelDisplayMode::Name;
     RouteLabelDisplayMode routePartLabelDisplayMode_ = RouteLabelDisplayMode::Name;
     QColor inspectionRouteWaypointColor_ = QColor(38, 189, 245);
@@ -507,6 +592,7 @@ private:
     int selectedTowerIndex_ = -1;
     int selectedIssueIndex_ = -1;
     int selectedInspectionRouteWaypointIndex_ = -1;
+    int selectedInspectionRouteWaypointTargetIndex_ = -1;
     TowerEditMode towerEditMode_ = TowerEditMode::None;
     int towerEditTargetIndex_ = -1;
     int towerAddModeStartCount_ = 0;

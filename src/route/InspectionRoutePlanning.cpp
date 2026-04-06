@@ -1,5 +1,6 @@
 #include "route/InspectionRoutePlanning.h"
 
+#include <QHash>
 #include <QPointF>
 #include <QCoreApplication>
 
@@ -49,6 +50,112 @@ float nearestTowerDistance(const PointRecord& point, const QList<TowerRecord>& t
         minDistance = std::min(minDistance, distance3d(point, tower.point));
     }
     return minDistance;
+}
+
+bool hasMeaningfulPoint(const PointRecord& point)
+{
+    return !qFuzzyIsNull(static_cast<double>(point.x))
+        || !qFuzzyIsNull(static_cast<double>(point.y))
+        || !qFuzzyIsNull(static_cast<double>(point.z));
+}
+
+double wrappedAngleDeltaDeg(double leftDeg, double rightDeg)
+{
+    double delta = std::fmod(rightDeg - leftDeg, 360.0);
+    if (delta > 180.0) {
+        delta -= 360.0;
+    } else if (delta < -180.0) {
+        delta += 360.0;
+    }
+    return std::abs(delta);
+}
+
+double maxWaypointSpeedForProfile(DjiAircraftProfile profile)
+{
+    switch (profile) {
+    case DjiAircraftProfile::M3ESeries:
+        return 12.0;
+    case DjiAircraftProfile::M300Series:
+        return 17.0;
+    case DjiAircraftProfile::M30Series:
+    default:
+        return 15.0;
+    }
+}
+
+bool resolveTargetPoint(
+    const RouteCaptureTarget& target,
+    const QHash<int, RoutePartPoint>& partPointByIndex,
+    PointRecord* outputPoint)
+{
+    if (outputPoint == nullptr) {
+        return false;
+    }
+
+    if (target.partIndex > 0 && partPointByIndex.contains(target.partIndex)) {
+        *outputPoint = partPointByIndex.value(target.partIndex).localPoint;
+        return true;
+    }
+
+    if (hasMeaningfulPoint(target.targetLocalPoint)) {
+        *outputPoint = target.targetLocalPoint;
+        return true;
+    }
+
+    return false;
+}
+
+int routeQaSeverityRank(RouteQaSeverity severity)
+{
+    switch (severity) {
+    case RouteQaSeverity::Blocking:
+        return 3;
+    case RouteQaSeverity::Warning:
+        return 2;
+    case RouteQaSeverity::Info:
+    default:
+        return 1;
+    }
+}
+
+void appendRouteQaIssue(
+    RouteQaReport* report,
+    RouteQaSeverity severity,
+    RouteQaIssueType issueType,
+    int waypointIndex,
+    int relatedWaypointIndex,
+    int partIndex,
+    int targetIndex,
+    const QString& message,
+    const QString& detail)
+{
+    if (report == nullptr) {
+        return;
+    }
+
+    RouteQaIssue issue;
+    issue.severity = severity;
+    issue.type = issueType;
+    issue.waypointIndex = waypointIndex;
+    issue.relatedWaypointIndex = relatedWaypointIndex;
+    issue.partIndex = partIndex;
+    issue.targetIndex = targetIndex;
+    issue.message = message;
+    issue.detail = detail;
+    report->issues.append(issue);
+
+    switch (severity) {
+    case RouteQaSeverity::Blocking:
+        ++report->blockingIssueCount;
+        break;
+    case RouteQaSeverity::Warning:
+        ++report->warningIssueCount;
+        break;
+    case RouteQaSeverity::Info:
+    default:
+        ++report->infoIssueCount;
+        break;
+    }
 }
 
 QList<RouteSamplePoint> smoothPolyline(const QList<RouteSamplePoint>& points, float smoothingStrengthPercent)
@@ -277,6 +384,344 @@ DjiAircraftProfileMapping djiAircraftProfileMapping(DjiAircraftProfile profile)
 QList<DjiAircraftProfile> supportedDjiAircraftProfiles()
 {
     return { DjiAircraftProfile::M30Series, DjiAircraftProfile::M3ESeries, DjiAircraftProfile::M300Series };
+}
+
+bool RouteQaReport::hasBlockingIssues() const
+{
+    return blockingIssueCount > 0;
+}
+
+bool RouteQaReport::hasWarnings() const
+{
+    return warningIssueCount > 0;
+}
+
+RouteQaThresholds defaultRouteQaThresholds()
+{
+    return RouteQaThresholds();
+}
+
+QString routeQaSeverityDisplayName(RouteQaSeverity severity)
+{
+    switch (severity) {
+    case RouteQaSeverity::Blocking:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Blocking");
+    case RouteQaSeverity::Warning:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Warning");
+    case RouteQaSeverity::Info:
+    default:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Info");
+    }
+}
+
+QString routeQaIssueTypeDisplayName(RouteQaIssueType issueType)
+{
+    switch (issueType) {
+    case RouteQaIssueType::WaypointCountInsufficient:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Waypoint Count");
+    case RouteQaIssueType::WaypointSpacingTooSmall:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Spacing Too Small");
+    case RouteQaIssueType::WaypointSpacingTooLarge:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Spacing Too Large");
+    case RouteQaIssueType::TargetDistanceTooNear:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Target Too Near");
+    case RouteQaIssueType::TargetDistanceTooFar:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Target Too Far");
+    case RouteQaIssueType::AttitudeJumpTooLarge:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Attitude Jump");
+    case RouteQaIssueType::HelperWaypointMissing:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Helper Waypoint");
+    case RouteQaIssueType::MissingPartCoverage:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Missing Coverage");
+    case RouteQaIssueType::DuplicatePartCoverage:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Duplicate Coverage");
+    case RouteQaIssueType::UnsupportedActionCombination:
+    default:
+        return QCoreApplication::translate("InspectionRoutePlanning", "Unsupported Combination");
+    }
+}
+
+RouteQaReport evaluatePowerlineRouteQa(
+    const PowerlineRouteDocument& route,
+    DjiAircraftProfile aircraftProfile,
+    const RouteQaThresholds& thresholds)
+{
+    RouteQaReport report;
+
+    if (route.waypoints.size() < 2) {
+        appendRouteQaIssue(
+            &report,
+            RouteQaSeverity::Blocking,
+            RouteQaIssueType::WaypointCountInsufficient,
+            -1,
+            -1,
+            -1,
+            -1,
+            QCoreApplication::translate("InspectionRoutePlanning", "Route has fewer than 2 waypoints."),
+            QCoreApplication::translate("InspectionRoutePlanning", "DJI KMZ export requires at least 2 waypoints."));
+    }
+
+    const double maxWaypointSpeed = maxWaypointSpeedForProfile(aircraftProfile);
+    QHash<int, RoutePartPoint> partPointByIndex;
+    QHash<int, int> partCoverageCount;
+    partCoverageCount.reserve(route.partPoints.size());
+    for (const RoutePartPoint& partPoint : route.partPoints) {
+        if (partPoint.partIndex > 0) {
+            partPointByIndex.insert(partPoint.partIndex, partPoint);
+            partCoverageCount.insert(partPoint.partIndex, 0);
+        }
+    }
+
+    for (int waypointIndex = 0; waypointIndex < route.waypoints.size(); ++waypointIndex) {
+        const RouteWaypoint& waypoint = route.waypoints.at(waypointIndex);
+        if (waypoint.waypointSpeed > maxWaypointSpeed + 0.01) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Blocking,
+                RouteQaIssueType::UnsupportedActionCombination,
+                waypointIndex,
+                -1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint speed exceeds aircraft profile limit."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 speed %2 m/s exceeds %3 m/s.")
+                    .arg(QString::number(waypointIndex + 1), QString::number(waypoint.waypointSpeed, 'f', 2), QString::number(maxWaypointSpeed, 'f', 2)));
+        }
+
+        if (waypoint.gimbalPitchDeg < -120.0 || waypoint.gimbalPitchDeg > 30.0) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Blocking,
+                RouteQaIssueType::UnsupportedActionCombination,
+                waypointIndex,
+                -1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Gimbal pitch is outside supported range."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 gimbal pitch %2 deg is outside [-120, 30].")
+                    .arg(QString::number(waypointIndex + 1), QString::number(waypoint.gimbalPitchDeg, 'f', 2)));
+        }
+
+        if (waypoint.captureTargets.isEmpty() && !waypoint.isHelperWaypoint) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Warning,
+                RouteQaIssueType::MissingPartCoverage,
+                waypointIndex,
+                -1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint has no capture targets."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 is not helper type but has no capture target.")
+                    .arg(QString::number(waypointIndex + 1)));
+        }
+
+        for (int targetIndex = 0; targetIndex < waypoint.captureTargets.size(); ++targetIndex) {
+            const RouteCaptureTarget& captureTarget = waypoint.captureTargets.at(targetIndex);
+
+            if (captureTarget.partIndex > 0) {
+                const int previousCount = partCoverageCount.value(captureTarget.partIndex, 0);
+                partCoverageCount.insert(captureTarget.partIndex, previousCount + 1);
+            }
+
+            if (captureTarget.cameraPitchDeg < -90.0 || captureTarget.cameraPitchDeg > 90.0) {
+                appendRouteQaIssue(
+                    &report,
+                    RouteQaSeverity::Warning,
+                    RouteQaIssueType::UnsupportedActionCombination,
+                    waypointIndex,
+                    -1,
+                    captureTarget.partIndex,
+                    targetIndex,
+                    QCoreApplication::translate("InspectionRoutePlanning", "Camera pitch is outside recommended range."),
+                    QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 target %2 camera pitch %3 deg is outside [-90, 90].")
+                        .arg(QString::number(waypointIndex + 1), QString::number(targetIndex + 1), QString::number(captureTarget.cameraPitchDeg, 'f', 2)));
+            }
+
+            PointRecord targetPoint;
+            if (!resolveTargetPoint(captureTarget, partPointByIndex, &targetPoint)) {
+                continue;
+            }
+
+            const double targetDistance = static_cast<double>(distance3d(waypoint.localPoint, targetPoint));
+            if (targetDistance < thresholds.minTargetDistanceMeters) {
+                appendRouteQaIssue(
+                    &report,
+                    RouteQaSeverity::Warning,
+                    RouteQaIssueType::TargetDistanceTooNear,
+                    waypointIndex,
+                    -1,
+                    captureTarget.partIndex,
+                    targetIndex,
+                    QCoreApplication::translate("InspectionRoutePlanning", "Waypoint is too close to capture target."),
+                    QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 target %2 distance %3 m is below %4 m.")
+                        .arg(
+                            QString::number(waypointIndex + 1),
+                            QString::number(targetIndex + 1),
+                            QString::number(targetDistance, 'f', 2),
+                            QString::number(thresholds.minTargetDistanceMeters, 'f', 2)));
+            } else if (targetDistance > thresholds.maxTargetDistanceMeters) {
+                appendRouteQaIssue(
+                    &report,
+                    RouteQaSeverity::Warning,
+                    RouteQaIssueType::TargetDistanceTooFar,
+                    waypointIndex,
+                    -1,
+                    captureTarget.partIndex,
+                    targetIndex,
+                    QCoreApplication::translate("InspectionRoutePlanning", "Waypoint is too far from capture target."),
+                    QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 target %2 distance %3 m exceeds %4 m.")
+                        .arg(
+                            QString::number(waypointIndex + 1),
+                            QString::number(targetIndex + 1),
+                            QString::number(targetDistance, 'f', 2),
+                            QString::number(thresholds.maxTargetDistanceMeters, 'f', 2)));
+            }
+        }
+    }
+
+    for (int waypointIndex = 1; waypointIndex < route.waypoints.size(); ++waypointIndex) {
+        const RouteWaypoint& previousWaypoint = route.waypoints.at(waypointIndex - 1);
+        const RouteWaypoint& currentWaypoint = route.waypoints.at(waypointIndex);
+        const double spacingMeters = static_cast<double>(distance3d(previousWaypoint.localPoint, currentWaypoint.localPoint));
+        if (spacingMeters < thresholds.minWaypointSpacingMeters) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Blocking,
+                RouteQaIssueType::WaypointSpacingTooSmall,
+                waypointIndex,
+                waypointIndex - 1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Adjacent waypoints are too close."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 -> %2 spacing %3 m is below %4 m.")
+                    .arg(
+                        QString::number(waypointIndex),
+                        QString::number(waypointIndex + 1),
+                        QString::number(spacingMeters, 'f', 2),
+                        QString::number(thresholds.minWaypointSpacingMeters, 'f', 2)));
+        } else if (spacingMeters > thresholds.maxWaypointSpacingMeters) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Warning,
+                RouteQaIssueType::WaypointSpacingTooLarge,
+                waypointIndex,
+                waypointIndex - 1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Adjacent waypoints are too far apart."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 -> %2 spacing %3 m exceeds %4 m.")
+                    .arg(
+                        QString::number(waypointIndex),
+                        QString::number(waypointIndex + 1),
+                        QString::number(spacingMeters, 'f', 2),
+                        QString::number(thresholds.maxWaypointSpacingMeters, 'f', 2)));
+        }
+
+        const RouteCaptureTarget previousTarget = previousWaypoint.captureTargets.isEmpty()
+            ? RouteCaptureTarget()
+            : previousWaypoint.captureTargets.first();
+        const RouteCaptureTarget currentTarget = currentWaypoint.captureTargets.isEmpty()
+            ? RouteCaptureTarget()
+            : currentWaypoint.captureTargets.first();
+
+        const double yawDelta = wrappedAngleDeltaDeg(previousWaypoint.aircraftYawDeg, currentWaypoint.aircraftYawDeg);
+        const double gimbalPitchDelta = std::abs(currentWaypoint.gimbalPitchDeg - previousWaypoint.gimbalPitchDeg);
+        const double cameraYawDelta = wrappedAngleDeltaDeg(previousTarget.cameraYawDeg, currentTarget.cameraYawDeg);
+        const double cameraPitchDelta = std::abs(currentTarget.cameraPitchDeg - previousTarget.cameraPitchDeg);
+        if (yawDelta > thresholds.maxYawDeltaDeg
+            || gimbalPitchDelta > thresholds.maxGimbalPitchDeltaDeg
+            || cameraYawDelta > thresholds.maxCameraYawDeltaDeg
+            || cameraPitchDelta > thresholds.maxCameraPitchDeltaDeg) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Warning,
+                RouteQaIssueType::AttitudeJumpTooLarge,
+                waypointIndex,
+                waypointIndex - 1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Attitude jump between adjacent waypoints is too large."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Yaw %1 deg, gimbal %2 deg, camera yaw %3 deg, camera pitch %4 deg.")
+                    .arg(
+                        QString::number(yawDelta, 'f', 2),
+                        QString::number(gimbalPitchDelta, 'f', 2),
+                        QString::number(cameraYawDelta, 'f', 2),
+                        QString::number(cameraPitchDelta, 'f', 2)));
+        }
+
+        if (yawDelta >= thresholds.helperWaypointYawThresholdDeg
+            && !previousWaypoint.isHelperWaypoint
+            && !currentWaypoint.isHelperWaypoint) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Warning,
+                RouteQaIssueType::HelperWaypointMissing,
+                waypointIndex,
+                waypointIndex - 1,
+                -1,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Large heading change without helper waypoint."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Waypoint %1 -> %2 yaw delta %3 deg. Consider adding helper waypoint.")
+                    .arg(
+                        QString::number(waypointIndex),
+                        QString::number(waypointIndex + 1),
+                        QString::number(yawDelta, 'f', 2)));
+        }
+    }
+
+    for (const RoutePartPoint& partPoint : route.partPoints) {
+        if (partPoint.partIndex <= 0 || !partPoint.isUsed) {
+            continue;
+        }
+
+        const int coverageCount = partCoverageCount.value(partPoint.partIndex, 0);
+        if (coverageCount <= 0) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Blocking,
+                RouteQaIssueType::MissingPartCoverage,
+                -1,
+                -1,
+                partPoint.partIndex,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Part point is not covered by any waypoint target."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Part %1 has no linked capture target.")
+                    .arg(QString::number(partPoint.partIndex)));
+        } else if (coverageCount > 3) {
+            appendRouteQaIssue(
+                &report,
+                RouteQaSeverity::Warning,
+                RouteQaIssueType::DuplicatePartCoverage,
+                -1,
+                -1,
+                partPoint.partIndex,
+                -1,
+                QCoreApplication::translate("InspectionRoutePlanning", "Part point is captured too many times."),
+                QCoreApplication::translate("InspectionRoutePlanning", "Part %1 is linked by %2 capture targets.")
+                    .arg(QString::number(partPoint.partIndex), QString::number(coverageCount)));
+        }
+    }
+
+    std::sort(report.issues.begin(), report.issues.end(), [](const RouteQaIssue& left, const RouteQaIssue& right) {
+        const int leftRank = routeQaSeverityRank(left.severity);
+        const int rightRank = routeQaSeverityRank(right.severity);
+        if (leftRank != rightRank) {
+            return leftRank > rightRank;
+        }
+        if (left.waypointIndex != right.waypointIndex) {
+            return left.waypointIndex < right.waypointIndex;
+        }
+        if (left.partIndex != right.partIndex) {
+            return left.partIndex < right.partIndex;
+        }
+        if (left.targetIndex != right.targetIndex) {
+            return left.targetIndex < right.targetIndex;
+        }
+        return static_cast<int>(left.type) < static_cast<int>(right.type);
+    });
+
+    return report;
 }
 
 InspectionRoute generateInspectionRouteFromRisks(
