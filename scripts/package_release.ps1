@@ -80,7 +80,7 @@ $rootFiles = @(
     "osg.dll",
     "osgDB.dll",
     "osgGA.dll",
-    "osgtext.dll",
+    "osgText.dll",
     "osgUtil.dll",
     "osgViewer.dll",
     "Qt5Core.dll",
@@ -93,7 +93,14 @@ $rootFiles = @(
     "libEGL.dll",
     "libGLESv2.dll",
     "opengl32sw.dll",
-    "zlib.dll"
+    "zlib.dll",
+    "proj_9.dll",
+    "sqlite3.dll",
+    "tiff.dll",
+    "zstd.dll",
+    "libcurl.dll",
+    "libcrypto-3-x64.dll",
+    "libssl-3-x64.dll"
 )
 
 foreach ($fileName in $rootFiles) {
@@ -105,7 +112,8 @@ $runtimeDirectories = @(
     "styles",
     "imageformats",
     "iconengines",
-    "translations"
+    "translations",
+    "proj9"
 )
 
 foreach ($directoryName in $runtimeDirectories) {

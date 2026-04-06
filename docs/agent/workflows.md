@@ -87,7 +87,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 
 ### 打包脚本
 ```powershell
-.\scripts\package_release.ps1 -Version v1.0.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
+.\scripts\package_release.ps1 -Version v1.1.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
 ```
 
 ### 发布说明

@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     QApplication app(argc, argv);
 
     QApplication::setApplicationName("LAS Point Cloud Viewer");
-    QApplication::setApplicationVersion("1.0.0");
+    QApplication::setApplicationVersion("1.1.0");
     QApplication::setOrganizationName("VibeCodingProject");
 
     QFont appFont(QStringLiteral("Segoe UI"), 9);
