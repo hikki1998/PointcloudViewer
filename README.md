@@ -39,7 +39,23 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
-.\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
+```
+
+统一 Smoke Test 支持按模式和类别切换：
+
+```powershell
+# 查看帮助
+.\out\build\bin\Release\LASViewerSmokeTest.exe --help
+
+# 按模式执行（示例：相机漫游状态机回归）
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
+
+# 按类别执行（示例：全部航线相关 smoke）
+.\out\build\bin\Release\LASViewerSmokeTest.exe --category route --las .\test_data\ezhou_powerline_sample.las
+
+# 执行全部 smoke
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode all --las .\test_data\ezhou_powerline_sample.las
 ```
 
 ## 发布打包
@@ -95,7 +111,8 @@ GitHub Release 建议流程：
 
 ```powershell
 cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
-.\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
 ```
 
 ## 测试数据

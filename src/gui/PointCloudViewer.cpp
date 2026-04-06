@@ -37,7 +37,10 @@
 #include <osg/LineStipple>
 #include <osg/LineWidth>
 #include <osg/Matrix>
+#include <osg/MatrixTransform>
 #include <osg/Point>
+#include <osg/Shape>
+#include <osg/ShapeDrawable>
 #include <osg/StateSet>
 #include <osg/Vec4>
 #include <osg/Viewport>
@@ -686,6 +689,26 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(
     stateSet->setAttributeAndModes(new osg::LineWidth(2.6f), osg::StateAttribute::ON);
     applyMeasurementForegroundState(stateSet);
     return geode;
+}
+
+osg::ref_ptr<osg::Node> buildInspectionRouteRoamTrackerNode(
+    const osg::Vec3d& position,
+    const osg::Vec4& color)
+{
+    osg::ref_ptr<osg::Sphere> sphere = new osg::Sphere(osg::Vec3(0.0f, 0.0f, 0.0f), 1.2f);
+    osg::ref_ptr<osg::ShapeDrawable> sphereDrawable = new osg::ShapeDrawable(sphere.get());
+    sphereDrawable->setColor(color);
+
+    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+    geode->addDrawable(sphereDrawable.get());
+
+    osg::StateSet* stateSet = geode->getOrCreateStateSet();
+    applyMeasurementForegroundState(stateSet);
+
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
+    transform->setMatrix(osg::Matrixd::translate(position));
+    transform->addChild(geode.get());
+    return transform;
 }
 
 osg::ref_ptr<osg::Geode> buildInspectionRouteWaypointPartLinksGeode(
@@ -3657,8 +3680,10 @@ void PointCloudViewer::setInspectionRouteRoamViewMode(RouteRoamViewMode mode)
     }
 
     inspectionRouteRoamViewMode_ = mode;
+    inspectionRouteRoamThirdPersonFollowInitialized_ = false;
     if (inspectionRouteRoamActive()) {
         updateInspectionRouteRoam();
+        refreshInspectionRouteOverlay();
     }
     updateFooter();
     emit inspectionRouteRoamStateChanged();
@@ -3676,6 +3701,8 @@ void PointCloudViewer::startInspectionRouteRoam(int startWaypointIndex)
     inspectionRouteRoamLastCaptureWaypointIndex_ = -1;
     inspectionRouteRoamCaptureCount_ = 0;
     inspectionRouteRoamCaptureFlashRemainingSeconds_ = 0.0;
+    inspectionRouteRoamCurrentPositionValid_ = false;
+    inspectionRouteRoamThirdPersonFollowInitialized_ = false;
 
     if (inspectionRouteWaypoints_.size() == 1) {
         inspectionRouteRoamCurrentSegmentIndex_ = 0;
@@ -5110,6 +5137,17 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         overlay->addChild(routePointsGeode.get());
     }
 
+    if (inspectionRouteRoamActive()
+        && inspectionRouteRoamViewMode_ == RouteRoamViewMode::ThirdPerson
+        && inspectionRouteRoamCurrentPositionValid_) {
+        osg::ref_ptr<osg::Node> routeRoamTrackerNode = buildInspectionRouteRoamTrackerNode(
+            inspectionRouteRoamCurrentPosition_,
+            osg::Vec4(0.96f, 0.18f, 0.86f, 0.98f));
+        if (routeRoamTrackerNode.valid()) {
+            overlay->addChild(routeRoamTrackerNode.get());
+        }
+    }
+
     return overlay->getNumChildren() > 0 ? overlay.release() : nullptr;
 }
 
@@ -6063,7 +6101,11 @@ void PointCloudViewer::updateInspectionRouteRoam()
     }
 
     int poseWaypointIndex = std::clamp(inspectionRouteRoamCurrentSegmentIndex_, 0, waypointCount - 1);
-    PointRecord currentPositionPoint = inspectionRouteWaypoints_.at(poseWaypointIndex);
+    const PointRecord& poseWaypoint = inspectionRouteWaypoints_.at(poseWaypointIndex);
+    osg::Vec3d interpolatedPosition(
+        static_cast<double>(poseWaypoint.x),
+        static_cast<double>(poseWaypoint.y),
+        static_cast<double>(poseWaypoint.z));
     double orientationBlendFactor = 0.0;
     if (inspectionRouteRoamCurrentSegmentIndex_ < waypointCount - 1) {
         const PointRecord& segmentStart = inspectionRouteWaypoints_.at(inspectionRouteRoamCurrentSegmentIndex_);
@@ -6072,12 +6114,13 @@ void PointCloudViewer::updateInspectionRouteRoam()
         if (segmentLength > 0.0001) {
             const double t = std::clamp(inspectionRouteRoamSegmentProgressMeters_ / segmentLength, 0.0, 1.0);
             orientationBlendFactor = t;
-            currentPositionPoint.x = static_cast<float>(
-                static_cast<double>(segmentStart.x) + (static_cast<double>(segmentEnd.x) - static_cast<double>(segmentStart.x)) * t);
-            currentPositionPoint.y = static_cast<float>(
-                static_cast<double>(segmentStart.y) + (static_cast<double>(segmentEnd.y) - static_cast<double>(segmentStart.y)) * t);
-            currentPositionPoint.z = static_cast<float>(
-                static_cast<double>(segmentStart.z) + (static_cast<double>(segmentEnd.z) - static_cast<double>(segmentStart.z)) * t);
+            interpolatedPosition.set(
+                static_cast<double>(segmentStart.x)
+                    + (static_cast<double>(segmentEnd.x) - static_cast<double>(segmentStart.x)) * t,
+                static_cast<double>(segmentStart.y)
+                    + (static_cast<double>(segmentEnd.y) - static_cast<double>(segmentStart.y)) * t,
+                static_cast<double>(segmentStart.z)
+                    + (static_cast<double>(segmentEnd.z) - static_cast<double>(segmentStart.z)) * t);
         }
     }
 
@@ -6088,43 +6131,66 @@ void PointCloudViewer::updateInspectionRouteRoam()
         return;
     }
     if (inspectionRouteRoamCurrentSegmentIndex_ < waypointCount - 1 && orientationBlendFactor > 0.0001) {
-        osg::Vec3d nextWaypointPosition;
-        osg::Vec3d nextForward;
-        osg::Vec3d nextUp;
-        if (routeRoamComputeWaypointPose(
-                inspectionRouteRoamCurrentSegmentIndex_ + 1,
-                inspectionRouteWaypoints_,
-                &nextWaypointPosition,
-                &nextForward,
-                &nextUp)) {
-            const double blend = std::clamp(orientationBlendFactor, 0.0, 1.0);
-            osg::Vec3d blendedForward = forward * (1.0 - blend) + nextForward * blend;
-            if (blendedForward.length2() > 0.000001) {
-                blendedForward.normalize();
-                forward = blendedForward;
-            }
+        if (inspectionRouteRoamViewMode_ == RouteRoamViewMode::ThirdPerson) {
+            osg::Vec3d nextWaypointPosition;
+            osg::Vec3d nextForward;
+            osg::Vec3d nextUp;
+            if (routeRoamComputeWaypointPose(
+                    inspectionRouteRoamCurrentSegmentIndex_ + 1,
+                    inspectionRouteWaypoints_,
+                    &nextWaypointPosition,
+                    &nextForward,
+                    &nextUp)) {
+                const double blend = std::clamp(orientationBlendFactor, 0.0, 1.0);
+                osg::Vec3d blendedForward = forward * (1.0 - blend) + nextForward * blend;
+                if (blendedForward.length2() > 0.000001) {
+                    blendedForward.normalize();
+                    forward = blendedForward;
+                }
 
-            osg::Vec3d blendedUp = up * (1.0 - blend) + nextUp * blend;
-            if (blendedUp.length2() > 0.000001) {
-                blendedUp.normalize();
-                up = blendedUp;
-            } else {
-                up = osg::Vec3d(0.0, 0.0, 1.0);
-            }
+                osg::Vec3d blendedUp = up * (1.0 - blend) + nextUp * blend;
+                if (blendedUp.length2() > 0.000001) {
+                    blendedUp.normalize();
+                    up = blendedUp;
+                } else {
+                    up = osg::Vec3d(0.0, 0.0, 1.0);
+                }
 
-            osg::Vec3d right = forward ^ up;
-            if (right.length2() > 0.000001) {
-                right.normalize();
-                up = right ^ forward;
-                up.normalize();
+                osg::Vec3d right = forward ^ up;
+                if (right.length2() > 0.000001) {
+                    right.normalize();
+                    up = right ^ forward;
+                    up.normalize();
+                }
             }
         }
     }
 
-    const osg::Vec3d interpolatedPosition(
-        static_cast<double>(currentPositionPoint.x),
-        static_cast<double>(currentPositionPoint.y),
-        static_cast<double>(currentPositionPoint.z));
+    if (inspectionRouteRoamViewMode_ == RouteRoamViewMode::FirstPerson
+        && !inspectionRouteRoamDwelling_
+        && inspectionRouteRoamCurrentSegmentIndex_ < waypointCount - 1) {
+        const PointRecord& segmentStart = inspectionRouteWaypoints_.at(inspectionRouteRoamCurrentSegmentIndex_);
+        const PointRecord& segmentEnd = inspectionRouteWaypoints_.at(inspectionRouteRoamCurrentSegmentIndex_ + 1);
+        osg::Vec3d segmentForward(
+            static_cast<double>(segmentEnd.x - segmentStart.x),
+            static_cast<double>(segmentEnd.y - segmentStart.y),
+            static_cast<double>(segmentEnd.z - segmentStart.z));
+        if (segmentForward.length2() > 0.000001) {
+            segmentForward.normalize();
+            forward = segmentForward;
+
+            osg::Vec3d worldUp(0.0, 0.0, 1.0);
+            osg::Vec3d right = forward ^ worldUp;
+            if (right.length2() <= 0.000001) {
+                worldUp = osg::Vec3d(0.0, 1.0, 0.0);
+                right = forward ^ worldUp;
+            }
+            right.normalize();
+            up = right ^ forward;
+            up.normalize();
+        }
+    }
+
     routeRoamApplyPose(interpolatedPosition, forward, up);
 }
 
@@ -6278,21 +6344,50 @@ bool PointCloudViewer::routeRoamApplyPose(
 
     osgGA::CameraManipulator* manipulator = viewer->getCameraManipulator();
 
-    osg::Vec3d eye;
-    osg::Vec3d center;
+    const bool positionChanged = !inspectionRouteRoamCurrentPositionValid_
+        || (position - inspectionRouteRoamCurrentPosition_).length2() > 0.000001;
+    inspectionRouteRoamCurrentPosition_ = position;
+    inspectionRouteRoamCurrentPositionValid_ = true;
+
     if (inspectionRouteRoamViewMode_ == RouteRoamViewMode::FirstPerson) {
-        eye = position;
-        center = position + forward * kRouteRoamFirstPersonLookAheadMeters;
+        inspectionRouteRoamThirdPersonFollowInitialized_ = false;
+        const osg::Vec3d eye = position;
+        const osg::Vec3d center = position + forward * kRouteRoamFirstPersonLookAheadMeters;
+        if (auto* trackball = dynamic_cast<osgGA::TrackballManipulator*>(manipulator)) {
+            trackball->setTransformation(eye, center, up);
+        } else {
+            manipulator->setHomePosition(eye, center, up, false);
+            manipulator->home(0.0);
+        }
     } else {
-        eye = position - forward * kRouteRoamThirdPersonDistanceMeters + up * kRouteRoamThirdPersonHeightMeters;
-        center = position + forward * kRouteRoamThirdPersonLookAheadMeters;
+        if (auto* trackball = dynamic_cast<osgGA::TrackballManipulator*>(manipulator)) {
+            if (!inspectionRouteRoamThirdPersonFollowInitialized_) {
+                const osg::Vec3d eye = position - forward * kRouteRoamThirdPersonDistanceMeters + up * kRouteRoamThirdPersonHeightMeters;
+                const osg::Vec3d center = position + forward * kRouteRoamThirdPersonLookAheadMeters;
+                trackball->setTransformation(eye, center, up);
+                inspectionRouteRoamThirdPersonFollowInitialized_ = true;
+                inspectionRouteRoamLastFollowPosition_ = position;
+            } else {
+                osg::Vec3d currentEye;
+                osg::Vec3d currentCenter;
+                osg::Vec3d currentUp;
+                trackball->getTransformation(currentEye, currentCenter, currentUp);
+                const osg::Vec3d followDelta = position - inspectionRouteRoamLastFollowPosition_;
+                if (followDelta.length2() > 0.000001) {
+                    trackball->setTransformation(currentEye + followDelta, currentCenter + followDelta, currentUp);
+                }
+                inspectionRouteRoamLastFollowPosition_ = position;
+            }
+        } else {
+            const osg::Vec3d eye = position - forward * kRouteRoamThirdPersonDistanceMeters + up * kRouteRoamThirdPersonHeightMeters;
+            const osg::Vec3d center = position + forward * kRouteRoamThirdPersonLookAheadMeters;
+            manipulator->setHomePosition(eye, center, up, false);
+            manipulator->home(0.0);
+        }
     }
 
-    if (auto* trackball = dynamic_cast<osgGA::TrackballManipulator*>(manipulator)) {
-        trackball->setTransformation(eye, center, up);
-    } else {
-        manipulator->setHomePosition(eye, center, up, false);
-        manipulator->home(0.0);
+    if (positionChanged && inspectionRouteRoamPlaybackState_ != InspectionRouteRoamPlaybackState::Stopped) {
+        refreshInspectionRouteOverlay();
     }
 
     osgWidget_->update();
@@ -6378,6 +6473,8 @@ void PointCloudViewer::routeRoamStopInternal(bool restoreManualView)
     inspectionRouteRoamCaptureCount_ = 0;
     inspectionRouteRoamCaptureFlashRemainingSeconds_ = 0.0;
     inspectionRouteRoamLastUpdateTime_ = {};
+    inspectionRouteRoamCurrentPositionValid_ = false;
+    inspectionRouteRoamThirdPersonFollowInitialized_ = false;
 
     if (restoreManualView) {
         routeRoamRestoreManualView();

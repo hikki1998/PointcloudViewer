@@ -570,11 +570,15 @@ private:
     };
     InspectionRouteRoamPlaybackState inspectionRouteRoamPlaybackState_ = InspectionRouteRoamPlaybackState::Stopped;
     RouteRoamViewMode inspectionRouteRoamViewMode_ = RouteRoamViewMode::ThirdPerson;
-    double inspectionRouteRoamSpeedMetersPerSecond_ = 6.0;
+    double inspectionRouteRoamSpeedMetersPerSecond_ = 2.0;
     int inspectionRouteRoamCurrentSegmentIndex_ = 0;
     double inspectionRouteRoamSegmentProgressMeters_ = 0.0;
     bool inspectionRouteRoamDwelling_ = false;
     double inspectionRouteRoamDwellRemainingSeconds_ = 0.0;
+    bool inspectionRouteRoamCurrentPositionValid_ = false;
+    osg::Vec3d inspectionRouteRoamCurrentPosition_;
+    bool inspectionRouteRoamThirdPersonFollowInitialized_ = false;
+    osg::Vec3d inspectionRouteRoamLastFollowPosition_;
     int inspectionRouteRoamLastCaptureWaypointIndex_ = -1;
     int inspectionRouteRoamCaptureCount_ = 0;
     double inspectionRouteRoamCaptureFlashRemainingSeconds_ = 0.0;

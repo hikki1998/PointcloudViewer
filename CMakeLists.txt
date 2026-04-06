@@ -1049,70 +1049,6 @@ set_target_properties(LASViewerSmokeTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-add_executable(LASViewerRouteInteropSmokeTest
-    examples/route_interop_smoke_test.cpp
-    src/crs/CrsAuthorityService.cpp
-    src/crs/CrsProjRuntime.cpp
-    src/crs/CrsTransformService.cpp
-    src/crs/CrsTypes.cpp
-    src/domain/AnalysisData.cpp
-    src/domain/InspectionData.cpp
-    src/route/InspectionRoutePlanning.cpp
-    src/route/PowerlineRouteBridge.cpp
-    src/route/RouteInterop.cpp
-)
-target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE
-    "${CMAKE_SOURCE_DIR}/src"
-)
-target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE Qt5::Core)
-if(LAS_VIEWER_HAS_PROJ)
-    target_compile_definitions(LASViewerRouteInteropSmokeTest PRIVATE LAS_VIEWER_HAS_PROJ=1 LASVIEWERCRS_HAS_PROJ=1)
-    target_include_directories(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_INCLUDE_DIR}")
-    target_link_libraries(LASViewerRouteInteropSmokeTest PRIVATE "${PROJ_LIBRARY}")
-endif()
-set_target_properties(LASViewerRouteInteropSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-add_executable(LASViewerRouteJsonSmokeTest
-    examples/route_json_smoke_test.cpp
-    src/route/PowerlineRouteBridge.cpp
-    src/route/PowerlineRouteJson.cpp
-)
-target_include_directories(LASViewerRouteJsonSmokeTest PRIVATE
-    "${CMAKE_SOURCE_DIR}/src"
-)
-target_link_libraries(LASViewerRouteJsonSmokeTest PRIVATE Qt5::Core)
-set_target_properties(LASViewerRouteJsonSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-add_executable(LASViewerTowerFileInteropSmokeTest
-    examples/tower_file_interop_smoke_test.cpp
-    src/domain/InspectionData.cpp
-    src/domain/TowerFileInterop.cpp
-)
-target_include_directories(LASViewerTowerFileInteropSmokeTest PRIVATE
-    "${CMAKE_SOURCE_DIR}/src"
-)
-target_link_libraries(LASViewerTowerFileInteropSmokeTest PRIVATE Qt5::Core)
-set_target_properties(LASViewerTowerFileInteropSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-add_executable(LASViewerTowerProjectLinkSmokeTest
-    examples/tower_project_link_smoke_test.cpp
-    src/domain/InspectionData.cpp
-    src/domain/TowerFileInterop.cpp
-)
-target_include_directories(LASViewerTowerProjectLinkSmokeTest PRIVATE
-    "${CMAKE_SOURCE_DIR}/src"
-)
-target_link_libraries(LASViewerTowerProjectLinkSmokeTest PRIVATE Qt5::Core)
-set_target_properties(LASViewerTowerProjectLinkSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
 if(WIN32)
     deploy_osg_runtime(${PROJECT_NAME})
     deploy_qt_runtime(${PROJECT_NAME} TRUE)
@@ -1123,18 +1059,6 @@ if(WIN32)
     deploy_qt_runtime(LASViewerSmokeTest FALSE)
     deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
     deploy_proj_runtime_assets(LASViewerSmokeTest)
-    deploy_qt_runtime(LASViewerRouteInteropSmokeTest FALSE)
-    deploy_runtime_dependencies(LASViewerRouteInteropSmokeTest FALSE)
-    deploy_proj_runtime_assets(LASViewerRouteInteropSmokeTest)
-    deploy_qt_runtime(LASViewerRouteJsonSmokeTest FALSE)
-    deploy_runtime_dependencies(LASViewerRouteJsonSmokeTest FALSE)
-    deploy_proj_runtime_assets(LASViewerRouteJsonSmokeTest)
-    deploy_qt_runtime(LASViewerTowerFileInteropSmokeTest FALSE)
-    deploy_runtime_dependencies(LASViewerTowerFileInteropSmokeTest FALSE)
-    deploy_proj_runtime_assets(LASViewerTowerFileInteropSmokeTest)
-    deploy_qt_runtime(LASViewerTowerProjectLinkSmokeTest FALSE)
-    deploy_runtime_dependencies(LASViewerTowerProjectLinkSmokeTest FALSE)
-    deploy_proj_runtime_assets(LASViewerTowerProjectLinkSmokeTest)
 endif()
 
 

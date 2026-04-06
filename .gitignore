@@ -50,3 +50,7 @@ ourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1*
 # Vendored third-party payload
 !/3rd/
 !/3rd/**
+test_data/45-46(#045_#046) - 副本.las
+test_data/45-46(#045_#046).las
+test_data/湖北_鄂州_无_110_华柴线.las
+translations/lasviewer_zh_CN.qm

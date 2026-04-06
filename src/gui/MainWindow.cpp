@@ -3095,7 +3095,7 @@ void MainWindow::createInspectorPanel()
     routeRoamSpeedSpinBox_ = new QDoubleSpinBox(routePlanningGroupBox_);
     routeRoamSpeedSpinBox_->setRange(0.1, 80.0);
     routeRoamSpeedSpinBox_->setDecimals(1);
-    routeRoamSpeedSpinBox_->setValue(viewer_ != nullptr ? viewer_->inspectionRouteRoamSpeedMetersPerSecond() : 6.0);
+    routeRoamSpeedSpinBox_->setValue(viewer_ != nullptr ? viewer_->inspectionRouteRoamSpeedMetersPerSecond() : 2.0);
 
     routeRoamViewModeComboBox_ = new QComboBox(routePlanningGroupBox_);
     routeRoamViewModeComboBox_->addItem(tr("Third Person"), static_cast<int>(RouteRoamViewMode::ThirdPerson));
