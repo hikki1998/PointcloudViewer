@@ -1,7 +1,15 @@
-# Project Context
+# Agent Context
 
 ## What This Repo Is
 这是一个基于 Qt 5.15、OpenSceneGraph 和 LASlib 的 Windows 桌面点云查看器。当前重点不是通用 GIS 能力，而是电力巡检/通道检查场景下的点云浏览、业务标注、量测分析和较稳定的本地构建体验。
+
+## Read This Next
+- `docs/agent/README.md`
+  - 渐进式披露入口，按任务继续下钻
+- 根目录 `AGENTS.md`
+  - Codex 仓库级强约束
+- 根目录 `CLAUDE.md`
+  - Claude Code 兼容入口
 
 ## Fast Orientation
 - 入口：`src/main.cpp`
@@ -30,6 +38,7 @@
 - 底部档距剖面 dock，支持预警分段高亮，并叠加附近杆塔/隐患点
 - 杆塔编辑：连续添加、前插、移动、表格改名、业务属性维护
 - 隐患台账：连续点选标注、列表管理、详情编辑、CSV/HTML 导出
+- 航线导入/导出、场景显示、编辑、Route QA 和漫游预览
 - 中英文界面，其中中文翻译已接入构建和部署
 
 ## File Responsibilities
@@ -142,10 +151,9 @@ cmake --build out/build --config Release --target LASPointCloudViewer
   - `CMakeLists.txt`
 
 ## Goal For New Sessions
-新对话的 Codex 应该在读完本文件后，直接知道：
+新对话的 agent 读完本文件后，应当已经知道：
 - 这个项目是什么
 - 入口和热区文件在哪里
-- 当前已经有哪些显示与交互能力
+- 当前能力大致到什么程度
 - 改完后该怎么构建和验证
-- 哪些本地数据不该误提交
-
+- 接下来应该去读 `docs/agent/README.md`

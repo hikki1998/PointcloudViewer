@@ -43,6 +43,7 @@ mocs_compilation*.cpp
 Thumbs.db
 /plan/
 /planning/
+/docs/superpowers/
 test_data/220kV万川23B6线49-57.las
 test_data/220kV万川23B6线57-65.las
 ourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1*

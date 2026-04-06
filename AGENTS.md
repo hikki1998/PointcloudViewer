@@ -6,7 +6,8 @@
 - 在较大改动前先发一句短进度说明，说明准备查看的文件和改动方向。
 
 ## First Read
-- 新对话进入仓库后，先读 [PROJECT_CONTEXT.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/PROJECT_CONTEXT.md)。
+- 新对话进入仓库后，先读 [docs/agent/context.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/docs/agent/context.md)。
+- 读完后再看 [docs/agent/README.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/docs/agent/README.md)，按任务继续下钻。
 - 如果任务涉及构建、依赖或运行问题，再读 [README.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/README.md) 和 [CMakeLists.txt](/E:/code/VibeCodingProject/las_pointcloud_viewer/CMakeLists.txt)。
 - 如果任务涉及 UI/交互，优先看 [src/gui/MainWindow.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/gui/MainWindow.cpp)、[src/gui/PointCloudViewer.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/gui/PointCloudViewer.cpp)。
 - 如果任务涉及点云着色/显示，优先看 [src/osg/OsgPointCloudNode.cpp](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/osg/OsgPointCloudNode.cpp) 和 [src/osg/PointCloudVisualization.h](/E:/code/VibeCodingProject/las_pointcloud_viewer/src/osg/PointCloudVisualization.h)。
@@ -108,4 +109,3 @@ E:\code\Qt5.15.2\5.15.2\msvc2019_64\bin\lupdate.exe src -ts translations\lasview
 
 ## Practical Goal
 - 目标不是写一份泛化说明，而是让新对话能在几分钟内定位到：入口文件、常改模块、标准验证命令、当前已具备的点云显示功能、以及常见改动该落在哪些文件。
-
