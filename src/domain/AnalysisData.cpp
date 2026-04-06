@@ -29,9 +29,9 @@ QJsonObject pointRecordToJson(const PointRecord& point)
 PointRecord pointRecordFromJson(const QJsonObject& object)
 {
     PointRecord point;
-    point.x = static_cast<float>(object.value(QStringLiteral("x")).toDouble());
-    point.y = static_cast<float>(object.value(QStringLiteral("y")).toDouble());
-    point.z = static_cast<float>(object.value(QStringLiteral("z")).toDouble());
+    point.x = object.value(QStringLiteral("x")).toDouble();
+    point.y = object.value(QStringLiteral("y")).toDouble();
+    point.z = object.value(QStringLiteral("z")).toDouble();
     point.r = static_cast<std::uint8_t>(object.value(QStringLiteral("r")).toInt(255));
     point.g = static_cast<std::uint8_t>(object.value(QStringLiteral("g")).toInt(255));
     point.b = static_cast<std::uint8_t>(object.value(QStringLiteral("b")).toInt(255));

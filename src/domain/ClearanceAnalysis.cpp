@@ -37,6 +37,7 @@ ClearanceAnalysisResult analyzeClearancePath(const QList<PointRecord>& points, f
     float chainage = 0.0f;
     for (int pointIndex = 0; pointIndex < points.size(); ++pointIndex) {
         const PointRecord& point = points.at(pointIndex);
+        const float pointElevation = static_cast<float>(point.z);
 
         ClearanceProfilePoint profilePoint;
         profilePoint.pointIndex = pointIndex;
@@ -44,8 +45,8 @@ ClearanceAnalysisResult analyzeClearancePath(const QList<PointRecord>& points, f
         profilePoint.point = point;
         result.profilePoints.append(profilePoint);
 
-        result.minimumElevation = std::min(result.minimumElevation, point.z);
-        result.maximumElevation = std::max(result.maximumElevation, point.z);
+        result.minimumElevation = std::min(result.minimumElevation, pointElevation);
+        result.maximumElevation = std::max(result.maximumElevation, pointElevation);
 
         if (pointIndex == 0) {
             continue;
@@ -54,7 +55,7 @@ ClearanceAnalysisResult analyzeClearancePath(const QList<PointRecord>& points, f
         const PointRecord& previousPoint = points.at(pointIndex - 1);
         const float horizontalDistance = segmentHorizontalDistance(previousPoint, point);
         const float distance3d = segmentDistance3d(previousPoint, point);
-        const float deltaZ = point.z - previousPoint.z;
+        const float deltaZ = static_cast<float>(point.z - previousPoint.z);
 
         ClearanceSegment segment;
         segment.startPointIndex = pointIndex - 1;
@@ -86,7 +87,8 @@ ClearanceAnalysisResult analyzeClearancePath(const QList<PointRecord>& points, f
     }
 
     if (result.profilePoints.size() >= 2) {
-        result.deltaZ = result.profilePoints.constLast().point.z - result.profilePoints.constFirst().point.z;
+        result.deltaZ = static_cast<float>(
+            result.profilePoints.constLast().point.z - result.profilePoints.constFirst().point.z);
     }
 
     return result;

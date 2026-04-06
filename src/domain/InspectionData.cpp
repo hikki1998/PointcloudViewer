@@ -105,9 +105,9 @@ TowerRecord towerRecordFromJson(const QJsonObject& object)
     TowerRecord towerRecord;
     towerRecord.index = object.value(QStringLiteral("index")).toInt(-1);
     towerRecord.name = object.value(QStringLiteral("name")).toString().trimmed();
-    towerRecord.point.x = static_cast<float>(object.value(QStringLiteral("x")).toDouble());
-    towerRecord.point.y = static_cast<float>(object.value(QStringLiteral("y")).toDouble());
-    towerRecord.point.z = static_cast<float>(object.value(QStringLiteral("z")).toDouble());
+    towerRecord.point.x = object.value(QStringLiteral("x")).toDouble();
+    towerRecord.point.y = object.value(QStringLiteral("y")).toDouble();
+    towerRecord.point.z = object.value(QStringLiteral("z")).toDouble();
     const int towerTypeValue = object.value(QStringLiteral("towerType")).toInt(static_cast<int>(TowerType::Unknown));
     if (towerTypeValue < static_cast<int>(TowerType::Unknown) || towerTypeValue > static_cast<int>(TowerType::Strain)) {
         towerRecord.towerType = TowerType::Unknown;
@@ -154,9 +154,9 @@ InspectionIssue inspectionIssueFromJson(const QJsonObject& object)
     issue.category = object.value(QStringLiteral("category")).toString().trimmed();
     issue.severity = static_cast<IssueSeverity>(object.value(QStringLiteral("severity")).toInt(static_cast<int>(IssueSeverity::Major)));
     issue.status = static_cast<IssueStatus>(object.value(QStringLiteral("status")).toInt(static_cast<int>(IssueStatus::Open)));
-    issue.point.x = static_cast<float>(object.value(QStringLiteral("x")).toDouble());
-    issue.point.y = static_cast<float>(object.value(QStringLiteral("y")).toDouble());
-    issue.point.z = static_cast<float>(object.value(QStringLiteral("z")).toDouble());
+    issue.point.x = object.value(QStringLiteral("x")).toDouble();
+    issue.point.y = object.value(QStringLiteral("y")).toDouble();
+    issue.point.z = object.value(QStringLiteral("z")).toDouble();
     issue.relatedTowerIndex = object.value(QStringLiteral("relatedTowerIndex")).toInt(-1);
     issue.relatedTowerName = object.value(QStringLiteral("relatedTowerName")).toString().trimmed();
     issue.imagePath = object.value(QStringLiteral("imagePath")).toString().trimmed();

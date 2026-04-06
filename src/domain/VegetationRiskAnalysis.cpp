@@ -185,9 +185,9 @@ VegetationRiskAnalysisResult analyzeVegetationRisks(
             }
         }
 
-        record.point.x = static_cast<float>(sumX / cluster.size());
-        record.point.y = static_cast<float>(sumY / cluster.size());
-        record.point.z = static_cast<float>(sumZ / cluster.size());
+        record.point.x = sumX / cluster.size();
+        record.point.y = sumY / cluster.size();
+        record.point.z = sumZ / cluster.size();
         record.averageDistance = static_cast<float>(sumDistance / cluster.size());
 
         if (record.minimumDistance <= clearanceRules.criticalThreshold) {

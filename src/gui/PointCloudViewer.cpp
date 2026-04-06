@@ -13,6 +13,7 @@
 #include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QRubberBand>
 #include <QResizeEvent>
@@ -115,6 +116,34 @@ osg::Vec4 qColorToVec4(const QColor& color, float alphaScale = 1.0f)
         static_cast<float>(color.greenF()),
         static_cast<float>(color.blueF()),
         alpha);
+}
+
+osg::Vec3 toOverlayLocalVec3(const PointRecord& point, const osg::Vec3d& sceneOrigin)
+{
+    return osg::Vec3(
+        static_cast<float>(point.x - sceneOrigin.x()),
+        static_cast<float>(point.y - sceneOrigin.y()),
+        static_cast<float>(point.z - sceneOrigin.z()));
+}
+
+osg::Vec3 toOverlayLocalVec3(const osg::Vec3d& point, const osg::Vec3d& sceneOrigin)
+{
+    return osg::Vec3(
+        static_cast<float>(point.x() - sceneOrigin.x()),
+        static_cast<float>(point.y() - sceneOrigin.y()),
+        static_cast<float>(point.z() - sceneOrigin.z()));
+}
+
+osg::ref_ptr<osg::Node> wrapOverlayNodeWithSceneOrigin(osg::Node* node, const osg::Vec3d& sceneOrigin)
+{
+    if (node == nullptr) {
+        return nullptr;
+    }
+
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
+    transform->setMatrix(osg::Matrixd::translate(sceneOrigin));
+    transform->addChild(node);
+    return transform;
 }
 
 class RouteCameraPreviewOverlay final : public QWidget
@@ -328,6 +357,80 @@ private:
     };
 };
 
+class PolygonSelectionOverlay final : public QWidget
+{
+public:
+    explicit PolygonSelectionOverlay(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        setAttribute(Qt::WA_NoSystemBackground, true);
+        hide();
+    }
+
+    void setPolygonState(const QPolygonF& polygon, bool hasPreviewPoint, const QPointF& previewPoint)
+    {
+        polygon_ = polygon;
+        hasPreviewPoint_ = hasPreviewPoint;
+        previewPoint_ = previewPoint;
+
+        if (polygon_.isEmpty()) {
+            hide();
+            return;
+        }
+
+        show();
+        raise();
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+
+        if (polygon_.isEmpty()) {
+            return;
+        }
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+
+        if (polygon_.size() >= 3) {
+            QPainterPath fillPath;
+            fillPath.addPolygon(polygon_);
+            painter.fillPath(fillPath, QColor(56, 189, 248, 36));
+        }
+
+        QPen polygonPen(QColor(56, 189, 248, 225), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(polygonPen);
+        for (int index = 1; index < polygon_.size(); ++index) {
+            painter.drawLine(polygon_.at(index - 1), polygon_.at(index));
+        }
+
+        if (polygon_.size() >= 3) {
+            painter.drawLine(polygon_.constLast(), polygon_.constFirst());
+        }
+
+        if (hasPreviewPoint_ && !polygon_.isEmpty()) {
+            QPen previewPen(QColor(14, 165, 233, 210), 1.5, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin);
+            painter.setPen(previewPen);
+            painter.drawLine(polygon_.constLast(), previewPoint_);
+        }
+
+        painter.setPen(QPen(QColor(255, 255, 255, 210), 1.0));
+        painter.setBrush(QColor(14, 165, 233, 220));
+        for (int index = 0; index < polygon_.size(); ++index) {
+            painter.drawEllipse(polygon_.at(index), 4.0, 4.0);
+        }
+    }
+
+private:
+    QPolygonF polygon_;
+    QPointF previewPoint_;
+    bool hasPreviewPoint_ = false;
+};
+
 class PointCloudTrackballManipulator final : public osgGA::TrackballManipulator
 {
 public:
@@ -424,7 +527,9 @@ void applyMeasurementForegroundState(osg::StateSet* stateSet)
     stateSet->setRenderBinDetails(kMeasurementOverlayRenderBin, "RenderBin");
 }
 
-osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(const MeasurementResult& measurementResult)
+osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(
+    const MeasurementResult& measurementResult,
+    const osg::Vec3d& sceneOrigin)
 {
     if (measurementResult.points.isEmpty()) {
         return nullptr;
@@ -435,10 +540,7 @@ osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(const MeasurementResult& m
 
     for (int pointIndex = 0; pointIndex < measurementResult.points.size(); ++pointIndex) {
         const PointRecord& point = measurementResult.points.at(pointIndex);
-        vertices->push_back(osg::Vec3(
-            point.x,
-            point.y,
-            point.z));
+        vertices->push_back(toOverlayLocalVec3(point, sceneOrigin));
 
         if (pointIndex == 0) {
             colors->push_back(measurementColorPrimary());
@@ -466,7 +568,9 @@ osg::ref_ptr<osg::Geode> buildMeasurementMarkersGeode(const MeasurementResult& m
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& measurementResult)
+osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(
+    const MeasurementResult& measurementResult,
+    const osg::Vec3d& sceneOrigin)
 {
     if (measurementResult.points.size() < 2) {
         return nullptr;
@@ -477,7 +581,7 @@ osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& meas
 
     for (int pointIndex = 0; pointIndex < measurementResult.points.size(); ++pointIndex) {
         const PointRecord& point = measurementResult.points.at(pointIndex);
-        vertices->push_back(osg::Vec3(point.x, point.y, point.z));
+        vertices->push_back(toOverlayLocalVec3(point, sceneOrigin));
 
         if (pointIndex == 0) {
             colors->push_back(measurementColorPrimary());
@@ -505,7 +609,9 @@ osg::ref_ptr<osg::Geode> buildMeasurementLineGeode(const MeasurementResult& meas
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerRecord>& towerMarkers)
+osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(
+    const QList<TowerRecord>& towerMarkers,
+    const osg::Vec3d& sceneOrigin)
 {
     if (towerMarkers.isEmpty()) {
         return nullptr;
@@ -515,7 +621,7 @@ osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerRecord>& towerM
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
     for (const TowerMarker& towerMarker : towerMarkers) {
-        vertices->push_back(osg::Vec3(towerMarker.point.x, towerMarker.point.y, towerMarker.point.z));
+        vertices->push_back(toOverlayLocalVec3(towerMarker.point, sceneOrigin));
         colors->push_back(osg::Vec4(0.99f, 0.43f, 0.12f, 1.0f));
     }
 
@@ -536,7 +642,9 @@ osg::ref_ptr<osg::Geode> buildTowerMarkersGeode(const QList<TowerRecord>& towerM
     return geode;
 }
 
-osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>& issues)
+osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(
+    const QList<InspectionIssue>& issues,
+    const osg::Vec3d& sceneOrigin)
 {
     if (issues.isEmpty()) {
         return nullptr;
@@ -546,7 +654,7 @@ osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
     for (const InspectionIssue& issue : issues) {
-        vertices->push_back(osg::Vec3(issue.point.x, issue.point.y, issue.point.z));
+        vertices->push_back(toOverlayLocalVec3(issue.point, sceneOrigin));
 
         osg::Vec4 color(0.93f, 0.27f, 0.27f, 1.0f);
         switch (issue.severity) {
@@ -586,7 +694,8 @@ osg::ref_ptr<osg::Geode> buildInspectionIssuesGeode(const QList<InspectionIssue>
 osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
     const QList<PointRecord>& waypoints,
     int selectedIndex,
-    const osg::Vec4& waypointColor)
+    const osg::Vec4& waypointColor,
+    const osg::Vec3d& sceneOrigin)
 {
     if (waypoints.isEmpty()) {
         return nullptr;
@@ -596,7 +705,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePointsGeode(
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     for (int index = 0; index < waypoints.size(); ++index) {
         const PointRecord& waypoint = waypoints.at(index);
-        vertices->push_back(osg::Vec3(waypoint.x, waypoint.y, waypoint.z));
+        vertices->push_back(toOverlayLocalVec3(waypoint, sceneOrigin));
         if (index == selectedIndex) {
             colors->push_back(osg::Vec4(0.99f, 0.92f, 0.23f, 1.0f));
         } else {
@@ -624,7 +733,8 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(
     const QList<int>& partPointIndices,
     const QSet<int>& secondaryHighlightPartIndices,
     int primaryHighlightPartIndex,
-    const osg::Vec4& partPointColor)
+    const osg::Vec4& partPointColor,
+    const osg::Vec3d& sceneOrigin)
 {
     if (partPoints.isEmpty()) {
         return nullptr;
@@ -636,7 +746,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(
         const PointRecord& partPoint = partPoints.at(index);
         const int partIndex = index < partPointIndices.size() ? partPointIndices.at(index) : -1;
 
-        vertices->push_back(osg::Vec3(partPoint.x, partPoint.y, partPoint.z));
+        vertices->push_back(toOverlayLocalVec3(partPoint, sceneOrigin));
         if (partIndex > 0 && partIndex == primaryHighlightPartIndex) {
             colors->push_back(osg::Vec4(0.98f, 0.50f, 0.11f, 1.0f));
         } else if (partIndex > 0 && secondaryHighlightPartIndices.contains(partIndex)) {
@@ -663,7 +773,8 @@ osg::ref_ptr<osg::Geode> buildInspectionRoutePartPointsGeode(
 
 osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(
     const QList<PointRecord>& waypoints,
-    const osg::Vec4& lineColor)
+    const osg::Vec4& lineColor,
+    const osg::Vec3d& sceneOrigin)
 {
     if (waypoints.size() < 2) {
         return nullptr;
@@ -671,7 +782,7 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(
 
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     for (const PointRecord& waypoint : waypoints) {
-        vertices->push_back(osg::Vec3(waypoint.x, waypoint.y, waypoint.z));
+        vertices->push_back(toOverlayLocalVec3(waypoint, sceneOrigin));
     }
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     colors->push_back(lineColor);
@@ -693,7 +804,8 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteLineGeode(
 
 osg::ref_ptr<osg::Node> buildInspectionRouteRoamTrackerNode(
     const osg::Vec3d& position,
-    const osg::Vec4& color)
+    const osg::Vec4& color,
+    const osg::Vec3d& sceneOrigin)
 {
     osg::ref_ptr<osg::Sphere> sphere = new osg::Sphere(osg::Vec3(0.0f, 0.0f, 0.0f), 1.2f);
     osg::ref_ptr<osg::ShapeDrawable> sphereDrawable = new osg::ShapeDrawable(sphere.get());
@@ -706,7 +818,7 @@ osg::ref_ptr<osg::Node> buildInspectionRouteRoamTrackerNode(
     applyMeasurementForegroundState(stateSet);
 
     osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
-    transform->setMatrix(osg::Matrixd::translate(position));
+    transform->setMatrix(osg::Matrixd::translate(position - sceneOrigin));
     transform->addChild(geode.get());
     return transform;
 }
@@ -715,7 +827,8 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteWaypointPartLinksGeode(
     const QList<PointRecord>& waypoints,
     const QList<QList<PointRecord>>& waypointTargetPoints,
     int selectedWaypointIndex,
-    int selectedTargetIndex)
+    int selectedTargetIndex,
+    const osg::Vec3d& sceneOrigin)
 {
     if (waypoints.isEmpty()) {
         return nullptr;
@@ -735,10 +848,10 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteWaypointPartLinksGeode(
         }
 
         const PointRecord& waypoint = waypoints.at(index);
-        osg::Vec3 startPoint(waypoint.x, waypoint.y, waypoint.z);
+        osg::Vec3 startPoint = toOverlayLocalVec3(waypoint, sceneOrigin);
         for (int targetIndex = 0; targetIndex < targets.size(); ++targetIndex) {
             const PointRecord& targetPoint = targets.at(targetIndex);
-            osg::Vec3 endPoint(targetPoint.x, targetPoint.y, targetPoint.z);
+            osg::Vec3 endPoint = toOverlayLocalVec3(targetPoint, sceneOrigin);
             const osg::Vec3 direction = endPoint - startPoint;
             const float distance = direction.length();
             if (distance <= 0.001f) {
@@ -788,7 +901,8 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteFrustumGeode(
     const QList<PointRecord>& waypoints,
     const QList<QList<PointRecord>>& waypointTargetPoints,
     int selectedWaypointIndex,
-    int selectedTargetIndex)
+    int selectedTargetIndex,
+    const osg::Vec3d& sceneOrigin)
 {
     if (waypoints.isEmpty()) {
         return nullptr;
@@ -810,13 +924,11 @@ osg::ref_ptr<osg::Geode> buildInspectionRouteFrustumGeode(
         }
 
         const PointRecord& waypoint = waypoints.at(index);
-        osg::Vec3 apex(waypoint.x, waypoint.y, waypoint.z);
+        osg::Vec3 apex = toOverlayLocalVec3(waypoint, sceneOrigin);
         for (int targetIndex = 0; targetIndex < targets.size(); ++targetIndex) {
             const PointRecord& targetPoint = targets.at(targetIndex);
-            osg::Vec3 direction(
-                targetPoint.x - waypoint.x,
-                targetPoint.y - waypoint.y,
-                targetPoint.z - waypoint.z);
+            osg::Vec3 targetLocal = toOverlayLocalVec3(targetPoint, sceneOrigin);
+            osg::Vec3 direction = targetLocal - apex;
             const float distance = direction.length();
             if (distance <= 0.001f) {
                 continue;
@@ -1348,6 +1460,8 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     axisIndicatorOverlay_->raise();
     selectionRubberBand_ = new QRubberBand(QRubberBand::Rectangle, osgWidget_);
     selectionRubberBand_->hide();
+    profileClassificationPolygonOverlay_ = new PolygonSelectionOverlay(osgWidget_);
+    profileClassificationPolygonOverlay_->hide();
 
     layout_->addWidget(osgWidget_, 0, 0);
     layout_->addWidget(statusPanel_, 1, 0);
@@ -1396,6 +1510,9 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
         updateInspectionRouteOverlayWidgets();
         if (selectionRubberBand_ != nullptr && selectionRubberBand_->isVisible()) {
             selectionRubberBand_->raise();
+        }
+        if (profileClassificationPolygonOverlay_ != nullptr && profileClassificationPolygonOverlay_->isVisible()) {
+            profileClassificationPolygonOverlay_->raise();
         }
         updateAxisIndicator();
     });
@@ -1832,6 +1949,7 @@ void PointCloudViewer::clearPointCloud()
     routeWaypointDragPreviewValid_ = false;
     selectedInspectionRouteWaypointIndex_ = -1;
     profileClassificationModeEnabled_ = false;
+    profileClassificationSelectionMode_ = ProfileClassificationSelectionMode::Rectangle;
     profileClassificationTaskActive_ = false;
     profileClassificationSelectionActive_ = false;
     profileClassificationSelectionRect_ = QRectF();
@@ -1847,6 +1965,7 @@ void PointCloudViewer::clearPointCloud()
     classificationRedoStack_.clear();
     nextDatasetId_ = 1;
     clearSelectionRubberBand();
+    clearProfileClassificationPolygonSelection();
     updateSceneClickCapture();
     syncVisualizationClassificationState();
     resetMeasurementState(false);
@@ -2022,6 +2141,11 @@ const QSet<int>& PointCloudViewer::profileClassificationSourceClasses() const
 int PointCloudViewer::profileClassificationTargetClass() const
 {
     return profileClassificationTargetClass_;
+}
+
+ProfileClassificationSelectionMode PointCloudViewer::profileClassificationSelectionMode() const
+{
+    return profileClassificationSelectionMode_;
 }
 
 bool PointCloudViewer::canUndoClassificationEdits() const
@@ -2381,19 +2505,51 @@ void PointCloudViewer::setProfileClassificationModeEnabled(bool enabled)
         }
     } else {
         clearSelectionRubberBand();
+        clearProfileClassificationPolygonSelection();
     }
 
     profileClassificationModeEnabled_ = enabled;
     profileClassificationSelectionActive_ = false;
     profileClassificationSelectionRect_ = QRectF();
+    if (enabled) {
+        clearProfileClassificationPolygonSelection();
+    }
     updateSceneClickCapture();
+    updateProfileClassificationPolygonOverlay();
     updateFooter();
     emit profileClassificationModeChanged(profileClassificationModeEnabled_);
     emit profileClassificationStateChanged();
     emit measurementMessage(
-        profileClassificationModeEnabled_
-            ? tr("Profile classification mode enabled. Drag a rectangle to classify source classes, hold Alt and drag left mouse to adjust view, right-click to exit, and press Esc to cancel.")
-            : tr("Profile classification mode disabled."),
+        !profileClassificationModeEnabled_
+            ? tr("Profile classification mode disabled.")
+            : (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+                ? tr("Profile classification mode enabled (polygon). Left-click to add vertices, right-click to apply, drag to adjust view, and press Esc to clear or exit.")
+                : tr("Profile classification mode enabled (rectangle). Drag a rectangle to classify source classes, hold Alt and drag left mouse to adjust view, right-click to exit, and press Esc to cancel.")),
+        false);
+}
+
+void PointCloudViewer::setProfileClassificationSelectionMode(ProfileClassificationSelectionMode mode)
+{
+    if (profileClassificationSelectionMode_ == mode || profileClassificationTaskActive_) {
+        return;
+    }
+
+    profileClassificationSelectionMode_ = mode;
+    clearSelectionRubberBand();
+    clearProfileClassificationPolygonSelection();
+    updateSceneClickCapture();
+    updateProfileClassificationPolygonOverlay();
+    updateFooter();
+    emit profileClassificationStateChanged();
+
+    if (!profileClassificationModeEnabled_) {
+        return;
+    }
+
+    emit measurementMessage(
+        profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+            ? tr("Switched to polygon selection. Left-click to add vertices and right-click to apply while freely adjusting the view.")
+            : tr("Switched to rectangle selection. Drag a rectangle to apply profile classification."),
         false);
 }
 
@@ -2610,16 +2766,25 @@ void PointCloudViewer::updateSceneClickCapture()
         return;
     }
 
-    osgWidget_->setRectangleSelectionEnabled(profileClassificationModeEnabled_);
+    const bool rectangleSelectionEnabled =
+        profileClassificationModeEnabled_
+        && profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Rectangle;
+    const bool polygonSelectionEnabled =
+        profileClassificationModeEnabled_
+        && profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon;
+
+    osgWidget_->setRectangleSelectionEnabled(rectangleSelectionEnabled);
     const bool sceneClickEnabled =
-        !profileClassificationModeEnabled_
-        && (measurementEnabled_
-        || towerEditMode_ != TowerEditMode::None
-        || issueEditMode_ != IssueEditMode::None
-        || !towerMarkers_.isEmpty()
-        || !inspectionIssues_.isEmpty()
-        || (inspectionRouteVisible_ && !inspectionRouteWaypoints_.isEmpty()));
+        polygonSelectionEnabled
+        || (!profileClassificationModeEnabled_
+            && (measurementEnabled_
+            || towerEditMode_ != TowerEditMode::None
+            || issueEditMode_ != IssueEditMode::None
+            || !towerMarkers_.isEmpty()
+            || !inspectionIssues_.isEmpty()
+            || (inspectionRouteVisible_ && !inspectionRouteWaypoints_.isEmpty())));
     osgWidget_->setSceneClickModeEnabled(sceneClickEnabled);
+    updateProfileClassificationPolygonOverlay();
 }
 
 bool PointCloudViewer::addTowerMarker(const QString& name, const PointRecord& point)
@@ -3807,6 +3972,7 @@ void PointCloudViewer::resizeEvent(QResizeEvent* event)
     QWidget::resizeEvent(event);
     positionAxisIndicator();
     positionRouteCameraPreviewOverlay();
+    updateProfileClassificationPolygonOverlay();
     updateWelcomeOverlayVisibility();
 }
 
@@ -3981,6 +4147,8 @@ void PointCloudViewer::rebuildScene()
         return;
     }
 
+    updateSceneOriginFromCurrentPointCloud();
+
     rootGroup_->removeChildren(0, rootGroup_->getNumChildren());
     pointCloudNode_ = nullptr;
     towerMarkersNode_ = nullptr;
@@ -4036,6 +4204,29 @@ void PointCloudViewer::rebuildMergedPointCloud()
         currentPointCloud_ = std::move(singleVisibleDataset);
     }
     syncCurrentFilePath();
+}
+
+void PointCloudViewer::updateSceneOriginFromCurrentPointCloud()
+{
+    sceneOriginValid_ = false;
+    sceneOriginWorld_.set(0.0, 0.0, 0.0);
+
+    if (currentPointCloud_ == nullptr || currentPointCloud_->empty()) {
+        return;
+    }
+
+    const PointRecord& minBounds = currentPointCloud_->minBounds();
+    const PointRecord& maxBounds = currentPointCloud_->maxBounds();
+    sceneOriginWorld_.set(
+        (minBounds.x + maxBounds.x) * 0.5,
+        (minBounds.y + maxBounds.y) * 0.5,
+        (minBounds.z + maxBounds.z) * 0.5);
+    sceneOriginValid_ = true;
+}
+
+osg::Vec3d PointCloudViewer::overlaySceneOrigin() const
+{
+    return sceneOriginValid_ ? sceneOriginWorld_ : osg::Vec3d(0.0, 0.0, 0.0);
 }
 
 void PointCloudViewer::updateFooter()
@@ -4097,8 +4288,12 @@ void PointCloudViewer::updateFooter()
     }
 
     if (profileClassificationModeEnabled_) {
+        const QString modeText =
+            profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+                ? tr("polygon")
+                : tr("rectangle");
         if (profileClassificationTaskActive_) {
-            detail += tr(" | Profile classify: processing");
+            detail += tr(" | Profile classify (%1): processing").arg(modeText);
             const std::uint64_t scannedPointCount = classificationTaskScannedPoints_.load();
             const auto now = std::chrono::steady_clock::now();
             const auto elapsed = classificationTaskStartTime_.time_since_epoch().count() == 0
@@ -4108,10 +4303,16 @@ void PointCloudViewer::updateFooter()
                 .arg(QLocale().toString(static_cast<qlonglong>(scannedPointCount)))
                 .arg(QLocale().toString(static_cast<qlonglong>(elapsed.count())));
         } else {
-            detail += tr(" | Profile classify: source %1 -> target %2 | edits %3")
+            detail += tr(" | Profile classify (%1): source %2 -> target %3 | edits %4")
+                .arg(modeText)
                 .arg(QLocale().toString(profileClassificationSourceClasses_.size()))
                 .arg(QLocale().toString(profileClassificationTargetClass_))
                 .arg(QLocale().toString(classificationEditStore_.editedPointCount()));
+            if (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+                && !profileClassificationPolygonPoints_.isEmpty()) {
+                detail += tr(" | vertices %1")
+                    .arg(QLocale().toString(profileClassificationPolygonPoints_.size()));
+            }
             if (lastClassificationTaskElapsedMilliseconds_ > 0) {
                 detail += QStringLiteral(" (%1, %2ms)")
                     .arg(QLocale().toString(static_cast<qlonglong>(lastClassificationTaskScannedPoints_)))
@@ -4223,7 +4424,22 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
 void PointCloudViewer::handleSceneClick(const QPointF& localPos)
 {
     if (profileClassificationModeEnabled_) {
-        Q_UNUSED(localPos);
+        if (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+            && !profileClassificationTaskActive_) {
+            profileClassificationPolygonPoints_.append(localPos);
+            profileClassificationPolygonPreviewPoint_ = localPos;
+            profileClassificationPolygonPreviewActive_ = true;
+            updateProfileClassificationPolygonOverlay();
+            emit profileClassificationStateChanged();
+            emit measurementMessage(
+                profileClassificationPolygonPoints_.size() >= 3
+                    ? tr("Polygon vertex %1 added. Right-click to apply selection.")
+                        .arg(QLocale().toString(profileClassificationPolygonPoints_.size()))
+                    : tr("Polygon vertex %1 added. Add at least %2 vertices to apply.")
+                        .arg(QLocale().toString(profileClassificationPolygonPoints_.size()))
+                        .arg(QLocale().toString(3)),
+                false);
+        }
         return;
     }
 
@@ -4411,6 +4627,19 @@ void PointCloudViewer::handleSceneEscapePressed()
         osgWidget_->unsetCursor();
     }
 
+    if (profileClassificationModeEnabled_
+        && profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+        && !profileClassificationTaskActive_) {
+        if (!profileClassificationPolygonPoints_.isEmpty()) {
+            clearProfileClassificationPolygonSelection();
+            emit profileClassificationStateChanged();
+            emit measurementMessage(tr("Polygon selection cleared."), false);
+        } else {
+            setProfileClassificationModeEnabled(false);
+        }
+        return;
+    }
+
     if (routeWaypointDragActive_ || routeWaypointDragPreviewValid_) {
         routeWaypointDragActive_ = false;
         routeWaypointDragIndex_ = -1;
@@ -4425,6 +4654,22 @@ void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
     Q_UNUSED(localPos);
 
     if (profileClassificationModeEnabled_) {
+        if (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon) {
+            if (profileClassificationTaskActive_) {
+                return;
+            }
+            if (profileClassificationPolygonPoints_.size() >= 3) {
+                tryFinishProfileClassificationPolygonSelection();
+            } else if (!profileClassificationPolygonPoints_.isEmpty()) {
+                clearProfileClassificationPolygonSelection();
+                emit profileClassificationStateChanged();
+                emit measurementMessage(tr("Polygon selection cancelled."), false);
+            } else {
+                setProfileClassificationModeEnabled(false);
+            }
+            return;
+        }
+
         if (profileClassificationSelectionActive_) {
             clearSelectionRubberBand();
             emit measurementMessage(tr("Profile classification selection cancelled."), false);
@@ -4483,6 +4728,13 @@ void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
 void PointCloudViewer::handleSceneHover(const QPointF& localPos)
 {
     if (profileClassificationModeEnabled_) {
+        if (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+            && !profileClassificationTaskActive_
+            && !profileClassificationPolygonPoints_.isEmpty()) {
+            profileClassificationPolygonPreviewPoint_ = localPos;
+            profileClassificationPolygonPreviewActive_ = true;
+            updateProfileClassificationPolygonOverlay();
+        }
         return;
     }
 
@@ -4557,8 +4809,64 @@ void PointCloudViewer::clearSelectionRubberBand()
     }
 }
 
+void PointCloudViewer::clearProfileClassificationPolygonSelection()
+{
+    profileClassificationPolygonPoints_.clear();
+    profileClassificationPolygonPreviewPoint_ = QPointF();
+    profileClassificationPolygonPreviewActive_ = false;
+    updateProfileClassificationPolygonOverlay();
+}
+
+void PointCloudViewer::updateProfileClassificationPolygonOverlay()
+{
+    if (profileClassificationPolygonOverlay_ == nullptr || osgWidget_ == nullptr) {
+        return;
+    }
+
+    profileClassificationPolygonOverlay_->setGeometry(osgWidget_->rect());
+    auto* overlay = static_cast<PolygonSelectionOverlay*>(profileClassificationPolygonOverlay_);
+
+    const bool polygonVisible =
+        profileClassificationModeEnabled_
+        && profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+        && !profileClassificationTaskActive_
+        && !profileClassificationPolygonPoints_.isEmpty();
+
+    if (!polygonVisible) {
+        overlay->setPolygonState(QPolygonF(), false, QPointF());
+        return;
+    }
+
+    overlay->setPolygonState(
+        profileClassificationPolygonPoints_,
+        profileClassificationPolygonPreviewActive_,
+        profileClassificationPolygonPreviewPoint_);
+}
+
+void PointCloudViewer::tryFinishProfileClassificationPolygonSelection()
+{
+    if (!profileClassificationModeEnabled_
+        || profileClassificationSelectionMode_ != ProfileClassificationSelectionMode::Polygon
+        || profileClassificationTaskActive_) {
+        return;
+    }
+
+    if (profileClassificationPolygonPoints_.size() < 3) {
+        emit measurementMessage(tr("Add at least three polygon vertices before applying profile classification."), true);
+        return;
+    }
+
+    const QPolygonF polygon = profileClassificationPolygonPoints_;
+    clearProfileClassificationPolygonSelection();
+    beginProfileClassificationSelection(polygon.boundingRect(), polygon);
+}
+
 void PointCloudViewer::handleSelectionRectangleChanged(const QRectF& localRect, bool active)
 {
+    if (profileClassificationSelectionMode_ != ProfileClassificationSelectionMode::Rectangle) {
+        return;
+    }
+
     profileClassificationSelectionActive_ = active;
     profileClassificationSelectionRect_ = active ? localRect.normalized() : QRectF();
     if (selectionRubberBand_ == nullptr) {
@@ -4577,13 +4885,18 @@ void PointCloudViewer::handleSelectionRectangleChanged(const QRectF& localRect, 
 
 void PointCloudViewer::handleSelectionRectangleFinished(const QRectF& localRect)
 {
+    if (profileClassificationSelectionMode_ != ProfileClassificationSelectionMode::Rectangle) {
+        return;
+    }
+
     clearSelectionRubberBand();
-    beginProfileClassificationSelection(localRect.normalized());
+    beginProfileClassificationSelection(localRect.normalized(), QPolygonF());
 }
 
 void PointCloudViewer::handleSelectionEscapePressed()
 {
-    if (!profileClassificationModeEnabled_) {
+    if (!profileClassificationModeEnabled_
+        || profileClassificationSelectionMode_ != ProfileClassificationSelectionMode::Rectangle) {
         return;
     }
 
@@ -4591,7 +4904,7 @@ void PointCloudViewer::handleSelectionEscapePressed()
     setProfileClassificationModeEnabled(false);
 }
 
-void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewportRect)
+void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewportRect, const QPolygonF& viewportPolygon)
 {
     if (!profileClassificationModeEnabled_ || profileClassificationTaskActive_) {
         return;
@@ -4636,9 +4949,17 @@ void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewpor
         viewer->getCamera()->getViewMatrix()
         * viewer->getCamera()->getProjectionMatrix()
         * viewer->getCamera()->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
     const QSet<int> sourceClasses = profileClassificationSourceClasses_;
     const int targetClassification = profileClassificationTargetClass_;
-    const QRectF selectionRect = viewportRect.normalized();
+    const bool usePolygon = viewportPolygon.size() >= 3;
+    const QPolygonF selectionPolygon = usePolygon ? viewportPolygon : QPolygonF();
+    const QRectF selectionRect = usePolygon ? selectionPolygon.boundingRect() : viewportRect.normalized();
+    if (selectionRect.width() < 2.0 || selectionRect.height() < 2.0) {
+        emit measurementMessage(tr("Selection region is too small for profile classification."), true);
+        return;
+    }
     const std::shared_ptr<const ClassificationEditStore> editSnapshot =
         std::make_shared<ClassificationEditStore>(classificationEditStore_);
     const qreal devicePixelRatio = osgWidget_->devicePixelRatioF();
@@ -4654,9 +4975,13 @@ void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewpor
         classificationTaskStatusTimer_->start();
     }
     emit profileClassificationStateChanged();
-    emit measurementMessage(tr("Applying profile classification selection..."), false);
+    emit measurementMessage(
+        usePolygon
+            ? tr("Applying profile classification polygon selection...")
+            : tr("Applying profile classification selection..."),
+        false);
 
-    classificationTaskThread_ = std::thread([this, token, datasets, sourceClasses, targetClassification, selectionRect, worldToWindow, editSnapshot, devicePixelRatio, widgetHeight, taskStartTime]() {
+    classificationTaskThread_ = std::thread([this, token, datasets, sourceClasses, targetClassification, selectionRect, selectionPolygon, usePolygon, localToWindow, sceneOrigin, editSnapshot, devicePixelRatio, widgetHeight, taskStartTime]() {
         ClassificationEditBatch batch;
         batch.targetClassification = targetClassification;
         std::uint64_t scannedPointCount = 0;
@@ -4677,7 +5002,11 @@ void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewpor
                 if ((scannedPointCount & 0x1FFFu) == 0u) {
                     classificationTaskScannedPoints_.store(scannedPointCount);
                 }
-                const osg::Vec3d projected = osg::Vec3d(point.x, point.y, point.z) * worldToWindow;
+                const osg::Vec3d projected = osg::Vec3d(
+                    point.x - sceneOrigin.x(),
+                    point.y - sceneOrigin.y(),
+                    point.z - sceneOrigin.z())
+                    * localToWindow;
                 if (projected.z() < 0.0 || projected.z() > 1.0) {
                     continue;
                 }
@@ -4686,6 +5015,9 @@ void PointCloudViewer::beginProfileClassificationSelection(const QRectF& viewpor
                     projected.x() / devicePixelRatio,
                     static_cast<double>(widgetHeight) - projected.y() / devicePixelRatio);
                 if (viewportPoint.x() < minX || viewportPoint.x() > maxX || viewportPoint.y() < minY || viewportPoint.y() > maxY) {
+                    continue;
+                }
+                if (usePolygon && !selectionPolygon.containsPoint(viewportPoint, Qt::WindingFill)) {
                     continue;
                 }
 
@@ -4796,6 +5128,8 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
         camera->getViewMatrix() *
         camera->getProjectionMatrix() *
         camera->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
 
     const double devicePixelRatio = osgWidget_->devicePixelRatioF();
     const double clickX = localPos.x() * devicePixelRatio;
@@ -4808,7 +5142,11 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
     double bestDepth = std::numeric_limits<double>::max();
 
     for (const PointRecord& point : currentPointCloud_->points()) {
-        const osg::Vec3d projected = osg::Vec3d(point.x, point.y, point.z) * worldToWindow;
+        const osg::Vec3d projected = osg::Vec3d(
+            point.x - sceneOrigin.x(),
+            point.y - sceneOrigin.y(),
+            point.z - sceneOrigin.z())
+            * localToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
             continue;
         }
@@ -4849,6 +5187,8 @@ int PointCloudViewer::pickTowerMarkerAtScreenPosition(const QPointF& localPos, f
         camera->getViewMatrix() *
         camera->getProjectionMatrix() *
         camera->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
 
     const double devicePixelRatio = osgWidget_->devicePixelRatioF();
     const double clickX = localPos.x() * devicePixelRatio;
@@ -4862,7 +5202,11 @@ int PointCloudViewer::pickTowerMarkerAtScreenPosition(const QPointF& localPos, f
 
     for (int towerIndex = 0; towerIndex < towerMarkers_.size(); ++towerIndex) {
         const TowerMarker& towerMarker = towerMarkers_.at(towerIndex);
-        const osg::Vec3d projected = osg::Vec3d(towerMarker.point.x, towerMarker.point.y, towerMarker.point.z) * worldToWindow;
+        const osg::Vec3d projected = osg::Vec3d(
+            towerMarker.point.x - sceneOrigin.x(),
+            towerMarker.point.y - sceneOrigin.y(),
+            towerMarker.point.z - sceneOrigin.z())
+            * localToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
             continue;
         }
@@ -4902,6 +5246,8 @@ int PointCloudViewer::pickInspectionIssueAtScreenPosition(const QPointF& localPo
         camera->getViewMatrix() *
         camera->getProjectionMatrix() *
         camera->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
 
     const double devicePixelRatio = osgWidget_->devicePixelRatioF();
     const double clickX = localPos.x() * devicePixelRatio;
@@ -4918,7 +5264,11 @@ int PointCloudViewer::pickInspectionIssueAtScreenPosition(const QPointF& localPo
             continue;
         }
         const InspectionIssue& issue = inspectionIssues_.at(issueIndex);
-        const osg::Vec3d projected = osg::Vec3d(issue.point.x, issue.point.y, issue.point.z) * worldToWindow;
+        const osg::Vec3d projected = osg::Vec3d(
+            issue.point.x - sceneOrigin.x(),
+            issue.point.y - sceneOrigin.y(),
+            issue.point.z - sceneOrigin.z())
+            * localToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
             continue;
         }
@@ -4958,6 +5308,8 @@ int PointCloudViewer::pickInspectionRouteWaypointAtScreenPosition(const QPointF&
         camera->getViewMatrix() *
         camera->getProjectionMatrix() *
         camera->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
 
     const double devicePixelRatio = osgWidget_->devicePixelRatioF();
     const double clickX = localPos.x() * devicePixelRatio;
@@ -4971,7 +5323,11 @@ int PointCloudViewer::pickInspectionRouteWaypointAtScreenPosition(const QPointF&
 
     for (int waypointIndex = 0; waypointIndex < inspectionRouteWaypoints_.size(); ++waypointIndex) {
         const PointRecord& waypoint = inspectionRouteWaypoints_.at(waypointIndex);
-        const osg::Vec3d projected = osg::Vec3d(waypoint.x, waypoint.y, waypoint.z) * worldToWindow;
+        const osg::Vec3d projected = osg::Vec3d(
+            waypoint.x - sceneOrigin.x(),
+            waypoint.y - sceneOrigin.y(),
+            waypoint.z - sceneOrigin.z())
+            * localToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
             continue;
         }
@@ -5001,19 +5357,22 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildMeasurementOverlay() const
         return nullptr;
     }
 
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
     osg::ref_ptr<osg::Group> overlay = new osg::Group();
 
-    osg::ref_ptr<osg::Geode> markersGeode = buildMeasurementMarkersGeode(measurementResult_);
+    osg::ref_ptr<osg::Geode> markersGeode = buildMeasurementMarkersGeode(measurementResult_, sceneOrigin);
     if (markersGeode.valid()) {
         overlay->addChild(markersGeode.get());
     }
 
-    osg::ref_ptr<osg::Geode> lineGeode = buildMeasurementLineGeode(measurementResult_);
+    osg::ref_ptr<osg::Geode> lineGeode = buildMeasurementLineGeode(measurementResult_, sceneOrigin);
     if (lineGeode.valid()) {
         overlay->addChild(lineGeode.get());
     }
 
-    return overlay->getNumChildren() > 0 ? overlay.release() : nullptr;
+    return overlay->getNumChildren() > 0
+        ? wrapOverlayNodeWithSceneOrigin(overlay.release(), sceneOrigin)
+        : nullptr;
 }
 
 osg::ref_ptr<osg::Node> PointCloudViewer::buildTowerMarkersOverlay() const
@@ -5022,8 +5381,9 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildTowerMarkersOverlay() const
         return nullptr;
     }
 
-    osg::ref_ptr<osg::Geode> markersGeode = buildTowerMarkersGeode(towerMarkers_);
-    return markersGeode.release();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    osg::ref_ptr<osg::Geode> markersGeode = buildTowerMarkersGeode(towerMarkers_, sceneOrigin);
+    return wrapOverlayNodeWithSceneOrigin(markersGeode.release(), sceneOrigin);
 }
 
 osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionIssuesOverlay() const
@@ -5045,8 +5405,9 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionIssuesOverlay() const
         return nullptr;
     }
 
-    osg::ref_ptr<osg::Geode> markersGeode = buildInspectionIssuesGeode(visibleIssues);
-    return markersGeode.release();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    osg::ref_ptr<osg::Geode> markersGeode = buildInspectionIssuesGeode(visibleIssues, sceneOrigin);
+    return wrapOverlayNodeWithSceneOrigin(markersGeode.release(), sceneOrigin);
 }
 
 osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
@@ -5092,9 +5453,13 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
     const osg::Vec4 waypointColor = qColorToVec4(inspectionRouteWaypointColor_);
     const osg::Vec4 partPointColor = qColorToVec4(inspectionRoutePartPointColor_);
     const osg::Vec4 trajectoryColor = qColorToVec4(inspectionRouteTrajectoryColor_);
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
 
     osg::ref_ptr<osg::Group> overlay = new osg::Group();
-    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(overlayWaypoints, trajectoryColor);
+    osg::ref_ptr<osg::Geode> routeLineGeode = buildInspectionRouteLineGeode(
+        overlayWaypoints,
+        trajectoryColor,
+        sceneOrigin);
     if (routeLineGeode.valid()) {
         overlay->addChild(routeLineGeode.get());
     }
@@ -5104,7 +5469,8 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
             overlayWaypoints,
             inspectionRouteWaypointAllTargetPoints_,
             effectiveSelectedWaypointIndex,
-            effectiveSelectedTargetIndex);
+            effectiveSelectedTargetIndex,
+            sceneOrigin);
         if (routeWaypointPartLinksGeode.valid()) {
             overlay->addChild(routeWaypointPartLinksGeode.get());
         }
@@ -5113,7 +5479,8 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
             overlayWaypoints,
             inspectionRouteWaypointAllTargetPoints_,
             effectiveSelectedWaypointIndex,
-            effectiveSelectedTargetIndex);
+            effectiveSelectedTargetIndex,
+            sceneOrigin);
         if (routeFrustumGeode.valid()) {
             overlay->addChild(routeFrustumGeode.get());
         }
@@ -5124,7 +5491,8 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         inspectionRoutePartPointIndices_,
         secondaryHighlightPartIndices,
         primaryHighlightPartIndex,
-        partPointColor);
+        partPointColor,
+        sceneOrigin);
     if (routePartPointsGeode.valid()) {
         overlay->addChild(routePartPointsGeode.get());
     }
@@ -5132,7 +5500,8 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
     osg::ref_ptr<osg::Geode> routePointsGeode = buildInspectionRoutePointsGeode(
         overlayWaypoints,
         effectiveSelectedWaypointIndex,
-        waypointColor);
+        waypointColor,
+        sceneOrigin);
     if (routePointsGeode.valid()) {
         overlay->addChild(routePointsGeode.get());
     }
@@ -5142,13 +5511,16 @@ osg::ref_ptr<osg::Node> PointCloudViewer::buildInspectionRouteOverlay() const
         && inspectionRouteRoamCurrentPositionValid_) {
         osg::ref_ptr<osg::Node> routeRoamTrackerNode = buildInspectionRouteRoamTrackerNode(
             inspectionRouteRoamCurrentPosition_,
-            osg::Vec4(0.96f, 0.18f, 0.86f, 0.98f));
+            osg::Vec4(0.96f, 0.18f, 0.86f, 0.98f),
+            sceneOrigin);
         if (routeRoamTrackerNode.valid()) {
             overlay->addChild(routeRoamTrackerNode.get());
         }
     }
 
-    return overlay->getNumChildren() > 0 ? overlay.release() : nullptr;
+    return overlay->getNumChildren() > 0
+        ? wrapOverlayNodeWithSceneOrigin(overlay.release(), sceneOrigin)
+        : nullptr;
 }
 
 QPointF PointCloudViewer::projectPointToViewport(const PointRecord& point, bool* visible) const
@@ -5171,8 +5543,14 @@ QPointF PointCloudViewer::projectPointToViewport(const PointRecord& point, bool*
         camera->getViewMatrix() *
         camera->getProjectionMatrix() *
         camera->getViewport()->computeWindowMatrix();
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const osg::Matrixd localToWindow = osg::Matrixd::translate(sceneOrigin) * worldToWindow;
 
-    const osg::Vec3d projected = osg::Vec3d(point.x, point.y, point.z) * worldToWindow;
+    const osg::Vec3d projected = osg::Vec3d(
+        point.x - sceneOrigin.x(),
+        point.y - sceneOrigin.y(),
+        point.z - sceneOrigin.z())
+        * localToWindow;
     if (projected.z() < 0.0 || projected.z() > 1.0) {
         return QPointF();
     }

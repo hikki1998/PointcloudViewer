@@ -11,6 +11,7 @@
 #include <osg/Geometry>
 #include <osg/Group>
 #include <osg/LineWidth>
+#include <osg/MatrixTransform>
 #include <osg/Point>
 #include <osg/Program>
 #include <osg/Shader>
@@ -211,14 +212,14 @@ bool pointVisibleForClassification(
 osg::Vec4ub pointColor(
     const PointRecord& point,
     const PointCloudVisualizationOptions& visualizationOptions,
-    float minZ,
-    float heightSpan)
+    double minZ,
+    double heightSpan)
 {
     switch (visualizationOptions.colorMode) {
     case PointCloudColorMode::Elevation:
     {
-        const float normalizedHeight = heightSpan > 0.0f ? (point.z - minZ) / heightSpan : 0.5f;
-        return toOsgColorBytes(colorForElevation(normalizedHeight));
+        const double normalizedHeight = heightSpan > 0.0 ? (point.z - minZ) / heightSpan : 0.5;
+        return toOsgColorBytes(colorForElevation(static_cast<float>(std::clamp(normalizedHeight, 0.0, 1.0))));
     }
     case PointCloudColorMode::SingleColor:
         return toOsgColorBytes(visualizationOptions.singleColor);
@@ -230,18 +231,25 @@ osg::Vec4ub pointColor(
     }
 }
 
-osg::ref_ptr<osg::Geode> buildPointCloudGeode(
+osg::ref_ptr<osg::Node> buildPointCloudNode(
     const PointCloudData& pointCloudData,
     const PointCloudVisualizationOptions& visualizationOptions)
 {
+    const PointRecord& minBounds = pointCloudData.minBounds();
+    const PointRecord& maxBounds = pointCloudData.maxBounds();
+    const osg::Vec3d sceneOrigin(
+        (minBounds.x + maxBounds.x) * 0.5,
+        (minBounds.y + maxBounds.y) * 0.5,
+        (minBounds.z + maxBounds.z) * 0.5);
+
     const std::size_t pointCount = pointCloudData.size();
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4ubArray> colors = new osg::Vec4ubArray();
     vertices->reserve(pointCount);
     colors->reserve(pointCount);
 
-    const float minZ = pointCloudData.minBounds().z;
-    const float heightSpan = std::max(0.0f, pointCloudData.maxBounds().z - minZ);
+    const double minZ = minBounds.z;
+    const double heightSpan = std::max(0.0, maxBounds.z - minZ);
 
     const std::vector<PointRecord>& points = pointCloudData.points();
     for (std::size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
@@ -250,7 +258,10 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
             continue;
         }
 
-        vertices->push_back(osg::Vec3(point.x, point.y, point.z));
+        vertices->push_back(osg::Vec3(
+            static_cast<float>(point.x - sceneOrigin.x()),
+            static_cast<float>(point.y - sceneOrigin.y()),
+            static_cast<float>(point.z - sceneOrigin.z())));
         colors->push_back(pointColor(point, visualizationOptions, minZ, heightSpan));
     }
 
@@ -270,31 +281,34 @@ osg::ref_ptr<osg::Geode> buildPointCloudGeode(
     stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
     applyPointCloudShaderState(stateSet, visualizationOptions);
 
-    return geode;
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
+    transform->setMatrix(osg::Matrixd::translate(sceneOrigin));
+    transform->addChild(geode.get());
+    return transform;
 }
 
 osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
-    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec3dArray> vertices = new osg::Vec3dArray();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     const osg::Vec4 boundsColor(0.96f, 0.77f, 0.28f, 1.0f);
 
-    const osg::Vec3 p000(minBounds.x, minBounds.y, minBounds.z);
-    const osg::Vec3 p100(maxBounds.x, minBounds.y, minBounds.z);
-    const osg::Vec3 p010(minBounds.x, maxBounds.y, minBounds.z);
-    const osg::Vec3 p110(maxBounds.x, maxBounds.y, minBounds.z);
-    const osg::Vec3 p001(minBounds.x, minBounds.y, maxBounds.z);
-    const osg::Vec3 p101(maxBounds.x, minBounds.y, maxBounds.z);
-    const osg::Vec3 p011(minBounds.x, maxBounds.y, maxBounds.z);
-    const osg::Vec3 p111(maxBounds.x, maxBounds.y, maxBounds.z);
+    const osg::Vec3d p000(minBounds.x, minBounds.y, minBounds.z);
+    const osg::Vec3d p100(maxBounds.x, minBounds.y, minBounds.z);
+    const osg::Vec3d p010(minBounds.x, maxBounds.y, minBounds.z);
+    const osg::Vec3d p110(maxBounds.x, maxBounds.y, minBounds.z);
+    const osg::Vec3d p001(minBounds.x, minBounds.y, maxBounds.z);
+    const osg::Vec3d p101(maxBounds.x, minBounds.y, maxBounds.z);
+    const osg::Vec3d p011(minBounds.x, maxBounds.y, maxBounds.z);
+    const osg::Vec3d p111(maxBounds.x, maxBounds.y, maxBounds.z);
 
-    const osg::Vec3 edgePairs[] = {
+    const osg::Vec3d edgePairs[] = {
         p000, p100, p100, p110, p110, p010, p010, p000,
         p001, p101, p101, p111, p111, p011, p011, p001,
         p000, p001, p100, p101, p110, p111, p010, p011
     };
 
-    for (const osg::Vec3& vertex : edgePairs) {
+    for (const osg::Vec3d& vertex : edgePairs) {
         vertices->push_back(vertex);
         colors->push_back(boundsColor);
     }
@@ -318,22 +332,22 @@ osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, con
 
 osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
-    const float maxExtent = std::max({
+    const double maxExtent = std::max({
         maxBounds.x - minBounds.x,
         maxBounds.y - minBounds.y,
         maxBounds.z - minBounds.z,
-        1.0f
+        1.0
     });
-    const float axisLength = maxExtent * 0.18f;
-    const osg::Vec3 origin(minBounds.x, minBounds.y, minBounds.z);
+    const double axisLength = maxExtent * 0.18;
+    const osg::Vec3d origin(minBounds.x, minBounds.y, minBounds.z);
 
-    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
+    osg::ref_ptr<osg::Vec3dArray> vertices = new osg::Vec3dArray();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
-    const osg::Vec3 axisPairs[] = {
-        origin, origin + osg::Vec3(axisLength, 0.0f, 0.0f),
-        origin, origin + osg::Vec3(0.0f, axisLength, 0.0f),
-        origin, origin + osg::Vec3(0.0f, 0.0f, axisLength)
+    const osg::Vec3d axisPairs[] = {
+        origin, origin + osg::Vec3d(axisLength, 0.0, 0.0),
+        origin, origin + osg::Vec3d(0.0, axisLength, 0.0),
+        origin, origin + osg::Vec3d(0.0, 0.0, axisLength)
     };
 
     const osg::Vec4 axisColors[] = {
@@ -342,7 +356,7 @@ osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const Poin
         osg::Vec4(0.22f, 0.56f, 0.98f, 1.0f), osg::Vec4(0.22f, 0.56f, 0.98f, 1.0f)
     };
 
-    for (const osg::Vec3& vertex : axisPairs) {
+    for (const osg::Vec3d& vertex : axisPairs) {
         vertices->push_back(vertex);
     }
 
@@ -380,7 +394,7 @@ osg::ref_ptr<osg::Group> OsgPointCloudNode::build(
     const PointCloudVisualizationOptions& visualizationOptions)
 {
     osg::ref_ptr<osg::Group> root = new osg::Group();
-    root->addChild(buildPointCloudGeode(pointCloudData, visualizationOptions).get());
+    root->addChild(buildPointCloudNode(pointCloudData, visualizationOptions).get());
 
     if (visualizationOptions.showBoundingBox) {
         root->addChild(buildBoundingBoxGeode(pointCloudData.minBounds(), pointCloudData.maxBounds()).get());
@@ -576,5 +590,5 @@ osg::ref_ptr<osg::Node> OsgPointCloudNode::buildTileNode(const std::shared_ptr<P
         return nullptr;
     }
 
-    return buildPointCloudGeode(*pointCloud, visualizationOptions_);
+    return buildPointCloudNode(*pointCloud, visualizationOptions_);
 }

@@ -898,8 +898,8 @@ bool transformRouteFromWgs84(
                 errorMessage)) {
             return false;
         }
-        waypoint.localPoint.x = static_cast<float>(x);
-        waypoint.localPoint.y = static_cast<float>(y);
+        waypoint.localPoint.x = x;
+        waypoint.localPoint.y = y;
         waypoint.localPoint.z = waypoint.altitude;
     }
 
@@ -929,9 +929,9 @@ InspectionWaypoint inspectionWaypointFromJson(const QJsonObject& object)
 {
     InspectionWaypoint waypoint;
     waypoint.id = object.value(QStringLiteral("id")).toString().trimmed();
-    waypoint.localPoint.x = static_cast<float>(object.value(QStringLiteral("x")).toDouble());
-    waypoint.localPoint.y = static_cast<float>(object.value(QStringLiteral("y")).toDouble());
-    waypoint.localPoint.z = static_cast<float>(object.value(QStringLiteral("z")).toDouble());
+    waypoint.localPoint.x = object.value(QStringLiteral("x")).toDouble();
+    waypoint.localPoint.y = object.value(QStringLiteral("y")).toDouble();
+    waypoint.localPoint.z = object.value(QStringLiteral("z")).toDouble();
     waypoint.longitude = object.value(QStringLiteral("longitude")).toDouble();
     waypoint.latitude = object.value(QStringLiteral("latitude")).toDouble();
     waypoint.altitude = static_cast<float>(object.value(QStringLiteral("altitude")).toDouble(waypoint.localPoint.z));

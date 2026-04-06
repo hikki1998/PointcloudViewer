@@ -6,19 +6,19 @@
 
 namespace
 {
-float safeAxisSpan(float minValue, float maxValue)
+double safeAxisSpan(double minValue, double maxValue)
 {
-    return std::max(maxValue - minValue, 1e-5f);
+    return std::max(maxValue - minValue, 1e-5);
 }
 
-std::uint16_t clampTileCoordinate(float normalizedValue, std::uint32_t divisionsPerAxis)
+std::uint16_t clampTileCoordinate(double normalizedValue, std::uint32_t divisionsPerAxis)
 {
     if (divisionsPerAxis <= 1) {
         return 0;
     }
 
-    const float clamped = std::clamp(normalizedValue, 0.0f, 0.999999f);
-    const std::uint32_t coordinate = static_cast<std::uint32_t>(std::floor(clamped * static_cast<float>(divisionsPerAxis)));
+    const double clamped = std::clamp(normalizedValue, 0.0, 0.999999);
+    const std::uint32_t coordinate = static_cast<std::uint32_t>(std::floor(clamped * static_cast<double>(divisionsPerAxis)));
     return static_cast<std::uint16_t>(std::min<std::uint32_t>(coordinate, divisionsPerAxis - 1));
 }
 }

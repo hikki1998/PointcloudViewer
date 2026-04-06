@@ -7,9 +7,9 @@
 
 struct PointRecord
 {
-    float x = 0.0f;
-    float y = 0.0f;
-    float z = 0.0f;
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
     std::uint8_t r = 255;
     std::uint8_t g = 255;
     std::uint8_t b = 255;
@@ -44,9 +44,9 @@ public:
         bool hasReturnInfo,
         bool hasGpsTime);
     void addPoint(
-        float x,
-        float y,
-        float z,
+        double x,
+        double y,
+        double z,
         std::uint8_t r = 255,
         std::uint8_t g = 255,
         std::uint8_t b = 255,

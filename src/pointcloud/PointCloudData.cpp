@@ -10,8 +10,8 @@ PointCloudData::PointCloudData()
 void PointCloudData::clear()
 {
     points_.clear();
-    minBounds_.x = minBounds_.y = minBounds_.z = std::numeric_limits<float>::max();
-    maxBounds_.x = maxBounds_.y = maxBounds_.z = std::numeric_limits<float>::lowest();
+    minBounds_.x = minBounds_.y = minBounds_.z = std::numeric_limits<double>::max();
+    maxBounds_.x = maxBounds_.y = maxBounds_.z = std::numeric_limits<double>::lowest();
     hasColor_ = false;
     hasIntensity_ = false;
     hasClassification_ = false;
@@ -48,9 +48,9 @@ void PointCloudData::finalizeImport(
 }
 
 void PointCloudData::addPoint(
-    float x,
-    float y,
-    float z,
+    double x,
+    double y,
+    double z,
     std::uint8_t r,
     std::uint8_t g,
     std::uint8_t b,

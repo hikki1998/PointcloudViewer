@@ -108,21 +108,21 @@ bool importTowerLiTowerFile(
 
         TowerRecord towerRecord;
         towerRecord.index = indexValue;
-        towerRecord.point.x = static_cast<float>(fields.at(1).toDouble(&ok));
+        towerRecord.point.x = fields.at(1).toDouble(&ok);
         if (!ok) {
             if (errorMessage != nullptr) {
                 *errorMessage = QObject::tr("Invalid X coordinate at line %1.").arg(lineNumber);
             }
             return false;
         }
-        towerRecord.point.y = static_cast<float>(fields.at(2).toDouble(&ok));
+        towerRecord.point.y = fields.at(2).toDouble(&ok);
         if (!ok) {
             if (errorMessage != nullptr) {
                 *errorMessage = QObject::tr("Invalid Y coordinate at line %1.").arg(lineNumber);
             }
             return false;
         }
-        towerRecord.point.z = static_cast<float>(fields.at(3).toDouble(&ok));
+        towerRecord.point.z = fields.at(3).toDouble(&ok);
         if (!ok) {
             if (errorMessage != nullptr) {
                 *errorMessage = QObject::tr("Invalid Z coordinate at line %1.").arg(lineNumber);

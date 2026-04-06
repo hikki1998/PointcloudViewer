@@ -91,9 +91,9 @@ private:
     std::size_t targetLeafPointCount_ = 120000;
     int depth_ = 0;
     std::uint32_t divisionsPerAxis_ = 1;
-    float spanX_ = 1.0f;
-    float spanY_ = 1.0f;
-    float spanZ_ = 1.0f;
+    double spanX_ = 1.0;
+    double spanY_ = 1.0;
+    double spanZ_ = 1.0;
     QHash<PointCloudTileId, int> tileIndexById_;
     QList<TileAccumulatorState> tiles_;
 };

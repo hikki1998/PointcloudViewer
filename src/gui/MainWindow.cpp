@@ -585,6 +585,57 @@ bool isSupportedPointCloudFile(const QString& filePath)
     return suffix == QStringLiteral("las") || suffix == QStringLiteral("laz");
 }
 
+enum class OpenFileKind
+{
+    Unknown,
+    PointCloud,
+    Project,
+    Route
+};
+
+OpenFileKind detectOpenFileKind(const QString& filePath)
+{
+    const QFileInfo fileInfo(filePath);
+    if (!fileInfo.exists() || !fileInfo.isFile()) {
+        return OpenFileKind::Unknown;
+    }
+
+    const QString suffix = fileInfo.suffix().toLower();
+    if (suffix == QStringLiteral("las") || suffix == QStringLiteral("laz")) {
+        return OpenFileKind::PointCloud;
+    }
+    if (suffix == QStringLiteral("lpproj")) {
+        return OpenFileKind::Project;
+    }
+    if (suffix != QStringLiteral("json")) {
+        return OpenFileKind::Unknown;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return OpenFileKind::Unknown;
+    }
+
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (!document.isObject()) {
+        return OpenFileKind::Unknown;
+    }
+
+    const QJsonObject rootObject = document.object();
+    if (rootObject.contains(QStringLiteral("pointCloudFilePaths"))
+        || rootObject.contains(QStringLiteral("pointCloudFilePath"))
+        || rootObject.contains(QStringLiteral("visualization"))) {
+        return OpenFileKind::Project;
+    }
+    if (rootObject.contains(QStringLiteral("powerline"))
+        && rootObject.contains(QStringLiteral("points"))) {
+        return OpenFileKind::Route;
+    }
+
+    return OpenFileKind::Unknown;
+}
+
 QString datasetPathSummary(const QStringList& filePaths)
 {
     if (filePaths.isEmpty()) {
@@ -1722,6 +1773,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
 
     createActions();
     createRibbon();
+    createViewQuickToolBar();
     createProjectDock();
     createInspectorPanel();
     createRouteDetailsDock();
@@ -1918,7 +1970,7 @@ void MainWindow::createActions()
 {
     openAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Open"), this);
     openAction_->setShortcut(QKeySequence::Open);
-    openAction_->setToolTip(tr("Open one or more LAS or LAZ datasets"));
+    openAction_->setToolTip(tr("Open a point cloud, route file, or project"));
     addPointCloudAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Add LAS Files"), this);
     addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
     removeDatasetAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Selected Dataset"), this);
@@ -1951,17 +2003,24 @@ void MainWindow::createActions()
     fitSceneAction_->setToolTip(tr("Reset to a fitted isometric view"));
 
     topViewAction_ = new QAction(createRibbonIcon(RibbonGlyph::Top), tr("Top"), this);
+    topViewAction_->setToolTip(tr("Switch to top view"));
     frontViewAction_ = new QAction(createRibbonIcon(RibbonGlyph::Front), tr("Front"), this);
+    frontViewAction_->setToolTip(tr("Switch to front view"));
     rightViewAction_ = new QAction(createRibbonIcon(RibbonGlyph::Right), tr("Right"), this);
+    rightViewAction_->setToolTip(tr("Switch to right view"));
 
     showAxesAction_ = new QAction(createRibbonIcon(RibbonGlyph::Axes), tr("Axes"), this);
     showAxesAction_->setCheckable(true);
+    showAxesAction_->setToolTip(tr("Show or hide XYZ axes"));
 
     showBoundingBoxAction_ = new QAction(createRibbonIcon(RibbonGlyph::Bounds), tr("Bounds"), this);
     showBoundingBoxAction_->setCheckable(true);
+    showBoundingBoxAction_->setToolTip(tr("Show or hide point cloud bounds"));
 
     darkBackgroundAction_ = new QAction(createRibbonIcon(RibbonGlyph::DarkBackground), tr("Dark"), this);
+    darkBackgroundAction_->setToolTip(tr("Switch to dark background"));
     lightBackgroundAction_ = new QAction(createRibbonIcon(RibbonGlyph::LightBackground), tr("Light"), this);
+    lightBackgroundAction_->setToolTip(tr("Switch to light background"));
 
     colorModeActionGroup_ = new QActionGroup(this);
     colorModeActionGroup_->setExclusive(true);
@@ -1998,7 +2057,7 @@ void MainWindow::createActions()
     measureAction_->setCheckable(true);
     profileClassificationAction_ = new QAction(createRibbonIcon(RibbonGlyph::Classification), tr("Profile Classify"), this);
     profileClassificationAction_->setCheckable(true);
-    profileClassificationAction_->setToolTip(tr("Drag a rectangle to reclassify points. Hold Alt and drag left mouse to adjust view while the tool is active"));
+    profileClassificationAction_->setToolTip(tr("Enable profile classification and choose rectangle or polygon selection in the panel"));
     showProfileClassificationDockAction_ = new QAction(createRibbonIcon(RibbonGlyph::Classification), tr("Classify Panel"), this);
     showProfileClassificationDockAction_->setCheckable(true);
     showProfileClassificationDockAction_->setChecked(false);
@@ -2142,18 +2201,6 @@ void MainWindow::createRibbon()
     datasetRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
 
-    cameraRibbonGroup_ = homePage_->addGroup(tr("Camera"));
-    cameraRibbonGroup_->addAction(fitSceneAction_, Qt::ToolButtonTextUnderIcon);
-    cameraRibbonGroup_->addAction(topViewAction_, Qt::ToolButtonTextUnderIcon);
-    cameraRibbonGroup_->addAction(frontViewAction_, Qt::ToolButtonTextUnderIcon);
-    cameraRibbonGroup_->addAction(rightViewAction_, Qt::ToolButtonTextUnderIcon);
-
-    sceneRibbonGroup_ = homePage_->addGroup(tr("Scene"));
-    sceneRibbonGroup_->addAction(showAxesAction_, Qt::ToolButtonTextUnderIcon);
-    sceneRibbonGroup_->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
-    sceneRibbonGroup_->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
-    sceneRibbonGroup_->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
-
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
     measureRibbonGroup_->addAction(clearMeasurementAction_, Qt::ToolButtonTextUnderIcon);
@@ -2230,6 +2277,73 @@ void MainWindow::createRibbon()
     languageRibbonGroup_ = appearancePage_->addGroup(tr("Language"));
     languageRibbonGroup_->addAction(languageEnglishAction_, Qt::ToolButtonTextUnderIcon);
     languageRibbonGroup_->addAction(languageChineseAction_, Qt::ToolButtonTextUnderIcon);
+}
+
+void MainWindow::createViewQuickToolBar()
+{
+    viewQuickToolBar_ = new QToolBar(tr("View Toolbar"), this);
+    viewQuickToolBar_->setObjectName(QStringLiteral("viewQuickToolBar"));
+    viewQuickToolBar_->setOrientation(Qt::Vertical);
+    viewQuickToolBar_->setMovable(false);
+    viewQuickToolBar_->setFloatable(false);
+    viewQuickToolBar_->setIconSize(QSize(18, 18));
+    viewQuickToolBar_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    viewQuickToolBar_->setContextMenuPolicy(Qt::PreventContextMenu);
+    viewQuickToolBar_->setStyleSheet(QStringLiteral(
+        "QToolBar#viewQuickToolBar {"
+        "background-color: #f8fbff;"
+        "border-right: 1px solid #d5e2f0;"
+        "spacing: 4px;"
+        "padding: 6px 3px;"
+        "}"
+        "QToolButton {"
+        "background: transparent;"
+        "border: 1px solid transparent;"
+        "border-radius: 8px;"
+        "padding: 6px;"
+        "color: #0f172a;"
+        "}"
+        "QToolButton:hover {"
+        "background-color: #e0ebfb;"
+        "border-color: #c4d7f2;"
+        "}"
+        "QToolButton:checked {"
+        "background-color: #d0e2ff;"
+        "border-color: #97b8ea;"
+        "}"
+        "QToolButton:pressed {"
+        "background-color: #bfdbfe;"
+        "border-color: #7ea6de;"
+        "}"
+        "QToolButton:disabled {"
+        "color: #94a3b8;"
+        "}"
+        "QToolTip {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #94a3b8;"
+        "padding: 4px 8px;"
+        "border-radius: 4px;"
+        "}"
+        "QToolBar::separator {"
+        "background: #d8e3f2;"
+        "width: 1px;"
+        "height: 1px;"
+        "margin: 6px 8px;"
+        "}"));
+
+    viewQuickToolBar_->addAction(fitSceneAction_);
+    viewQuickToolBar_->addAction(topViewAction_);
+    viewQuickToolBar_->addAction(frontViewAction_);
+    viewQuickToolBar_->addAction(rightViewAction_);
+    viewQuickToolBar_->addSeparator();
+    viewQuickToolBar_->addAction(showAxesAction_);
+    viewQuickToolBar_->addAction(showBoundingBoxAction_);
+    viewQuickToolBar_->addSeparator();
+    viewQuickToolBar_->addAction(darkBackgroundAction_);
+    viewQuickToolBar_->addAction(lightBackgroundAction_);
+
+    addToolBar(Qt::LeftToolBarArea, viewQuickToolBar_);
 }
 
 void MainWindow::createWindowControls()
@@ -2784,6 +2898,21 @@ void MainWindow::createInspectorPanel()
     profileClassificationButtonRow->addWidget(profileClassificationClearSelectionButton_);
     profileClassificationButtonRow->addStretch(1);
 
+    auto* profileClassificationModeRow = new QHBoxLayout();
+    profileClassificationModeRow->setContentsMargins(0, 0, 0, 0);
+    profileClassificationModeRow->setSpacing(6);
+    profileClassificationModeLabel_ = new QLabel(tr("Selection Mode"), profileClassificationGroupBox_);
+    profileClassificationModeComboBox_ = new QComboBox(profileClassificationGroupBox_);
+    profileClassificationModeComboBox_->addItem(
+        tr("Rectangle Selection"),
+        static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
+    profileClassificationModeComboBox_->addItem(
+        tr("Polygon Selection"),
+        static_cast<int>(ProfileClassificationSelectionMode::Polygon));
+    profileClassificationModeComboBox_->setMinimumWidth(170);
+    profileClassificationModeRow->addWidget(profileClassificationModeLabel_);
+    profileClassificationModeRow->addWidget(profileClassificationModeComboBox_, 1);
+
     auto* profileClassificationHistoryRow = new QHBoxLayout();
     profileClassificationHistoryRow->setContentsMargins(0, 0, 0, 0);
     profileClassificationHistoryRow->setSpacing(6);
@@ -2828,6 +2957,7 @@ void MainWindow::createInspectorPanel()
     }
 
     profileClassificationLayout->addLayout(profileClassificationButtonRow);
+    profileClassificationLayout->addLayout(profileClassificationModeRow);
     profileClassificationLayout->addLayout(profileClassificationHistoryRow);
     profileClassificationLayout->addWidget(profileClassificationStatusLabel_);
     profileClassificationLayout->addWidget(sourceTitleLabel);
@@ -3838,6 +3968,36 @@ void MainWindow::createProfileClassificationDock()
         "background-color: #f1f5f9;"
         "border-color: #e2e8f0;"
         "color: #94a3b8;"
+        "}"
+        "QComboBox {"
+        "background-color: #ffffff;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "min-height: 30px;"
+        "padding: 4px 10px;"
+        "padding-right: 26px;"
+        "color: #0f172a;"
+        "}"
+        "QComboBox:hover {"
+        "border-color: #94a3b8;"
+        "}"
+        "QComboBox::drop-down {"
+        "subcontrol-origin: padding;"
+        "subcontrol-position: top right;"
+        "width: 22px;"
+        "border: none;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "padding: 4px 0;"
+        "}"
+        "QComboBox QAbstractItemView::item {"
+        "min-height: 24px;"
+        "padding: 4px 10px;"
         "}"));
     profileClassificationDock_->setWidget(profileClassificationSurface);
 
@@ -4184,7 +4344,7 @@ void MainWindow::retranslateUi()
     setWindowTitle(tr("LAS Point Cloud Viewer"));
 
     openAction_->setText(tr("Open"));
-    openAction_->setToolTip(tr("Open one or more LAS or LAZ datasets"));
+    openAction_->setToolTip(tr("Open a point cloud, route file, or project"));
     addPointCloudAction_->setText(tr("Add LAS Files"));
     addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
     removeDatasetAction_->setText(tr("Remove Selected Dataset"));
@@ -4208,12 +4368,19 @@ void MainWindow::retranslateUi()
     fitSceneAction_->setText(tr("Fit Scene"));
     fitSceneAction_->setToolTip(tr("Reset to a fitted isometric view"));
     topViewAction_->setText(tr("Top"));
+    topViewAction_->setToolTip(tr("Switch to top view"));
     frontViewAction_->setText(tr("Front"));
+    frontViewAction_->setToolTip(tr("Switch to front view"));
     rightViewAction_->setText(tr("Right"));
+    rightViewAction_->setToolTip(tr("Switch to right view"));
     showAxesAction_->setText(tr("Axes"));
+    showAxesAction_->setToolTip(tr("Show or hide XYZ axes"));
     showBoundingBoxAction_->setText(tr("Bounds"));
+    showBoundingBoxAction_->setToolTip(tr("Show or hide point cloud bounds"));
     darkBackgroundAction_->setText(tr("Dark"));
+    darkBackgroundAction_->setToolTip(tr("Switch to dark background"));
     lightBackgroundAction_->setText(tr("Light"));
+    lightBackgroundAction_->setToolTip(tr("Switch to light background"));
     rgbColorAction_->setText(tr("RGB"));
     elevationColorAction_->setText(tr("Elevation"));
     singleColorAction_->setText(tr("Single"));
@@ -4223,7 +4390,7 @@ void MainWindow::retranslateUi()
     themeDarkGrayAction_->setText(tr("Dark Gray"));
     measureAction_->setText(tr("Measure"));
     profileClassificationAction_->setText(tr("Profile Classify"));
-    profileClassificationAction_->setToolTip(tr("Drag a rectangle to reclassify points. Hold Alt and drag left mouse to adjust view while the tool is active"));
+    profileClassificationAction_->setToolTip(tr("Enable profile classification and choose rectangle or polygon selection in the panel"));
     showProfileClassificationDockAction_->setText(tr("Classify Panel"));
     showProfileClassificationDockAction_->setToolTip(tr("Show or hide the profile classification dock"));
     saveProfileClassificationEditsAction_->setText(tr("Save Classify Result"));
@@ -4367,6 +4534,9 @@ void MainWindow::retranslateUi()
     if (profileClassificationDock_ != nullptr) {
         profileClassificationDock_->setWindowTitle(tr("Profile Classification"));
     }
+    if (viewQuickToolBar_ != nullptr) {
+        viewQuickToolBar_->setWindowTitle(tr("View Toolbar"));
+    }
     if (logDock_ != nullptr) {
         logDock_->setWindowTitle(tr("Application Log"));
     }
@@ -4452,6 +4622,22 @@ void MainWindow::retranslateUi()
     }
     if (resetClassificationColorsButton_ != nullptr) {
         resetClassificationColorsButton_->setText(tr("Reset Defaults"));
+    }
+    if (profileClassificationModeLabel_ != nullptr) {
+        profileClassificationModeLabel_->setText(tr("Selection Mode"));
+    }
+    if (profileClassificationModeComboBox_ != nullptr) {
+        const int selectedMode = profileClassificationModeComboBox_->currentData().toInt();
+        const QSignalBlocker blocker(profileClassificationModeComboBox_);
+        profileClassificationModeComboBox_->clear();
+        profileClassificationModeComboBox_->addItem(
+            tr("Rectangle Selection"),
+            static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
+        profileClassificationModeComboBox_->addItem(
+            tr("Polygon Selection"),
+            static_cast<int>(ProfileClassificationSelectionMode::Polygon));
+        const int selectedModeIndex = profileClassificationModeComboBox_->findData(selectedMode);
+        profileClassificationModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
     }
     refreshLogPanel();
     updateProfileClassificationPanel();
@@ -4943,6 +5129,9 @@ void MainWindow::updateProfileClassificationPanel()
         return;
     }
 
+    const ProfileClassificationSelectionMode selectionMode = viewer_->profileClassificationSelectionMode();
+    const bool polygonMode = selectionMode == ProfileClassificationSelectionMode::Polygon;
+
     profileClassificationGroupBox_->setTitle(tr("3D Profile Classification"));
     if (profileClassificationToggleButton_ != nullptr) {
         profileClassificationToggleButton_->setText(
@@ -4990,6 +5179,12 @@ void MainWindow::updateProfileClassificationPanel()
         profileClassificationSaveButton_->setText(tr("Save Result"));
         profileClassificationSaveButton_->setEnabled(hasPointCloud && viewer_->classificationEditedPointCount() > 0 && !toolBusy);
     }
+    if (profileClassificationModeComboBox_ != nullptr) {
+        const QSignalBlocker blocker(profileClassificationModeComboBox_);
+        const int modeIndex = profileClassificationModeComboBox_->findData(static_cast<int>(selectionMode));
+        profileClassificationModeComboBox_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 0);
+        profileClassificationModeComboBox_->setEnabled(sceneReady && !toolBusy);
+    }
 
     if (profileClassificationSourceListWidget_ != nullptr) {
         const QSignalBlocker blocker(profileClassificationSourceListWidget_);
@@ -5035,10 +5230,14 @@ void MainWindow::updateProfileClassificationPanel()
         if (!hasPointCloud) {
             profileClassificationStatusLabel_->setText(tr("Load a point cloud and switch to a stable scene before using profile classification."));
         } else if (toolBusy) {
-            profileClassificationStatusLabel_->setText(tr("Profile classification is processing the current rectangular selection."));
+            profileClassificationStatusLabel_->setText(
+                polygonMode
+                    ? tr("Profile classification is processing the current polygon selection.")
+                    : tr("Profile classification is processing the current rectangular selection."));
         } else {
             profileClassificationStatusLabel_->setText(
-                tr("Source classes %1 | Target class %2 | Edited points %3 | Save state %4")
+                tr("Mode %1 | Source classes %2 | Target class %3 | Edited points %4 | Save state %5")
+                    .arg(polygonMode ? tr("Polygon") : tr("Rectangle"))
                     .arg(QLocale().toString(viewer_->profileClassificationSourceClasses().size()))
                     .arg(QLocale().toString(viewer_->profileClassificationTargetClass()))
                     .arg(QLocale().toString(viewer_->classificationEditedPointCount()))
@@ -5303,7 +5502,7 @@ void MainWindow::promptSaveProfileClassificationEditsIfNeeded()
 
 void MainWindow::createConnections()
 {
-    connect(openAction_, &QAction::triggered, this, [this]() { openPointCloud(); });
+    connect(openAction_, &QAction::triggered, this, [this]() { openProjectExplorerFile(); });
     connect(addPointCloudAction_, &QAction::triggered, this, [this]() { addPointCloudFiles(); });
     connect(removeDatasetAction_, &QAction::triggered, this, [this]() { removeSelectedDataset(); });
     connect(locateDatasetAction_, &QAction::triggered, this, [this]() {
@@ -6340,6 +6539,15 @@ void MainWindow::createConnections()
             viewer_->setProfileClassificationTargetClass(item->data(Qt::UserRole).toInt());
         }
     });
+    connect(profileClassificationModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+        if (viewer_ == nullptr || profileClassificationModeComboBox_ == nullptr) {
+            return;
+        }
+
+        const ProfileClassificationSelectionMode mode = static_cast<ProfileClassificationSelectionMode>(
+            profileClassificationModeComboBox_->currentData().toInt());
+        viewer_->setProfileClassificationSelectionMode(mode);
+    });
     connect(classificationColorsTableWidget_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
         if (viewer_ == nullptr || item == nullptr || updatingClassificationColorTable_) {
             return;
@@ -7312,6 +7520,64 @@ void MainWindow::createConnections()
     });
 }
 
+void MainWindow::openProjectExplorerFile()
+{
+    const QString filePath = showStyledOpenFileNameDialog(
+        this,
+        tr("Open"),
+        QString(),
+        tr("Supported Files (*.las *.laz *.lpproj *.json);;LAS Files (*.las *.laz);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)"));
+
+    if (filePath.isEmpty()) {
+        showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
+        return;
+    }
+
+    const OpenFileKind openFileKind = detectOpenFileKind(filePath);
+    switch (openFileKind) {
+    case OpenFileKind::PointCloud:
+        loadPointCloudFiles(QStringList { filePath });
+        return;
+    case OpenFileKind::Project:
+        loadProjectFile(filePath);
+        return;
+    case OpenFileKind::Route:
+        if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
+            showUserMessage(LogLevel::Warning, tr("Load a point cloud before importing route files."), 3000);
+            return;
+        }
+        importRouteFile(filePath, true, true);
+        return;
+    case OpenFileKind::Unknown:
+    default:
+        break;
+    }
+
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    if (suffix == QStringLiteral("json")) {
+        bool routeImported = false;
+        if (viewer_ != nullptr && viewer_->hasPointCloud()) {
+            routeImported = importRouteFile(filePath, true, false);
+            if (routeImported) {
+                showUserMessage(
+                    LogLevel::Info,
+                    tr("Imported route file: %1").arg(QFileInfo(filePath).fileName()),
+                    3500);
+                return;
+            }
+        }
+
+        if (loadProjectFile(filePath)) {
+            return;
+        }
+    }
+
+    showUserMessage(
+        LogLevel::Warning,
+        tr("Unsupported file type. Choose LAS/LAZ point cloud, route JSON, or project file."),
+        4500);
+}
+
 void MainWindow::openProject()
 {
     const QString filePath = showStyledOpenFileNameDialog(
@@ -7816,9 +8082,9 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
     };
 
     const auto applyCurrentEditorValues = [&]() {
-        waypoint.localPoint.x = static_cast<float>(xSpinBox->value());
-        waypoint.localPoint.y = static_cast<float>(ySpinBox->value());
-        waypoint.localPoint.z = static_cast<float>(zSpinBox->value());
+        waypoint.localPoint.x = xSpinBox->value();
+        waypoint.localPoint.y = ySpinBox->value();
+        waypoint.localPoint.z = zSpinBox->value();
         waypoint.dh = zSpinBox->value();
         waypoint.height = zSpinBox->value();
         waypoint.aircraftYawDeg = aircraftYawSpinBox->value();
@@ -9143,10 +9409,22 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
         "padding: 6px 10px;"
         "border-bottom: 1px solid %1;"
         "font-weight: 600;"
+        "}"
+        "QToolTip {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #94a3b8;"
+        "padding: 4px 8px;"
+        "border-radius: 4px;"
         "}")
             .arg(dockBorder, dockTitleBackground, dockTitleText,
                 dockTabBackground, dockTabText, dockTabSelectedBackground,
                 dockTabSelectedText, dockTabHoverBackground));
+
+    QPalette toolTipPalette = QToolTip::palette();
+    toolTipPalette.setColor(QPalette::ToolTipBase, QColor(248, 250, 252));
+    toolTipPalette.setColor(QPalette::ToolTipText, QColor(15, 23, 42));
+    QToolTip::setPalette(toolTipPalette);
 
     updateWindowControlAppearance(theme);
     updateWindowControlButtons();
@@ -9879,6 +10157,10 @@ void MainWindow::loadMeasurementSettings()
     preferVegetationClassification_ = settings.value(
         QStringLiteral("measurement/preferVegetationClassification"),
         preferVegetationClassification_).toBool();
+    const ProfileClassificationSelectionMode profileClassificationSelectionMode =
+        static_cast<ProfileClassificationSelectionMode>(settings.value(
+            QStringLiteral("measurement/profileClassificationSelectionMode"),
+            static_cast<int>(ProfileClassificationSelectionMode::Rectangle)).toInt());
 
     if (clearanceThresholdSpinBox_ != nullptr) {
         const QSignalBlocker blocker(clearanceThresholdSpinBox_);
@@ -9905,6 +10187,14 @@ void MainWindow::loadMeasurementSettings()
         const QSignalBlocker blocker(preferVegetationClassificationCheckBox_);
         preferVegetationClassificationCheckBox_->setChecked(preferVegetationClassification_);
     }
+    if (viewer_ != nullptr) {
+        viewer_->setProfileClassificationSelectionMode(profileClassificationSelectionMode);
+    }
+    if (profileClassificationModeComboBox_ != nullptr) {
+        const QSignalBlocker blocker(profileClassificationModeComboBox_);
+        const int modeIndex = profileClassificationModeComboBox_->findData(static_cast<int>(profileClassificationSelectionMode));
+        profileClassificationModeComboBox_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 0);
+    }
 }
 
 void MainWindow::persistMeasurementSettings() const
@@ -9916,6 +10206,11 @@ void MainWindow::persistMeasurementSettings() const
     settings.setValue(QStringLiteral("measurement/vegetationClusterGapMeters"), vegetationClusterGapMeters_);
     settings.setValue(QStringLiteral("measurement/vegetationClusterPointCount"), vegetationClusterPointCount_);
     settings.setValue(QStringLiteral("measurement/preferVegetationClassification"), preferVegetationClassification_);
+    settings.setValue(
+        QStringLiteral("measurement/profileClassificationSelectionMode"),
+        viewer_ != nullptr
+            ? static_cast<int>(viewer_->profileClassificationSelectionMode())
+            : static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
 }
 
 void MainWindow::loadVisualizationSettings()

@@ -9,6 +9,7 @@
 #include <QColor>
 #include <QList>
 #include <QPointF>
+#include <QPolygonF>
 #include <QRectF>
 #include <QSet>
 #include <QString>
@@ -131,6 +132,12 @@ enum class IssueEditMode
     Add
 };
 
+enum class ProfileClassificationSelectionMode
+{
+    Rectangle = 0,
+    Polygon
+};
+
 class OsgWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
@@ -251,6 +258,7 @@ public:
     IssueEditMode issueEditMode() const;
     const QSet<int>& profileClassificationSourceClasses() const;
     int profileClassificationTargetClass() const;
+    ProfileClassificationSelectionMode profileClassificationSelectionMode() const;
     bool canUndoClassificationEdits() const;
     bool canRedoClassificationEdits() const;
     int classificationEditedPointCount() const;
@@ -298,6 +306,7 @@ public slots:
     void setWheelZoomSensitivityPercent(int percent);
     void setMeasurementEnabled(bool enabled);
     void setProfileClassificationModeEnabled(bool enabled);
+    void setProfileClassificationSelectionMode(ProfileClassificationSelectionMode mode);
     void setProfileClassificationSourceClasses(const QSet<int>& classifications);
     void setProfileClassificationTargetClass(int classification);
     void undoClassificationEdit();
@@ -421,6 +430,8 @@ private:
     const PointCloudData* ensureFullResolutionPointCloudCache(QString* errorMessage = nullptr);
     void rebuildScene();
     void rebuildMergedPointCloud();
+    void updateSceneOriginFromCurrentPointCloud();
+    osg::Vec3d overlaySceneOrigin() const;
     void updateFooter();
     void updateMessage(const QString& title, const QString& detail);
     void applyClearColor();
@@ -440,7 +451,10 @@ private:
     void updateHoveredPoint(const PointRecord* hoveredPoint);
     void syncVisualizationClassificationState();
     void clearSelectionRubberBand();
-    void beginProfileClassificationSelection(const QRectF& viewportRect);
+    void clearProfileClassificationPolygonSelection();
+    void updateProfileClassificationPolygonOverlay();
+    void tryFinishProfileClassificationPolygonSelection();
+    void beginProfileClassificationSelection(const QRectF& viewportRect, const QPolygonF& viewportPolygon = QPolygonF());
     void finalizeProfileClassificationTask(
         std::uint64_t token,
         const ClassificationEditBatch& batch,
@@ -516,6 +530,7 @@ private:
     QLabel* measurementSummaryOverlayLabel_ = nullptr;
     QWidget* axisIndicatorOverlay_ = nullptr;
     QRubberBand* selectionRubberBand_ = nullptr;
+    QWidget* profileClassificationPolygonOverlay_ = nullptr;
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
     QWidget* routeCameraPreviewOverlay_ = nullptr;
@@ -523,6 +538,8 @@ private:
     std::shared_ptr<PointCloudData> currentPointCloud_;
     std::shared_ptr<PointCloudData> previewPointCloud_;
     mutable std::shared_ptr<PointCloudData> fullResolutionPointCloudCache_;
+    osg::Vec3d sceneOriginWorld_;
+    bool sceneOriginValid_ = false;
     QString currentFilePath_;
     QStringList currentFilePaths_;
     QList<LoadedPointCloudDataset> loadedPointCloudDatasets_;
@@ -534,6 +551,7 @@ private:
     int pointCloudLoadingProgressPercent_ = -1;
     bool measurementEnabled_ = false;
     bool profileClassificationModeEnabled_ = false;
+    ProfileClassificationSelectionMode profileClassificationSelectionMode_ = ProfileClassificationSelectionMode::Rectangle;
     bool profileClassificationTaskActive_ = false;
     bool profileClassificationSelectionActive_ = false;
     MeasurementResult measurementResult_;
@@ -604,6 +622,9 @@ private:
     QSet<int> profileClassificationSourceClasses_;
     int profileClassificationTargetClass_ = 16;
     QRectF profileClassificationSelectionRect_;
+    QPolygonF profileClassificationPolygonPoints_;
+    QPointF profileClassificationPolygonPreviewPoint_;
+    bool profileClassificationPolygonPreviewActive_ = false;
     ClassificationEditStore classificationEditStore_;
     QList<ClassificationEditBatch> classificationUndoStack_;
     QList<ClassificationEditBatch> classificationRedoStack_;

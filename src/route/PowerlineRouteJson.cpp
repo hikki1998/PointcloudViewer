@@ -175,9 +175,9 @@ bool hasAllRotationFields(const QJsonObject& object)
 PointRecord pointRecordFromCoordinates(double x, double y, double z)
 {
     PointRecord point;
-    point.x = static_cast<float>(x);
-    point.y = static_cast<float>(y);
-    point.z = static_cast<float>(z);
+    point.x = x;
+    point.y = y;
+    point.z = z;
     return point;
 }
 

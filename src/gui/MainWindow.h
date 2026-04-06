@@ -96,6 +96,7 @@ private:
 
     void createActions();
     void createRibbon();
+    void createViewQuickToolBar();
     void createWindowControls();
     void createProjectDock();
     void createInspectorPanel();
@@ -106,6 +107,7 @@ private:
     void createStatusBar();
     void createConnections();
     void retranslateUi();
+    void openProjectExplorerFile();
     void openPointCloud();
     void addPointCloudFiles();
     void openProject();
@@ -345,6 +347,7 @@ private:
     QDoubleSpinBox* routeRoamFloatingSpeedSpinBox_ = nullptr;
     QComboBox* routeRoamFloatingViewModeComboBox_ = nullptr;
     QLabel* routeRoamFloatingCaptureLabel_ = nullptr;
+    QComboBox* profileClassificationModeComboBox_ = nullptr;
     QComboBox* routeWaypointLabelModeComboBox_ = nullptr;
     QComboBox* routePartLabelModeComboBox_ = nullptr;
     QPushButton* routeWaypointColorButton_ = nullptr;
@@ -377,6 +380,7 @@ private:
     QTableWidget* routeQaIssuesTableWidget_ = nullptr;
     QToolBar* measurementToolBar_ = nullptr;
     QToolBar* projectToolBar_ = nullptr;
+    QToolBar* viewQuickToolBar_ = nullptr;
     QToolBar* towerToolBar_ = nullptr;
     QToolBar* issueToolBar_ = nullptr;
     QToolBar* analysisToolBar_ = nullptr;
@@ -413,6 +417,7 @@ private:
     QPushButton* profileClassificationRedoButton_ = nullptr;
     QPushButton* profileClassificationClearEditsButton_ = nullptr;
     QPushButton* profileClassificationSaveButton_ = nullptr;
+    QLabel* profileClassificationModeLabel_ = nullptr;
     QLabel* profileClassificationStatusLabel_ = nullptr;
     QWidget* windowControlsWidget_ = nullptr;
     QToolButton* minimizeButton_ = nullptr;

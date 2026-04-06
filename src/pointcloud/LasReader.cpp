@@ -26,12 +26,12 @@ void populateMetadataFromHeader(const LASheader& header, std::size_t pointCount,
     }
 
     metadata->pointCount = pointCount;
-    metadata->minBounds.x = static_cast<float>(header.min_x);
-    metadata->minBounds.y = static_cast<float>(header.min_y);
-    metadata->minBounds.z = static_cast<float>(header.min_z);
-    metadata->maxBounds.x = static_cast<float>(header.max_x);
-    metadata->maxBounds.y = static_cast<float>(header.max_y);
-    metadata->maxBounds.z = static_cast<float>(header.max_z);
+    metadata->minBounds.x = header.min_x;
+    metadata->minBounds.y = header.min_y;
+    metadata->minBounds.z = header.min_z;
+    metadata->maxBounds.x = header.max_x;
+    metadata->maxBounds.y = header.max_y;
+    metadata->maxBounds.z = header.max_z;
     metadata->hasColor = header.point_data_format >= 2;
     metadata->hasIntensity = true;
     metadata->hasClassification = true;
@@ -51,9 +51,9 @@ void populateMetadataFromHeader(const LASheader& header, std::size_t pointCount,
 PointRecord readPointRecord(const LASreader& reader)
 {
     PointRecord point;
-    point.x = static_cast<float>(reader.get_x());
-    point.y = static_cast<float>(reader.get_y());
-    point.z = static_cast<float>(reader.get_z());
+    point.x = reader.get_x();
+    point.y = reader.get_y();
+    point.z = reader.get_z();
     point.a = 255;
     point.intensity = reader.point.get_intensity();
     point.classification = reader.point.get_classification();
@@ -222,8 +222,8 @@ bool LasReader::read(
 #else
     PointRecord minBounds;
     PointRecord maxBounds;
-    minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<float>::max();
-    maxBounds.x = maxBounds.y = maxBounds.z = std::numeric_limits<float>::lowest();
+    minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<double>::max();
+    maxBounds.x = maxBounds.y = maxBounds.z = std::numeric_limits<double>::lowest();
     bool hasColor = false;
     bool hasIntensity = false;
     bool hasClassification = false;
@@ -449,8 +449,8 @@ bool LasReader::readPreview(
     output->reserve(targetPreviewPoints);
     PointRecord minBounds;
     PointRecord maxBounds;
-    minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<float>::max();
-    maxBounds.x = maxBounds.y = maxBounds.z = std::numeric_limits<float>::lowest();
+    minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<double>::max();
+    maxBounds.x = maxBounds.y = maxBounds.z = std::numeric_limits<double>::lowest();
     bool hasColor = false;
     bool hasIntensity = false;
     bool hasClassification = false;
