@@ -22,7 +22,7 @@ option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
 option(LAS_VIEWER_ENABLE_PROJ "Enable PROJ-based CRS transformation" ON)
 
 set(THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rd" CACHE PATH "Root directory containing project third-party dependencies")
-set(QT_ROOT "E:/code/Qt5.15.2/5.15.2/msvc2019_64" CACHE PATH "Qt installation root")
+set(QT_ROOT "E:/env/qt/5.15.2" CACHE PATH "Qt installation root")
 set(OSG_ROOT "" CACHE PATH "Legacy override for OpenSceneGraph installation root")
 set(QTITAN_ROOT "" CACHE PATH "Legacy override for QtitanRibbon package root")
 set(GDAL_ROOT "" CACHE PATH "Legacy override for GDAL SDK/runtime root")
@@ -116,6 +116,16 @@ function(las_viewer_resolve_package_root out_var package_label stable_dir)
         "Required entries: ${LAS_VIEWER_REQUIRED_PATHS} and .version"
     )
 endfunction()
+
+if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
+    if(EXISTS "${QT_ROOT}/msvc2019_64/lib/cmake/Qt5")
+        set(QT_ROOT "${QT_ROOT}/msvc2019_64" CACHE PATH "Qt installation root" FORCE)
+    elseif(EXISTS "${QT_ROOT}/msvc2022_64/lib/cmake/Qt5")
+        set(QT_ROOT "${QT_ROOT}/msvc2022_64" CACHE PATH "Qt installation root" FORCE)
+    elseif(EXISTS "E:/env/qt/5.15.2/msvc2019_64/lib/cmake/Qt5")
+        set(QT_ROOT "E:/env/qt/5.15.2/msvc2019_64" CACHE PATH "Qt installation root" FORCE)
+    endif()
+endif()
 
 if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
     message(FATAL_ERROR
@@ -517,6 +527,10 @@ set(SOURCES
     src/route/PowerlineRouteJson.cpp
     src/route/RouteInterop.cpp
 )
+
+if(WIN32)
+    list(APPEND SOURCES src/app_icon.rc)
+endif()
 
 set(HEADERS
     src/crs/CrsCatalogService.h

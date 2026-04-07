@@ -5,6 +5,9 @@
 - 回答尽量简洁，优先说明结果、验证状态、以及下一步最有价值的动作。
 - 在较大改动前先发一句短进度说明，说明准备查看的文件和改动方向。
 
+## 禁止操作
+- 禁止格式化磁盘或清理非当前工程目录以外的任何路径，如有需要，向我确认。
+
 ## First Read
 - 新对话进入仓库后，先读 [docs/agent/context.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/docs/agent/context.md)。
 - 读完后再看 [docs/agent/README.md](/E:/code/VibeCodingProject/las_pointcloud_viewer/docs/agent/README.md)，按任务继续下钻。
