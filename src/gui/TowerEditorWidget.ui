@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TowerEditorWidget</class>
+ <widget class="QWidget" name="TowerEditorWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>640</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <item>
+    <widget class="QWidget" name="towerToolbarHost" native="true">
+     <layout class="QHBoxLayout" name="towerToolbarHostLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QToolBar" name="towerToolBar"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="towerCountValueLabel">
+     <property name="text">
+      <string>Tower summary</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="towerToolStatusLabel">
+     <property name="text">
+      <string>Tower tool status</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="towerTableWidget"/>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="towerDetailsGroupBox">
+     <property name="title">
+      <string>Selected Tower Details</string>
+     </property>
+     <layout class="QFormLayout" name="towerDetailsLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="towerCodeLabel">
+        <property name="text">
+         <string>Code</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="towerCodeEdit"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="towerLineNameLabel">
+        <property name="text">
+         <string>Line</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="towerLineNameEdit"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="towerVoltageLevelLabel">
+        <property name="text">
+         <string>Voltage</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="towerVoltageLevelEdit"/>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="towerTypeLabel">
+        <property name="text">
+         <string>Tower Category</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="towerTypeComboBox"/>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="towerStructureTypeLabel">
+        <property name="text">
+         <string>Structure Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="towerStructureTypeEdit"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="towerInspectionDateLabel">
+        <property name="text">
+         <string>Inspection Date</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QLineEdit" name="towerInspectionDateEdit"/>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="towerStatusLabel">
+        <property name="text">
+         <string>Tower Status</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLineEdit" name="towerStatusEdit"/>
+      </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="towerNotesLabel">
+        <property name="text">
+         <string>Notes</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QPlainTextEdit" name="towerNotesEdit"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

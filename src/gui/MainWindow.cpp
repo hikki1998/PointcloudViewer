@@ -1,4 +1,4 @@
-#include "gui/MainWindow.h"
+﻿#include "gui/MainWindow.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -114,9 +114,37 @@
 #include "domain/RuleBasedClearanceEngine.h"
 #include "domain/TowerFileInterop.h"
 #include "domain/VegetationRiskAnalysis.h"
+#include "gui/ApplicationLogDock.h"
+#include "gui/BackstageAboutWidget.h"
+#include "gui/BackstageApplicationSettingsWidget.h"
+#include "gui/BackstageOpenActionsWidget.h"
+#include "gui/BackstageOpenProjectWidget.h"
+#include "gui/BackstagePageHeaderWidget.h"
+#include "gui/BackstageProjectPropertiesWidget.h"
+#include "gui/DatasetSummaryWidget.h"
+#include "gui/IssueController.h"
+#include "gui/IssueEditorWidget.h"
+#include "gui/MeasurementAnalysisController.h"
+#include "gui/MeasurementPanelWidget.h"
+#include "gui/NavigationSettingsWidget.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/ProfileClassificationController.h"
+#include "gui/ProfileClassificationDock.h"
+#include "gui/ProfileClassificationWidget.h"
 #include "gui/ProfilePlotWidget.h"
+#include "gui/ProjectExplorerController.h"
+#include "gui/ProjectExplorerDock.h"
+#include "gui/RouteController.h"
+#include "gui/RouteDetailsDock.h"
+#include "gui/SceneInspectorDock.h"
+#include "gui/SpanProfileDock.h"
+#include "gui/TowerController.h"
+#include "gui/TowerEditorWidget.h"
 #include "gui/UiHistoryStore.h"
+#include "gui/VisualizationPanelController.h"
+#include "gui/support/RibbonIconFactory.h"
+#include "gui/support/SettingsKeys.h"
+#include "gui/support/UiHelpers.h"
 #include "logging/ApplicationLogger.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
@@ -136,15 +164,24 @@ using lasviewer::crs::CoordinateSystemRef;
 using lasviewer::crs::CrsAuthorityService;
 using lasviewer::crs::CrsTransformService;
 using lasviewer::crs::ProjectCoordinateSystemsDialog;
+using lasviewer::gui::RibbonGlyph;
+using lasviewer::gui::WindowControlGlyph;
+using lasviewer::gui::applyStyledDialogPalette;
+using lasviewer::gui::createResourceIconOrFallback;
+using lasviewer::gui::createRibbonIcon;
+using lasviewer::gui::createWindowControlIcon;
+using lasviewer::gui::enforceLightDialogButtonStyles;
+using lasviewer::gui::setFormFieldLabel;
+using lasviewer::gui::showLightStyledMessageBox;
+using lasviewer::gui::showStyledOpenFileNameDialog;
+using lasviewer::gui::showStyledOpenFileNamesDialog;
+using lasviewer::gui::showStyledSaveFileNameDialog;
+namespace settingskeys = lasviewer::gui::settingskeys;
 
 namespace
 {
-const QColor kDarkBackground(20, 28, 38);
-const QColor kLightBackground(241, 244, 249);
 const QColor kWindowChromeLight(243, 246, 251);
 const QColor kWindowChromeDark(51, 65, 85);
-const QColor kRibbonGlyphColor(28, 64, 111);
-const QColor kRibbonAccentColor(59, 130, 246);
 constexpr int kMainWindowStateVersion = 1;
 constexpr int kWindowResizeBorder = 8;
 constexpr int kProjectTreeItemTypeRole = Qt::UserRole;
@@ -239,46 +276,6 @@ bool boundsFromPoints(const QList<PointRecord>& points, PointRecord* minBounds, 
     return true;
 }
 
-enum class RibbonGlyph
-{
-    Open,
-    Clear,
-    Exit,
-    Fit,
-    Top,
-    Front,
-    Right,
-    Axes,
-    Bounds,
-    DarkBackground,
-    LightBackground,
-    Rgb,
-    Elevation,
-    SingleColor,
-    Classification,
-    ThemeColorful,
-    ThemeWhite,
-    ThemeDarkGray,
-    Log,
-    Measure,
-    Tower,
-    TowerAdd,
-    TowerInsert,
-    TowerMove,
-    TowerAdjust,
-    TowerFocus,
-    TowerRemove,
-    Language
-};
-
-enum class WindowControlGlyph
-{
-    Minimize,
-    Maximize,
-    Restore,
-    Close
-};
-
 QString formatCoordinate(float value)
 {
     return QLocale().toString(static_cast<double>(value), 'f', 2);
@@ -358,104 +355,6 @@ QString classificationDisplayName(
     return customName.isEmpty()
         ? defaultClassificationDisplayName(classificationCode)
         : customName;
-}
-
-struct LogVisualStyle
-{
-    QString token;
-    QString accentColor;
-    QString badgeBackground;
-    QString badgeForeground;
-    QString messageColor;
-};
-
-LogVisualStyle logVisualStyleForLevel(lasviewer::logging::LogLevel level)
-{
-    switch (level) {
-    case lasviewer::logging::LogLevel::Warning:
-        return {
-            QStringLiteral("WARN"),
-            QStringLiteral("#d97706"),
-            QStringLiteral("#fef3c7"),
-            QStringLiteral("#92400e"),
-            QStringLiteral("#78350f")
-        };
-    case lasviewer::logging::LogLevel::Error:
-        return {
-            QStringLiteral("ERROR"),
-            QStringLiteral("#dc2626"),
-            QStringLiteral("#fee2e2"),
-            QStringLiteral("#991b1b"),
-            QStringLiteral("#7f1d1d")
-        };
-    case lasviewer::logging::LogLevel::Info:
-    default:
-        return {
-            QStringLiteral("INFO"),
-            QStringLiteral("#2563eb"),
-            QStringLiteral("#dbeafe"),
-            QStringLiteral("#1d4ed8"),
-            QStringLiteral("#0f172a")
-        };
-    }
-}
-
-QString highlightLogKeyword(const QString& text, const QString& keyword)
-{
-    const QString normalizedKeyword = keyword.trimmed();
-    if (normalizedKeyword.isEmpty()) {
-        return text.toHtmlEscaped().replace(QStringLiteral("\n"), QStringLiteral("<br/>"));
-    }
-
-    QString html;
-    html.reserve(text.size() + 48);
-
-    int cursor = 0;
-    while (cursor < text.size()) {
-        const int hitIndex = text.indexOf(normalizedKeyword, cursor, Qt::CaseInsensitive);
-        if (hitIndex < 0) {
-            html += text.mid(cursor).toHtmlEscaped();
-            break;
-        }
-
-        html += text.mid(cursor, hitIndex - cursor).toHtmlEscaped();
-        const QString hitText = text.mid(hitIndex, normalizedKeyword.size());
-        html += QStringLiteral("<span style='background:#fde68a; color:#111827; border-radius:3px; padding:0 2px;'>%1</span>")
-            .arg(hitText.toHtmlEscaped());
-        cursor = hitIndex + normalizedKeyword.size();
-    }
-
-    return html.replace(QStringLiteral("\n"), QStringLiteral("<br/>"));
-}
-
-QString logEntryHtml(const lasviewer::logging::LogEntry& entry, const QString& keyword)
-{
-    const LogVisualStyle style = logVisualStyleForLevel(entry.level);
-    const QString timestamp = QDateTime::fromMSecsSinceEpoch(entry.timestampMs).toString(QStringLiteral("HH:mm:ss"));
-    const QString moduleText = entry.module.trimmed().isEmpty() ? QStringLiteral("APP") : entry.module;
-    const QString moduleHtml = moduleText.toHtmlEscaped();
-    const QString messageHtml = highlightLogKeyword(entry.message, keyword);
-
-    return QStringLiteral(
-        "<div style='margin:0 0 10px 0; padding:10px 12px; border-left:4px solid %1; "
-        "background:#ffffff; border-radius:9px; border:1px solid #d9e5f2;'>"
-        "<div>"
-        "<span style='color:#64748b; font-family:Consolas, \"Courier New\", monospace; font-size:12px;'>%2</span>"
-        "<span style='display:inline-block; padding:2px 8px; border-radius:999px; "
-        "margin-left:8px; background:%3; color:%4; font-family:Consolas, \"Courier New\", monospace; font-size:11px; font-weight:700;'>%5</span>"
-        "<span style='display:inline-block; padding:2px 8px; border-radius:999px; "
-        "margin-left:8px; background:#eef2f7; color:#334155; font-size:11px; font-weight:600;'>%6</span>"
-        "</div>"
-        "<div style='margin-top:7px; color:%7; font-size:13px; line-height:1.55;'>%8</div>"
-        "</div>")
-        .arg(style.accentColor)
-        .arg(timestamp)
-        .arg(style.badgeBackground)
-        .arg(style.badgeForeground)
-        .arg(style.token)
-        .arg(moduleHtml)
-        .arg(style.messageColor)
-        .arg(messageHtml);
 }
 
 QJsonObject colorToJson(const QColor& color);
@@ -841,10 +740,10 @@ void recordRecentProjectFilePath(const QString& filePath)
 
     QSettings settings;
     const QStringList recentProjects = normalizedRecentProjectFiles(
-        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
+        settings.value(settingskeys::kProjectRecentProjects).toStringList(),
         normalizedPath);
-    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
-    settings.setValue(QStringLiteral("project/lastOpenedProject"), normalizedPath);
+    settings.setValue(settingskeys::kProjectRecentProjects, recentProjects);
+    settings.setValue(settingskeys::kProjectLastOpenedProject, normalizedPath);
 }
 
 QString routeCaptureTargetDisplayName(
@@ -1126,86 +1025,6 @@ QFrame* createDetailsStatCard(const QString& labelText, const QString& valueText
     return card;
 }
 
-QString lightDialogPushButtonStyleSheet()
-{
-    return QStringLiteral(
-        "QPushButton {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 6px 14px;"
-        "min-width: 84px;"
-        "}"
-        "QPushButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "QPushButton:pressed {"
-        "background-color: #dbeafe;"
-        "border-color: #60a5fa;"
-        "}"
-        "QPushButton:default {"
-        "background-color: #e0ecff;"
-        "color: #1d4ed8;"
-        "border-color: #93c5fd;"
-        "}"
-        "QPushButton:default:hover {"
-        "background-color: #d4e4ff;"
-        "}"
-        "QPushButton:disabled {"
-        "background-color: #f1f5f9;"
-        "color: #94a3b8;"
-        "border-color: #dbe3ee;"
-        "}");
-}
-
-QString lightDialogToolButtonStyleSheet()
-{
-    return QStringLiteral(
-        "QToolButton {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 3px 8px;"
-        "}"
-        "QToolButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "QToolButton:pressed {"
-        "background-color: #dbeafe;"
-        "border-color: #60a5fa;"
-        "}"
-        "QToolButton:disabled {"
-        "background-color: #f1f5f9;"
-        "color: #94a3b8;"
-        "border-color: #dbe3ee;"
-        "}");
-}
-
-void enforceLightDialogButtonStyles(QWidget* root)
-{
-    if (root == nullptr) {
-        return;
-    }
-
-    const QString pushButtonStyle = lightDialogPushButtonStyleSheet();
-    const QString toolButtonStyle = lightDialogToolButtonStyleSheet();
-
-    for (QPushButton* button : root->findChildren<QPushButton*>()) {
-        if (button != nullptr) {
-            button->setStyleSheet(pushButtonStyle);
-        }
-    }
-    for (QToolButton* button : root->findChildren<QToolButton*>()) {
-        if (button != nullptr) {
-            button->setStyleSheet(toolButtonStyle);
-        }
-    }
-}
-
 void showStyledDetailsDialog(
     QWidget* parent,
     const QString& title,
@@ -1454,172 +1273,6 @@ QColor showStyledColorDialog(
     return QColor();
 }
 
-QString styledDialogStyleSheet()
-{
-    return QStringLiteral(
-        "QDialog, QFileDialog, QFileDialog QWidget {"
-        "background-color: #f8fafc;"
-        "color: #0f172a;"
-        "}"
-        "QFileDialog QFrame, QFileDialog QStackedWidget, QFileDialog QSplitter {"
-        "background-color: #f8fafc;"
-        "}"
-        "QFileDialog QLabel {"
-        "color: #0f172a;"
-        "}"
-        "QFileDialog QLineEdit,"
-        "QFileDialog QComboBox,"
-        "QFileDialog QListView,"
-        "QFileDialog QTreeView,"
-        "QFileDialog QAbstractItemView,"
-        "QFileDialog QSpinBox {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #0f172a;"
-        "}"
-        "QFileDialog QLineEdit, QFileDialog QComboBox {"
-        "min-height: 26px;"
-        "padding: 2px 8px;"
-        "}"
-        "QFileDialog QPushButton {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "min-height: 28px;"
-        "padding: 4px 10px;"
-        "}"
-        "QFileDialog QPushButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "QFileDialog QPushButton:pressed {"
-        "background-color: #dbeafe;"
-        "}"
-        "QFileDialog QPushButton:default {"
-        "background-color: #e0ecff;"
-        "color: #1d4ed8;"
-        "border-color: #93c5fd;"
-        "}"
-        "QFileDialog QPushButton:default:hover {"
-        "background-color: #d4e4ff;"
-        "}"
-        "QFileDialog QPushButton:disabled {"
-        "background-color: #f1f5f9;"
-        "border-color: #e2e8f0;"
-        "color: #94a3b8;"
-        "}"
-        "QFileDialog QHeaderView::section {"
-        "background-color: #e2e8f0;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "padding: 4px 8px;"
-        "font-weight: 600;"
-        "}"
-        "QFileDialog QHeaderView::section:hover {"
-        "background-color: #dbeafe;"
-        "color: #0f172a;"
-        "}"
-        "QFileDialog QHeaderView::section:pressed {"
-        "background-color: #bfdbfe;"
-        "color: #0f172a;"
-        "}"
-        "QFileDialog QToolButton {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 3px 8px;"
-        "}"
-        "QFileDialog QToolButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "QFileDialog QToolButton:pressed {"
-        "background-color: #dbeafe;"
-        "}"
-    );
-}
-
-void applyStyledDialogPalette(QDialog* dialog)
-{
-    if (dialog == nullptr) {
-        return;
-    }
-
-    dialog->setStyleSheet(styledDialogStyleSheet());
-
-    QPalette palette = dialog->palette();
-    palette.setColor(QPalette::Window, QColor(248, 250, 252));
-    palette.setColor(QPalette::Base, QColor(255, 255, 255));
-    palette.setColor(QPalette::AlternateBase, QColor(241, 245, 249));
-    palette.setColor(QPalette::WindowText, QColor(15, 23, 42));
-    palette.setColor(QPalette::Text, QColor(15, 23, 42));
-    palette.setColor(QPalette::Button, QColor(255, 255, 255));
-    palette.setColor(QPalette::ButtonText, QColor(15, 23, 42));
-    palette.setColor(QPalette::Highlight, QColor(219, 234, 254));
-    palette.setColor(QPalette::HighlightedText, QColor(15, 23, 42));
-    dialog->setPalette(palette);
-    enforceLightDialogButtonStyles(dialog);
-}
-
-QString showStyledOpenFileNameDialog(
-    QWidget* parent,
-    const QString& title,
-    const QString& initialPath,
-    const QString& filter)
-{
-    QFileDialog dialog(parent, title, initialPath, filter);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
-    dialog.setFileMode(QFileDialog::ExistingFile);
-    dialog.setAcceptMode(QFileDialog::AcceptOpen);
-    applyStyledDialogPalette(&dialog);
-
-    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
-        return QString();
-    }
-    return dialog.selectedFiles().constFirst();
-}
-
-QStringList showStyledOpenFileNamesDialog(
-    QWidget* parent,
-    const QString& title,
-    const QString& initialPath,
-    const QString& filter)
-{
-    QFileDialog dialog(parent, title, initialPath, filter);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
-    dialog.setFileMode(QFileDialog::ExistingFiles);
-    dialog.setAcceptMode(QFileDialog::AcceptOpen);
-    applyStyledDialogPalette(&dialog);
-
-    if (dialog.exec() != QDialog::Accepted) {
-        return QStringList();
-    }
-    return dialog.selectedFiles();
-}
-
-QString showStyledSaveFileNameDialog(
-    QWidget* parent,
-    const QString& title,
-    const QString& initialPath,
-    const QString& filter)
-{
-    QFileDialog dialog(parent, title, initialPath, filter);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
-    dialog.setFileMode(QFileDialog::AnyFile);
-    dialog.setAcceptMode(QFileDialog::AcceptSave);
-    applyStyledDialogPalette(&dialog);
-
-    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
-        return QString();
-    }
-    return dialog.selectedFiles().constFirst();
-}
-
 QString backstagePageStyleSheet()
 {
     return QStringLiteral(
@@ -1733,14 +1386,6 @@ QFrame* createBackstageCard(QWidget* parent = nullptr)
     return card;
 }
 
-QLabel* createBackstageHeaderLabel(const QString& objectName, const QString& text, QWidget* parent = nullptr)
-{
-    auto* label = new QLabel(text, parent);
-    label->setObjectName(objectName);
-    label->setWordWrap(true);
-    return label;
-}
-
 QToolButton* createBackstageActionButton(QAction* action, QWidget* parent = nullptr)
 {
     auto* button = new QToolButton(parent);
@@ -1751,375 +1396,6 @@ QToolButton* createBackstageActionButton(QAction* action, QWidget* parent = null
     return button;
 }
 
-QIcon createRibbonIcon(RibbonGlyph glyph)
-{
-    constexpr int iconSize = 48;
-    QPixmap pixmap(iconSize, iconSize);
-    pixmap.fill(Qt::transparent);
-
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-
-    const QRectF canvas(2.0, 2.0, iconSize - 4.0, iconSize - 4.0);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(248, 250, 252));
-    painter.drawRoundedRect(canvas, 12.0, 12.0);
-
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(QPen(QColor(203, 213, 225), 1.2));
-    painter.drawRoundedRect(canvas, 12.0, 12.0);
-
-    QPen glyphPen(kRibbonGlyphColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-    painter.setPen(glyphPen);
-
-    const QRectF r(11.0, 11.0, 26.0, 26.0);
-    const auto drawTowerBase = [&painter, &r]() {
-        painter.setPen(QPen(kRibbonGlyphColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 4.0), QPointF(r.center().x(), r.bottom() - 2.0));
-        painter.drawLine(QPointF(r.center().x() - 7.0, r.top() + 10.0), QPointF(r.center().x() + 7.0, r.top() + 10.0));
-        painter.drawLine(QPointF(r.center().x() - 5.0, r.top() + 17.0), QPointF(r.center().x() + 5.0, r.top() + 17.0));
-        painter.setBrush(QColor(249, 115, 22));
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(QRectF(r.center().x() - 5.0, r.bottom() - 9.0, 10.0, 10.0));
-    };
-
-    switch (glyph) {
-    case RibbonGlyph::Open:
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 8.0, 20.0, 12.0), 3.0, 3.0);
-        painter.drawLine(QPointF(r.left() + 8.0, r.top() + 8.0), QPointF(r.left() + 12.0, r.top() + 4.5));
-        painter.drawLine(QPointF(r.left() + 12.0, r.top() + 4.5), QPointF(r.left() + 18.0, r.top() + 4.5));
-        painter.setPen(QPen(kRibbonAccentColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 10.0), QPointF(r.center().x(), r.bottom() - 2.0));
-        painter.drawLine(QPointF(r.center().x(), r.bottom() - 2.0), QPointF(r.center().x() - 5.0, r.bottom() - 7.0));
-        painter.drawLine(QPointF(r.center().x(), r.bottom() - 2.0), QPointF(r.center().x() + 5.0, r.bottom() - 7.0));
-        break;
-    case RibbonGlyph::Clear:
-        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 10.0, 18.0, 12.0), 3.0, 3.0);
-        painter.drawLine(QPointF(r.left() + 8.0, r.top() + 10.0), QPointF(r.left() + 12.0, r.top() + 5.0));
-        painter.drawLine(QPointF(r.left() + 12.0, r.top() + 5.0), QPointF(r.left() + 18.0, r.top() + 5.0));
-        painter.setPen(QPen(QColor(220, 38, 38), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 21.0, r.top() + 9.0), QPointF(r.right(), r.bottom() - 1.0));
-        painter.drawLine(QPointF(r.right(), r.top() + 9.0), QPointF(r.left() + 21.0, r.bottom() - 1.0));
-        break;
-    case RibbonGlyph::Exit:
-        painter.drawRoundedRect(QRectF(r.left() + 4.0, r.top() + 4.0, 14.0, 18.0), 3.0, 3.0);
-        painter.setPen(QPen(QColor(220, 38, 38), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 20.0, r.center().y()), QPointF(r.right(), r.center().y()));
-        painter.drawLine(QPointF(r.right(), r.center().y()), QPointF(r.right() - 5.0, r.center().y() - 5.0));
-        painter.drawLine(QPointF(r.right(), r.center().y()), QPointF(r.right() - 5.0, r.center().y() + 5.0));
-        break;
-    case RibbonGlyph::Fit:
-        painter.drawRect(QRectF(r.left() + 4.0, r.top() + 4.0, 18.0, 18.0));
-        painter.setPen(QPen(kRibbonAccentColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left(), r.top() + 8.0), QPointF(r.left() + 6.0, r.top() + 8.0));
-        painter.drawLine(QPointF(r.left() + 8.0, r.top()), QPointF(r.left() + 8.0, r.top() + 6.0));
-        painter.drawLine(QPointF(r.right() - 6.0, r.top()), QPointF(r.right() - 6.0, r.top() + 6.0));
-        painter.drawLine(QPointF(r.right() - 8.0, r.top() + 8.0), QPointF(r.right(), r.top() + 8.0));
-        painter.drawLine(QPointF(r.left(), r.bottom() - 8.0), QPointF(r.left() + 6.0, r.bottom() - 8.0));
-        painter.drawLine(QPointF(r.left() + 8.0, r.bottom() - 6.0), QPointF(r.left() + 8.0, r.bottom()));
-        painter.drawLine(QPointF(r.right() - 6.0, r.bottom() - 6.0), QPointF(r.right() - 6.0, r.bottom()));
-        painter.drawLine(QPointF(r.right() - 8.0, r.bottom() - 8.0), QPointF(r.right(), r.bottom() - 8.0));
-        break;
-    case RibbonGlyph::Top:
-        painter.drawEllipse(QRectF(r.left() + 6.0, r.top() + 3.0, 14.0, 6.0));
-        painter.drawLine(QPointF(r.left() + 6.0, r.top() + 6.0), QPointF(r.left() + 6.0, r.bottom() - 2.0));
-        painter.drawLine(QPointF(r.left() + 20.0, r.top() + 6.0), QPointF(r.left() + 20.0, r.bottom() - 2.0));
-        painter.drawArc(QRectF(r.left() + 6.0, r.bottom() - 8.0, 14.0, 6.0), 180 * 16, 180 * 16);
-        painter.setPen(QPen(kRibbonAccentColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.top()), QPointF(r.center().x(), r.top() + 10.0));
-        painter.drawLine(QPointF(r.center().x(), r.top()), QPointF(r.center().x() - 4.0, r.top() + 4.0));
-        painter.drawLine(QPointF(r.center().x(), r.top()), QPointF(r.center().x() + 4.0, r.top() + 4.0));
-        break;
-    case RibbonGlyph::Front:
-        painter.drawRect(QRectF(r.left() + 4.0, r.top() + 5.0, 18.0, 16.0));
-        painter.setPen(QPen(kRibbonAccentColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.bottom()), QPointF(r.center().x(), r.top() + 15.0));
-        painter.drawLine(QPointF(r.center().x(), r.bottom()), QPointF(r.center().x() - 4.0, r.bottom() - 4.0));
-        painter.drawLine(QPointF(r.center().x(), r.bottom()), QPointF(r.center().x() + 4.0, r.bottom() - 4.0));
-        break;
-    case RibbonGlyph::Right:
-        painter.drawRect(QRectF(r.left() + 5.0, r.top() + 5.0, 8.0, 16.0));
-        painter.drawRect(QRectF(r.left() + 13.0, r.top() + 8.0, 8.0, 13.0));
-        painter.setPen(QPen(kRibbonAccentColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.right(), r.center().y()), QPointF(r.left() + 17.0, r.center().y()));
-        painter.drawLine(QPointF(r.right(), r.center().y()), QPointF(r.right() - 4.0, r.center().y() - 4.0));
-        painter.drawLine(QPointF(r.right(), r.center().y()), QPointF(r.right() - 4.0, r.center().y() + 4.0));
-        break;
-    case RibbonGlyph::Axes:
-        painter.setPen(QPen(QColor(220, 38, 38), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 6.0, r.bottom() - 6.0), QPointF(r.right() - 2.0, r.bottom() - 6.0));
-        painter.setPen(QPen(QColor(22, 163, 74), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 6.0, r.bottom() - 6.0), QPointF(r.left() + 6.0, r.top() + 2.0));
-        painter.setPen(QPen(QColor(37, 99, 235), 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 6.0, r.bottom() - 6.0), QPointF(r.right() - 6.0, r.top() + 6.0));
-        break;
-    case RibbonGlyph::Bounds:
-        painter.drawRect(QRectF(r.left() + 5.0, r.top() + 8.0, 14.0, 14.0));
-        painter.drawLine(QPointF(r.left() + 11.0, r.top() + 4.0), QPointF(r.right() - 1.0, r.top() + 10.0));
-        painter.drawLine(QPointF(r.right() - 1.0, r.top() + 10.0), QPointF(r.right() - 1.0, r.bottom() - 4.0));
-        painter.drawLine(QPointF(r.left() + 19.0, r.top() + 8.0), QPointF(r.right() - 1.0, r.top() + 14.0));
-        painter.drawLine(QPointF(r.left() + 19.0, r.bottom() - 2.0), QPointF(r.right() - 1.0, r.bottom() - 8.0));
-        break;
-    case RibbonGlyph::DarkBackground:
-        painter.setBrush(kDarkBackground);
-        painter.setPen(QPen(QColor(51, 65, 85), 1.2));
-        painter.drawRoundedRect(QRectF(r.left() + 1.0, r.top() + 5.0, 24.0, 16.0), 6.0, 6.0);
-        painter.setPen(QPen(QColor(248, 250, 252), 1.8));
-        painter.setBrush(QColor(248, 250, 252));
-        painter.drawEllipse(QRectF(r.left() + 6.0, r.top() + 9.0, 5.0, 5.0));
-        painter.drawEllipse(QRectF(r.left() + 14.0, r.top() + 12.0, 4.0, 4.0));
-        break;
-    case RibbonGlyph::LightBackground:
-        painter.setBrush(kLightBackground);
-        painter.setPen(QPen(QColor(148, 163, 184), 1.2));
-        painter.drawRoundedRect(QRectF(r.left() + 1.0, r.top() + 5.0, 24.0, 16.0), 6.0, 6.0);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(251, 191, 36));
-        painter.drawEllipse(QRectF(r.left() + 17.0, r.top() + 7.0, 7.0, 7.0));
-        painter.setBrush(QColor(148, 163, 184));
-        painter.drawEllipse(QRectF(r.left() + 7.0, r.top() + 12.0, 5.0, 5.0));
-        break;
-    case RibbonGlyph::Rgb:
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(239, 68, 68));
-        painter.drawEllipse(QRectF(r.left() + 3.0, r.top() + 9.0, 8.0, 8.0));
-        painter.setBrush(QColor(34, 197, 94));
-        painter.drawEllipse(QRectF(r.left() + 11.0, r.top() + 9.0, 8.0, 8.0));
-        painter.setBrush(QColor(59, 130, 246));
-        painter.drawEllipse(QRectF(r.left() + 7.0, r.top() + 16.0, 8.0, 8.0));
-        break;
-    case RibbonGlyph::Elevation: {
-        painter.setPen(QPen(QColor(148, 163, 184), 2.0));
-        painter.drawLine(QPointF(r.left() + 2.0, r.bottom() - 3.0), QPointF(r.right() - 2.0, r.bottom() - 3.0));
-        QLinearGradient gradient(QPointF(r.left(), r.bottom()), QPointF(r.right(), r.top()));
-        gradient.setColorAt(0.0, QColor(37, 99, 235));
-        gradient.setColorAt(0.5, QColor(16, 185, 129));
-        gradient.setColorAt(1.0, QColor(249, 115, 22));
-        painter.setPen(QPen(QBrush(gradient), 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawPolyline(QPolygonF({
-            QPointF(r.left() + 2.0, r.bottom() - 6.0),
-            QPointF(r.left() + 8.0, r.top() + 14.0),
-            QPointF(r.left() + 15.0, r.top() + 8.0),
-            QPointF(r.right() - 1.0, r.top() + 2.0)
-        }));
-        break;
-    }
-    case RibbonGlyph::SingleColor:
-        painter.setPen(QPen(kRibbonGlyphColor, 2.2));
-        painter.drawLine(QPointF(r.left() + 5.0, r.bottom() - 4.0), QPointF(r.right() - 6.0, r.top() + 5.0));
-        painter.drawLine(QPointF(r.left() + 8.0, r.top() + 5.0), QPointF(r.right() - 3.0, r.bottom() - 4.0));
-        painter.setBrush(QColor(53, 142, 255));
-        painter.setPen(QPen(QColor(37, 99, 235), 1.2));
-        painter.drawEllipse(QRectF(r.left() + 9.0, r.top() + 9.0, 8.0, 8.0));
-        break;
-    case RibbonGlyph::Classification:
-        painter.setPen(QPen(QColor(148, 163, 184), 1.8));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 4.0, 20.0, 18.0), 4.0, 4.0);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(190, 242, 100));
-        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 6.0, 6.0, 5.0), 1.5, 1.5);
-        painter.setBrush(QColor(22, 163, 74));
-        painter.drawRoundedRect(QRectF(r.left() + 12.0, r.top() + 6.0, 9.0, 5.0), 1.5, 1.5);
-        painter.setBrush(QColor(251, 146, 60));
-        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 12.0, 8.0, 5.0), 1.5, 1.5);
-        painter.setBrush(QColor(14, 165, 233));
-        painter.drawRoundedRect(QRectF(r.left() + 14.0, r.top() + 12.0, 7.0, 5.0), 1.5, 1.5);
-        painter.setBrush(QColor(168, 85, 247));
-        painter.drawRoundedRect(QRectF(r.left() + 5.0, r.top() + 18.0, 16.0, 3.5), 1.2, 1.2);
-        break;
-    case RibbonGlyph::ThemeColorful:
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(59, 130, 246));
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 5.0, 22.0, 5.0), 2.5, 2.5);
-        painter.setBrush(QColor(244, 114, 182));
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 13.0, 15.0, 5.0), 2.5, 2.5);
-        painter.setBrush(QColor(16, 185, 129));
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 21.0, 19.0, 5.0), 2.5, 2.5);
-        break;
-    case RibbonGlyph::ThemeWhite:
-        painter.setPen(QPen(QColor(148, 163, 184), 1.8));
-        painter.setBrush(QColor(255, 255, 255));
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 4.0, 22.0, 18.0), 5.0, 5.0);
-        painter.setPen(QPen(QColor(59, 130, 246), 2.5));
-        painter.drawLine(QPointF(r.left() + 4.0, r.top() + 9.0), QPointF(r.right() - 4.0, r.top() + 9.0));
-        break;
-    case RibbonGlyph::ThemeDarkGray:
-        painter.setPen(QPen(QColor(71, 85, 105), 1.8));
-        painter.setBrush(QColor(51, 65, 85));
-        painter.drawRoundedRect(QRectF(r.left() + 2.0, r.top() + 4.0, 22.0, 18.0), 5.0, 5.0);
-        painter.setPen(QPen(QColor(148, 163, 184), 2.5));
-        painter.drawLine(QPointF(r.left() + 4.0, r.top() + 9.0), QPointF(r.right() - 4.0, r.top() + 9.0));
-        break;
-    case RibbonGlyph::Log:
-        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 4.0, 20.0, 18.0), 4.0, 4.0);
-        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 9.0), QPointF(r.right() - 3.0, r.top() + 9.0));
-        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 14.0), QPointF(r.right() - 6.0, r.top() + 14.0));
-        painter.drawLine(QPointF(r.left() + 7.0, r.top() + 19.0), QPointF(r.right() - 9.0, r.top() + 19.0));
-        painter.setBrush(kRibbonAccentColor);
-        painter.setPen(Qt::NoPen);
-        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 7.0, 2.8, 2.8));
-        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 12.0, 2.8, 2.8));
-        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 17.0, 2.8, 2.8));
-        break;
-    case RibbonGlyph::Measure:
-        painter.drawEllipse(QRectF(r.left() + 3.0, r.top() + 7.0, 6.0, 6.0));
-        painter.drawEllipse(QRectF(r.right() - 9.0, r.bottom() - 9.0, 6.0, 6.0));
-        painter.setPen(QPen(kRibbonAccentColor, 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 8.0, r.top() + 12.0), QPointF(r.right() - 6.0, r.bottom() - 6.0));
-        break;
-    case RibbonGlyph::Tower:
-        drawTowerBase();
-        break;
-    case RibbonGlyph::TowerAdd:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(22, 163, 74), 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.right() - 3.0, r.top() + 2.0), QPointF(r.right() - 3.0, r.top() + 10.0));
-        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 6.0), QPointF(r.right() + 1.0, r.top() + 6.0));
-        break;
-    case RibbonGlyph::TowerInsert:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(37, 99, 235), 2.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 5.0), QPointF(r.left() + 9.0, r.top() + 5.0));
-        painter.drawLine(QPointF(r.left() + 9.0, r.top() + 5.0), QPointF(r.left() + 6.0, r.top() + 2.5));
-        painter.drawLine(QPointF(r.left() + 9.0, r.top() + 5.0), QPointF(r.left() + 6.0, r.top() + 7.5));
-        break;
-    case RibbonGlyph::TowerMove:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(37, 99, 235), 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x(), r.top() + 8.0));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x() - 2.5, r.top() + 3.5));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x() + 2.5, r.top() + 3.5));
-        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 8.0, r.top() + 12.0));
-        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 4.5, r.top() + 9.5));
-        painter.drawLine(QPointF(r.left() + 2.0, r.top() + 12.0), QPointF(r.left() + 4.5, r.top() + 14.5));
-        break;
-    case RibbonGlyph::TowerAdjust:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(2, 132, 199), 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawEllipse(QRectF(r.right() - 11.0, r.top() + 1.5, 8.0, 8.0));
-        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 1.5), QPointF(r.right() - 7.0, r.top() - 1.0));
-        painter.drawLine(QPointF(r.right() - 7.0, r.top() + 9.5), QPointF(r.right() - 7.0, r.top() + 12.0));
-        painter.drawLine(QPointF(r.right() - 11.0, r.top() + 5.5), QPointF(r.right() - 13.5, r.top() + 5.5));
-        painter.drawLine(QPointF(r.right() - 3.0, r.top() + 5.5), QPointF(r.right() - 0.5, r.top() + 5.5));
-        break;
-    case RibbonGlyph::TowerFocus:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(37, 99, 235), 2.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.left() + 1.5, r.top() + 1.5), QPointF(r.left() + 6.0, r.top() + 1.5));
-        painter.drawLine(QPointF(r.left() + 1.5, r.top() + 1.5), QPointF(r.left() + 1.5, r.top() + 6.0));
-        painter.drawLine(QPointF(r.right() - 1.5, r.top() + 1.5), QPointF(r.right() - 6.0, r.top() + 1.5));
-        painter.drawLine(QPointF(r.right() - 1.5, r.top() + 1.5), QPointF(r.right() - 1.5, r.top() + 6.0));
-        painter.drawLine(QPointF(r.left() + 1.5, r.bottom() - 1.5), QPointF(r.left() + 6.0, r.bottom() - 1.5));
-        painter.drawLine(QPointF(r.left() + 1.5, r.bottom() - 1.5), QPointF(r.left() + 1.5, r.bottom() - 6.0));
-        painter.drawLine(QPointF(r.right() - 1.5, r.bottom() - 1.5), QPointF(r.right() - 6.0, r.bottom() - 1.5));
-        painter.drawLine(QPointF(r.right() - 1.5, r.bottom() - 1.5), QPointF(r.right() - 1.5, r.bottom() - 6.0));
-        break;
-    case RibbonGlyph::TowerRemove:
-        drawTowerBase();
-        painter.setPen(QPen(QColor(220, 38, 38), 2.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        painter.drawLine(QPointF(r.right() - 9.0, r.top() + 2.0), QPointF(r.right() - 1.0, r.top() + 10.0));
-        painter.drawLine(QPointF(r.right() - 1.0, r.top() + 2.0), QPointF(r.right() - 9.0, r.top() + 10.0));
-        break;
-    case RibbonGlyph::Language:
-        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 4.0, 18.0, 18.0));
-        painter.drawLine(QPointF(r.center().x(), r.top() + 4.0), QPointF(r.center().x(), r.bottom() + 4.0));
-        painter.drawLine(QPointF(r.left() + 4.0, r.center().y()), QPointF(r.right() + 4.0, r.center().y()));
-        painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 90 * 16, 180 * 16);
-        painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 270 * 16, 180 * 16);
-        break;
-    }
-
-    return QIcon(pixmap);
-}
-
-QIcon createResourceIconOrFallback(const QString& resourcePath, RibbonGlyph fallbackGlyph)
-{
-    const QIcon resourceIcon(resourcePath);
-    return resourceIcon.isNull() ? createRibbonIcon(fallbackGlyph) : resourceIcon;
-}
-
-QMessageBox::StandardButton showLightStyledMessageBox(
-    QWidget* parent,
-    QMessageBox::Icon icon,
-    const QString& title,
-    const QString& text,
-    QMessageBox::StandardButtons buttons,
-    QMessageBox::StandardButton defaultButton = QMessageBox::NoButton)
-{
-    QMessageBox messageBox(icon, title, text, buttons, parent);
-    messageBox.setStyleSheet(QStringLiteral(
-        "QMessageBox {"
-        "background-color: #f8fafc;"
-        "color: #0f172a;"
-        "}"
-        "QMessageBox QLabel {"
-        "color: #0f172a;"
-        "}"
-        "QMessageBox QPushButton {"
-        "background-color: #ffffff;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 6px 14px;"
-        "color: #0f172a;"
-        "min-width: 84px;"
-        "}"
-        "QMessageBox QPushButton:hover {"
-        "background-color: #f1f5f9;"
-        "border-color: #94a3b8;"
-        "}"
-        "QMessageBox QPushButton:pressed {"
-        "background-color: #e2e8f0;"
-        "border-color: #94a3b8;"
-        "}"
-        "QMessageBox QPushButton:default {"
-        "background-color: #e0ecff;"
-        "color: #1d4ed8;"
-        "border-color: #93c5fd;"
-        "}"
-        "QMessageBox QPushButton:default:hover {"
-        "background-color: #d4e4ff;"
-        "}"));
-    enforceLightDialogButtonStyles(&messageBox);
-    if (defaultButton != QMessageBox::NoButton) {
-        messageBox.setDefaultButton(defaultButton);
-    }
-    return static_cast<QMessageBox::StandardButton>(messageBox.exec());
-}
-
-QIcon createWindowControlIcon(WindowControlGlyph glyph, const QColor& color)
-{
-    constexpr int iconSize = 12;
-    QPixmap pixmap(iconSize, iconSize);
-    pixmap.fill(Qt::transparent);
-
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-
-    const QPen pen(color, glyph == WindowControlGlyph::Close ? 1.8 : 1.4, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
-    painter.setPen(pen);
-
-    switch (glyph) {
-    case WindowControlGlyph::Minimize:
-        painter.drawLine(QPointF(2.0, 8.0), QPointF(10.0, 8.0));
-        break;
-    case WindowControlGlyph::Maximize:
-        painter.drawRect(QRectF(2.0, 2.0, 8.0, 8.0));
-        break;
-    case WindowControlGlyph::Restore:
-        painter.drawRect(QRectF(4.0, 2.0, 6.0, 6.0));
-        painter.drawLine(QPointF(4.0, 4.0), QPointF(2.0, 4.0));
-        painter.drawLine(QPointF(2.0, 4.0), QPointF(2.0, 10.0));
-        painter.drawLine(QPointF(2.0, 10.0), QPointF(8.0, 10.0));
-        break;
-    case WindowControlGlyph::Close:
-        painter.drawLine(QPointF(2.5, 2.5), QPointF(9.5, 9.5));
-        painter.drawLine(QPointF(9.5, 2.5), QPointF(2.5, 9.5));
-        break;
-    }
-
-    return QIcon(pixmap);
-}
 }
 
 MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QWidget* parent)
@@ -2677,24 +1953,27 @@ void MainWindow::createBackstageView()
         layout->setContentsMargins(34, 28, 34, 28);
         layout->setSpacing(18);
 
-        backstageOpenTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("Open"), backstageOpenPage_);
-        backstageOpenSubtitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageSubtitleLabel"),
-            tr("Open point clouds and projects, or continue from a recent engineering file."),
-            backstageOpenPage_);
-        layout->addWidget(backstageOpenTitleLabel_);
-        layout->addWidget(backstageOpenSubtitleLabel_);
+        auto* openHeaderWidget = new BackstagePageHeaderWidget(backstageOpenPage_);
+        openHeaderWidget->setTitleText(tr("Open"));
+        openHeaderWidget->setSubtitleText(tr("Open point clouds and projects, or continue from a recent engineering file."));
+        backstageOpenTitleLabel_ = openHeaderWidget->titleLabel();
+        backstageOpenSubtitleLabel_ = openHeaderWidget->subtitleLabel();
+        layout->addWidget(openHeaderWidget);
 
         auto* actionsCard = createBackstageCard(backstageOpenPage_);
-        auto* actionsLayout = new QVBoxLayout(actionsCard);
-        actionsLayout->setContentsMargins(20, 20, 20, 20);
-        actionsLayout->setSpacing(12);
-        actionsLayout->addWidget(createBackstageActionButton(openAction_, actionsCard));
-        actionsLayout->addWidget(createBackstageActionButton(addPointCloudAction_, actionsCard));
-        actionsLayout->addWidget(createBackstageActionButton(openProjectAction_, actionsCard));
-        actionsLayout->addWidget(createBackstageActionButton(saveProjectAction_, actionsCard));
-        actionsLayout->addWidget(createBackstageActionButton(saveProjectAsAction_, actionsCard));
-        actionsLayout->addStretch(1);
+        auto* actionsCardLayout = new QVBoxLayout(actionsCard);
+        actionsCardLayout->setContentsMargins(0, 0, 0, 0);
+
+        auto* openActionsWidget = new BackstageOpenActionsWidget(actionsCard);
+        if (QVBoxLayout* actionsLayout = openActionsWidget->actionsLayout()) {
+            actionsLayout->addWidget(createBackstageActionButton(openAction_, openActionsWidget));
+            actionsLayout->addWidget(createBackstageActionButton(addPointCloudAction_, openActionsWidget));
+            actionsLayout->addWidget(createBackstageActionButton(openProjectAction_, openActionsWidget));
+            actionsLayout->addWidget(createBackstageActionButton(saveProjectAction_, openActionsWidget));
+            actionsLayout->addWidget(createBackstageActionButton(saveProjectAsAction_, openActionsWidget));
+            actionsLayout->addStretch(1);
+        }
+        actionsCardLayout->addWidget(openActionsWidget);
         layout->addWidget(actionsCard, 1);
     }
     backstageOpenPageAction_ = backstageView_->addPage(backstageOpenPage_);
@@ -2708,48 +1987,24 @@ void MainWindow::createBackstageView()
         layout->setContentsMargins(34, 28, 34, 28);
         layout->setSpacing(18);
 
-        backstageOpenProjectTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("Open Project"), backstageOpenProjectPage_);
-        backstageOpenProjectSubtitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageSubtitleLabel"),
-            tr("Select a recent project or browse to a project file."),
-            backstageOpenProjectPage_);
-        layout->addWidget(backstageOpenProjectTitleLabel_);
-        layout->addWidget(backstageOpenProjectSubtitleLabel_);
+        auto* openProjectHeaderWidget = new BackstagePageHeaderWidget(backstageOpenProjectPage_);
+        openProjectHeaderWidget->setTitleText(tr("Open Project"));
+        openProjectHeaderWidget->setSubtitleText(tr("Select a recent project or browse to a project file."));
+        backstageOpenProjectTitleLabel_ = openProjectHeaderWidget->titleLabel();
+        backstageOpenProjectSubtitleLabel_ = openProjectHeaderWidget->subtitleLabel();
+        layout->addWidget(openProjectHeaderWidget);
 
         auto* contentCard = createBackstageCard(backstageOpenProjectPage_);
         auto* contentLayout = new QVBoxLayout(contentCard);
         contentLayout->setContentsMargins(20, 20, 20, 20);
         contentLayout->setSpacing(14);
 
-        auto* recentProjectsGroup = new QGroupBox(contentCard);
-        recentProjectsGroup->setObjectName(QStringLiteral("backstageRecentProjectsGroup"));
-        auto* recentProjectsLayout = new QVBoxLayout(recentProjectsGroup);
-        recentProjectsLayout->setContentsMargins(14, 22, 14, 14);
-        backstageRecentProjectsListWidget_ = new QListWidget(recentProjectsGroup);
-        backstageRecentProjectsListWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-        backstageRecentProjectsListWidget_->setMinimumHeight(220);
-        recentProjectsLayout->addWidget(backstageRecentProjectsListWidget_);
-        contentLayout->addWidget(recentProjectsGroup);
-
-        auto* projectFileGroup = new QGroupBox(contentCard);
-        projectFileGroup->setObjectName(QStringLiteral("backstageProjectFileGroup"));
-        auto* projectFileLayout = new QVBoxLayout(projectFileGroup);
-        projectFileLayout->setContentsMargins(14, 22, 14, 14);
-        projectFileLayout->setSpacing(10);
-        backstageProjectPathLineEdit_ = new QLineEdit(projectFileGroup);
-        backstageProjectPathLineEdit_->setClearButtonEnabled(true);
-        projectFileLayout->addWidget(backstageProjectPathLineEdit_);
-
-        auto* buttonRowLayout = new QHBoxLayout();
-        buttonRowLayout->setSpacing(10);
-        buttonRowLayout->addStretch(1);
-        backstageProjectBrowseButton_ = new QPushButton(projectFileGroup);
-        backstageProjectOpenButton_ = new QPushButton(projectFileGroup);
-        backstageProjectOpenButton_->setEnabled(false);
-        buttonRowLayout->addWidget(backstageProjectBrowseButton_);
-        buttonRowLayout->addWidget(backstageProjectOpenButton_);
-        projectFileLayout->addLayout(buttonRowLayout);
-        contentLayout->addWidget(projectFileGroup);
+        backstageOpenProjectWidget_ = new BackstageOpenProjectWidget(contentCard);
+        backstageRecentProjectsListWidget_ = backstageOpenProjectWidget_->recentProjectsListWidget();
+        backstageProjectPathLineEdit_ = backstageOpenProjectWidget_->projectPathLineEdit();
+        backstageProjectBrowseButton_ = backstageOpenProjectWidget_->browseButton();
+        backstageProjectOpenButton_ = backstageOpenProjectWidget_->openButton();
+        contentLayout->addWidget(backstageOpenProjectWidget_);
 
         layout->addWidget(contentCard, 1);
     }
@@ -2767,38 +2022,24 @@ void MainWindow::createBackstageView()
         layout->setContentsMargins(34, 28, 34, 28);
         layout->setSpacing(18);
 
-        backstageProjectPropertiesTitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageTitleLabel"),
-            tr("Project Properties"),
-            backstageProjectPropertiesPage_);
-        backstageProjectPropertiesSubtitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageSubtitleLabel"),
-            tr("Review the active project file and coordinate system configuration."),
-            backstageProjectPropertiesPage_);
-        layout->addWidget(backstageProjectPropertiesTitleLabel_);
-        layout->addWidget(backstageProjectPropertiesSubtitleLabel_);
+        auto* projectPropertiesHeaderWidget = new BackstagePageHeaderWidget(backstageProjectPropertiesPage_);
+        projectPropertiesHeaderWidget->setTitleText(tr("Project Properties"));
+        projectPropertiesHeaderWidget->setSubtitleText(tr("Review the active project file and coordinate system configuration."));
+        backstageProjectPropertiesTitleLabel_ = projectPropertiesHeaderWidget->titleLabel();
+        backstageProjectPropertiesSubtitleLabel_ = projectPropertiesHeaderWidget->subtitleLabel();
+        layout->addWidget(projectPropertiesHeaderWidget);
 
         auto* summaryCard = createBackstageCard(backstageProjectPropertiesPage_);
-        auto* summaryLayout = new QFormLayout(summaryCard);
+        auto* summaryLayout = new QVBoxLayout(summaryCard);
         summaryLayout->setContentsMargins(20, 20, 20, 20);
-        summaryLayout->setHorizontalSpacing(18);
-        summaryLayout->setVerticalSpacing(12);
+        summaryLayout->setSpacing(0);
 
-        auto* projectFileLabel = new QLabel(summaryCard);
-        projectFileLabel->setObjectName(QStringLiteral("backstageProjectFileLabel"));
-        auto* datasetCountLabel = new QLabel(summaryCard);
-        datasetCountLabel->setObjectName(QStringLiteral("backstageProjectDatasetsLabel"));
-        auto* coordinateSystemsLabel = new QLabel(summaryCard);
-        coordinateSystemsLabel->setObjectName(QStringLiteral("backstageProjectCoordinateSystemsLabel"));
-        backstageProjectFileValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
-        backstageProjectDatasetCountValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
-        backstageProjectCoordinateSystemsValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
-        summaryLayout->addRow(projectFileLabel, backstageProjectFileValueLabel_);
-        summaryLayout->addRow(datasetCountLabel, backstageProjectDatasetCountValueLabel_);
-        summaryLayout->addRow(coordinateSystemsLabel, backstageProjectCoordinateSystemsValueLabel_);
-
-        backstageEditProjectPropertiesButton_ = new QPushButton(summaryCard);
-        summaryLayout->addRow(QString(), backstageEditProjectPropertiesButton_);
+        backstageProjectPropertiesWidget_ = new BackstageProjectPropertiesWidget(summaryCard);
+        backstageProjectFileValueLabel_ = backstageProjectPropertiesWidget_->projectFileValueLabel();
+        backstageProjectDatasetCountValueLabel_ = backstageProjectPropertiesWidget_->datasetCountValueLabel();
+        backstageProjectCoordinateSystemsValueLabel_ = backstageProjectPropertiesWidget_->coordinateSystemsValueLabel();
+        backstageEditProjectPropertiesButton_ = backstageProjectPropertiesWidget_->editCoordinateSystemsButton();
+        summaryLayout->addWidget(backstageProjectPropertiesWidget_);
         layout->addWidget(summaryCard);
         layout->addStretch(1);
     }
@@ -2813,46 +2054,27 @@ void MainWindow::createBackstageView()
         layout->setContentsMargins(34, 28, 34, 28);
         layout->setSpacing(18);
 
-        backstageApplicationSettingsTitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageTitleLabel"),
-            tr("Application Settings"),
-            backstageApplicationSettingsPage_);
-        backstageApplicationSettingsSubtitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageSubtitleLabel"),
-            tr("Adjust the office theme, interface language, and workspace panels."),
-            backstageApplicationSettingsPage_);
-        layout->addWidget(backstageApplicationSettingsTitleLabel_);
-        layout->addWidget(backstageApplicationSettingsSubtitleLabel_);
+        auto* applicationSettingsHeaderWidget = new BackstagePageHeaderWidget(backstageApplicationSettingsPage_);
+        applicationSettingsHeaderWidget->setTitleText(tr("Application Settings"));
+        applicationSettingsHeaderWidget->setSubtitleText(tr("Adjust the office theme, interface language, and workspace panels."));
+        backstageApplicationSettingsTitleLabel_ = applicationSettingsHeaderWidget->titleLabel();
+        backstageApplicationSettingsSubtitleLabel_ = applicationSettingsHeaderWidget->subtitleLabel();
+        layout->addWidget(applicationSettingsHeaderWidget);
 
-        auto* themeGroup = new QGroupBox(backstageApplicationSettingsPage_);
-        themeGroup->setObjectName(QStringLiteral("backstageThemeGroup"));
-        auto* themeLayout = new QHBoxLayout(themeGroup);
-        themeLayout->setContentsMargins(14, 22, 14, 14);
-        themeLayout->setSpacing(10);
-        themeLayout->addWidget(createBackstageActionButton(themeColorfulAction_, themeGroup));
-        themeLayout->addWidget(createBackstageActionButton(themeWhiteAction_, themeGroup));
-        themeLayout->addWidget(createBackstageActionButton(themeDarkGrayAction_, themeGroup));
-        themeLayout->addStretch(1);
-        layout->addWidget(themeGroup);
-
-        auto* languageGroup = new QGroupBox(backstageApplicationSettingsPage_);
-        languageGroup->setObjectName(QStringLiteral("backstageLanguageGroup"));
-        auto* languageLayout = new QHBoxLayout(languageGroup);
-        languageLayout->setContentsMargins(14, 22, 14, 14);
-        languageLayout->setSpacing(10);
-        languageLayout->addWidget(createBackstageActionButton(languageEnglishAction_, languageGroup));
-        languageLayout->addWidget(createBackstageActionButton(languageChineseAction_, languageGroup));
-        languageLayout->addStretch(1);
-        layout->addWidget(languageGroup);
-
-        auto* workspaceGroup = new QGroupBox(backstageApplicationSettingsPage_);
-        workspaceGroup->setObjectName(QStringLiteral("backstageWorkspaceGroup"));
-        auto* workspaceLayout = new QVBoxLayout(workspaceGroup);
-        workspaceLayout->setContentsMargins(14, 22, 14, 14);
-        backstageShowLogCheckBox_ = new QCheckBox(workspaceGroup);
-        workspaceLayout->addWidget(backstageShowLogCheckBox_);
-        workspaceLayout->addStretch(1);
-        layout->addWidget(workspaceGroup);
+        backstageApplicationSettingsWidget_ = new BackstageApplicationSettingsWidget(backstageApplicationSettingsPage_);
+        if (QHBoxLayout* themeLayout = backstageApplicationSettingsWidget_->themeButtonLayout()) {
+            themeLayout->addWidget(createBackstageActionButton(themeColorfulAction_, backstageApplicationSettingsWidget_));
+            themeLayout->addWidget(createBackstageActionButton(themeWhiteAction_, backstageApplicationSettingsWidget_));
+            themeLayout->addWidget(createBackstageActionButton(themeDarkGrayAction_, backstageApplicationSettingsWidget_));
+            themeLayout->addStretch(1);
+        }
+        if (QHBoxLayout* languageLayout = backstageApplicationSettingsWidget_->languageButtonLayout()) {
+            languageLayout->addWidget(createBackstageActionButton(languageEnglishAction_, backstageApplicationSettingsWidget_));
+            languageLayout->addWidget(createBackstageActionButton(languageChineseAction_, backstageApplicationSettingsWidget_));
+            languageLayout->addStretch(1);
+        }
+        backstageShowLogCheckBox_ = backstageApplicationSettingsWidget_->showLogCheckBox();
+        layout->addWidget(backstageApplicationSettingsWidget_);
         layout->addStretch(1);
     }
     backstageApplicationSettingsPageAction_ = backstageView_->addPage(backstageApplicationSettingsPage_);
@@ -2866,19 +2088,19 @@ void MainWindow::createBackstageView()
         layout->setContentsMargins(34, 28, 34, 28);
         layout->setSpacing(18);
 
-        backstageAboutTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("About"), backstageAboutPage_);
-        backstageAboutSubtitleLabel_ = createBackstageHeaderLabel(
-            QStringLiteral("backstageSubtitleLabel"),
-            tr("Build information and the key runtime components used by this application."),
-            backstageAboutPage_);
-        layout->addWidget(backstageAboutTitleLabel_);
-        layout->addWidget(backstageAboutSubtitleLabel_);
+        auto* aboutHeaderWidget = new BackstagePageHeaderWidget(backstageAboutPage_);
+        aboutHeaderWidget->setTitleText(tr("About"));
+        aboutHeaderWidget->setSubtitleText(tr("Build information and the key runtime components used by this application."));
+        backstageAboutTitleLabel_ = aboutHeaderWidget->titleLabel();
+        backstageAboutSubtitleLabel_ = aboutHeaderWidget->subtitleLabel();
+        layout->addWidget(aboutHeaderWidget);
 
         auto* aboutCard = createBackstageCard(backstageAboutPage_);
         auto* aboutLayout = new QVBoxLayout(aboutCard);
         aboutLayout->setContentsMargins(20, 20, 20, 20);
-        backstageAboutBodyLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), aboutCard);
-        aboutLayout->addWidget(backstageAboutBodyLabel_);
+        backstageAboutWidget_ = new BackstageAboutWidget(aboutCard);
+        backstageAboutBodyLabel_ = backstageAboutWidget_->bodyLabel();
+        aboutLayout->addWidget(backstageAboutWidget_);
         layout->addWidget(aboutCard);
         layout->addStretch(1);
     }
@@ -3077,350 +2299,117 @@ void MainWindow::createWindowControls()
 
 void MainWindow::createProjectDock()
 {
-    projectDock_ = new QDockWidget(tr("Project Explorer"), this);
-    projectDock_->setObjectName(QStringLiteral("projectExplorerDock"));
-    projectDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    projectDock_->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
-    projectDock_->setMinimumWidth(280);
-
-    auto* projectDockContents = new QWidget(projectDock_);
-    projectDockContents->setObjectName(QStringLiteral("projectExplorerSurface"));
-    auto* projectDockLayout = new QVBoxLayout(projectDockContents);
-    projectDockLayout->setContentsMargins(12, 12, 12, 12);
-    projectDockLayout->setSpacing(10);
-
-    projectSearchEdit_ = new QLineEdit(projectDockContents);
-    projectSearchEdit_->setObjectName(QStringLiteral("projectExplorerSearch"));
-    projectSearchEdit_->setClearButtonEnabled(true);
-
-    projectToolBar_ = new QToolBar(projectDockContents);
-    projectToolBar_->setObjectName(QStringLiteral("projectExplorerToolBar"));
-    projectToolBar_->setIconSize(QSize(16, 16));
-    projectToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    projectToolBar_->setMovable(false);
-    projectToolBar_->setFloatable(false);
-    projectToolBar_->addAction(openAction_);
-    projectToolBar_->addAction(addPointCloudAction_);
-    projectToolBar_->addAction(removeDatasetAction_);
-    projectToolBar_->addSeparator();
-    projectToolBar_->addAction(locateDatasetAction_);
-    projectToolBar_->addAction(copyDatasetPathAction_);
-    projectToolBar_->addSeparator();
-    projectToolBar_->addAction(expandProjectTreeAction_);
-    projectToolBar_->addAction(collapseProjectTreeAction_);
-
-    projectTreeWidget_ = new QTreeWidget(projectDockContents);
-    projectTreeWidget_->setObjectName(QStringLiteral("projectExplorerTree"));
-    projectTreeWidget_->setColumnCount(1);
-    projectTreeWidget_->setHeaderHidden(true);
-    projectTreeWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-    projectTreeWidget_->setAlternatingRowColors(false);
-    projectTreeWidget_->setRootIsDecorated(true);
-    projectTreeWidget_->setUniformRowHeights(true);
-    projectTreeWidget_->setAnimated(true);
-    projectTreeWidget_->setIndentation(18);
-    projectTreeWidget_->setFrameShape(QFrame::NoFrame);
-    projectTreeWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
-
-    projectDockLayout->addWidget(projectSearchEdit_);
-    projectDockLayout->addWidget(projectToolBar_);
-    projectDockLayout->addWidget(projectTreeWidget_, 1);
-
-    projectDockContents->setStyleSheet(QStringLiteral(
-        "QWidget#projectExplorerSurface {"
-        "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f8fafc, stop:1 #eef4fb);"
-        "border: none;"
-        "}"
-        "QLineEdit#projectExplorerSearch {"
-        "background: rgba(255, 255, 255, 0.92);"
-        "border: 1px solid #d6dee9;"
-        "border-radius: 10px;"
-        "padding: 8px 12px;"
-        "color: #0f172a;"
-        "selection-background-color: #bfdbfe;"
-        "}"
-        "QLineEdit#projectExplorerSearch:focus {"
-        "border-color: #60a5fa;"
-        "}"
-        "QToolBar#projectExplorerToolBar {"
-        "background: rgba(255, 255, 255, 0.7);"
-        "border: 1px solid #d8e0ea;"
-        "border-radius: 10px;"
-        "padding: 4px;"
-        "spacing: 4px;"
-        "}"
-        "QToolBar#projectExplorerToolBar QToolButton {"
-        "background: rgba(255, 255, 255, 0.92);"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 8px;"
-        "padding: 6px 10px;"
-        "color: #1e293b;"
-        "}"
-        "QToolBar#projectExplorerToolBar QToolButton:hover {"
-        "background: rgba(219, 234, 254, 0.95);"
-        "border-color: #93c5fd;"
-        "}"
-        "QToolBar#projectExplorerToolBar QToolButton:pressed,"
-        "QToolBar#projectExplorerToolBar QToolButton:checked {"
-        "background: #2563eb;"
-        "border-color: #1d4ed8;"
-        "color: #eff6ff;"
-        "}"
-        "QToolBar#projectExplorerToolBar QToolButton:disabled {"
-        "background: #f1f5f9;"
-        "border-color: #e2e8f0;"
-        "color: #94a3b8;"
-        "}"
-        "QTreeWidget#projectExplorerTree {"
-        "background: rgba(255, 255, 255, 0.84);"
-        "border: 1px solid #d8e0ea;"
-        "border-radius: 12px;"
-        "padding: 8px 6px;"
-        "color: #0f172a;"
-        "outline: none;"
-        "}"
-        "QTreeWidget#projectExplorerTree::item {"
-        "min-height: 28px;"
-        "padding: 4px 8px;"
-        "border-radius: 8px;"
-        "}"
-        "QTreeWidget#projectExplorerTree::item:hover {"
-        "background: rgba(219, 234, 254, 0.85);"
-        "}"
-        "QTreeWidget#projectExplorerTree::item:selected {"
-        "background: #2563eb;"
-        "color: #eff6ff;"
-        "}"));
-
-    projectDock_->setWidget(projectDockContents);
+    projectDock_ = new ProjectExplorerDock(this);
+    projectExplorerController_ = new ProjectExplorerController(
+        projectDock_,
+        openAction_,
+        addPointCloudAction_,
+        removeDatasetAction_,
+        locateDatasetAction_,
+        copyDatasetPathAction_,
+        expandProjectTreeAction_,
+        collapseProjectTreeAction_,
+        this);
+    projectSearchEdit_ = projectExplorerController_->searchEdit();
+    projectToolBar_ = projectExplorerController_->toolBar();
+    projectTreeWidget_ = projectExplorerController_->treeWidget();
     addDockWidget(Qt::LeftDockWidgetArea, projectDock_);
 }
 
 void MainWindow::createInspectorPanel()
 {
-    inspectorDock_ = new QDockWidget(tr("Scene Inspector"), this);
-    inspectorDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    inspectorDock_->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
+    inspectorDock_ = new SceneInspectorDock(this);
+    inspectorTabWidget_ = inspectorDock_->tabWidget();
 
-    inspectorTabWidget_ = new QTabWidget(inspectorDock_);
-    inspectorTabWidget_->setObjectName(QStringLiteral("sceneInspectorTabs"));
-    inspectorTabWidget_->setDocumentMode(true);
-    inspectorTabWidget_->setMovable(false);
+    const auto overviewTab = qMakePair(inspectorDock_->overviewScrollArea(), inspectorDock_->overviewLayout());
+    const auto towerTab = qMakePair(inspectorDock_->towerScrollArea(), inspectorDock_->towerLayout());
+    const auto issueTab = qMakePair(inspectorDock_->issueScrollArea(), inspectorDock_->issueLayout());
+    const auto renderingTab = qMakePair(inspectorDock_->renderingScrollArea(), inspectorDock_->renderingLayout());
+    const auto measurementTab = qMakePair(inspectorDock_->measurementScrollArea(), inspectorDock_->measurementLayout());
+    const auto analysisTab = qMakePair(inspectorDock_->analysisScrollArea(), inspectorDock_->analysisLayout());
+    const auto navigationTab = qMakePair(inspectorDock_->navigationScrollArea(), inspectorDock_->navigationLayout());
 
-    auto createTabPage = [this](const QString& objectName) {
-        auto* scrollArea = new QScrollArea(inspectorTabWidget_);
-        scrollArea->setWidgetResizable(true);
-        scrollArea->setFrameShape(QFrame::NoFrame);
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    datasetSummaryWidget_ = new DatasetSummaryWidget(overviewTab.first);
+    datasetGroupBox_ = datasetSummaryWidget_;
+    datasetLayout_ = datasetSummaryWidget_->datasetLayout();
+    datasetNameValueLabel_ = datasetSummaryWidget_->datasetNameValueLabel();
+    datasetPathValueLabel_ = datasetSummaryWidget_->datasetPathValueLabel();
+    datasetPointsValueLabel_ = datasetSummaryWidget_->datasetPointsValueLabel();
+    datasetBoundsValueLabel_ = datasetSummaryWidget_->datasetBoundsValueLabel();
+    datasetExtentValueLabel_ = datasetSummaryWidget_->datasetExtentValueLabel();
+    datasetColorValueLabel_ = datasetSummaryWidget_->datasetColorValueLabel();
 
-        auto* page = new QWidget(scrollArea);
-        page->setObjectName(objectName);
-        auto* pageLayout = new QVBoxLayout(page);
-        pageLayout->setContentsMargins(14, 14, 14, 14);
-        pageLayout->setSpacing(12);
-        pageLayout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-        scrollArea->setWidget(page);
-        return qMakePair(scrollArea, pageLayout);
-    };
+    towerEditorWidget_ = new TowerEditorWidget(towerTab.first);
+    towerToolBar_ = towerEditorWidget_->toolBar();
+    towerCountValueLabel_ = towerEditorWidget_->towerCountLabel();
+    towerToolStatusLabel_ = towerEditorWidget_->towerToolStatusLabel();
+    towerTableWidget_ = towerEditorWidget_->towerTable();
+    towerDetailsGroupBox_ = towerEditorWidget_->towerDetailsGroupBox();
+    towerDetailsLayout_ = towerEditorWidget_->towerDetailsLayout();
+    towerCodeEdit_ = towerEditorWidget_->towerCodeEdit();
+    towerLineNameEdit_ = towerEditorWidget_->towerLineNameEdit();
+    towerVoltageLevelEdit_ = towerEditorWidget_->towerVoltageLevelEdit();
+    towerTypeComboBox_ = towerEditorWidget_->towerTypeComboBox();
+    towerStructureTypeEdit_ = towerEditorWidget_->towerStructureTypeEdit();
+    towerInspectionDateEdit_ = towerEditorWidget_->towerInspectionDateEdit();
+    towerStatusEdit_ = towerEditorWidget_->towerStatusEdit();
+    towerNotesEdit_ = towerEditorWidget_->towerNotesEdit();
 
-    auto overviewTab = createTabPage(QStringLiteral("sceneInspectorOverviewPage"));
-    auto towerTab = createTabPage(QStringLiteral("sceneInspectorTowerPage"));
-    auto issueTab = createTabPage(QStringLiteral("sceneInspectorIssuePage"));
-    auto renderingTab = createTabPage(QStringLiteral("sceneInspectorRenderingPage"));
-    auto measurementTab = createTabPage(QStringLiteral("sceneInspectorMeasurementPage"));
-    auto analysisTab = createTabPage(QStringLiteral("sceneInspectorAnalysisPage"));
-    auto navigationTab = createTabPage(QStringLiteral("sceneInspectorNavigationPage"));
-
-    datasetGroupBox_ = new QGroupBox(tr("Dataset Summary"), overviewTab.first);
-    datasetLayout_ = new QFormLayout(datasetGroupBox_);
-    datasetLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    datasetLayout_->setFormAlignment(Qt::AlignTop);
-
-    datasetNameValueLabel_ = new QLabel(datasetGroupBox_);
-    datasetPathValueLabel_ = new QLabel(datasetGroupBox_);
-    datasetPointsValueLabel_ = new QLabel(datasetGroupBox_);
-    datasetBoundsValueLabel_ = new QLabel(datasetGroupBox_);
-    datasetExtentValueLabel_ = new QLabel(datasetGroupBox_);
-    datasetColorValueLabel_ = new QLabel(datasetGroupBox_);
-
-    const QList<QLabel*> datasetLabels = {
-        datasetNameValueLabel_,
-        datasetPathValueLabel_,
-        datasetPointsValueLabel_,
-        datasetBoundsValueLabel_,
-        datasetExtentValueLabel_,
-        datasetColorValueLabel_
-    };
-    for (QLabel* label : datasetLabels) {
-        label->setWordWrap(true);
-        label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    if (towerToolBar_ != nullptr) {
+        towerToolBar_->addAction(addTowerAction_);
+        towerToolBar_->addAction(insertTowerAction_);
+        towerToolBar_->addAction(moveTowerAction_);
+        towerToolBar_->addAction(editCurrentTowerAction_);
+        towerToolBar_->addAction(focusTowerAction_);
+        towerToolBar_->addAction(removeTowerAction_);
+        towerToolBar_->addSeparator();
+        towerToolBar_->addAction(importTowerFileAction_);
+        towerToolBar_->addAction(saveTowerFileAction_);
+        towerToolBar_->addAction(saveTowerFileAsAction_);
+        towerToolBar_->addAction(reloadTowerFileAction_);
     }
 
-    datasetLayout_->addRow(tr("Name"), datasetNameValueLabel_);
-    datasetLayout_->addRow(tr("Path"), datasetPathValueLabel_);
-    datasetLayout_->addRow(tr("Points"), datasetPointsValueLabel_);
-    datasetLayout_->addRow(tr("Bounds"), datasetBoundsValueLabel_);
-    datasetLayout_->addRow(tr("Extent"), datasetExtentValueLabel_);
-    datasetLayout_->addRow(tr("Color Source"), datasetColorValueLabel_);
+    if (towerTableWidget_ != nullptr) {
+        towerTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Name"), QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") });
+    }
 
-    auto* towerToolbarHost = new QWidget(towerTab.first);
-    auto* towerToolbarHostLayout = new QHBoxLayout(towerToolbarHost);
-    towerToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
-    const double towerUiScale = std::clamp(static_cast<double>(towerToolbarHost->logicalDpiX()) / 96.0, 1.0, 2.0);
-    const int towerIconSize = static_cast<int>(std::lround(26.0 * towerUiScale));
-    const int towerButtonSize = static_cast<int>(std::lround(44.0 * towerUiScale));
-    const int towerButtonPadding = static_cast<int>(std::lround(7.0 * towerUiScale));
-    const int towerButtonRadius = static_cast<int>(std::lround(9.0 * towerUiScale));
-    const int towerToolSpacing = static_cast<int>(std::lround(8.0 * towerUiScale));
-    towerToolbarHostLayout->setSpacing(towerToolSpacing + 2);
+    if (towerTypeComboBox_ != nullptr) {
+        towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Unknown));
+        towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Tangent));
+        towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Strain));
+    }
 
-    towerToolBar_ = new QToolBar(towerToolbarHost);
-    towerToolBar_->setIconSize(QSize(towerIconSize, towerIconSize));
-    towerToolBar_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    towerToolBar_->setMovable(false);
-    towerToolBar_->setFloatable(false);
-    towerToolBar_->setStyleSheet(QStringLiteral(
-        "QToolBar { spacing: %1px; }"
-        "QToolButton {"
-        "min-width: %2px;"
-        "min-height: %2px;"
-        "padding: %3px;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: %4px;"
-        "background-color: #ffffff;"
-        "}"
-        "QToolButton:hover {"
-        "border-color: #94a3b8;"
-        "background-color: #f8fafc;"
-        "}"
-        "QToolButton:pressed {"
-        "background-color: #e2e8f0;"
-        "}"
-        "QToolButton:disabled {"
-        "border-color: #e2e8f0;"
-        "background-color: #f8fafc;"
-        "color: #94a3b8;"
-        "}"
-    ).arg(towerToolSpacing).arg(towerButtonSize).arg(towerButtonPadding).arg(towerButtonRadius));
-    towerToolBar_->addAction(addTowerAction_);
-    towerToolBar_->addAction(insertTowerAction_);
-    towerToolBar_->addAction(moveTowerAction_);
-    towerToolBar_->addAction(editCurrentTowerAction_);
-    towerToolBar_->addAction(focusTowerAction_);
-    towerToolBar_->addAction(removeTowerAction_);
-    towerToolBar_->addSeparator();
-    towerToolBar_->addAction(importTowerFileAction_);
-    towerToolBar_->addAction(saveTowerFileAction_);
-    towerToolBar_->addAction(saveTowerFileAsAction_);
-    towerToolBar_->addAction(reloadTowerFileAction_);
+    issueEditorWidget_ = new IssueEditorWidget(issueTab.first);
+    issueToolBar_ = issueEditorWidget_->toolBar();
+    issueMenuButton_ = issueEditorWidget_->menuButton();
+    issueCountValueLabel_ = issueEditorWidget_->issueCountLabel();
+    issueToolStatusLabel_ = issueEditorWidget_->issueToolStatusLabel();
+    issueTableWidget_ = issueEditorWidget_->issueTable();
+    issueDetailsGroupBox_ = issueEditorWidget_->issueDetailsGroupBox();
+    issueDetailsLayout_ = issueEditorWidget_->issueDetailsLayout();
+    issueTitleEdit_ = issueEditorWidget_->issueTitleEdit();
+    issueCategoryComboBox_ = issueEditorWidget_->issueCategoryComboBox();
+    issueSeverityComboBox_ = issueEditorWidget_->issueSeverityComboBox();
+    issueStatusComboBox_ = issueEditorWidget_->issueStatusComboBox();
+    issueRelatedTowerComboBox_ = issueEditorWidget_->issueRelatedTowerComboBox();
+    issueImagePathEdit_ = issueEditorWidget_->issueImagePathEdit();
+    issueLocationValueLabel_ = issueEditorWidget_->issueLocationValueLabel();
+    issueCreatedAtValueLabel_ = issueEditorWidget_->issueCreatedAtValueLabel();
+    issueDescriptionEdit_ = issueEditorWidget_->issueDescriptionEdit();
 
-    towerToolbarHostLayout->addWidget(towerToolBar_, 1);
+    if (issueToolBar_ != nullptr) {
+        issueToolBar_->addAction(startIssueMarkAction_);
+        issueToolBar_->addAction(cancelIssueToolAction_);
+        issueToolBar_->addSeparator();
+        issueToolBar_->addAction(focusIssueAction_);
+        issueToolBar_->addAction(removeIssueAction_);
+        issueToolBar_->addAction(clearIssuesAction_);
+        issueToolBar_->addSeparator();
+        issueToolBar_->addAction(exportIssuesCsvAction_);
+        issueToolBar_->addAction(exportInspectionReportAction_);
+    }
 
-    auto* towerPanel = new QWidget(towerTab.first);
-    auto* towerLayout = new QVBoxLayout(towerPanel);
-    towerLayout->setContentsMargins(0, 0, 0, 0);
-    towerLayout->setSpacing(8);
-
-    towerCountValueLabel_ = new QLabel(towerPanel);
-    towerCountValueLabel_->setWordWrap(true);
-    towerToolStatusLabel_ = new QLabel(towerPanel);
-    towerToolStatusLabel_->setWordWrap(true);
-
-    towerTableWidget_ = new QTableWidget(towerPanel);
-    towerTableWidget_->setColumnCount(5);
-    towerTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-    towerTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    towerTableWidget_->setAlternatingRowColors(true);
-    towerTableWidget_->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
-    towerTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Name"), QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") });
-    towerTableWidget_->verticalHeader()->setVisible(false);
-    towerTableWidget_->horizontalHeader()->setStretchLastSection(false);
-    towerTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    towerTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    towerTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    towerTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    towerTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    towerTableWidget_->setColumnHidden(2, true);
-    towerTableWidget_->setColumnHidden(3, true);
-    towerTableWidget_->setColumnHidden(4, true);
-    towerTableWidget_->setStyleSheet(QStringLiteral(
-        "QTableWidget {"
-        "background-color: #ffffff;"
-        "alternate-background-color: #f8fafc;"
-        "gridline-color: #e2e8f0;"
-        "color: #0f172a;"
-        "}"
-        "QHeaderView::section {"
-        "background-color: #e2e8f0;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "padding: 4px 8px;"
-        "font-weight: 600;"
-        "}"
-        "QHeaderView::section:hover {"
-        "background-color: #dbeafe;"
-        "}"
-        "QHeaderView::section:pressed {"
-        "background-color: #bfdbfe;"
-        "}"
-        "QTableCornerButton::section {"
-        "background-color: #e2e8f0;"
-        "border: 1px solid #cbd5e1;"
-        "}"
-    ));
-
-    towerLayout->addWidget(towerCountValueLabel_);
-    towerLayout->addWidget(towerToolStatusLabel_);
-    towerLayout->addWidget(towerTableWidget_, 1);
-
-    towerDetailsGroupBox_ = new QGroupBox(tr("Selected Tower Details"), towerPanel);
-    towerDetailsLayout_ = new QFormLayout(towerDetailsGroupBox_);
-    towerDetailsLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    towerDetailsLayout_->setFormAlignment(Qt::AlignTop);
-    towerCodeEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerLineNameEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerVoltageLevelEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerTypeComboBox_ = new QComboBox(towerDetailsGroupBox_);
-    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Unknown));
-    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Tangent));
-    towerTypeComboBox_->addItem(QString(), static_cast<int>(TowerType::Strain));
-    towerStructureTypeEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerInspectionDateEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerStatusEdit_ = new QLineEdit(towerDetailsGroupBox_);
-    towerNotesEdit_ = new QPlainTextEdit(towerDetailsGroupBox_);
-    towerNotesEdit_->setMaximumHeight(96);
-    towerDetailsLayout_->addRow(tr("Code"), towerCodeEdit_);
-    towerDetailsLayout_->addRow(tr("Line"), towerLineNameEdit_);
-    towerDetailsLayout_->addRow(tr("Voltage"), towerVoltageLevelEdit_);
-    towerDetailsLayout_->addRow(tr("Tower Category"), towerTypeComboBox_);
-    towerDetailsLayout_->addRow(tr("Structure Type"), towerStructureTypeEdit_);
-    towerDetailsLayout_->addRow(tr("Inspection Date"), towerInspectionDateEdit_);
-    towerDetailsLayout_->addRow(tr("Tower Status"), towerStatusEdit_);
-    towerDetailsLayout_->addRow(tr("Notes"), towerNotesEdit_);
-    towerLayout->addWidget(towerDetailsGroupBox_);
-
-    auto* issueToolbarHost = new QWidget(issueTab.first);
-    auto* issueToolbarHostLayout = new QHBoxLayout(issueToolbarHost);
-    issueToolbarHostLayout->setContentsMargins(0, 0, 0, 0);
-    issueToolbarHostLayout->setSpacing(8);
-
-    issueToolBar_ = new QToolBar(issueToolbarHost);
-    issueToolBar_->setIconSize(QSize(16, 16));
-    issueToolBar_->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    issueToolBar_->setMovable(false);
-    issueToolBar_->setFloatable(false);
-    issueToolBar_->addAction(startIssueMarkAction_);
-    issueToolBar_->addAction(cancelIssueToolAction_);
-    issueToolBar_->addSeparator();
-    issueToolBar_->addAction(focusIssueAction_);
-    issueToolBar_->addAction(removeIssueAction_);
-    issueToolBar_->addAction(clearIssuesAction_);
-    issueToolBar_->addSeparator();
-    issueToolBar_->addAction(exportIssuesCsvAction_);
-    issueToolBar_->addAction(exportInspectionReportAction_);
-
-    issueActionsMenu_ = new QMenu(issueToolbarHost);
+    issueActionsMenu_ = new QMenu(issueEditorWidget_);
     issueActionsMenu_->addAction(startIssueMarkAction_);
     issueActionsMenu_->addAction(cancelIssueToolAction_);
     issueActionsMenu_->addSeparator();
@@ -3430,84 +2419,32 @@ void MainWindow::createInspectorPanel()
     issueActionsMenu_->addSeparator();
     issueActionsMenu_->addAction(exportIssuesCsvAction_);
     issueActionsMenu_->addAction(exportInspectionReportAction_);
+    if (issueMenuButton_ != nullptr) {
+        issueMenuButton_->setMenu(issueActionsMenu_);
+    }
 
-    issueMenuButton_ = new QToolButton(issueToolbarHost);
-    issueMenuButton_->setPopupMode(QToolButton::InstantPopup);
-    issueMenuButton_->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    issueMenuButton_->setMenu(issueActionsMenu_);
+    if (issueTableWidget_ != nullptr) {
+        issueTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Title"), tr("Severity"), tr("Status"), tr("Tower"), tr("Category") });
+    }
 
-    issueToolbarHostLayout->addWidget(issueToolBar_, 1);
-    issueToolbarHostLayout->addWidget(issueMenuButton_, 0);
-
-    auto* issuePanel = new QWidget(issueTab.first);
-    auto* issueLayout = new QVBoxLayout(issuePanel);
-    issueLayout->setContentsMargins(0, 0, 0, 0);
-    issueLayout->setSpacing(8);
-
-    issueCountValueLabel_ = new QLabel(issuePanel);
-    issueCountValueLabel_->setWordWrap(true);
-    issueToolStatusLabel_ = new QLabel(issuePanel);
-    issueToolStatusLabel_->setWordWrap(true);
-
-    issueTableWidget_ = new QTableWidget(issuePanel);
-    issueTableWidget_->setColumnCount(6);
-    issueTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-    issueTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
-    issueTableWidget_->setAlternatingRowColors(true);
-    issueTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    issueTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Title"), tr("Severity"), tr("Status"), tr("Tower"), tr("Category") });
-    issueTableWidget_->verticalHeader()->setVisible(false);
-    issueTableWidget_->horizontalHeader()->setStretchLastSection(false);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
-    issueTableWidget_->horizontalHeader()->setSectionResizeMode(5, QHeaderView::ResizeToContents);
-
-    issueDetailsGroupBox_ = new QGroupBox(tr("Selected Issue Details"), issuePanel);
-    issueDetailsLayout_ = new QFormLayout(issueDetailsGroupBox_);
-    issueDetailsLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    issueDetailsLayout_->setFormAlignment(Qt::AlignTop);
-    issueTitleEdit_ = new QLineEdit(issueDetailsGroupBox_);
-    issueCategoryComboBox_ = new QComboBox(issueDetailsGroupBox_);
-    issueCategoryComboBox_->setEditable(true);
-    issueCategoryComboBox_->addItems({ tr("Vegetation"), tr("Insulator"), tr("Tower Body"), tr("Channel Risk"), tr("Other") });
-    issueSeverityComboBox_ = new QComboBox(issueDetailsGroupBox_);
-    issueStatusComboBox_ = new QComboBox(issueDetailsGroupBox_);
-    issueRelatedTowerComboBox_ = new QComboBox(issueDetailsGroupBox_);
-    issueImagePathEdit_ = new QLineEdit(issueDetailsGroupBox_);
-    issueDescriptionEdit_ = new QPlainTextEdit(issueDetailsGroupBox_);
-    issueDescriptionEdit_->setMaximumHeight(110);
-    issueLocationValueLabel_ = new QLabel(issueDetailsGroupBox_);
-    issueLocationValueLabel_->setWordWrap(true);
-    issueCreatedAtValueLabel_ = new QLabel(issueDetailsGroupBox_);
-    issueCreatedAtValueLabel_->setWordWrap(true);
-    issueSeverityComboBox_->addItems({
-        issueSeverityDisplayName(IssueSeverity::Info),
-        issueSeverityDisplayName(IssueSeverity::Minor),
-        issueSeverityDisplayName(IssueSeverity::Major),
-        issueSeverityDisplayName(IssueSeverity::Critical)
-    });
-    issueStatusComboBox_->addItems({
-        issueStatusDisplayName(IssueStatus::Open),
-        issueStatusDisplayName(IssueStatus::Monitoring),
-        issueStatusDisplayName(IssueStatus::Resolved)
-    });
-    issueDetailsLayout_->addRow(tr("Title"), issueTitleEdit_);
-    issueDetailsLayout_->addRow(tr("Category"), issueCategoryComboBox_);
-    issueDetailsLayout_->addRow(tr("Severity"), issueSeverityComboBox_);
-    issueDetailsLayout_->addRow(tr("Issue Status"), issueStatusComboBox_);
-    issueDetailsLayout_->addRow(tr("Related Tower"), issueRelatedTowerComboBox_);
-    issueDetailsLayout_->addRow(tr("Image Path"), issueImagePathEdit_);
-    issueDetailsLayout_->addRow(tr("Location"), issueLocationValueLabel_);
-    issueDetailsLayout_->addRow(tr("Created At"), issueCreatedAtValueLabel_);
-    issueDetailsLayout_->addRow(tr("Description"), issueDescriptionEdit_);
-
-    issueLayout->addWidget(issueCountValueLabel_);
-    issueLayout->addWidget(issueToolStatusLabel_);
-    issueLayout->addWidget(issueTableWidget_, 1);
-    issueLayout->addWidget(issueDetailsGroupBox_);
+    if (issueCategoryComboBox_ != nullptr) {
+        issueCategoryComboBox_->addItems({ tr("Vegetation"), tr("Insulator"), tr("Tower Body"), tr("Channel Risk"), tr("Other") });
+    }
+    if (issueSeverityComboBox_ != nullptr) {
+        issueSeverityComboBox_->addItems({
+            issueSeverityDisplayName(IssueSeverity::Info),
+            issueSeverityDisplayName(IssueSeverity::Minor),
+            issueSeverityDisplayName(IssueSeverity::Major),
+            issueSeverityDisplayName(IssueSeverity::Critical)
+        });
+    }
+    if (issueStatusComboBox_ != nullptr) {
+        issueStatusComboBox_->addItems({
+            issueStatusDisplayName(IssueStatus::Open),
+            issueStatusDisplayName(IssueStatus::Monitoring),
+            issueStatusDisplayName(IssueStatus::Resolved)
+        });
+    }
 
     renderingGroupBox_ = new QGroupBox(tr("Rendering Controls"), renderingTab.first);
     renderingLayout_ = new QFormLayout(renderingGroupBox_);
@@ -3574,88 +2511,7 @@ void MainWindow::createInspectorPanel()
     classificationColorsLayout->addWidget(classificationColorsTableWidget_);
     classificationColorsLayout->addLayout(classificationButtonRow);
 
-    profileClassificationGroupBox_ = new QGroupBox(tr("3D Profile Classification"), renderingTab.first);
-    auto* profileClassificationLayout = new QVBoxLayout(profileClassificationGroupBox_);
-    profileClassificationLayout->setContentsMargins(12, 12, 12, 12);
-    profileClassificationLayout->setSpacing(8);
-
-    auto* profileClassificationButtonRow = new QHBoxLayout();
-    profileClassificationButtonRow->setContentsMargins(0, 0, 0, 0);
-    profileClassificationButtonRow->setSpacing(6);
-    profileClassificationToggleButton_ = new QPushButton(tr("Start Tool"), profileClassificationGroupBox_);
-    profileClassificationSelectAllButton_ = new QPushButton(tr("Select All"), profileClassificationGroupBox_);
-    profileClassificationClearSelectionButton_ = new QPushButton(tr("Clear Sources"), profileClassificationGroupBox_);
-    profileClassificationButtonRow->addWidget(profileClassificationToggleButton_);
-    profileClassificationButtonRow->addWidget(profileClassificationSelectAllButton_);
-    profileClassificationButtonRow->addWidget(profileClassificationClearSelectionButton_);
-    profileClassificationButtonRow->addStretch(1);
-
-    auto* profileClassificationModeRow = new QHBoxLayout();
-    profileClassificationModeRow->setContentsMargins(0, 0, 0, 0);
-    profileClassificationModeRow->setSpacing(6);
-    profileClassificationModeLabel_ = new QLabel(tr("Selection Mode"), profileClassificationGroupBox_);
-    profileClassificationModeComboBox_ = new QComboBox(profileClassificationGroupBox_);
-    profileClassificationModeComboBox_->addItem(
-        tr("Rectangle Selection"),
-        static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
-    profileClassificationModeComboBox_->addItem(
-        tr("Polygon Selection"),
-        static_cast<int>(ProfileClassificationSelectionMode::Polygon));
-    profileClassificationModeComboBox_->setMinimumWidth(170);
-    profileClassificationModeRow->addWidget(profileClassificationModeLabel_);
-    profileClassificationModeRow->addWidget(profileClassificationModeComboBox_, 1);
-
-    auto* profileClassificationHistoryRow = new QHBoxLayout();
-    profileClassificationHistoryRow->setContentsMargins(0, 0, 0, 0);
-    profileClassificationHistoryRow->setSpacing(6);
-    profileClassificationUndoButton_ = new QPushButton(tr("Undo"), profileClassificationGroupBox_);
-    profileClassificationRedoButton_ = new QPushButton(tr("Redo"), profileClassificationGroupBox_);
-    profileClassificationClearEditsButton_ = new QPushButton(tr("Clear Edits"), profileClassificationGroupBox_);
-    profileClassificationSaveButton_ = new QPushButton(tr("Save Result"), profileClassificationGroupBox_);
-    profileClassificationHistoryRow->addWidget(profileClassificationUndoButton_);
-    profileClassificationHistoryRow->addWidget(profileClassificationRedoButton_);
-    profileClassificationHistoryRow->addWidget(profileClassificationClearEditsButton_);
-    profileClassificationHistoryRow->addWidget(profileClassificationSaveButton_);
-    profileClassificationHistoryRow->addStretch(1);
-
-    profileClassificationStatusLabel_ = new QLabel(profileClassificationGroupBox_);
-    profileClassificationStatusLabel_->setWordWrap(true);
-    profileClassificationStatusLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-
-    auto* sourceTitleLabel = new QLabel(tr("Source Classes"), profileClassificationGroupBox_);
-    profileClassificationSourceListWidget_ = new QListWidget(profileClassificationGroupBox_);
-    profileClassificationSourceListWidget_->setSelectionMode(QAbstractItemView::NoSelection);
-    profileClassificationSourceListWidget_->setAlternatingRowColors(true);
-    profileClassificationSourceListWidget_->setMinimumHeight(220);
-
-    auto* targetTitleLabel = new QLabel(tr("Target Class"), profileClassificationGroupBox_);
-    profileClassificationTargetListWidget_ = new QListWidget(profileClassificationGroupBox_);
-    profileClassificationTargetListWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
-    profileClassificationTargetListWidget_->setAlternatingRowColors(true);
-    profileClassificationTargetListWidget_->setMinimumHeight(180);
-
-    for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
-        if (item.code < 0) {
-            continue;
-        }
-
-        auto* sourceItem = new QListWidgetItem(profileClassificationSourceListWidget_);
-        sourceItem->setData(Qt::UserRole, item.code);
-        sourceItem->setFlags(sourceItem->flags() | Qt::ItemIsUserCheckable);
-        sourceItem->setCheckState(Qt::Unchecked);
-
-        auto* targetItem = new QListWidgetItem(profileClassificationTargetListWidget_);
-        targetItem->setData(Qt::UserRole, item.code);
-    }
-
-    profileClassificationLayout->addLayout(profileClassificationButtonRow);
-    profileClassificationLayout->addLayout(profileClassificationModeRow);
-    profileClassificationLayout->addLayout(profileClassificationHistoryRow);
-    profileClassificationLayout->addWidget(profileClassificationStatusLabel_);
-    profileClassificationLayout->addWidget(sourceTitleLabel);
-    profileClassificationLayout->addWidget(profileClassificationSourceListWidget_);
-    profileClassificationLayout->addWidget(targetTitleLabel);
-    profileClassificationLayout->addWidget(profileClassificationTargetListWidget_);
+    profileClassificationGroupBox_ = new ProfileClassificationWidget(renderingTab.first);
 
     auto* measurementToolbarHost = new QWidget(measurementTab.first);
     auto* measurementToolbarHostLayout = new QHBoxLayout(measurementToolbarHost);
@@ -3952,53 +2808,21 @@ void MainWindow::createInspectorPanel()
     routePlanningLayout->addRow(tr("Status"), routeStatusValueLabel_);
     routePlanningLayout->addRow(tr("Summary"), routeSummaryValueLabel_);
 
-    navigationGroupBox_ = new QGroupBox(tr("Navigation"), navigationTab.first);
-    auto* tipsLayout = new QVBoxLayout(navigationGroupBox_);
-    navigationTipsLabel_ = new QLabel(navigationGroupBox_);
-    navigationTipsLabel_->setWordWrap(true);
-    tipsLayout->addWidget(navigationTipsLabel_);
+    navigationSettingsWidget_ = new NavigationSettingsWidget(navigationTab.first);
+    navigationGroupBox_ = navigationSettingsWidget_;
+    navigationTipsLabel_ = navigationSettingsWidget_->tipsLabel();
+    navigationToggleLayout_ = navigationSettingsWidget_->toggleLayout();
+    invertOrbitCheckBox_ = navigationSettingsWidget_->invertOrbitCheckBox();
+    invertPanCheckBox_ = navigationSettingsWidget_->invertPanCheckBox();
+    invertWheelCheckBox_ = navigationSettingsWidget_->invertWheelCheckBox();
+    wheelZoomSensitivityControl_ = navigationSettingsWidget_->wheelZoomSensitivityControl();
+    wheelZoomSensitivitySlider_ = navigationSettingsWidget_->wheelZoomSensitivitySlider();
+    wheelZoomSensitivityValueLabel_ = navigationSettingsWidget_->wheelZoomSensitivityValueLabel();
 
-    auto* navigationToggleContainer = new QWidget(navigationGroupBox_);
-    navigationToggleLayout_ = new QFormLayout(navigationToggleContainer);
-    navigationToggleLayout_->setContentsMargins(0, 0, 0, 0);
-    navigationToggleLayout_->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
-    navigationToggleLayout_->setFormAlignment(Qt::AlignTop);
-
-    invertOrbitCheckBox_ = new QCheckBox(tr("Invert orbit drag"), navigationToggleContainer);
-    invertPanCheckBox_ = new QCheckBox(tr("Invert pan drag"), navigationToggleContainer);
-    invertWheelCheckBox_ = new QCheckBox(tr("Invert wheel zoom"), navigationToggleContainer);
-    navigationToggleLayout_->addRow(QString(), invertOrbitCheckBox_);
-    navigationToggleLayout_->addRow(QString(), invertPanCheckBox_);
-    navigationToggleLayout_->addRow(QString(), invertWheelCheckBox_);
-    wheelZoomSensitivityControl_ = new QWidget(navigationToggleContainer);
-    auto* wheelZoomSensitivityLayout = new QHBoxLayout(wheelZoomSensitivityControl_);
-    wheelZoomSensitivityLayout->setContentsMargins(0, 0, 0, 0);
-    wheelZoomSensitivityLayout->setSpacing(10);
-    wheelZoomSensitivitySlider_ = new QSlider(Qt::Horizontal, wheelZoomSensitivityControl_);
-    wheelZoomSensitivitySlider_->setRange(50, 200);
-    wheelZoomSensitivitySlider_->setSingleStep(5);
-    wheelZoomSensitivitySlider_->setPageStep(10);
-    wheelZoomSensitivitySlider_->setTickInterval(10);
-    wheelZoomSensitivitySlider_->setTracking(false);
-    wheelZoomSensitivityValueLabel_ = new QLabel(wheelZoomSensitivityControl_);
-    wheelZoomSensitivityValueLabel_->setMinimumWidth(56);
-    wheelZoomSensitivityValueLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    wheelZoomSensitivityValueLabel_->setStyleSheet(QStringLiteral(
-        "QLabel {"
-        "color: #475569;"
-        "font-weight: 600;"
-        "}"));
-    wheelZoomSensitivityLayout->addWidget(wheelZoomSensitivitySlider_, 1);
-    wheelZoomSensitivityLayout->addWidget(wheelZoomSensitivityValueLabel_, 0);
-    navigationToggleLayout_->addRow(tr("Zoom Sensitivity"), wheelZoomSensitivityControl_);
-    tipsLayout->addWidget(navigationToggleContainer);
-
-    overviewTab.second->addWidget(datasetGroupBox_);
+    overviewTab.second->addWidget(datasetSummaryWidget_);
     overviewTab.second->addStretch(1);
-    towerTab.second->addWidget(towerToolbarHost);
-    towerTab.second->addWidget(towerPanel, 1);
-    issueTab.second->addWidget(issueToolbarHost);
-    issueTab.second->addWidget(issuePanel, 1);
+    towerTab.second->addWidget(towerEditorWidget_, 1);
+    issueTab.second->addWidget(issueEditorWidget_, 1);
     renderingTab.second->addWidget(renderingGroupBox_);
     renderingTab.second->addWidget(classificationColorsGroupBox_);
     renderingTab.second->addStretch(1);
@@ -4012,222 +2836,19 @@ void MainWindow::createInspectorPanel()
     analysisTab.second->addWidget(vegetationRisksGroupBox_, 1);
     analysisTab.second->addWidget(routePlanningGroupBox_);
     analysisTab.second->addStretch(1);
-    navigationTab.second->addWidget(navigationGroupBox_);
+    navigationTab.second->addWidget(navigationSettingsWidget_);
     navigationTab.second->addStretch(1);
 
-    inspectorTabWidget_->addTab(overviewTab.first, QString());
-    inspectorTabWidget_->addTab(towerTab.first, QString());
-    inspectorTabWidget_->addTab(issueTab.first, QString());
-    inspectorTabWidget_->addTab(renderingTab.first, QString());
-    inspectorTabWidget_->addTab(measurementTab.first, QString());
-    inspectorTabWidget_->addTab(analysisTab.first, QString());
-    inspectorTabWidget_->addTab(navigationTab.first, QString());
-
-    inspectorTabWidget_->setStyleSheet(
-        "QWidget {"
-        "background-color: #f6f8fb;"
-        "color: #1f2937;"
-        "}"
-        "QTabWidget::pane {"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 10px;"
-        "top: -1px;"
-        "}"
-        "QTabBar::tab {"
-        "background-color: #eef2f7;"
-        "border: 1px solid #d6dde8;"
-        "border-bottom: none;"
-        "border-top-left-radius: 8px;"
-        "border-top-right-radius: 8px;"
-        "padding: 8px 14px;"
-        "margin-right: 4px;"
-        "color: #475569;"
-        "font-weight: 600;"
-        "}"
-        "QTabBar::tab:selected {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "}"
-        "QTabBar::tab:hover:!selected {"
-        "background-color: #e2e8f0;"
-        "}"
-        "QToolBar {"
-        "background: transparent;"
-        "border: none;"
-        "spacing: 6px;"
-        "padding: 0;"
-        "}"
-        "QToolButton {"
-        "background-color: #ffffff;"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 6px;"
-        "padding: 6px 10px;"
-        "color: #1f2937;"
-        "font-weight: 600;"
-        "}"
-        "QToolButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "QToolButton:pressed {"
-        "background-color: #dbeafe;"
-        "border-color: #60a5fa;"
-        "color: #0f172a;"
-        "}"
-        "QToolButton:checked {"
-        "background-color: #2563eb;"
-        "border-color: #1d4ed8;"
-        "color: #eff6ff;"
-        "}"
-        "QToolButton:disabled {"
-        "background-color: #f1f5f9;"
-        "border-color: #e2e8f0;"
-        "color: #94a3b8;"
-        "}"
-        "QToolButton::menu-indicator {"
-        "subcontrol-origin: padding;"
-        "subcontrol-position: right center;"
-        "right: 8px;"
-        "}"
-        "QLabel {"
-        "color: #1f2937;"
-        "}"
-        "QTreeWidget {"
-        "background-color: #ffffff;"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 8px;"
-        "alternate-background-color: #f8fbff;"
-        "padding: 4px;"
-        "}"
-        "QTreeWidget::item {"
-        "padding: 4px 6px;"
-        "}"
-        "QTreeWidget::item:selected {"
-        "background-color: #dbeafe;"
-        "color: #0f172a;"
-        "}"
-        "QTableWidget {"
-        "background-color: #ffffff;"
-        "alternate-background-color: #f8fafc;"
-        "gridline-color: #e2e8f0;"
-        "color: #0f172a;"
-        "}"
-        "QTableWidget::item:selected {"
-        "background-color: #dbeafe;"
-        "color: #0f172a;"
-        "}"
-        "QHeaderView::section {"
-        "background-color: #e2e8f0;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "padding: 4px 8px;"
-        "font-weight: 600;"
-        "}"
-        "QHeaderView::section:hover {"
-        "background-color: #dbeafe;"
-        "color: #0f172a;"
-        "}"
-        "QHeaderView::section:pressed {"
-        "background-color: #bfdbfe;"
-        "color: #0f172a;"
-        "}"
-        "QTableCornerButton::section {"
-        "background-color: #e2e8f0;"
-        "border: 1px solid #cbd5e1;"
-        "}"
-        "QGroupBox {"
-        "font-weight: 600;"
-        "background-color: #ffffff;"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 8px;"
-        "margin-top: 8px;"
-        "padding-top: 10px;"
-        "}"
-        "QGroupBox::title {"
-        "subcontrol-origin: margin;"
-        "left: 8px;"
-        "padding: 0 4px;"
-        "color: #334155;"
-        "background-color: #f6f8fb;"
-        "}"
-        "QPushButton, QComboBox, QSpinBox, QDoubleSpinBox {"
-        "background-color: #ffffff;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "min-height: 32px;"
-        "padding: 4px 10px;"
-        "color: #111827;"
-        "}"
-        "QComboBox {"
-        "padding-right: 30px;"
-        "}"
-        "QSpinBox, QDoubleSpinBox {"
-        "padding-right: 20px;"
-        "}"
-        "QComboBox::drop-down {"
-        "subcontrol-origin: padding;"
-        "subcontrol-position: top right;"
-        "width: 24px;"
-        "border: none;"
-        "}"
-        "QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {"
-        "width: 18px;"
-        "border: none;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "padding: 4px 0;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #111827;"
-        "}"
-        "QComboBox QAbstractItemView::item {"
-        "min-height: 24px;"
-        "padding: 4px 10px;"
-        "}"
-        "QPushButton:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {"
-        "border-color: #94a3b8;"
-        "}"
-        "QCheckBox {"
-        "color: #1f2937;"
-        "}"
-        "QToolTip {"
-        "background-color: #f8fafc;"
-        "color: #0f172a;"
-        "border: 1px solid #94a3b8;"
-        "padding: 4px 8px;"
-        "border-radius: 4px;"
-        "}");
-
-    QPalette toolTipPalette = QToolTip::palette();
-    toolTipPalette.setColor(QPalette::ToolTipBase, QColor(248, 250, 252));
-    toolTipPalette.setColor(QPalette::ToolTipText, QColor(15, 23, 42));
-    QToolTip::setPalette(toolTipPalette);
-
-    inspectorDock_->setWidget(inspectorTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, inspectorDock_);
 }
 
 void MainWindow::createRouteDetailsDock()
 {
-    routeDetailsDock_ = new QDockWidget(tr("Route Waypoints"), this);
-    routeDetailsDock_->setObjectName(QStringLiteral("routeDetailsDock"));
-    routeDetailsDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    routeDetailsDock_->setFeatures(
-        QDockWidget::DockWidgetClosable
-        | QDockWidget::DockWidgetMovable
-        | QDockWidget::DockWidgetFloatable);
-    routeDetailsDock_->setMinimumWidth(460);
+    routeDetailsDock_ = new RouteDetailsDock(this);
+    routeDetailsTabWidget_ = routeDetailsDock_->tabWidget();
+    auto* waypointsTabLayout = routeDetailsDock_->waypointsLayout();
 
-    routeDetailsTabWidget_ = new QTabWidget(routeDetailsDock_);
-    routeDetailsTabWidget_->setObjectName(QStringLiteral("routeDetailsTabs"));
-    routeDetailsTabWidget_->setDocumentMode(true);
-    routeDetailsTabWidget_->setMovable(false);
-
-    auto* waypointsTab = new QWidget(routeDetailsTabWidget_);
-    auto* waypointsTabLayout = new QVBoxLayout(waypointsTab);
-    waypointsTabLayout->setContentsMargins(10, 10, 10, 10);
-    waypointsTabLayout->setSpacing(8);
-
-    routeWaypointsGroupBox_ = new QGroupBox(tr("Route Waypoints"), waypointsTab);
+    routeWaypointsGroupBox_ = new QGroupBox(tr("Route Waypoints"), routeDetailsTabWidget_);
     auto* routeWaypointsLayout = new QVBoxLayout(routeWaypointsGroupBox_);
     routeWaypointsLayout->setContentsMargins(10, 10, 10, 10);
     routeWaypointsLayout->setSpacing(8);
@@ -4331,12 +2952,9 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointsLayout->addWidget(routeWaypointTargetsGroupBox_, 0);
     waypointsTabLayout->addWidget(routeWaypointsGroupBox_, 1);
 
-    auto* partPointsTab = new QWidget(routeDetailsTabWidget_);
-    auto* partPointsTabLayout = new QVBoxLayout(partPointsTab);
-    partPointsTabLayout->setContentsMargins(10, 10, 10, 10);
-    partPointsTabLayout->setSpacing(8);
+    auto* partPointsTabLayout = routeDetailsDock_->partPointsLayout();
 
-    routePartsGroupBox_ = new QGroupBox(tr("Route Part Points"), partPointsTab);
+    routePartsGroupBox_ = new QGroupBox(tr("Route Part Points"), routeDetailsTabWidget_);
     auto* routePartsLayout = new QVBoxLayout(routePartsGroupBox_);
     routePartsLayout->setContentsMargins(10, 10, 10, 10);
     routePartsLayout->setSpacing(8);
@@ -4400,12 +3018,9 @@ void MainWindow::createRouteDetailsDock()
     routePartsLayout->addWidget(routePartPointsTableWidget_, 1);
     partPointsTabLayout->addWidget(routePartsGroupBox_, 1);
 
-    auto* routeQaTab = new QWidget(routeDetailsTabWidget_);
-    auto* routeQaTabLayout = new QVBoxLayout(routeQaTab);
-    routeQaTabLayout->setContentsMargins(10, 10, 10, 10);
-    routeQaTabLayout->setSpacing(8);
+    auto* routeQaTabLayout = routeDetailsDock_->routeQaLayout();
 
-    routeQaGroupBox_ = new QGroupBox(tr("Route QA"), routeQaTab);
+    routeQaGroupBox_ = new QGroupBox(tr("Route QA"), routeDetailsTabWidget_);
     auto* routeQaLayout = new QVBoxLayout(routeQaGroupBox_);
     routeQaLayout->setContentsMargins(10, 10, 10, 10);
     routeQaLayout->setSpacing(8);
@@ -4443,68 +3058,6 @@ void MainWindow::createRouteDetailsDock()
     routeQaLayout->addWidget(routeQaIssuesTableWidget_, 1);
     routeQaTabLayout->addWidget(routeQaGroupBox_, 1);
 
-    routeDetailsTabWidget_->addTab(waypointsTab, tr("Route Waypoints"));
-    routeDetailsTabWidget_->addTab(partPointsTab, tr("Route Part Points"));
-    routeDetailsTabWidget_->addTab(routeQaTab, tr("Route QA"));
-
-    routeDetailsTabWidget_->setStyleSheet(
-        "QWidget {"
-        "background-color: #f6f8fb;"
-        "color: #1f2937;"
-        "}"
-        "QTabWidget::pane {"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 10px;"
-        "top: -1px;"
-        "}"
-        "QTabBar::tab {"
-        "background-color: #eef2f7;"
-        "border: 1px solid #d6dde8;"
-        "border-bottom: none;"
-        "border-top-left-radius: 8px;"
-        "border-top-right-radius: 8px;"
-        "padding: 8px 14px;"
-        "margin-right: 4px;"
-        "color: #475569;"
-        "font-weight: 600;"
-        "}"
-        "QTabBar::tab:selected {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "}"
-        "QTabBar::tab:hover:!selected {"
-        "background-color: #e2e8f0;"
-        "}"
-        "QComboBox {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 4px 28px 4px 10px;"
-        "min-height: 30px;"
-        "}"
-        "QComboBox:hover {"
-        "border-color: #94a3b8;"
-        "}"
-        "QComboBox::drop-down {"
-        "subcontrol-origin: padding;"
-        "subcontrol-position: top right;"
-        "width: 24px;"
-        "border: none;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #0f172a;"
-        "outline: none;"
-        "}"
-        "QComboBox QAbstractItemView::item {"
-        "min-height: 24px;"
-        "padding: 4px 10px;"
-        "}");
-
     if (viewer_ != nullptr) {
         setColorButtonAppearance(routeWaypointColorButton_, viewer_->inspectionRouteWaypointColor(), tr("Waypoint Color"));
         setColorButtonAppearance(routePartPointColorButton_, viewer_->inspectionRoutePartPointColor(), tr("Part Point Color"));
@@ -4513,7 +3066,6 @@ void MainWindow::createRouteDetailsDock()
     applyRouteWaypointTableColumnVisibility();
     applyRoutePartTableColumnVisibility();
 
-    routeDetailsDock_->setWidget(routeDetailsTabWidget_);
     addDockWidget(Qt::RightDockWidgetArea, routeDetailsDock_);
     if (inspectorDock_ != nullptr) {
         tabifyDockWidget(inspectorDock_, routeDetailsDock_);
@@ -4523,139 +3075,8 @@ void MainWindow::createRouteDetailsDock()
 
 void MainWindow::createProfileClassificationDock()
 {
-    profileClassificationDock_ = new QDockWidget(tr("Profile Classification"), this);
-    profileClassificationDock_->setObjectName(QStringLiteral("profileClassificationDock"));
-    profileClassificationDock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    profileClassificationDock_->setFeatures(
-        QDockWidget::DockWidgetClosable
-        | QDockWidget::DockWidgetMovable
-        | QDockWidget::DockWidgetFloatable);
-    profileClassificationDock_->setMinimumWidth(320);
-
-    auto* profileClassificationSurface = new QWidget(profileClassificationDock_);
-    profileClassificationSurface->setObjectName(QStringLiteral("profileClassificationSurface"));
-    auto* profileClassificationSurfaceLayout = new QVBoxLayout(profileClassificationSurface);
-    profileClassificationSurfaceLayout->setContentsMargins(10, 10, 10, 10);
-    profileClassificationSurfaceLayout->setSpacing(8);
-    if (profileClassificationGroupBox_ != nullptr) {
-        profileClassificationSurfaceLayout->addWidget(profileClassificationGroupBox_);
-    }
-    profileClassificationSurfaceLayout->addStretch(1);
-    profileClassificationSurface->setStyleSheet(QStringLiteral(
-        "QWidget#profileClassificationSurface {"
-        "background-color: #f3f7fc;"
-        "border: 1px solid #d6e0eb;"
-        "border-radius: 10px;"
-        "}"
-        "QGroupBox {"
-        "font-weight: 600;"
-        "background-color: #ffffff;"
-        "color: #1f2937;"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 8px;"
-        "margin-top: 8px;"
-        "padding-top: 10px;"
-        "}"
-        "QGroupBox::title {"
-        "subcontrol-origin: margin;"
-        "left: 8px;"
-        "padding: 0 4px;"
-        "background-color: #f3f7fc;"
-        "color: #334155;"
-        "}"
-        "QLabel {"
-        "color: #1f2937;"
-        "}"
-        "QListWidget {"
-        "background-color: #ffffff;"
-        "border: 1px solid #d6dde8;"
-        "border-radius: 6px;"
-        "alternate-background-color: #f8fafc;"
-        "color: #0f172a;"
-        "}"
-        "QListWidget::item:selected {"
-        "background-color: #dbeafe;"
-        "color: #0f172a;"
-        "}"
-        "QScrollBar:vertical {"
-        "background: #edf2f7;"
-        "width: 12px;"
-        "margin: 2px;"
-        "border-radius: 6px;"
-        "}"
-        "QScrollBar::handle:vertical {"
-        "background: #94a3b8;"
-        "min-height: 28px;"
-        "border-radius: 6px;"
-        "}"
-        "QScrollBar::handle:vertical:hover {"
-        "background: #64748b;"
-        "}"
-        "QScrollBar:horizontal {"
-        "background: #edf2f7;"
-        "height: 12px;"
-        "margin: 2px;"
-        "border-radius: 6px;"
-        "}"
-        "QScrollBar::handle:horizontal {"
-        "background: #94a3b8;"
-        "min-width: 28px;"
-        "border-radius: 6px;"
-        "}"
-        "QScrollBar::handle:horizontal:hover {"
-        "background: #64748b;"
-        "}"
-        "QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {"
-        "background: transparent;"
-        "border: none;"
-        "}"
-        "QPushButton {"
-        "background-color: #ffffff;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "padding: 6px 10px;"
-        "color: #0f172a;"
-        "}"
-        "QPushButton:hover {"
-        "border-color: #94a3b8;"
-        "background-color: #f8fafc;"
-        "}"
-        "QPushButton:disabled {"
-        "background-color: #f1f5f9;"
-        "border-color: #e2e8f0;"
-        "color: #94a3b8;"
-        "}"
-        "QComboBox {"
-        "background-color: #ffffff;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 6px;"
-        "min-height: 30px;"
-        "padding: 4px 10px;"
-        "padding-right: 26px;"
-        "color: #0f172a;"
-        "}"
-        "QComboBox:hover {"
-        "border-color: #94a3b8;"
-        "}"
-        "QComboBox::drop-down {"
-        "subcontrol-origin: padding;"
-        "subcontrol-position: top right;"
-        "width: 22px;"
-        "border: none;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #0f172a;"
-        "padding: 4px 0;"
-        "}"
-        "QComboBox QAbstractItemView::item {"
-        "min-height: 24px;"
-        "padding: 4px 10px;"
-        "}"));
-    profileClassificationDock_->setWidget(profileClassificationSurface);
+    profileClassificationDock_ = new ProfileClassificationDock(this);
+    profileClassificationDock_->setContentWidget(profileClassificationGroupBox_);
 
     addDockWidget(Qt::LeftDockWidgetArea, profileClassificationDock_);
     if (projectDock_ != nullptr) {
@@ -4666,212 +3087,17 @@ void MainWindow::createProfileClassificationDock()
 
 void MainWindow::createProfileDock()
 {
-    profileDock_ = new QDockWidget(tr("Span Profile"), this);
-    profileDock_->setObjectName(QStringLiteral("spanProfileDock"));
-    profileDock_->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
-    profileDock_->setFeatures(
-        QDockWidget::DockWidgetClosable
-        | QDockWidget::DockWidgetMovable
-        | QDockWidget::DockWidgetFloatable);
-    profileDock_->setMinimumHeight(220);
-
-    auto* profileSurface = new QWidget(profileDock_);
-    profileSurface->setObjectName(QStringLiteral("spanProfileSurface"));
-    auto* profileLayout = new QVBoxLayout(profileSurface);
-    profileLayout->setContentsMargins(12, 12, 12, 12);
-    profileLayout->setSpacing(8);
-
-    auto* titleLabel = new QLabel(tr("Measured corridor profile"), profileSurface);
-    titleLabel->setObjectName(QStringLiteral("spanProfileTitleLabel"));
-    titleLabel->setStyleSheet(QStringLiteral(
-        "QLabel#spanProfileTitleLabel {"
-        "font-size: 14px;"
-        "font-weight: 600;"
-        "color: #0f172a;"
-        "}"));
-
-    auto* subtitleLabel = new QLabel(
-        tr("The profile updates from the current measurement path, highlights clearance segments below the threshold, and overlays nearby towers and issues."),
-        profileSurface);
-    subtitleLabel->setObjectName(QStringLiteral("spanProfileSubtitleLabel"));
-    subtitleLabel->setWordWrap(true);
-    subtitleLabel->setStyleSheet(QStringLiteral("color: #64748b;"));
-
-    profilePlotWidget_ = new ProfilePlotWidget(profileSurface);
-    profilePlotWidget_->setObjectName(QStringLiteral("spanProfilePlotWidget"));
-    profilePlotWidget_->setStyleSheet(QStringLiteral(
-        "ProfilePlotWidget#spanProfilePlotWidget {"
-        "background: transparent;"
-        "}"));
-
-    profileLayout->addWidget(titleLabel);
-    profileLayout->addWidget(subtitleLabel);
-    profileLayout->addWidget(profilePlotWidget_, 1);
-
-    profileSurface->setStyleSheet(QStringLiteral(
-        "QWidget#spanProfileSurface {"
-        "background-color: #eef4fb;"
-        "border-top: 1px solid #d7e2f0;"
-        "}"));
-
-    profileDock_->setWidget(profileSurface);
+    profileDock_ = new SpanProfileDock(this);
+    profilePlotWidget_ = profileDock_->plotWidget();
     addDockWidget(Qt::BottomDockWidgetArea, profileDock_);
     profileDock_->hide();
 }
 
 void MainWindow::createLogDock()
 {
-    logDock_ = new QDockWidget(tr("Application Log"), this);
-    logDock_->setObjectName(QStringLiteral("applicationLogDock"));
-    logDock_->setAllowedAreas(
-        Qt::BottomDockWidgetArea
-        | Qt::TopDockWidgetArea);
-    logDock_->setFeatures(
-        QDockWidget::DockWidgetClosable
-        | QDockWidget::DockWidgetMovable
-        | QDockWidget::DockWidgetFloatable);
-    logDock_->setMinimumHeight(180);
-    logDock_->setMaximumHeight(460);
-
-    auto* logSurface = new QWidget(logDock_);
-    logSurface->setObjectName(QStringLiteral("applicationLogSurface"));
-    auto* logSurfaceLayout = new QVBoxLayout(logSurface);
-    logSurfaceLayout->setContentsMargins(10, 10, 10, 10);
-    logSurfaceLayout->setSpacing(8);
-
-    auto* logControlsRow = new QWidget(logSurface);
-    logControlsRow->setObjectName(QStringLiteral("applicationLogToolsRow"));
-    auto* logControlsLayout = new QHBoxLayout(logControlsRow);
-    logControlsLayout->setContentsMargins(8, 8, 8, 8);
-    logControlsLayout->setSpacing(8);
-
-    logLevelFilterComboBox_ = new QComboBox(logControlsRow);
-    logLevelFilterComboBox_->setObjectName(QStringLiteral("applicationLogLevelFilter"));
-    logLevelFilterComboBox_->setMinimumWidth(138);
-    logLevelFilterComboBox_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-
-    logSearchLineEdit_ = new QLineEdit(logControlsRow);
-    logSearchLineEdit_->setObjectName(QStringLiteral("applicationLogSearchEdit"));
-    logSearchLineEdit_->setClearButtonEnabled(true);
-    logSearchLineEdit_->setMinimumWidth(240);
-
-    logAutoScrollCheckBox_ = new QCheckBox(logControlsRow);
-    logAutoScrollCheckBox_->setObjectName(QStringLiteral("applicationLogAutoScrollCheck"));
-    logAutoScrollCheckBox_->setChecked(true);
-
-    logClearButton_ = new QPushButton(logControlsRow);
-    logClearButton_->setObjectName(QStringLiteral("applicationLogClearButton"));
-
-    logExportButton_ = new QPushButton(logControlsRow);
-    logExportButton_->setObjectName(QStringLiteral("applicationLogExportButton"));
-
-    logStatsLabel_ = new QLabel(logControlsRow);
-    logStatsLabel_->setObjectName(QStringLiteral("applicationLogStatsLabel"));
-    logStatsLabel_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    logStatsLabel_->setMinimumWidth(180);
-
-    logControlsLayout->addWidget(logLevelFilterComboBox_, 0);
-    logControlsLayout->addWidget(logSearchLineEdit_, 1);
-    logControlsLayout->addWidget(logAutoScrollCheckBox_, 0);
-    logControlsLayout->addWidget(logClearButton_, 0);
-    logControlsLayout->addWidget(logExportButton_, 0);
-    logControlsLayout->addStretch(1);
-    logControlsLayout->addWidget(logStatsLabel_, 0);
-
-    logTextEdit_ = new QTextEdit(logSurface);
-    logTextEdit_->setReadOnly(true);
-    logTextEdit_->setUndoRedoEnabled(false);
-    logTextEdit_->setAcceptRichText(true);
-    logTextEdit_->setLineWrapMode(QTextEdit::WidgetWidth);
-    logTextEdit_->document()->setMaximumBlockCount(0);
-    logTextEdit_->document()->setDocumentMargin(14);
-    logTextEdit_->setStyleSheet(QStringLiteral(
-        "QTextEdit {"
-        "background-color: #f8fafc;"
-        "color: #0f172a;"
-        "border: 1px solid #d6e1ee;"
-        "border-radius: 8px;"
-        "selection-background-color: #bfdbfe;"
-        "selection-color: #0f172a;"
-        "font-family: 'Segoe UI', 'Microsoft YaHei UI';"
-        "font-size: 13px;"
-        "}"));
-
-    logSurfaceLayout->addWidget(logControlsRow, 0);
-    logSurfaceLayout->addWidget(logTextEdit_, 1);
-
-    logSurface->setStyleSheet(QStringLiteral(
-        "QWidget#applicationLogSurface {"
-        "background-color: #edf3fb;"
-        "border-top: 1px solid #d6e2ef;"
-        "}"
-        "QWidget#applicationLogToolsRow {"
-        "background: #f8fbff;"
-        "border: 1px solid #d5e3f2;"
-        "border-radius: 8px;"
-        "}"
-        "QComboBox#applicationLogLevelFilter,"
-        "QLineEdit#applicationLogSearchEdit {"
-        "background: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #c8d6e8;"
-        "border-radius: 5px;"
-        "padding: 4px 8px;"
-        "font-size: 13px;"
-        "min-height: 28px;"
-        "}"
-        "QCheckBox#applicationLogAutoScrollCheck {"
-        "color: #334155;"
-        "font-size: 13px;"
-        "font-weight: 600;"
-        "}"
-        "QPushButton#applicationLogClearButton,"
-        "QPushButton#applicationLogExportButton {"
-        "background: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #c8d6e8;"
-        "border-radius: 5px;"
-        "padding: 5px 12px;"
-        "font-size: 13px;"
-        "font-weight: 600;"
-        "min-height: 28px;"
-        "}"
-        "QPushButton#applicationLogClearButton:hover,"
-        "QPushButton#applicationLogExportButton:hover {"
-        "background: #eff6ff;"
-        "border-color: #9fb8d6;"
-        "}"
-        "QLabel#applicationLogStatsLabel {"
-        "color: #64748b;"
-        "font-size: 12px;"
-        "font-weight: 600;"
-        "}"));
-
-    logDock_->setWidget(logSurface);
+    logDock_ = new ApplicationLogDock(this);
     addDockWidget(Qt::BottomDockWidgetArea, logDock_);
     logDock_->hide();
-
-    if (logLevelFilterComboBox_ != nullptr) {
-        logLevelFilterComboBox_->addItem(tr("All levels"), -1);
-        logLevelFilterComboBox_->addItem(tr("Info"), static_cast<int>(lasviewer::logging::LogLevel::Info));
-        logLevelFilterComboBox_->addItem(tr("Warning"), static_cast<int>(lasviewer::logging::LogLevel::Warning));
-        logLevelFilterComboBox_->addItem(tr("Error"), static_cast<int>(lasviewer::logging::LogLevel::Error));
-        logLevelFilterComboBox_->setCurrentIndex(0);
-    }
-    if (logSearchLineEdit_ != nullptr) {
-        logSearchLineEdit_->setPlaceholderText(tr("Search module or message"));
-    }
-    if (logAutoScrollCheckBox_ != nullptr) {
-        logAutoScrollCheckBox_->setText(tr("Auto-scroll"));
-    }
-    if (logClearButton_ != nullptr) {
-        logClearButton_->setText(tr("Clear"));
-    }
-    if (logExportButton_ != nullptr) {
-        logExportButton_->setText(tr("Export"));
-    }
-
-    refreshLogPanel();
 }
 
 void MainWindow::createStatusBar()
@@ -4996,6 +3222,12 @@ void MainWindow::updateVisualizationTooltips()
 }
 
 void MainWindow::retranslateUi()
+{
+    retranslateActionsAndBackstage();
+    retranslatePanelsAndRuntimeState();
+}
+
+void MainWindow::retranslateActionsAndBackstage()
 {
     setWindowTitle(tr("LAS Point Cloud Viewer"));
 
@@ -5174,11 +3406,17 @@ void MainWindow::retranslateUi()
     if (backstageOpenProjectSubtitleLabel_ != nullptr) {
         backstageOpenProjectSubtitleLabel_->setText(tr("Select a recent project or browse to a project file."));
     }
+    if (backstageOpenProjectWidget_ != nullptr) {
+        backstageOpenProjectWidget_->retranslateUi();
+    }
     if (backstageProjectPropertiesTitleLabel_ != nullptr) {
         backstageProjectPropertiesTitleLabel_->setText(tr("Project Properties"));
     }
     if (backstageProjectPropertiesSubtitleLabel_ != nullptr) {
         backstageProjectPropertiesSubtitleLabel_->setText(tr("Review the active project file and coordinate system configuration."));
+    }
+    if (backstageProjectPropertiesWidget_ != nullptr) {
+        backstageProjectPropertiesWidget_->retranslateUi();
     }
     if (backstageApplicationSettingsTitleLabel_ != nullptr) {
         backstageApplicationSettingsTitleLabel_->setText(tr("Application Settings"));
@@ -5186,11 +3424,17 @@ void MainWindow::retranslateUi()
     if (backstageApplicationSettingsSubtitleLabel_ != nullptr) {
         backstageApplicationSettingsSubtitleLabel_->setText(tr("Adjust the office theme, interface language, and workspace panels."));
     }
+    if (backstageApplicationSettingsWidget_ != nullptr) {
+        backstageApplicationSettingsWidget_->retranslateUi();
+    }
     if (backstageAboutTitleLabel_ != nullptr) {
         backstageAboutTitleLabel_->setText(tr("About"));
     }
     if (backstageAboutSubtitleLabel_ != nullptr) {
         backstageAboutSubtitleLabel_->setText(tr("Build information and the key runtime components used by this application."));
+    }
+    if (backstageAboutWidget_ != nullptr) {
+        backstageAboutWidget_->retranslateUi();
     }
     if (backstageProjectPathLineEdit_ != nullptr) {
         backstageProjectPathLineEdit_->setPlaceholderText(tr("Project file path"));
@@ -5201,37 +3445,21 @@ void MainWindow::retranslateUi()
     if (backstageProjectOpenButton_ != nullptr) {
         backstageProjectOpenButton_->setText(tr("Open"));
     }
-    if (backstageEditProjectPropertiesButton_ != nullptr) {
-        backstageEditProjectPropertiesButton_->setText(tr("Edit Coordinate Systems"));
-    }
     if (backstageShowLogCheckBox_ != nullptr) {
         backstageShowLogCheckBox_->setText(tr("Show log panel"));
     }
-    if (QGroupBox* recentProjectsGroup = findChild<QGroupBox*>(QStringLiteral("backstageRecentProjectsGroup"))) {
-        recentProjectsGroup->setTitle(tr("Recent Projects"));
+    if (backstageOpenProjectWidget_ != nullptr) {
+        if (QGroupBox* recentProjectsGroup = backstageOpenProjectWidget_->recentProjectsGroup()) {
+            recentProjectsGroup->setTitle(tr("Recent Projects"));
+        }
+        if (QGroupBox* projectFileGroup = backstageOpenProjectWidget_->projectFileGroup()) {
+            projectFileGroup->setTitle(tr("Project File"));
+        }
     }
-    if (QGroupBox* projectFileGroup = findChild<QGroupBox*>(QStringLiteral("backstageProjectFileGroup"))) {
-        projectFileGroup->setTitle(tr("Project File"));
-    }
-    if (QGroupBox* themeGroup = findChild<QGroupBox*>(QStringLiteral("backstageThemeGroup"))) {
-        themeGroup->setTitle(tr("Office Theme"));
-    }
-    if (QGroupBox* languageGroup = findChild<QGroupBox*>(QStringLiteral("backstageLanguageGroup"))) {
-        languageGroup->setTitle(tr("Language"));
-    }
-    if (QGroupBox* workspaceGroup = findChild<QGroupBox*>(QStringLiteral("backstageWorkspaceGroup"))) {
-        workspaceGroup->setTitle(tr("Workspace"));
-    }
-    if (QLabel* projectFileLabel = findChild<QLabel*>(QStringLiteral("backstageProjectFileLabel"))) {
-        projectFileLabel->setText(tr("Project File"));
-    }
-    if (QLabel* datasetCountLabel = findChild<QLabel*>(QStringLiteral("backstageProjectDatasetsLabel"))) {
-        datasetCountLabel->setText(tr("Datasets"));
-    }
-    if (QLabel* coordinateSystemsLabel = findChild<QLabel*>(QStringLiteral("backstageProjectCoordinateSystemsLabel"))) {
-        coordinateSystemsLabel->setText(tr("Coordinate Systems"));
-    }
+}
 
+void MainWindow::retranslatePanelsAndRuntimeState()
+{
     if (homePage_ != nullptr) {
         homePage_->setTitle(tr("Home"));
     }
@@ -5305,49 +3533,29 @@ void MainWindow::retranslateUi()
     refreshBackstageAboutPage();
 
     if (projectDock_ != nullptr) {
-        projectDock_->setWindowTitle(tr("Project Explorer"));
+        if (projectExplorerController_ != nullptr) {
+            projectExplorerController_->retranslateUi();
+        } else {
+            projectDock_->retranslateUi();
+        }
     }
     if (inspectorDock_ != nullptr) {
-        inspectorDock_->setWindowTitle(tr("Scene Inspector"));
+        inspectorDock_->retranslateUi();
     }
     if (routeDetailsDock_ != nullptr) {
-        routeDetailsDock_->setWindowTitle(tr("Route Waypoints"));
+        routeDetailsDock_->retranslateUi();
     }
     if (profileDock_ != nullptr) {
-        profileDock_->setWindowTitle(tr("Span Profile"));
+        profileDock_->retranslateUi();
     }
     if (profileClassificationDock_ != nullptr) {
-        profileClassificationDock_->setWindowTitle(tr("Profile Classification"));
+        profileClassificationDock_->retranslateUi();
     }
     if (viewQuickToolBar_ != nullptr) {
         viewQuickToolBar_->setWindowTitle(tr("View Toolbar"));
     }
     if (logDock_ != nullptr) {
-        logDock_->setWindowTitle(tr("Application Log"));
-    }
-    if (logLevelFilterComboBox_ != nullptr) {
-        const int selectedFilter = logLevelFilterComboBox_->currentData().toInt();
-        const QSignalBlocker blocker(logLevelFilterComboBox_);
-        logLevelFilterComboBox_->clear();
-        logLevelFilterComboBox_->addItem(tr("All levels"), -1);
-        logLevelFilterComboBox_->addItem(tr("Info"), static_cast<int>(lasviewer::logging::LogLevel::Info));
-        logLevelFilterComboBox_->addItem(tr("Warning"), static_cast<int>(lasviewer::logging::LogLevel::Warning));
-        logLevelFilterComboBox_->addItem(tr("Error"), static_cast<int>(lasviewer::logging::LogLevel::Error));
-
-        const int index = logLevelFilterComboBox_->findData(selectedFilter);
-        logLevelFilterComboBox_->setCurrentIndex(index >= 0 ? index : 0);
-    }
-    if (logSearchLineEdit_ != nullptr) {
-        logSearchLineEdit_->setPlaceholderText(tr("Search module or message"));
-    }
-    if (logAutoScrollCheckBox_ != nullptr) {
-        logAutoScrollCheckBox_->setText(tr("Auto-scroll"));
-    }
-    if (logClearButton_ != nullptr) {
-        logClearButton_->setText(tr("Clear"));
-    }
-    if (logExportButton_ != nullptr) {
-        logExportButton_->setText(tr("Export"));
+        logDock_->retranslateUi();
     }
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setTabText(0, tr("Overview"));
@@ -5357,11 +3565,6 @@ void MainWindow::retranslateUi()
         inspectorTabWidget_->setTabText(4, tr("Measurement"));
         inspectorTabWidget_->setTabText(5, tr("Analysis"));
         inspectorTabWidget_->setTabText(6, tr("Navigation"));
-    }
-    if (routeDetailsTabWidget_ != nullptr && routeDetailsTabWidget_->count() >= 3) {
-        routeDetailsTabWidget_->setTabText(0, tr("Route Waypoints"));
-        routeDetailsTabWidget_->setTabText(1, tr("Route Part Points"));
-        routeDetailsTabWidget_->setTabText(2, tr("Route QA"));
     }
     if (routeWaypointLabelModeComboBox_ != nullptr) {
         const int selectedMode = routeWaypointLabelModeComboBox_->currentData().toInt();
@@ -5390,8 +3593,8 @@ void MainWindow::retranslateUi()
     if (datasetGroupBox_ != nullptr) {
         datasetGroupBox_->setTitle(tr("Dataset Summary"));
     }
-    if (projectSearchEdit_ != nullptr) {
-    projectSearchEdit_->setPlaceholderText(tr("Filter point clouds, images, or trajectories"));
+    if (datasetSummaryWidget_ != nullptr) {
+        datasetSummaryWidget_->retranslateUi();
     }
     if (towerTableWidget_ != nullptr) {
         towerTableWidget_->setHorizontalHeaderLabels({ tr("Index"), tr("Name"), QStringLiteral("X"), QStringLiteral("Y"), QStringLiteral("Z") });
@@ -5414,21 +3617,13 @@ void MainWindow::retranslateUi()
     if (resetClassificationColorsButton_ != nullptr) {
         resetClassificationColorsButton_->setText(tr("Reset Defaults"));
     }
-    if (profileClassificationModeLabel_ != nullptr) {
-        profileClassificationModeLabel_->setText(tr("Selection Mode"));
+    if (profileClassificationController_ != nullptr) {
+        profileClassificationController_->retranslateUi();
+    } else if (profileClassificationGroupBox_ != nullptr) {
+        profileClassificationGroupBox_->retranslateUi();
     }
-    if (profileClassificationModeComboBox_ != nullptr) {
-        const int selectedMode = profileClassificationModeComboBox_->currentData().toInt();
-        const QSignalBlocker blocker(profileClassificationModeComboBox_);
-        profileClassificationModeComboBox_->clear();
-        profileClassificationModeComboBox_->addItem(
-            tr("Rectangle Selection"),
-            static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
-        profileClassificationModeComboBox_->addItem(
-            tr("Polygon Selection"),
-            static_cast<int>(ProfileClassificationSelectionMode::Polygon));
-        const int selectedModeIndex = profileClassificationModeComboBox_->findData(selectedMode);
-        profileClassificationModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
+    if (navigationSettingsWidget_ != nullptr) {
+        navigationSettingsWidget_->retranslateUi();
     }
     refreshLogPanel();
     updateProfileClassificationPanel();
@@ -5471,47 +3666,34 @@ void MainWindow::retranslateUi()
     if (issueDetailsGroupBox_ != nullptr) {
         issueDetailsGroupBox_->setTitle(tr("Selected Issue Details"));
     }
-    if (projectSearchEdit_ != nullptr) {
-    projectSearchEdit_->setPlaceholderText(tr("Filter point clouds, images, or trajectories"));
-    }
-
-    auto setFieldLabel = [](QFormLayout* layout, QWidget* field, const QString& text) {
-        if (layout == nullptr || field == nullptr) {
-            return;
-        }
-        if (auto* label = qobject_cast<QLabel*>(layout->labelForField(field))) {
-            label->setText(text);
-        }
-    };
-
-    setFieldLabel(datasetLayout_, datasetNameValueLabel_, tr("Name"));
-    setFieldLabel(datasetLayout_, datasetPathValueLabel_, tr("Path"));
-    setFieldLabel(datasetLayout_, datasetPointsValueLabel_, tr("Points"));
-    setFieldLabel(datasetLayout_, datasetBoundsValueLabel_, tr("Bounds"));
-    setFieldLabel(datasetLayout_, datasetExtentValueLabel_, tr("Extent"));
-    setFieldLabel(datasetLayout_, datasetColorValueLabel_, tr("Color Source"));
-    setFieldLabel(towerDetailsLayout_, towerCodeEdit_, tr("Code"));
-    setFieldLabel(towerDetailsLayout_, towerLineNameEdit_, tr("Line"));
-    setFieldLabel(towerDetailsLayout_, towerVoltageLevelEdit_, tr("Voltage"));
-    setFieldLabel(towerDetailsLayout_, towerTypeComboBox_, tr("Tower Category"));
-    setFieldLabel(towerDetailsLayout_, towerStructureTypeEdit_, tr("Structure Type"));
-    setFieldLabel(towerDetailsLayout_, towerInspectionDateEdit_, tr("Inspection Date"));
-    setFieldLabel(towerDetailsLayout_, towerStatusEdit_, tr("Tower Status"));
-    setFieldLabel(towerDetailsLayout_, towerNotesEdit_, tr("Notes"));
+    setFormFieldLabel(datasetLayout_, datasetNameValueLabel_, tr("Name"));
+    setFormFieldLabel(datasetLayout_, datasetPathValueLabel_, tr("Path"));
+    setFormFieldLabel(datasetLayout_, datasetPointsValueLabel_, tr("Points"));
+    setFormFieldLabel(datasetLayout_, datasetBoundsValueLabel_, tr("Bounds"));
+    setFormFieldLabel(datasetLayout_, datasetExtentValueLabel_, tr("Extent"));
+    setFormFieldLabel(datasetLayout_, datasetColorValueLabel_, tr("Color Source"));
+    setFormFieldLabel(towerDetailsLayout_, towerCodeEdit_, tr("Code"));
+    setFormFieldLabel(towerDetailsLayout_, towerLineNameEdit_, tr("Line"));
+    setFormFieldLabel(towerDetailsLayout_, towerVoltageLevelEdit_, tr("Voltage"));
+    setFormFieldLabel(towerDetailsLayout_, towerTypeComboBox_, tr("Tower Category"));
+    setFormFieldLabel(towerDetailsLayout_, towerStructureTypeEdit_, tr("Structure Type"));
+    setFormFieldLabel(towerDetailsLayout_, towerInspectionDateEdit_, tr("Inspection Date"));
+    setFormFieldLabel(towerDetailsLayout_, towerStatusEdit_, tr("Tower Status"));
+    setFormFieldLabel(towerDetailsLayout_, towerNotesEdit_, tr("Notes"));
     if (towerTypeComboBox_ != nullptr && towerTypeComboBox_->count() >= 3) {
         towerTypeComboBox_->setItemText(0, towerTypeDisplayName(TowerType::Unknown));
         towerTypeComboBox_->setItemText(1, towerTypeDisplayName(TowerType::Tangent));
         towerTypeComboBox_->setItemText(2, towerTypeDisplayName(TowerType::Strain));
     }
-    setFieldLabel(issueDetailsLayout_, issueTitleEdit_, tr("Title"));
-    setFieldLabel(issueDetailsLayout_, issueCategoryComboBox_, tr("Category"));
-    setFieldLabel(issueDetailsLayout_, issueSeverityComboBox_, tr("Severity"));
-    setFieldLabel(issueDetailsLayout_, issueStatusComboBox_, tr("Issue Status"));
-    setFieldLabel(issueDetailsLayout_, issueRelatedTowerComboBox_, tr("Related Tower"));
-    setFieldLabel(issueDetailsLayout_, issueImagePathEdit_, tr("Image Path"));
-    setFieldLabel(issueDetailsLayout_, issueLocationValueLabel_, tr("Location"));
-    setFieldLabel(issueDetailsLayout_, issueCreatedAtValueLabel_, tr("Created At"));
-    setFieldLabel(issueDetailsLayout_, issueDescriptionEdit_, tr("Description"));
+    setFormFieldLabel(issueDetailsLayout_, issueTitleEdit_, tr("Title"));
+    setFormFieldLabel(issueDetailsLayout_, issueCategoryComboBox_, tr("Category"));
+    setFormFieldLabel(issueDetailsLayout_, issueSeverityComboBox_, tr("Severity"));
+    setFormFieldLabel(issueDetailsLayout_, issueStatusComboBox_, tr("Issue Status"));
+    setFormFieldLabel(issueDetailsLayout_, issueRelatedTowerComboBox_, tr("Related Tower"));
+    setFormFieldLabel(issueDetailsLayout_, issueImagePathEdit_, tr("Image Path"));
+    setFormFieldLabel(issueDetailsLayout_, issueLocationValueLabel_, tr("Location"));
+    setFormFieldLabel(issueDetailsLayout_, issueCreatedAtValueLabel_, tr("Created At"));
+    setFormFieldLabel(issueDetailsLayout_, issueDescriptionEdit_, tr("Description"));
     if (issueCategoryComboBox_ != nullptr && issueCategoryComboBox_->count() >= 5) {
         issueCategoryComboBox_->setItemText(0, tr("Vegetation"));
         issueCategoryComboBox_->setItemText(1, tr("Insulator"));
@@ -5531,13 +3713,13 @@ void MainWindow::retranslateUi()
         issueStatusComboBox_->setItemText(2, issueStatusDisplayName(IssueStatus::Resolved));
     }
 
-    setFieldLabel(renderingLayout_, pointSizeControl_, tr("Point Size"));
-    setFieldLabel(renderingLayout_, pointOpacityControl_, tr("Point Opacity"));
-    setFieldLabel(renderingLayout_, depthCueControl_, tr("Depth Cue"));
-    setFieldLabel(renderingLayout_, edlStrengthControl_, tr("EDL-style Shading"));
-    setFieldLabel(renderingLayout_, colorModeComboBox_, tr("Color Mode"));
-    setFieldLabel(renderingLayout_, pointColorButton_, tr("Single Color"));
-    setFieldLabel(renderingLayout_, backgroundColorButton_, tr("Background"));
+    setFormFieldLabel(renderingLayout_, pointSizeControl_, tr("Point Size"));
+    setFormFieldLabel(renderingLayout_, pointOpacityControl_, tr("Point Opacity"));
+    setFormFieldLabel(renderingLayout_, depthCueControl_, tr("Depth Cue"));
+    setFormFieldLabel(renderingLayout_, edlStrengthControl_, tr("EDL-style Shading"));
+    setFormFieldLabel(renderingLayout_, colorModeComboBox_, tr("Color Mode"));
+    setFormFieldLabel(renderingLayout_, pointColorButton_, tr("Single Color"));
+    setFormFieldLabel(renderingLayout_, backgroundColorButton_, tr("Background"));
     colorModeComboBox_->setItemText(0, tr("RGB"));
     colorModeComboBox_->setItemText(1, tr("Elevation Ramp"));
     colorModeComboBox_->setItemText(2, tr("Single Color"));
@@ -5554,18 +3736,18 @@ void MainWindow::retranslateUi()
     updateSliderValueLabel(wheelZoomSensitivitySlider_, wheelZoomSensitivityValueLabel_, tr("%1%"));
     updateVisualizationTooltips();
 
-    setFieldLabel(measurementLayout_, measurementStartValueLabel_, tr("Start Point"));
-    setFieldLabel(measurementLayout_, measurementEndValueLabel_, tr("End Point"));
-    setFieldLabel(measurementLayout_, measurementDistanceValueLabel_, tr("3D Distance"));
-    setFieldLabel(measurementLayout_, measurementHorizontalDistanceValueLabel_, tr("Horizontal Distance"));
-    setFieldLabel(measurementLayout_, measurementDeltaZValueLabel_, tr("Height Delta"));
-    setFieldLabel(measurementLayout_, measurementSegmentsValueLabel_, tr("Path Segments"));
-    setFieldLabel(clearanceLayout_, clearanceRulePresetComboBox_, tr("Rule Preset"));
-    setFieldLabel(clearanceLayout_, clearanceThresholdSpinBox_, tr("Critical Threshold"));
-    setFieldLabel(clearanceLayout_, clearanceRuleBandsValueLabel_, tr("Risk Bands"));
-    setFieldLabel(clearanceLayout_, clearanceShortestValueLabel_, tr("Shortest Segment"));
-    setFieldLabel(clearanceLayout_, clearanceWarningCountValueLabel_, tr("Risk Segments"));
-    setFieldLabel(clearanceLayout_, clearanceStatusValueLabel_, tr("Status"));
+    setFormFieldLabel(measurementLayout_, measurementStartValueLabel_, tr("Start Point"));
+    setFormFieldLabel(measurementLayout_, measurementEndValueLabel_, tr("End Point"));
+    setFormFieldLabel(measurementLayout_, measurementDistanceValueLabel_, tr("3D Distance"));
+    setFormFieldLabel(measurementLayout_, measurementHorizontalDistanceValueLabel_, tr("Horizontal Distance"));
+    setFormFieldLabel(measurementLayout_, measurementDeltaZValueLabel_, tr("Height Delta"));
+    setFormFieldLabel(measurementLayout_, measurementSegmentsValueLabel_, tr("Path Segments"));
+    setFormFieldLabel(clearanceLayout_, clearanceRulePresetComboBox_, tr("Rule Preset"));
+    setFormFieldLabel(clearanceLayout_, clearanceThresholdSpinBox_, tr("Critical Threshold"));
+    setFormFieldLabel(clearanceLayout_, clearanceRuleBandsValueLabel_, tr("Risk Bands"));
+    setFormFieldLabel(clearanceLayout_, clearanceShortestValueLabel_, tr("Shortest Segment"));
+    setFormFieldLabel(clearanceLayout_, clearanceWarningCountValueLabel_, tr("Risk Segments"));
+    setFormFieldLabel(clearanceLayout_, clearanceStatusValueLabel_, tr("Status"));
     if (clearanceSegmentsSummaryLabel_ != nullptr) {
         clearanceSegmentsSummaryLabel_->setText(tr("Add at least two measured points to list corridor segments and export clearance details."));
     }
@@ -5601,26 +3783,26 @@ void MainWindow::retranslateUi()
         vegetationClusterGapSpinBox_->setSuffix(tr(" m"));
     }
     if (analysisParametersLayout_ != nullptr) {
-        setFieldLabel(analysisParametersLayout_, vegetationSearchRadiusSpinBox_, tr("Search Radius"));
-        setFieldLabel(analysisParametersLayout_, vegetationClusterGapSpinBox_, tr("Cluster Gap"));
-        setFieldLabel(analysisParametersLayout_, vegetationClusterPointCountSpinBox_, tr("Min Cluster Points"));
-        setFieldLabel(analysisParametersLayout_, vegetationRiskCountValueLabel_, tr("Risk Count"));
-        setFieldLabel(analysisParametersLayout_, vegetationRiskStatusValueLabel_, tr("Status"));
-        setFieldLabel(analysisParametersLayout_, vegetationRiskSummaryLabel_, tr("Summary"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationSearchRadiusSpinBox_, tr("Search Radius"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationClusterGapSpinBox_, tr("Cluster Gap"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationClusterPointCountSpinBox_, tr("Min Cluster Points"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationRiskCountValueLabel_, tr("Risk Count"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationRiskStatusValueLabel_, tr("Status"));
+        setFormFieldLabel(analysisParametersLayout_, vegetationRiskSummaryLabel_, tr("Summary"));
     }
     if (routePlanningGroupBox_ != nullptr) {
         if (auto* routePlanningLayout = qobject_cast<QFormLayout*>(routePlanningGroupBox_->layout())) {
-            setFieldLabel(routePlanningLayout, aircraftProfileComboBox_, tr("DJI Profile"));
-            setFieldLabel(routePlanningLayout, routeSafetyHeightSpinBox_, tr("Safety Height"));
-            setFieldLabel(routePlanningLayout, routeWaypointSpeedSpinBox_, tr("Waypoint Speed"));
-            setFieldLabel(routePlanningLayout, routeWaypointSpacingSpinBox_, tr("Waypoint Spacing"));
-            setFieldLabel(routePlanningLayout, routeSmoothingStrengthSpinBox_, tr("Smoothing"));
-            setFieldLabel(routePlanningLayout, routeHeightOffsetSpinBox_, tr("Height Offset"));
-            setFieldLabel(routePlanningLayout, routeRoamSpeedSpinBox_, tr("Roam Speed"));
-            setFieldLabel(routePlanningLayout, routeRoamViewModeComboBox_, tr("Roam View Mode"));
-            setFieldLabel(routePlanningLayout, routeRoamControlsRow_, tr("Roam Controls"));
-            setFieldLabel(routePlanningLayout, routeStatusValueLabel_, tr("Status"));
-            setFieldLabel(routePlanningLayout, routeSummaryValueLabel_, tr("Summary"));
+            setFormFieldLabel(routePlanningLayout, aircraftProfileComboBox_, tr("DJI Profile"));
+            setFormFieldLabel(routePlanningLayout, routeSafetyHeightSpinBox_, tr("Safety Height"));
+            setFormFieldLabel(routePlanningLayout, routeWaypointSpeedSpinBox_, tr("Waypoint Speed"));
+            setFormFieldLabel(routePlanningLayout, routeWaypointSpacingSpinBox_, tr("Waypoint Spacing"));
+            setFormFieldLabel(routePlanningLayout, routeSmoothingStrengthSpinBox_, tr("Smoothing"));
+            setFormFieldLabel(routePlanningLayout, routeHeightOffsetSpinBox_, tr("Height Offset"));
+            setFormFieldLabel(routePlanningLayout, routeRoamSpeedSpinBox_, tr("Roam Speed"));
+            setFormFieldLabel(routePlanningLayout, routeRoamViewModeComboBox_, tr("Roam View Mode"));
+            setFormFieldLabel(routePlanningLayout, routeRoamControlsRow_, tr("Roam Controls"));
+            setFormFieldLabel(routePlanningLayout, routeStatusValueLabel_, tr("Status"));
+            setFormFieldLabel(routePlanningLayout, routeSummaryValueLabel_, tr("Summary"));
         }
     }
     if (routeRoamViewModeComboBox_ != nullptr) {
@@ -5659,9 +3841,9 @@ void MainWindow::retranslateUi()
     }
     if (routeRoamFloatingDialog_ != nullptr) {
         if (auto* floatingLayout = qobject_cast<QFormLayout*>(routeRoamFloatingDialog_->layout())) {
-            setFieldLabel(floatingLayout, routeRoamFloatingSpeedSpinBox_, tr("Roam Speed"));
-            setFieldLabel(floatingLayout, routeRoamFloatingViewModeComboBox_, tr("Roam View Mode"));
-            setFieldLabel(floatingLayout, routeRoamFloatingCaptureLabel_, tr("Capture"));
+            setFormFieldLabel(floatingLayout, routeRoamFloatingSpeedSpinBox_, tr("Roam Speed"));
+            setFormFieldLabel(floatingLayout, routeRoamFloatingViewModeComboBox_, tr("Roam View Mode"));
+            setFormFieldLabel(floatingLayout, routeRoamFloatingCaptureLabel_, tr("Capture"));
         }
     }
     if (aircraftProfileComboBox_ != nullptr) {
@@ -5745,7 +3927,7 @@ void MainWindow::retranslateUi()
     invertOrbitCheckBox_->setText(tr("Invert orbit drag"));
     invertPanCheckBox_->setText(tr("Invert pan drag"));
     invertWheelCheckBox_->setText(tr("Invert wheel zoom"));
-    setFieldLabel(navigationToggleLayout_, wheelZoomSensitivityControl_, tr("Zoom Sensitivity"));
+    setFormFieldLabel(navigationToggleLayout_, wheelZoomSensitivityControl_, tr("Zoom Sensitivity"));
     updateSliderValueLabel(wheelZoomSensitivitySlider_, wheelZoomSensitivityValueLabel_, tr("%1%"));
     if (wheelZoomSensitivityControl_ != nullptr) {
         wheelZoomSensitivityControl_->setToolTip(tr("Lower values zoom more gently. Higher values zoom faster."));
@@ -5755,15 +3937,6 @@ void MainWindow::retranslateUi()
     }
     if (wheelZoomSensitivityValueLabel_ != nullptr) {
         wheelZoomSensitivityValueLabel_->setToolTip(tr("Lower values zoom more gently. Higher values zoom faster."));
-    }
-
-    if (profileDock_ != nullptr) {
-        if (auto* titleLabel = profileDock_->findChild<QLabel*>(QStringLiteral("spanProfileTitleLabel"))) {
-            titleLabel->setText(tr("Measured corridor profile"));
-        }
-        if (auto* subtitleLabel = profileDock_->findChild<QLabel*>(QStringLiteral("spanProfileSubtitleLabel"))) {
-            subtitleLabel->setText(tr("The profile updates from the current measurement path, highlights clearance segments below the threshold, and overlays nearby towers and issues."));
-        }
     }
 
     if (viewer_ != nullptr) {
@@ -5916,124 +4089,8 @@ void MainWindow::adjustClassificationColorTableHeight()
 
 void MainWindow::updateProfileClassificationPanel()
 {
-    if (viewer_ == nullptr || profileClassificationGroupBox_ == nullptr) {
-        return;
-    }
-
-    const ProfileClassificationSelectionMode selectionMode = viewer_->profileClassificationSelectionMode();
-    const bool polygonMode = selectionMode == ProfileClassificationSelectionMode::Polygon;
-
-    profileClassificationGroupBox_->setTitle(tr("3D Profile Classification"));
-    if (profileClassificationToggleButton_ != nullptr) {
-        profileClassificationToggleButton_->setText(
-            viewer_->profileClassificationModeEnabled() ? tr("Exit Tool") : tr("Start Tool"));
-    }
-    if (profileClassificationSelectAllButton_ != nullptr) {
-        profileClassificationSelectAllButton_->setText(tr("Select All"));
-    }
-    if (profileClassificationClearSelectionButton_ != nullptr) {
-        profileClassificationClearSelectionButton_->setText(tr("Clear Sources"));
-    }
-    if (profileClassificationUndoButton_ != nullptr) {
-        profileClassificationUndoButton_->setText(tr("Undo"));
-    }
-    if (profileClassificationRedoButton_ != nullptr) {
-        profileClassificationRedoButton_->setText(tr("Redo"));
-    }
-    if (profileClassificationClearEditsButton_ != nullptr) {
-        profileClassificationClearEditsButton_->setText(tr("Clear Edits"));
-    }
-
-    const bool hasPointCloud = viewer_->hasPointCloud();
-    const bool sceneReady = hasPointCloud;
-    const bool toolBusy = viewer_->profileClassificationTaskActive();
-    profileClassificationGroupBox_->setEnabled(hasPointCloud);
-    if (profileClassificationToggleButton_ != nullptr) {
-        profileClassificationToggleButton_->setEnabled(sceneReady && !toolBusy);
-    }
-    if (profileClassificationSelectAllButton_ != nullptr) {
-        profileClassificationSelectAllButton_->setEnabled(sceneReady && !toolBusy);
-    }
-    if (profileClassificationClearSelectionButton_ != nullptr) {
-        profileClassificationClearSelectionButton_->setEnabled(sceneReady && !toolBusy);
-    }
-    if (profileClassificationUndoButton_ != nullptr) {
-        profileClassificationUndoButton_->setEnabled(sceneReady && viewer_->canUndoClassificationEdits() && !toolBusy);
-    }
-    if (profileClassificationRedoButton_ != nullptr) {
-        profileClassificationRedoButton_->setEnabled(sceneReady && viewer_->canRedoClassificationEdits() && !toolBusy);
-    }
-    if (profileClassificationClearEditsButton_ != nullptr) {
-        profileClassificationClearEditsButton_->setEnabled(sceneReady && viewer_->classificationEditedPointCount() > 0 && !toolBusy);
-    }
-    if (profileClassificationSaveButton_ != nullptr) {
-        profileClassificationSaveButton_->setText(tr("Save Result"));
-        profileClassificationSaveButton_->setEnabled(hasPointCloud && viewer_->classificationEditedPointCount() > 0 && !toolBusy);
-    }
-    if (profileClassificationModeComboBox_ != nullptr) {
-        const QSignalBlocker blocker(profileClassificationModeComboBox_);
-        const int modeIndex = profileClassificationModeComboBox_->findData(static_cast<int>(selectionMode));
-        profileClassificationModeComboBox_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 0);
-        profileClassificationModeComboBox_->setEnabled(sceneReady && !toolBusy);
-    }
-
-    if (profileClassificationSourceListWidget_ != nullptr) {
-        const QSignalBlocker blocker(profileClassificationSourceListWidget_);
-        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
-            QListWidgetItem* item = profileClassificationSourceListWidget_->item(row);
-            if (item == nullptr) {
-                continue;
-            }
-
-            const int classificationCode = item->data(Qt::UserRole).toInt();
-            item->setText(QStringLiteral("%1 - %2")
-                .arg(QLocale().toString(classificationCode))
-                .arg(classificationDisplayName(classificationCode, classificationNameOverrides_)));
-            item->setCheckState(viewer_->profileClassificationSourceClasses().contains(classificationCode)
-                ? Qt::Checked
-                : Qt::Unchecked);
-        }
-        profileClassificationSourceListWidget_->setEnabled(sceneReady && !toolBusy);
-    }
-
-    if (profileClassificationTargetListWidget_ != nullptr) {
-        const QSignalBlocker blocker(profileClassificationTargetListWidget_);
-        int targetRow = -1;
-        for (int row = 0; row < profileClassificationTargetListWidget_->count(); ++row) {
-            QListWidgetItem* item = profileClassificationTargetListWidget_->item(row);
-            if (item == nullptr) {
-                continue;
-            }
-
-            const int classificationCode = item->data(Qt::UserRole).toInt();
-            item->setText(QStringLiteral("%1 - %2")
-                .arg(QLocale().toString(classificationCode))
-                .arg(classificationDisplayName(classificationCode, classificationNameOverrides_)));
-            if (classificationCode == viewer_->profileClassificationTargetClass()) {
-                targetRow = row;
-            }
-        }
-        profileClassificationTargetListWidget_->setCurrentRow(targetRow >= 0 ? targetRow : 0);
-        profileClassificationTargetListWidget_->setEnabled(sceneReady && !toolBusy);
-    }
-
-    if (profileClassificationStatusLabel_ != nullptr) {
-        if (!hasPointCloud) {
-            profileClassificationStatusLabel_->setText(tr("Load a point cloud and switch to a stable scene before using profile classification."));
-        } else if (toolBusy) {
-            profileClassificationStatusLabel_->setText(
-                polygonMode
-                    ? tr("Profile classification is processing the current polygon selection.")
-                    : tr("Profile classification is processing the current rectangular selection."));
-        } else {
-            profileClassificationStatusLabel_->setText(
-                tr("Mode %1 | Source classes %2 | Target class %3 | Edited points %4 | Save state %5")
-                    .arg(polygonMode ? tr("Polygon") : tr("Rectangle"))
-                    .arg(QLocale().toString(viewer_->profileClassificationSourceClasses().size()))
-                    .arg(QLocale().toString(viewer_->profileClassificationTargetClass()))
-                    .arg(QLocale().toString(viewer_->classificationEditedPointCount()))
-                    .arg(classificationEditsDirty_ ? tr("unsaved") : tr("saved")));
-        }
+    if (profileClassificationController_ != nullptr) {
+        profileClassificationController_->refreshPanel(classificationEditsDirty_);
     }
 }
 
@@ -6293,46 +4350,47 @@ void MainWindow::promptSaveProfileClassificationEditsIfNeeded()
 
 void MainWindow::createConnections()
 {
-    connect(openAction_, &QAction::triggered, this, [this]() { openProjectExplorerFile(); });
-    connect(addPointCloudAction_, &QAction::triggered, this, [this]() { addPointCloudFiles(); });
-    connect(removeDatasetAction_, &QAction::triggered, this, [this]() { removeSelectedDataset(); });
-    connect(locateDatasetAction_, &QAction::triggered, this, [this]() {
-        const QTreeWidgetItem* currentItem = projectTreeWidget_ != nullptr ? projectTreeWidget_->currentItem() : nullptr;
-        const QString filePath = projectTreeItemFilePath(currentItem);
-        if (filePath.isEmpty()) {
-            return;
-        }
+    createControllerConnections();
+    createWindowAndViewerConnections();
+}
 
-        const QString folderPath = QFileInfo(filePath).absolutePath();
-        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath))) {
-            showUserMessage(LogLevel::Warning, tr("Unable to open the selected file folder."), 3000);
-        }
-    });
-    connect(copyDatasetPathAction_, &QAction::triggered, this, [this]() {
-        const QTreeWidgetItem* currentItem = projectTreeWidget_ != nullptr ? projectTreeWidget_->currentItem() : nullptr;
-        const QString filePath = projectTreeItemFilePath(currentItem);
-        if (filePath.isEmpty()) {
-            return;
-        }
-
-        if (QGuiApplication::clipboard() != nullptr) {
-            QGuiApplication::clipboard()->setText(filePath);
-            showUserMessage(LogLevel::Info, tr("Selected path copied."), 2000);
-        }
-    });
-    connect(expandProjectTreeAction_, &QAction::triggered, this, [this]() {
-        if (projectTreeWidget_ != nullptr) {
-            projectTreeWidget_->expandAll();
-        }
-    });
-    connect(collapseProjectTreeAction_, &QAction::triggered, this, [this]() {
-        if (projectTreeWidget_ != nullptr) {
-            projectTreeWidget_->collapseAll();
-            if (projectTreeWidget_->topLevelItemCount() > 0) {
-                projectTreeWidget_->topLevelItem(0)->setExpanded(true);
+void MainWindow::createControllerConnections()
+{
+    if (projectExplorerController_ != nullptr) {
+        connect(projectExplorerController_, &ProjectExplorerController::openRequested, this, [this]() {
+            openProjectExplorerFile();
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::addPointCloudRequested, this, [this]() {
+            addPointCloudFiles();
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::removeDatasetRequested, this, [this]() {
+            removeSelectedDataset();
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::locateSelectedRequested, this, [this]() {
+            const QTreeWidgetItem* currentItem = projectTreeWidget_ != nullptr ? projectTreeWidget_->currentItem() : nullptr;
+            const QString filePath = projectTreeItemFilePath(currentItem);
+            if (filePath.isEmpty()) {
+                return;
             }
-        }
-    });
+
+            const QString folderPath = QFileInfo(filePath).absolutePath();
+            if (!QDesktopServices::openUrl(QUrl::fromLocalFile(folderPath))) {
+                showUserMessage(LogLevel::Warning, tr("Unable to open the selected file folder."), 3000);
+            }
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::copySelectedPathRequested, this, [this]() {
+            const QTreeWidgetItem* currentItem = projectTreeWidget_ != nullptr ? projectTreeWidget_->currentItem() : nullptr;
+            const QString filePath = projectTreeItemFilePath(currentItem);
+            if (filePath.isEmpty()) {
+                return;
+            }
+
+            if (QGuiApplication::clipboard() != nullptr) {
+                QGuiApplication::clipboard()->setText(filePath);
+                showUserMessage(LogLevel::Info, tr("Selected path copied."), 2000);
+            }
+        });
+    }
     connect(openProjectAction_, &QAction::triggered, this, [this]() { openProject(); });
     connect(saveProjectAction_, &QAction::triggered, this, [this]() { saveProject(); });
     connect(saveProjectAsAction_, &QAction::triggered, this, [this]() { saveProjectAs(); });
@@ -6345,40 +4403,83 @@ void MainWindow::createConnections()
     connect(frontViewAction_, &QAction::triggered, this, [this]() { viewer_->setViewPreset(PointCloudViewPreset::Front); });
     connect(rightViewAction_, &QAction::triggered, this, [this]() { viewer_->setViewPreset(PointCloudViewPreset::Right); });
 
-    connect(showAxesAction_, &QAction::toggled, viewer_, &PointCloudViewer::setShowAxes);
-    connect(showBoundingBoxAction_, &QAction::toggled, viewer_, &PointCloudViewer::setShowBoundingBox);
-    connect(darkBackgroundAction_, &QAction::triggered, this, [this]() { viewer_->setBackgroundColor(kDarkBackground); });
-    connect(lightBackgroundAction_, &QAction::triggered, this, [this]() { viewer_->setBackgroundColor(kLightBackground); });
-
-    connect(rgbColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Rgb); });
-    connect(elevationColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Elevation); });
-    connect(singleColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::SingleColor); });
-    connect(classificationColorAction_, &QAction::triggered, this, [this]() { viewer_->setColorMode(PointCloudColorMode::Classification); });
+    visualizationPanelController_ = new VisualizationPanelController(
+        viewer_,
+        showAxesAction_,
+        showBoundingBoxAction_,
+        darkBackgroundAction_,
+        lightBackgroundAction_,
+        rgbColorAction_,
+        elevationColorAction_,
+        singleColorAction_,
+        classificationColorAction_,
+        pointSizeSlider_,
+        pointSizeValueLabel_,
+        pointOpacitySlider_,
+        pointOpacityValueLabel_,
+        depthCueSlider_,
+        depthCueValueLabel_,
+        edlStrengthSlider_,
+        edlStrengthValueLabel_,
+        colorModeComboBox_,
+        pointColorButton_,
+        backgroundColorButton_,
+        [this]() { choosePointColor(); },
+        [this]() { chooseBackgroundColor(); },
+        this);
 
     connect(themeColorfulAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016Colorful); });
     connect(themeWhiteAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016White); });
     connect(themeDarkGrayAction_, &QAction::triggered, this, [this]() { applyOfficeTheme(Qtitan::RibbonStyle::Office2016DarkGray); });
-    connect(measureAction_, &QAction::toggled, viewer_, &PointCloudViewer::setMeasurementEnabled);
-    connect(profileClassificationAction_, &QAction::toggled, viewer_, &PointCloudViewer::setProfileClassificationModeEnabled);
+
+    profileClassificationController_ = new ProfileClassificationController(
+        profileClassificationGroupBox_,
+        viewer_,
+        profileClassificationAction_,
+        saveProfileClassificationEditsAction_,
+        undoProfileClassificationAction_,
+        redoProfileClassificationAction_,
+        clearProfileClassificationEditsAction_,
+        [this](int classificationCode) {
+            return classificationDisplayName(classificationCode, classificationNameOverrides_);
+        },
+        this);
+
+    QList<int> profileClassificationCodes;
+    profileClassificationCodes.reserve(static_cast<int>(kClassificationDisplayItems.size()));
+    for (const ClassificationDisplayItem& item : kClassificationDisplayItems) {
+        if (item.code >= 0) {
+            profileClassificationCodes.append(item.code);
+        }
+    }
+    profileClassificationController_->initializeClassificationItems(profileClassificationCodes);
+
+    connect(profileClassificationController_, &ProfileClassificationController::saveRequested, this, [this]() {
+        saveProfileClassificationEditsToLas();
+    });
+    connect(profileClassificationController_, &ProfileClassificationController::modeChanged, this, [this](bool enabled) {
+        if (enabled && profileClassificationDock_ != nullptr) {
+            profileClassificationDock_->show();
+            profileClassificationDock_->raise();
+        }
+        if (!enabled) {
+            promptSaveProfileClassificationEditsIfNeeded();
+        }
+    });
+    connect(profileClassificationController_, &ProfileClassificationController::editsDirtyChanged, this, [this](bool dirty) {
+        classificationEditsDirty_ = dirty;
+    });
+    connect(profileClassificationController_, &ProfileClassificationController::stateChanged, this, [this]() {
+        updateActionState();
+    });
+
     connect(showProfileClassificationDockAction_, &QAction::toggled, this, [this](bool visible) {
         if (profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible() != visible) {
             profileClassificationDock_->setVisible(visible);
         }
     });
-    connect(saveProfileClassificationEditsAction_, &QAction::triggered, this, [this]() {
-        if (viewer_ == nullptr || viewer_->classificationEditedPointCount() <= 0) {
-            return;
-        }
-        saveProfileClassificationEditsToLas();
-    });
-    connect(undoProfileClassificationAction_, &QAction::triggered, viewer_, &PointCloudViewer::undoClassificationEdit);
-    connect(redoProfileClassificationAction_, &QAction::triggered, viewer_, &PointCloudViewer::redoClassificationEdit);
-    connect(clearProfileClassificationEditsAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearClassificationEdits);
-    connect(measureAction_, &QAction::toggled, this, [this](bool enabled) {
-        syncProfileDockForMeasurementMode(enabled);
-    });
-    connect(clearMeasurementAction_, &QAction::triggered, viewer_, &PointCloudViewer::clearMeasurement);
-    connect(exportClearanceCsvAction_, &QAction::triggered, this, [this]() {
+
+    const auto exportClearanceCsv = [this]() {
         if (viewer_ == nullptr) {
             return;
         }
@@ -6410,7 +4511,8 @@ void MainWindow::createConnections()
         }
 
         showUserMessage(LogLevel::Info, tr("Clearance CSV exported: %1").arg(QFileInfo(filePath).fileName()), 3000);
-    });
+    };
+
     connect(showProfileDockAction_, &QAction::toggled, this, [this](bool visible) {
         if (profileDock_ != nullptr && profileDock_->isVisible() != visible) {
             profileDock_->setVisible(visible);
@@ -6482,45 +4584,112 @@ void MainWindow::createConnections()
         issue.createdAt = QDateTime::currentDateTime().toString(Qt::ISODate);
         return viewer_->addInspectionIssue(issue);
     };
-    connect(analyzeVegetationRisksAction_, &QAction::triggered, this, analyzeCurrentVegetationRisks);
-    connect(focusVegetationRiskAction_, &QAction::triggered, this, [this]() {
-        if (viewer_ == nullptr || selectedVegetationRiskIndex_ < 0 || selectedVegetationRiskIndex_ >= vegetationRiskResults_.size()) {
-            return;
-        }
-        viewer_->focusOnPoint(vegetationRiskResults_.at(selectedVegetationRiskIndex_).point);
-    });
-    connect(createIssueFromRiskAction_, &QAction::triggered, this, [this, createIssueFromRisk]() {
-        if (createIssueFromRisk(selectedVegetationRiskIndex_)) {
-            if (inspectorTabWidget_ != nullptr) {
-                inspectorTabWidget_->setCurrentIndex(2);
+
+    measurementAnalysisController_ = new MeasurementAnalysisController(
+        viewer_,
+        measureAction_,
+        clearMeasurementAction_,
+        exportClearanceCsvAction_,
+        analyzeVegetationRisksAction_,
+        focusVegetationRiskAction_,
+        createIssueFromRiskAction_,
+        createIssuesFromRisksAction_,
+        clearVegetationRisksAction_,
+        measurementToggleButton_,
+        measurementClearButton_,
+        clearanceThresholdSpinBox_,
+        clearanceRulePresetComboBox_,
+        vegetationSearchRadiusSpinBox_,
+        vegetationClusterGapSpinBox_,
+        vegetationClusterPointCountSpinBox_,
+        preferVegetationClassificationCheckBox_,
+        clearanceSegmentsTableWidget_,
+        vegetationRisksTableWidget_,
+        [this](bool enabled) {
+            syncProfileDockForMeasurementMode(enabled);
+        },
+        exportClearanceCsv,
+        analyzeCurrentVegetationRisks,
+        [this]() {
+            if (viewer_ == nullptr || selectedVegetationRiskIndex_ < 0 || selectedVegetationRiskIndex_ >= vegetationRiskResults_.size()) {
+                return;
+            }
+            viewer_->focusOnPoint(vegetationRiskResults_.at(selectedVegetationRiskIndex_).point);
+        },
+        [this, createIssueFromRisk]() {
+            if (createIssueFromRisk(selectedVegetationRiskIndex_)) {
+                if (inspectorTabWidget_ != nullptr) {
+                    inspectorTabWidget_->setCurrentIndex(2);
+                }
+                updateIssuePanel();
+                showUserMessage(LogLevel::Info, tr("Created an inspection issue from the selected vegetation risk."), 3000);
+            }
+        },
+        [this, createIssueFromRisk]() {
+            int createdCount = 0;
+            for (int riskIndex = 0; riskIndex < vegetationRiskResults_.size(); ++riskIndex) {
+                if (createIssueFromRisk(riskIndex)) {
+                    ++createdCount;
+                }
             }
             updateIssuePanel();
-            showUserMessage(LogLevel::Info, tr("Created an inspection issue from the selected vegetation risk."), 3000);
-        }
-    });
-    connect(createIssuesFromRisksAction_, &QAction::triggered, this, [this, createIssueFromRisk]() {
-        int createdCount = 0;
-        for (int riskIndex = 0; riskIndex < vegetationRiskResults_.size(); ++riskIndex) {
-            if (createIssueFromRisk(riskIndex)) {
-                ++createdCount;
+            showUserMessage(
+                LogLevel::Info,
+                createdCount <= 0
+                    ? tr("No vegetation risks were converted into issues.")
+                    : tr("Created %1 inspection issue(s) from vegetation risks.").arg(QLocale().toString(createdCount)),
+                3500);
+        },
+        [this]() {
+            vegetationRiskResults_.clear();
+            selectedVegetationRiskIndex_ = -1;
+            updateVegetationRiskPanel();
+            rebuildProjectTree();
+            updateActionState();
+            showUserMessage(LogLevel::Info, tr("Vegetation risk results cleared."), 2500);
+        },
+        [this](double value) {
+            clearanceWarningThresholdMeters_ = value;
+            persistMeasurementSettings();
+            updateMeasurementPanel();
+        },
+        [this](int index) {
+            if (index < 0 || clearanceRulePresetComboBox_ == nullptr) {
+                return;
             }
-        }
-        updateIssuePanel();
-        showUserMessage(
-            LogLevel::Info,
-            createdCount <= 0
-                ? tr("No vegetation risks were converted into issues.")
-                : tr("Created %1 inspection issue(s) from vegetation risks.").arg(QLocale().toString(createdCount)),
-            3500);
-    });
-    connect(clearVegetationRisksAction_, &QAction::triggered, this, [this]() {
-        vegetationRiskResults_.clear();
-        selectedVegetationRiskIndex_ = -1;
-        updateVegetationRiskPanel();
-        rebuildProjectTree();
-        updateActionState();
-        showUserMessage(LogLevel::Info, tr("Vegetation risk results cleared."), 2500);
-    });
+            clearanceRulePreset_ = static_cast<ClearanceRulePreset>(clearanceRulePresetComboBox_->itemData(index).toInt());
+            persistMeasurementSettings();
+            updateMeasurementPanel();
+            updateVegetationRiskPanel();
+        },
+        [this](double value) {
+            vegetationSearchRadiusMeters_ = value;
+            persistMeasurementSettings();
+            updateVegetationRiskPanel();
+        },
+        [this](double value) {
+            vegetationClusterGapMeters_ = value;
+            persistMeasurementSettings();
+        },
+        [this](int value) {
+            vegetationClusterPointCount_ = value;
+            persistMeasurementSettings();
+        },
+        [this](bool checked) {
+            preferVegetationClassification_ = checked;
+            persistMeasurementSettings();
+            updateVegetationRiskPanel();
+        },
+        [this](int currentRow) {
+            if (profilePlotWidget_ != nullptr) {
+                profilePlotWidget_->setSelectedSegmentIndex(currentRow);
+            }
+        },
+        [this](int currentRow) {
+            selectedVegetationRiskIndex_ = (currentRow >= 0 && currentRow < vegetationRiskResults_.size()) ? currentRow : -1;
+            updateVegetationRiskPanel();
+        },
+        this);
 
     const auto syncRoutePlanningOptionsFromUi = [this]() {
         syncRoutePlanningFromProjectCoordinateSystems();
@@ -6583,10 +4752,7 @@ void MainWindow::createConnections()
             3500);
     };
 
-    connect(generateInspectionRouteAction_, &QAction::triggered, this, regenerateInspectionRoute);
-    connect(regenerateInspectionRouteAction_, &QAction::triggered, this, regenerateInspectionRoute);
-
-    connect(clearInspectionRouteAction_, &QAction::triggered, this, [this]() {
+    const auto clearInspectionRoute = [this]() {
         currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
         selectedRouteWaypointTargetIndex_ = -1;
@@ -6597,11 +4763,7 @@ void MainWindow::createConnections()
         rebuildProjectTree();
         updateActionState();
         showUserMessage(LogLevel::Info, tr("Inspection route cleared."), 2500);
-    });
-
-    connect(toggleRouteEditingAction_, &QAction::toggled, this, [this](bool enabled) {
-        setRouteEditingEnabled(enabled, true);
-    });
+    };
 
     const auto syncRouteRoamControls = [this]() {
         if (viewer_ == nullptr) {
@@ -6649,7 +4811,7 @@ void MainWindow::createConnections()
         syncRouteRoamFloatingDialog();
     };
 
-    connect(startInspectionRouteRoamAction_, &QAction::triggered, this, [this, syncRouteRoamControls]() {
+    const auto startInspectionRouteRoam = [this, syncRouteRoamControls]() {
         if (viewer_ == nullptr || currentPowerlineRoute_.waypoints.isEmpty()) {
             return;
         }
@@ -6665,8 +4827,8 @@ void MainWindow::createConnections()
         routeRoamLastCaptureSummary_.clear();
         viewer_->startInspectionRouteRoam(startIndex);
         syncRouteRoamControls();
-    });
-    connect(pauseInspectionRouteRoamAction_, &QAction::triggered, this, [this, syncRouteRoamControls]() {
+    };
+    const auto pauseResumeInspectionRouteRoam = [this, syncRouteRoamControls]() {
         if (viewer_ == nullptr || !viewer_->inspectionRouteRoamActive()) {
             return;
         }
@@ -6676,68 +4838,32 @@ void MainWindow::createConnections()
             viewer_->resumeInspectionRouteRoam();
         }
         syncRouteRoamControls();
-    });
-    connect(stopInspectionRouteRoamAction_, &QAction::triggered, this, [this, syncRouteRoamControls]() {
+    };
+    const auto stopInspectionRouteRoam = [this, syncRouteRoamControls]() {
         if (viewer_ == nullptr) {
             return;
         }
         routeRoamLastCaptureSummary_.clear();
         viewer_->stopInspectionRouteRoam(true);
         syncRouteRoamControls();
-    });
+    };
 
-    if (routeRoamStartButton_ != nullptr) {
-        connect(routeRoamStartButton_, &QPushButton::clicked, this, [this]() {
-            startInspectionRouteRoamAction_->trigger();
-        });
-    }
-    if (routeRoamPauseResumeButton_ != nullptr) {
-        connect(routeRoamPauseResumeButton_, &QPushButton::clicked, this, [this]() {
-            pauseInspectionRouteRoamAction_->trigger();
-        });
-    }
-    if (routeRoamStopButton_ != nullptr) {
-        connect(routeRoamStopButton_, &QPushButton::clicked, this, [this]() {
-            stopInspectionRouteRoamAction_->trigger();
-        });
-    }
-
-    if (routeRoamSpeedSpinBox_ != nullptr) {
-        connect(routeRoamSpeedSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double speed) {
-            if (viewer_ == nullptr) {
-                return;
-            }
-            viewer_->setInspectionRouteRoamSpeedMetersPerSecond(speed);
-            persistWindowSettings();
-        });
-    }
-    if (routeRoamViewModeComboBox_ != nullptr) {
-        connect(routeRoamViewModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
-            if (viewer_ == nullptr || routeRoamViewModeComboBox_ == nullptr) {
-                return;
-            }
-            viewer_->setInspectionRouteRoamViewMode(static_cast<RouteRoamViewMode>(routeRoamViewModeComboBox_->currentData().toInt()));
-            persistWindowSettings();
-        });
-    }
-
-    connect(viewer_, &PointCloudViewer::inspectionRouteRoamStateChanged, this, [this, syncRouteRoamControls]() {
+    const auto handleInspectionRouteRoamStateChanged = [this, syncRouteRoamControls]() {
         syncRouteRoamControls();
         updateRoutePlanningPanel();
         updateActionState();
-    });
-    connect(viewer_, &PointCloudViewer::inspectionRouteRoamPhotoCaptured, this, &MainWindow::handleRouteRoamPhotoCaptured);
+    };
 
-    connect(focusRouteWaypointAction_, &QAction::triggered, this, [this]() {
+    const auto focusSelectedRouteWaypoint = [this]() {
         if (viewer_ == nullptr
             || selectedRouteWaypointIndex_ < 0
             || selectedRouteWaypointIndex_ >= currentPowerlineRoute_.waypoints.size()) {
             return;
         }
         viewer_->focusOnPoint(currentPowerlineRoute_.waypoints.at(selectedRouteWaypointIndex_).localPoint, 0.22);
-    });
+    };
 
-    connect(importRouteFileAction_, &QAction::triggered, this, [this]() {
+    const auto importRouteFileFromDisk = [this]() {
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
             showUserMessage(LogLevel::Warning, tr("Load a point cloud before importing route files."), 3000);
             return;
@@ -6751,9 +4877,9 @@ void MainWindow::createConnections()
             return;
         }
         importRouteFile(filePath, true, true);
-    });
+    };
 
-    connect(saveRouteFileAction_, &QAction::triggered, this, [this]() {
+    const auto saveRouteFileToDisk = [this]() {
         if (currentPowerlineRoute_.waypoints.isEmpty()) {
             return;
         }
@@ -6770,9 +4896,9 @@ void MainWindow::createConnections()
             return;
         }
         exportRouteFile(linkedRouteFilePath_, true, true);
-    });
+    };
 
-    connect(saveRouteFileAsAction_, &QAction::triggered, this, [this]() {
+    const auto saveRouteFileAsToDisk = [this]() {
         if (currentPowerlineRoute_.waypoints.isEmpty()) {
             return;
         }
@@ -6788,13 +4914,13 @@ void MainWindow::createConnections()
             return;
         }
         exportRouteFile(filePath, true, true);
-    });
+    };
 
-    connect(reloadRouteFileAction_, &QAction::triggered, this, [this]() {
+    const auto reloadLinkedRouteFileFromDisk = [this]() {
         reloadLinkedRouteFile(true);
-    });
+    };
 
-    connect(importRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
+    const auto importRouteKmlFromDisk = [this, syncRoutePlanningOptionsFromUi]() {
         syncRoutePlanningOptionsFromUi();
         if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
             showUserMessage(LogLevel::Error, tr("Set the project point cloud CRS before importing route KML."), 4500);
@@ -6833,9 +4959,9 @@ void MainWindow::createConnections()
         updateActionState();
         showRouteDetailsDock(0);
         showUserMessage(LogLevel::Info, tr("Imported route KML: %1").arg(QFileInfo(filePath).fileName()), 3500);
-    });
+    };
 
-    connect(exportRouteKmlAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
+    const auto exportRouteKmlToDisk = [this, syncRoutePlanningOptionsFromUi]() {
         if (currentPowerlineRoute_.waypoints.isEmpty()) {
             showUserMessage(LogLevel::Warning, tr("Generate a route before exporting KML."), 3000);
             return;
@@ -6869,9 +4995,9 @@ void MainWindow::createConnections()
             return;
         }
         showUserMessage(LogLevel::Info, tr("Route KML exported: %1").arg(QFileInfo(filePath).fileName()), 3500);
-    });
+    };
 
-    connect(exportRouteDjiKmzAction_, &QAction::triggered, this, [this, syncRoutePlanningOptionsFromUi]() {
+    const auto exportRouteDjiKmzToDisk = [this, syncRoutePlanningOptionsFromUi]() {
         if (currentPowerlineRoute_.waypoints.size() < 2) {
             showUserMessage(LogLevel::Warning, tr("Route needs at least 2 waypoints for DJI KMZ export."), 3500);
             return;
@@ -6931,7 +5057,65 @@ void MainWindow::createConnections()
             return;
         }
         showUserMessage(LogLevel::Info, tr("DJI KMZ exported: %1").arg(QFileInfo(filePath).fileName()), 3500);
-    });
+    };
+
+    routeController_ = new RouteController(
+        viewer_,
+        generateInspectionRouteAction_,
+        regenerateInspectionRouteAction_,
+        clearInspectionRouteAction_,
+        toggleRouteEditingAction_,
+        startInspectionRouteRoamAction_,
+        pauseInspectionRouteRoamAction_,
+        stopInspectionRouteRoamAction_,
+        focusRouteWaypointAction_,
+        importRouteFileAction_,
+        saveRouteFileAction_,
+        saveRouteFileAsAction_,
+        reloadRouteFileAction_,
+        importRouteKmlAction_,
+        exportRouteKmlAction_,
+        exportRouteDjiKmzAction_,
+        routeRoamStartButton_,
+        routeRoamPauseResumeButton_,
+        routeRoamStopButton_,
+        routeRoamSpeedSpinBox_,
+        routeRoamViewModeComboBox_,
+        regenerateInspectionRoute,
+        clearInspectionRoute,
+        [this](bool enabled) {
+            setRouteEditingEnabled(enabled, true);
+        },
+        startInspectionRouteRoam,
+        pauseResumeInspectionRouteRoam,
+        stopInspectionRouteRoam,
+        [this](double speed) {
+            if (viewer_ == nullptr) {
+                return;
+            }
+            viewer_->setInspectionRouteRoamSpeedMetersPerSecond(speed);
+            persistWindowSettings();
+        },
+        [this](int) {
+            if (viewer_ == nullptr || routeRoamViewModeComboBox_ == nullptr) {
+                return;
+            }
+            viewer_->setInspectionRouteRoamViewMode(static_cast<RouteRoamViewMode>(routeRoamViewModeComboBox_->currentData().toInt()));
+            persistWindowSettings();
+        },
+        focusSelectedRouteWaypoint,
+        importRouteFileFromDisk,
+        saveRouteFileToDisk,
+        saveRouteFileAsToDisk,
+        reloadLinkedRouteFileFromDisk,
+        importRouteKmlFromDisk,
+        exportRouteKmlToDisk,
+        exportRouteDjiKmzToDisk,
+        handleInspectionRouteRoamStateChanged,
+        [this](int waypointIndex, int targetIndex, const QString& targetLabel, int captureCount) {
+            handleRouteRoamPhotoCaptured(waypointIndex, targetIndex, targetLabel, captureCount);
+        },
+        this);
 
     if (routeWaypointLabelModeComboBox_ != nullptr) {
         connect(routeWaypointLabelModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
@@ -7247,29 +5431,6 @@ void MainWindow::createConnections()
         persistWindowSettings();
     });
 
-    connect(pointSizeSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointSize);
-    connect(pointOpacitySlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointOpacity);
-    connect(depthCueSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setDepthCueStrength);
-    connect(edlStrengthSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setEdlStrength);
-    connect(pointSizeSlider_, &QSlider::valueChanged, this, [this](int) {
-        updateSliderValueLabel(pointSizeSlider_, pointSizeValueLabel_, tr("%1 px"));
-    });
-    connect(pointOpacitySlider_, &QSlider::valueChanged, this, [this](int) {
-        updateSliderValueLabel(pointOpacitySlider_, pointOpacityValueLabel_, tr("%1%"));
-    });
-    connect(depthCueSlider_, &QSlider::valueChanged, this, [this](int) {
-        updateSliderValueLabel(depthCueSlider_, depthCueValueLabel_, tr("%1%"));
-    });
-    connect(edlStrengthSlider_, &QSlider::valueChanged, this, [this](int) {
-        updateSliderValueLabel(edlStrengthSlider_, edlStrengthValueLabel_, tr("%1%"));
-    });
-    connect(
-        colorModeComboBox_,
-        qOverload<int>(&QComboBox::currentIndexChanged),
-        viewer_,
-        static_cast<void (PointCloudViewer::*)(int)>(&PointCloudViewer::setColorMode));
-    connect(pointColorButton_, &QPushButton::clicked, this, [this]() { choosePointColor(); });
-    connect(backgroundColorButton_, &QPushButton::clicked, this, [this]() { chooseBackgroundColor(); });
     connect(resetClassificationColorsButton_, &QPushButton::clicked, this, [this]() {
         if (viewer_ == nullptr) {
             return;
@@ -7279,77 +5440,6 @@ void MainWindow::createConnections()
         viewer_->resetClassificationColors();
         updateClassificationColorTable();
         updateProfileClassificationPanel();
-    });
-    connect(profileClassificationToggleButton_, &QPushButton::clicked, this, [this]() {
-        if (viewer_ == nullptr) {
-            return;
-        }
-
-        viewer_->setProfileClassificationModeEnabled(!viewer_->profileClassificationModeEnabled());
-    });
-    connect(profileClassificationSelectAllButton_, &QPushButton::clicked, this, [this]() {
-        if (profileClassificationSourceListWidget_ == nullptr) {
-            return;
-        }
-
-        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
-            if (QListWidgetItem* item = profileClassificationSourceListWidget_->item(row)) {
-                item->setCheckState(Qt::Checked);
-            }
-        }
-    });
-    connect(profileClassificationClearSelectionButton_, &QPushButton::clicked, this, [this]() {
-        if (profileClassificationSourceListWidget_ == nullptr) {
-            return;
-        }
-
-        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
-            if (QListWidgetItem* item = profileClassificationSourceListWidget_->item(row)) {
-                item->setCheckState(Qt::Unchecked);
-            }
-        }
-    });
-    connect(profileClassificationUndoButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::undoClassificationEdit);
-    connect(profileClassificationRedoButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::redoClassificationEdit);
-    connect(profileClassificationClearEditsButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearClassificationEdits);
-    connect(profileClassificationSaveButton_, &QPushButton::clicked, this, [this]() {
-        if (viewer_ == nullptr || viewer_->classificationEditedPointCount() <= 0) {
-            return;
-        }
-        saveProfileClassificationEditsToLas();
-    });
-    connect(profileClassificationSourceListWidget_, &QListWidget::itemChanged, this, [this](QListWidgetItem*) {
-        if (viewer_ == nullptr || profileClassificationSourceListWidget_ == nullptr) {
-            return;
-        }
-
-        QSet<int> selectedSourceClasses;
-        for (int row = 0; row < profileClassificationSourceListWidget_->count(); ++row) {
-            QListWidgetItem* item = profileClassificationSourceListWidget_->item(row);
-            if (item != nullptr && item->checkState() == Qt::Checked) {
-                selectedSourceClasses.insert(item->data(Qt::UserRole).toInt());
-            }
-        }
-        viewer_->setProfileClassificationSourceClasses(selectedSourceClasses);
-    });
-    connect(profileClassificationTargetListWidget_, &QListWidget::currentRowChanged, this, [this](int currentRow) {
-        if (viewer_ == nullptr || profileClassificationTargetListWidget_ == nullptr || currentRow < 0) {
-            return;
-        }
-
-        QListWidgetItem* item = profileClassificationTargetListWidget_->item(currentRow);
-        if (item != nullptr) {
-            viewer_->setProfileClassificationTargetClass(item->data(Qt::UserRole).toInt());
-        }
-    });
-    connect(profileClassificationModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
-        if (viewer_ == nullptr || profileClassificationModeComboBox_ == nullptr) {
-            return;
-        }
-
-        const ProfileClassificationSelectionMode mode = static_cast<ProfileClassificationSelectionMode>(
-            profileClassificationModeComboBox_->currentData().toInt());
-        viewer_->setProfileClassificationSelectionMode(mode);
     });
     connect(classificationColorsTableWidget_, &QTableWidget::itemChanged, this, [this](QTableWidgetItem* item) {
         if (viewer_ == nullptr || item == nullptr || updatingClassificationColorTable_) {
@@ -7427,51 +5517,6 @@ void MainWindow::createConnections()
             wheelZoomSensitivityValueLabel_->setText(tr("%1%").arg(QLocale().toString(value)));
         }
         viewer_->setWheelZoomSensitivityPercent(value);
-    });
-    connect(measurementToggleButton_, &QPushButton::clicked, this, [this]() {
-        viewer_->setMeasurementEnabled(!viewer_->measurementEnabled());
-    });
-    connect(measurementClearButton_, &QPushButton::clicked, viewer_, &PointCloudViewer::clearMeasurement);
-    connect(clearanceThresholdSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
-        clearanceWarningThresholdMeters_ = value;
-        persistMeasurementSettings();
-        updateMeasurementPanel();
-    });
-    connect(clearanceRulePresetComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (index < 0 || clearanceRulePresetComboBox_ == nullptr) {
-            return;
-        }
-        clearanceRulePreset_ = static_cast<ClearanceRulePreset>(clearanceRulePresetComboBox_->itemData(index).toInt());
-        persistMeasurementSettings();
-        updateMeasurementPanel();
-        updateVegetationRiskPanel();
-    });
-    connect(vegetationSearchRadiusSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
-        vegetationSearchRadiusMeters_ = value;
-        persistMeasurementSettings();
-        updateVegetationRiskPanel();
-    });
-    connect(vegetationClusterGapSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
-        vegetationClusterGapMeters_ = value;
-        persistMeasurementSettings();
-    });
-    connect(vegetationClusterPointCountSpinBox_, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value) {
-        vegetationClusterPointCount_ = value;
-        persistMeasurementSettings();
-    });
-    connect(preferVegetationClassificationCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
-        preferVegetationClassification_ = checked;
-        persistMeasurementSettings();
-        updateVegetationRiskPanel();
-    });
-    connect(clearanceSegmentsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
-        if (profilePlotWidget_ != nullptr) {
-            profilePlotWidget_->setSelectedSegmentIndex(currentRow);
-        }
-    });
-    connect(vegetationRisksTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
-        selectedVegetationRiskIndex_ = (currentRow >= 0 && currentRow < vegetationRiskResults_.size()) ? currentRow : -1;
-        updateVegetationRiskPanel();
     });
 
     const auto beginAddTower = [this]() {
@@ -7659,112 +5704,6 @@ void MainWindow::createConnections()
         showUserMessage(LogLevel::Info, tr("Tower editing finished."), 2500);
     };
 
-    connect(startTowerEditAction_, &QAction::triggered, this, startTowerEditing);
-    connect(finishTowerEditAction_, &QAction::triggered, this, finishTowerEditing);
-    connect(addTowerAction_, &QAction::triggered, this, beginAddTower);
-    connect(insertTowerAction_, &QAction::triggered, this, beginInsertTower);
-    connect(moveTowerAction_, &QAction::triggered, this, beginMoveTower);
-    connect(editCurrentTowerAction_, &QAction::triggered, this, editCurrentTower);
-    connect(focusTowerAction_, &QAction::triggered, this, focusSelectedTower);
-    connect(removeTowerAction_, &QAction::triggered, this, removeSelectedTower);
-    connect(clearTowersAction_, &QAction::triggered, this, clearAllTowers);
-    connect(cancelTowerToolAction_, &QAction::triggered, this, cancelTowerTool);
-    connect(importTowerFileAction_, &QAction::triggered, this, importTowerFileFromDialog);
-    connect(saveTowerFileAction_, &QAction::triggered, this, saveTowerFileToLinkedPath);
-    connect(saveTowerFileAsAction_, &QAction::triggered, this, saveTowerFileAs);
-    connect(reloadTowerFileAction_, &QAction::triggered, this, reloadTowerFileFromLinkedPath);
-    connect(showTowerXAction_, &QAction::toggled, this, [this](bool checked) {
-        if (towerTableWidget_ != nullptr) {
-            towerTableWidget_->setColumnHidden(2, !checked);
-        }
-    });
-    connect(showTowerYAction_, &QAction::toggled, this, [this](bool checked) {
-        if (towerTableWidget_ != nullptr) {
-            towerTableWidget_->setColumnHidden(3, !checked);
-        }
-    });
-    connect(showTowerZAction_, &QAction::toggled, this, [this](bool checked) {
-        if (towerTableWidget_ != nullptr) {
-            towerTableWidget_->setColumnHidden(4, !checked);
-        }
-    });
-    if (towerTableWidget_ != nullptr && towerTableWidget_->horizontalHeader() != nullptr) {
-        towerTableWidget_->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(towerTableWidget_, &QTableWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
-            if (towerTableWidget_ == nullptr || viewer_ == nullptr) {
-                return;
-            }
-
-            const QModelIndex index = towerTableWidget_->indexAt(pos);
-            if (index.isValid()) {
-                const int row = index.row();
-                if (row >= 0 && row < towerTableWidget_->rowCount()) {
-                    towerTableWidget_->setCurrentCell(row, 1);
-                }
-            }
-
-            QMenu rowMenu(towerTableWidget_);
-            rowMenu.addAction(focusTowerAction_);
-            rowMenu.addAction(removeTowerAction_);
-            rowMenu.addSeparator();
-            rowMenu.addAction(editCurrentTowerAction_);
-            rowMenu.addAction(moveTowerAction_);
-            rowMenu.addAction(insertTowerAction_);
-            rowMenu.addSeparator();
-            rowMenu.addAction(addTowerAction_);
-            rowMenu.addAction(clearTowersAction_);
-            rowMenu.addAction(cancelTowerToolAction_);
-            rowMenu.addSeparator();
-            rowMenu.addAction(importTowerFileAction_);
-            rowMenu.addAction(saveTowerFileAction_);
-            rowMenu.addAction(saveTowerFileAsAction_);
-            rowMenu.addAction(reloadTowerFileAction_);
-            rowMenu.exec(towerTableWidget_->viewport()->mapToGlobal(pos));
-        });
-
-        towerTableWidget_->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(towerTableWidget_->horizontalHeader(), &QHeaderView::customContextMenuRequested, this, [this](const QPoint& pos) {
-            if (towerTableWidget_ == nullptr || towerTableWidget_->horizontalHeader() == nullptr) {
-                return;
-            }
-
-            QMenu columnMenu(towerTableWidget_);
-            columnMenu.addAction(showTowerXAction_);
-            columnMenu.addAction(showTowerYAction_);
-            columnMenu.addAction(showTowerZAction_);
-            columnMenu.exec(towerTableWidget_->horizontalHeader()->mapToGlobal(pos));
-        });
-    }
-    connect(towerTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
-        if (viewer_ != nullptr) {
-            viewer_->setSelectedTowerIndex(currentRow);
-        }
-        updateActionState();
-        updateTowerPanel();
-    });
-    connect(towerTableWidget_, &QTableWidget::cellChanged, this, [this](int row, int column) {
-        if (viewer_ == nullptr || towerTableWidget_ == nullptr || column != 1) {
-            return;
-        }
-
-        if (!towerEditingEnabled_) {
-            updateTowerPanel();
-            return;
-        }
-
-        QTableWidgetItem* item = towerTableWidget_->item(row, column);
-        if (item == nullptr) {
-            return;
-        }
-
-        if (!viewer_->setTowerMarkerName(row, item->text())) {
-            showUserMessage(LogLevel::Warning, tr("Tower marker name cannot be empty."), 3000);
-            updateTowerPanel();
-            return;
-        }
-
-        updateTowerPanel();
-    });
     const auto commitTowerDetails = [this]() {
         if (updatingTowerDetails_ || viewer_ == nullptr || towerTypeComboBox_ == nullptr) {
             return;
@@ -7788,14 +5727,84 @@ void MainWindow::createConnections()
             updateTowerPanel();
         }
     };
-    connect(towerCodeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerLineNameEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerVoltageLevelEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerTypeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitTowerDetails](int) { commitTowerDetails(); });
-    connect(towerStructureTypeEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerInspectionDateEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerStatusEdit_, &QLineEdit::editingFinished, this, commitTowerDetails);
-    connect(towerNotesEdit_, &QPlainTextEdit::textChanged, this, commitTowerDetails);
+
+    towerController_ = new TowerController(
+        startTowerEditAction_,
+        finishTowerEditAction_,
+        addTowerAction_,
+        insertTowerAction_,
+        moveTowerAction_,
+        editCurrentTowerAction_,
+        focusTowerAction_,
+        removeTowerAction_,
+        clearTowersAction_,
+        cancelTowerToolAction_,
+        importTowerFileAction_,
+        saveTowerFileAction_,
+        saveTowerFileAsAction_,
+        reloadTowerFileAction_,
+        showTowerXAction_,
+        showTowerYAction_,
+        showTowerZAction_,
+        towerTableWidget_,
+        towerCodeEdit_,
+        towerLineNameEdit_,
+        towerVoltageLevelEdit_,
+        towerTypeComboBox_,
+        towerStructureTypeEdit_,
+        towerInspectionDateEdit_,
+        towerStatusEdit_,
+        towerNotesEdit_,
+        startTowerEditing,
+        finishTowerEditing,
+        beginAddTower,
+        beginInsertTower,
+        beginMoveTower,
+        editCurrentTower,
+        focusSelectedTower,
+        removeSelectedTower,
+        clearAllTowers,
+        cancelTowerTool,
+        importTowerFileFromDialog,
+        saveTowerFileToLinkedPath,
+        saveTowerFileAs,
+        reloadTowerFileFromLinkedPath,
+        [this](bool) {
+            persistWindowSettings();
+        },
+        [this](bool) {
+            persistWindowSettings();
+        },
+        [this](bool) {
+            persistWindowSettings();
+        },
+        [this](int currentRow) {
+            if (viewer_ != nullptr) {
+                viewer_->setSelectedTowerIndex(currentRow);
+            }
+            updateActionState();
+            updateTowerPanel();
+        },
+        [this](int row, const QString& towerName) {
+            if (viewer_ == nullptr) {
+                return;
+            }
+
+            if (!towerEditingEnabled_) {
+                updateTowerPanel();
+                return;
+            }
+
+            if (!viewer_->setTowerMarkerName(row, towerName)) {
+                showUserMessage(LogLevel::Warning, tr("Tower marker name cannot be empty."), 3000);
+                updateTowerPanel();
+                return;
+            }
+
+            updateTowerPanel();
+        },
+        commitTowerDetails,
+        this);
 
     const auto beginIssueMarking = [this]() {
         if (viewer_ == nullptr || !viewer_->hasPointCloud()) {
@@ -7902,20 +5911,6 @@ void MainWindow::createConnections()
 
         showUserMessage(LogLevel::Info, tr("Inspection report exported: %1").arg(QFileInfo(filePath).fileName()), 3000);
     };
-    connect(startIssueMarkAction_, &QAction::triggered, this, beginIssueMarking);
-    connect(cancelIssueToolAction_, &QAction::triggered, this, cancelIssueTool);
-    connect(focusIssueAction_, &QAction::triggered, this, focusSelectedIssue);
-    connect(removeIssueAction_, &QAction::triggered, this, removeSelectedIssue);
-    connect(clearIssuesAction_, &QAction::triggered, this, clearAllIssues);
-    connect(exportIssuesCsvAction_, &QAction::triggered, this, exportIssuesCsv);
-    connect(exportInspectionReportAction_, &QAction::triggered, this, exportInspectionReport);
-    connect(issueTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
-        if (viewer_ != nullptr) {
-            viewer_->setSelectedIssueIndex(currentRow);
-        }
-        updateActionState();
-        updateIssuePanel();
-    });
     const auto commitIssueDetails = [this]() {
         if (updatingIssueDetails_ || viewer_ == nullptr) {
             return;
@@ -7939,102 +5934,110 @@ void MainWindow::createConnections()
             updateIssuePanel();
         }
     };
-    connect(issueTitleEdit_, &QLineEdit::editingFinished, this, commitIssueDetails);
-    connect(issueCategoryComboBox_, &QComboBox::editTextChanged, this, [commitIssueDetails](const QString&) { commitIssueDetails(); });
-    connect(issueSeverityComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
-    connect(issueStatusComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
-    connect(issueRelatedTowerComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [commitIssueDetails](int) { commitIssueDetails(); });
-    connect(issueImagePathEdit_, &QLineEdit::editingFinished, this, commitIssueDetails);
-    connect(issueDescriptionEdit_, &QPlainTextEdit::textChanged, this, commitIssueDetails);
-    connect(projectSearchEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
-        refreshProjectTreeFilter();
-    });
-    connect(projectTreeWidget_, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* item, int column) {
-        Q_UNUSED(column);
-        applyProjectTreeItemCheckState(item);
-    });
-    connect(projectTreeWidget_, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* currentItem, QTreeWidgetItem*) {
-        if (viewer_ == nullptr || currentItem == nullptr) {
-            updateActionState();
-            return;
-        }
 
-        const QString itemType = currentItem->data(0, kProjectTreeItemTypeRole).toString();
-        if (itemType == QStringLiteral("imageItem")) {
-            const int issueIndex = currentItem->data(0, kProjectTreeIssueIndexRole).toInt();
-            viewer_->setSelectedIssueIndex(issueIndex);
+    issueController_ = new IssueController(
+        startIssueMarkAction_,
+        cancelIssueToolAction_,
+        focusIssueAction_,
+        removeIssueAction_,
+        clearIssuesAction_,
+        exportIssuesCsvAction_,
+        exportInspectionReportAction_,
+        issueTableWidget_,
+        issueTitleEdit_,
+        issueCategoryComboBox_,
+        issueSeverityComboBox_,
+        issueStatusComboBox_,
+        issueRelatedTowerComboBox_,
+        issueImagePathEdit_,
+        issueDescriptionEdit_,
+        beginIssueMarking,
+        cancelIssueTool,
+        focusSelectedIssue,
+        removeSelectedIssue,
+        clearAllIssues,
+        exportIssuesCsv,
+        exportInspectionReport,
+        [this](int currentRow) {
+            if (viewer_ != nullptr) {
+                viewer_->setSelectedIssueIndex(currentRow);
+            }
+            updateActionState();
             updateIssuePanel();
-        } else if (itemType == QStringLiteral("trajectoryItem")) {
-            selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
-            selectedRouteWaypointTargetIndex_ = -1;
-            viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
-            viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
-            updateRoutePlanningPanel();
-        } else if (itemType == QStringLiteral("pointCloudItem")) {
-            viewer_->setSelectedIssueIndex(-1);
-            updateIssuePanel();
-        } else {
-            viewer_->setSelectedIssueIndex(-1);
-            updateIssuePanel();
-        }
-        updateActionState();
-    });
-    connect(projectTreeWidget_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
-        focusProjectTreeItem(item);
-    });
-    connect(projectTreeWidget_, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
-        showProjectTreeContextMenu(pos);
-    });
+        },
+        commitIssueDetails,
+        this);
+    if (projectExplorerController_ != nullptr) {
+        connect(projectExplorerController_, &ProjectExplorerController::searchTextChanged, this, [this](const QString&) {
+            refreshProjectTreeFilter();
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::itemChanged, this, [this](QTreeWidgetItem* item, int column) {
+            Q_UNUSED(column);
+            applyProjectTreeItemCheckState(item);
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::currentItemChanged, this, [this](QTreeWidgetItem* currentItem, QTreeWidgetItem*) {
+            if (viewer_ == nullptr || currentItem == nullptr) {
+                updateActionState();
+                return;
+            }
+
+            const QString itemType = currentItem->data(0, kProjectTreeItemTypeRole).toString();
+            if (itemType == QStringLiteral("imageItem")) {
+                const int issueIndex = currentItem->data(0, kProjectTreeIssueIndexRole).toInt();
+                viewer_->setSelectedIssueIndex(issueIndex);
+                updateIssuePanel();
+            } else if (itemType == QStringLiteral("trajectoryItem")) {
+                selectedRouteWaypointIndex_ = currentPowerlineRoute_.waypoints.isEmpty() ? -1 : 0;
+                selectedRouteWaypointTargetIndex_ = -1;
+                viewer_->setSelectedInspectionRouteWaypointIndex(selectedRouteWaypointIndex_);
+                viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
+                updateRoutePlanningPanel();
+            } else if (itemType == QStringLiteral("pointCloudItem")) {
+                viewer_->setSelectedIssueIndex(-1);
+                updateIssuePanel();
+            } else {
+                viewer_->setSelectedIssueIndex(-1);
+                updateIssuePanel();
+            }
+            updateActionState();
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
+            focusProjectTreeItem(item);
+        });
+        connect(projectExplorerController_, &ProjectExplorerController::customContextMenuRequested, this, [this](const QPoint& pos) {
+            showProjectTreeContextMenu(pos);
+        });
+    }
+
+}
+
+void MainWindow::createWindowAndViewerConnections()
+{
     connect(languageEnglishAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::English); });
     connect(languageChineseAction_, &QAction::triggered, this, [this]() { applyLanguage(UiLanguage::Chinese); });
 
-    if (logLevelFilterComboBox_ != nullptr) {
-        connect(logLevelFilterComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
-            refreshLogPanel();
+    if (logDock_ != nullptr) {
+        connect(logDock_, &ApplicationLogDock::filterStateChanged, this, [this]() {
             persistWindowSettings();
         });
-    }
-    if (logSearchLineEdit_ != nullptr) {
-        connect(logSearchLineEdit_, &QLineEdit::textChanged, this, [this](const QString&) {
-            refreshLogPanel();
+        connect(logDock_, &ApplicationLogDock::autoScrollToggled, this, [this](bool) {
             persistWindowSettings();
         });
-    }
-    if (logAutoScrollCheckBox_ != nullptr) {
-        connect(logAutoScrollCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
-            if (checked && logTextEdit_ != nullptr) {
-                if (QScrollBar* scrollBar = logTextEdit_->verticalScrollBar()) {
-                    scrollBar->setValue(scrollBar->maximum());
-                }
-            }
-            persistWindowSettings();
-        });
-    }
-    if (logClearButton_ != nullptr) {
-        connect(logClearButton_, &QPushButton::clicked, this, [this]() {
-            lasviewer::logging::ApplicationLogger::instance().clear();
+        connect(logDock_, &ApplicationLogDock::entriesClearedByUser, this, [this]() {
             if (statusBar() != nullptr) {
                 statusBar()->showMessage(tr("Log entries cleared."), 2500);
             }
         });
-    }
-    if (logExportButton_ != nullptr) {
-        connect(logExportButton_, &QPushButton::clicked, this, [this]() {
+        connect(logDock_, &ApplicationLogDock::exportRequested, this, [this]() {
             exportLogEntries();
         });
     }
-    connect(&lasviewer::logging::ApplicationLogger::instance(), &lasviewer::logging::ApplicationLogger::entryAdded, this, [this]() {
-        refreshLogPanel();
-    });
-    connect(&lasviewer::logging::ApplicationLogger::instance(), &lasviewer::logging::ApplicationLogger::entriesCleared, this, [this]() {
-        refreshLogPanel();
-    });
 
     if (logDock_ != nullptr) {
         auto* focusLogSearchShortcut = new QShortcut(QKeySequence::Find, this);
         focusLogSearchShortcut->setContext(Qt::WindowShortcut);
         connect(focusLogSearchShortcut, &QShortcut::activated, this, [this]() {
-            if (logDock_ == nullptr || logSearchLineEdit_ == nullptr) {
+            if (logDock_ == nullptr || logDock_->searchLineEdit() == nullptr) {
                 return;
             }
 
@@ -8047,21 +6050,21 @@ void MainWindow::createConnections()
             }
 
             logDock_->raise();
-            logSearchLineEdit_->setFocus(Qt::ShortcutFocusReason);
-            logSearchLineEdit_->selectAll();
+            logDock_->searchLineEdit()->setFocus(Qt::ShortcutFocusReason);
+            logDock_->searchLineEdit()->selectAll();
         });
 
         auto* clearLogSearchShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), logDock_);
         clearLogSearchShortcut->setContext(Qt::WidgetWithChildrenShortcut);
         connect(clearLogSearchShortcut, &QShortcut::activated, this, [this]() {
-            if (logSearchLineEdit_ == nullptr) {
+            if (logDock_ == nullptr || logDock_->searchLineEdit() == nullptr) {
                 return;
             }
 
-            if (!logSearchLineEdit_->text().isEmpty()) {
-                logSearchLineEdit_->clear();
-            } else if (logSearchLineEdit_->hasFocus()) {
-                logSearchLineEdit_->clearFocus();
+            if (!logDock_->searchLineEdit()->text().isEmpty()) {
+                logDock_->searchLineEdit()->clear();
+            } else if (logDock_->searchLineEdit()->hasFocus()) {
+                logDock_->searchLineEdit()->clearFocus();
             }
         });
     }
@@ -8072,7 +6075,7 @@ void MainWindow::createConnections()
                 logDock_->show();
                 logDock_->raise();
                 resizeDocks({logDock_}, {280}, Qt::Vertical);
-                refreshLogPanel();
+                logDock_->refreshEntries();
             } else {
                 logDock_->hide();
             }
@@ -8152,28 +6155,6 @@ void MainWindow::createConnections()
     });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { syncUiFromViewer(); });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { persistVisualizationSettings(); });
-    connect(viewer_, &PointCloudViewer::profileClassificationModeChanged, this, [this](bool enabled) {
-        const QSignalBlocker blocker(profileClassificationAction_);
-        profileClassificationAction_->setChecked(enabled);
-        if (enabled && profileClassificationDock_ != nullptr) {
-            profileClassificationDock_->show();
-            profileClassificationDock_->raise();
-        }
-        if (!enabled) {
-            promptSaveProfileClassificationEditsIfNeeded();
-        }
-        updateProfileClassificationPanel();
-        updateActionState();
-    });
-    connect(viewer_, &PointCloudViewer::classificationEditsChanged, this, [this]() {
-        classificationEditsDirty_ = viewer_ != nullptr && viewer_->classificationEditedPointCount() > 0;
-        updateProfileClassificationPanel();
-        updateActionState();
-    });
-    connect(viewer_, &PointCloudViewer::profileClassificationStateChanged, this, [this]() {
-        updateProfileClassificationPanel();
-        updateActionState();
-    });
     connect(viewer_, &PointCloudViewer::interactionOptionsChanged, this, [this]() {
         persistInteractionSettings();
         syncUiFromViewer();
@@ -8358,11 +6339,11 @@ void MainWindow::refreshBackstageRecentProjects()
 
     QSettings settings;
     const QString lastOpenedProject = normalizedProjectFilePath(
-        settings.value(QStringLiteral("project/lastOpenedProject")).toString());
+        settings.value(settingskeys::kProjectLastOpenedProject).toString());
     const QStringList recentProjects = normalizedRecentProjectFiles(
-        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
+        settings.value(settingskeys::kProjectRecentProjects).toStringList(),
         lastOpenedProject);
-    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
+    settings.setValue(settingskeys::kProjectRecentProjects, recentProjects);
 
     const QSignalBlocker listBlocker(backstageRecentProjectsListWidget_);
     backstageRecentProjectsListWidget_->clear();
@@ -11102,56 +9083,8 @@ void MainWindow::appendLog(LogLevel level, const QString& message)
 
 void MainWindow::refreshLogPanel()
 {
-    if (logTextEdit_ == nullptr) {
-        return;
-    }
-
-    const QVector<lasviewer::logging::LogEntry> entries = lasviewer::logging::ApplicationLogger::instance().entries();
-    const int selectedLevel = logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1;
-    const QString keyword = logSearchLineEdit_ != nullptr ? logSearchLineEdit_->text().trimmed() : QString();
-
-    int visibleCount = 0;
-    QString html;
-    html.reserve(entries.size() * 240);
-    for (const lasviewer::logging::LogEntry& entry : entries) {
-        if (selectedLevel >= 0 && static_cast<int>(entry.level) != selectedLevel) {
-            continue;
-        }
-
-        const LogVisualStyle style = logVisualStyleForLevel(entry.level);
-        if (!keyword.isEmpty()
-            && !entry.message.contains(keyword, Qt::CaseInsensitive)
-            && !entry.module.contains(keyword, Qt::CaseInsensitive)
-            && !style.token.contains(keyword, Qt::CaseInsensitive)) {
-            continue;
-        }
-
-        html += logEntryHtml(entry, keyword);
-        ++visibleCount;
-    }
-
-    if (visibleCount == 0) {
-        const QString emptyText = entries.isEmpty()
-            ? tr("No log entries yet.")
-            : tr("No log entries match current filters.");
-        html = QStringLiteral(
-            "<div style='margin:20px 16px; padding:12px; border:1px dashed #c6d4e6; border-radius:8px; "
-            "background:#ffffff; color:#64748b; font-size:13px;'>%1</div>")
-                .arg(emptyText.toHtmlEscaped());
-    }
-
-    logTextEdit_->setHtml(html);
-
-    if (logStatsLabel_ != nullptr) {
-        logStatsLabel_->setText(tr("%1 shown / %2 total")
-            .arg(QLocale().toString(visibleCount))
-            .arg(QLocale().toString(entries.size())));
-    }
-
-    if (logAutoScrollCheckBox_ == nullptr || logAutoScrollCheckBox_->isChecked()) {
-        if (QScrollBar* scrollBar = logTextEdit_->verticalScrollBar()) {
-            scrollBar->setValue(scrollBar->maximum());
-        }
+    if (logDock_ != nullptr) {
+        logDock_->refreshEntries();
     }
 }
 
@@ -11195,11 +9128,11 @@ void MainWindow::loadInteractionSettings()
 {
     QSettings settings;
     InteractionOptions options;
-    options.invertOrbitDrag = settings.value(QStringLiteral("interaction/invertOrbitDrag"), false).toBool();
-    options.invertPanDrag = settings.value(QStringLiteral("interaction/invertPanDrag"), false).toBool();
-    options.invertWheelZoom = settings.value(QStringLiteral("interaction/invertWheelZoom"), false).toBool();
+    options.invertOrbitDrag = settings.value(settingskeys::kInteractionInvertOrbitDrag, false).toBool();
+    options.invertPanDrag = settings.value(settingskeys::kInteractionInvertPanDrag, false).toBool();
+    options.invertWheelZoom = settings.value(settingskeys::kInteractionInvertWheelZoom, false).toBool();
     options.wheelZoomSensitivityPercent =
-        settings.value(QStringLiteral("interaction/wheelZoomSensitivityPercent"), 100).toInt();
+        settings.value(settingskeys::kInteractionWheelZoomSensitivityPercent, 100).toInt();
     viewer_->setInteractionOptions(options);
 }
 
@@ -11207,36 +9140,36 @@ void MainWindow::persistInteractionSettings() const
 {
     QSettings settings;
     const InteractionOptions& options = viewer_->interactionOptions();
-    settings.setValue(QStringLiteral("interaction/invertOrbitDrag"), options.invertOrbitDrag);
-    settings.setValue(QStringLiteral("interaction/invertPanDrag"), options.invertPanDrag);
-    settings.setValue(QStringLiteral("interaction/invertWheelZoom"), options.invertWheelZoom);
-    settings.setValue(QStringLiteral("interaction/wheelZoomSensitivityPercent"), options.wheelZoomSensitivityPercent);
+    settings.setValue(settingskeys::kInteractionInvertOrbitDrag, options.invertOrbitDrag);
+    settings.setValue(settingskeys::kInteractionInvertPanDrag, options.invertPanDrag);
+    settings.setValue(settingskeys::kInteractionInvertWheelZoom, options.invertWheelZoom);
+    settings.setValue(settingskeys::kInteractionWheelZoomSensitivityPercent, options.wheelZoomSensitivityPercent);
 }
 
 void MainWindow::loadMeasurementSettings()
 {
     QSettings settings;
     clearanceWarningThresholdMeters_ = settings.value(
-        QStringLiteral("measurement/clearanceThresholdMeters"),
+        settingskeys::kMeasurementClearanceThresholdMeters,
         clearanceWarningThresholdMeters_).toDouble();
     clearanceRulePreset_ = static_cast<ClearanceRulePreset>(settings.value(
-        QStringLiteral("measurement/clearanceRulePreset"),
+        settingskeys::kMeasurementClearanceRulePreset,
         static_cast<int>(clearanceRulePreset_)).toInt());
     vegetationSearchRadiusMeters_ = settings.value(
-        QStringLiteral("measurement/vegetationSearchRadiusMeters"),
+        settingskeys::kMeasurementVegetationSearchRadiusMeters,
         vegetationSearchRadiusMeters_).toDouble();
     vegetationClusterGapMeters_ = settings.value(
-        QStringLiteral("measurement/vegetationClusterGapMeters"),
+        settingskeys::kMeasurementVegetationClusterGapMeters,
         vegetationClusterGapMeters_).toDouble();
     vegetationClusterPointCount_ = settings.value(
-        QStringLiteral("measurement/vegetationClusterPointCount"),
+        settingskeys::kMeasurementVegetationClusterPointCount,
         vegetationClusterPointCount_).toInt();
     preferVegetationClassification_ = settings.value(
-        QStringLiteral("measurement/preferVegetationClassification"),
+        settingskeys::kMeasurementPreferVegetationClassification,
         preferVegetationClassification_).toBool();
     const ProfileClassificationSelectionMode profileClassificationSelectionMode =
         static_cast<ProfileClassificationSelectionMode>(settings.value(
-            QStringLiteral("measurement/profileClassificationSelectionMode"),
+            settingskeys::kMeasurementProfileClassificationSelectionMode,
             static_cast<int>(ProfileClassificationSelectionMode::Rectangle)).toInt());
 
     if (clearanceThresholdSpinBox_ != nullptr) {
@@ -11267,24 +9200,20 @@ void MainWindow::loadMeasurementSettings()
     if (viewer_ != nullptr) {
         viewer_->setProfileClassificationSelectionMode(profileClassificationSelectionMode);
     }
-    if (profileClassificationModeComboBox_ != nullptr) {
-        const QSignalBlocker blocker(profileClassificationModeComboBox_);
-        const int modeIndex = profileClassificationModeComboBox_->findData(static_cast<int>(profileClassificationSelectionMode));
-        profileClassificationModeComboBox_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 0);
-    }
+    updateProfileClassificationPanel();
 }
 
 void MainWindow::persistMeasurementSettings() const
 {
     QSettings settings;
-    settings.setValue(QStringLiteral("measurement/clearanceThresholdMeters"), clearanceWarningThresholdMeters_);
-    settings.setValue(QStringLiteral("measurement/clearanceRulePreset"), static_cast<int>(clearanceRulePreset_));
-    settings.setValue(QStringLiteral("measurement/vegetationSearchRadiusMeters"), vegetationSearchRadiusMeters_);
-    settings.setValue(QStringLiteral("measurement/vegetationClusterGapMeters"), vegetationClusterGapMeters_);
-    settings.setValue(QStringLiteral("measurement/vegetationClusterPointCount"), vegetationClusterPointCount_);
-    settings.setValue(QStringLiteral("measurement/preferVegetationClassification"), preferVegetationClassification_);
+    settings.setValue(settingskeys::kMeasurementClearanceThresholdMeters, clearanceWarningThresholdMeters_);
+    settings.setValue(settingskeys::kMeasurementClearanceRulePreset, static_cast<int>(clearanceRulePreset_));
+    settings.setValue(settingskeys::kMeasurementVegetationSearchRadiusMeters, vegetationSearchRadiusMeters_);
+    settings.setValue(settingskeys::kMeasurementVegetationClusterGapMeters, vegetationClusterGapMeters_);
+    settings.setValue(settingskeys::kMeasurementVegetationClusterPointCount, vegetationClusterPointCount_);
+    settings.setValue(settingskeys::kMeasurementPreferVegetationClassification, preferVegetationClassification_);
     settings.setValue(
-        QStringLiteral("measurement/profileClassificationSelectionMode"),
+        settingskeys::kMeasurementProfileClassificationSelectionMode,
         viewer_ != nullptr
             ? static_cast<int>(viewer_->profileClassificationSelectionMode())
             : static_cast<int>(ProfileClassificationSelectionMode::Rectangle));
@@ -11298,41 +9227,41 @@ void MainWindow::loadVisualizationSettings()
 
     QSettings settings;
     const PointCloudVisualizationOptions defaults = viewer_->visualizationOptions();
-    viewer_->setPointSize(settings.value(QStringLiteral("visualization/pointSize"), defaults.pointSize).toInt());
-    viewer_->setPointOpacity(settings.value(QStringLiteral("visualization/pointOpacity"), defaults.pointOpacity * 100.0f).toInt());
-    viewer_->setDepthCueStrength(settings.value(QStringLiteral("visualization/depthCueStrength"), defaults.depthCueStrength * 100.0f).toInt());
-    viewer_->setEdlStrength(settings.value(QStringLiteral("visualization/edlStrength"), defaults.edlStrength * 100.0f).toInt());
-    viewer_->setColorMode(settings.value(QStringLiteral("visualization/colorMode"), static_cast<int>(defaults.colorMode)).toInt());
-    viewer_->setSingleColor(settings.value(QStringLiteral("visualization/singleColor"), defaults.singleColor).value<QColor>());
+    viewer_->setPointSize(settings.value(settingskeys::kVisualizationPointSize, defaults.pointSize).toInt());
+    viewer_->setPointOpacity(settings.value(settingskeys::kVisualizationPointOpacity, defaults.pointOpacity * 100.0f).toInt());
+    viewer_->setDepthCueStrength(settings.value(settingskeys::kVisualizationDepthCueStrength, defaults.depthCueStrength * 100.0f).toInt());
+    viewer_->setEdlStrength(settings.value(settingskeys::kVisualizationEdlStrength, defaults.edlStrength * 100.0f).toInt());
+    viewer_->setColorMode(settings.value(settingskeys::kVisualizationColorMode, static_cast<int>(defaults.colorMode)).toInt());
+    viewer_->setSingleColor(settings.value(settingskeys::kVisualizationSingleColor, defaults.singleColor).value<QColor>());
     const QJsonDocument classificationColorDocument = QJsonDocument::fromJson(
-        settings.value(QStringLiteral("visualization/classificationColorsJson")).toByteArray());
+        settings.value(settingskeys::kVisualizationClassificationColorsJson).toByteArray());
     if (classificationColorDocument.isObject()) {
         viewer_->setClassificationColorMap(
             classificationColorMapFromJson(classificationColorDocument.object(), defaults.classificationColors));
     }
     const QJsonDocument classificationVisibilityDocument = QJsonDocument::fromJson(
-        settings.value(QStringLiteral("visualization/classificationVisibilityJson")).toByteArray());
+        settings.value(settingskeys::kVisualizationClassificationVisibilityJson).toByteArray());
     if (classificationVisibilityDocument.isObject()) {
         viewer_->setClassificationVisibilityMap(
             classificationVisibilityMapFromJson(classificationVisibilityDocument.object(), defaults.classificationVisibility));
     }
     const QJsonDocument classificationNameDocument = QJsonDocument::fromJson(
-        settings.value(QStringLiteral("visualization/classificationNameOverridesJson")).toByteArray());
+        settings.value(settingskeys::kVisualizationClassificationNameOverridesJson).toByteArray());
     classificationNameOverrides_ = classificationNameDocument.isObject()
         ? classificationNameMapFromJson(classificationNameDocument.object())
         : QMap<int, QString>();
     viewer_->setClassificationFallbackColor(
-        settings.value(QStringLiteral("visualization/classificationFallbackColor"), defaults.classificationFallbackColor).value<QColor>());
-    viewer_->setBackgroundColor(settings.value(QStringLiteral("visualization/backgroundColor"), defaults.backgroundColor).value<QColor>());
+        settings.value(settingskeys::kVisualizationClassificationFallbackColor, defaults.classificationFallbackColor).value<QColor>());
+    viewer_->setBackgroundColor(settings.value(settingskeys::kVisualizationBackgroundColor, defaults.backgroundColor).value<QColor>());
     viewer_->setInspectionRouteWaypointColor(
-        settings.value(QStringLiteral("visualization/routeWaypointColor"), viewer_->inspectionRouteWaypointColor()).value<QColor>());
+        settings.value(settingskeys::kVisualizationRouteWaypointColor, viewer_->inspectionRouteWaypointColor()).value<QColor>());
     viewer_->setInspectionRoutePartPointColor(
-        settings.value(QStringLiteral("visualization/routePartPointColor"), viewer_->inspectionRoutePartPointColor()).value<QColor>());
+        settings.value(settingskeys::kVisualizationRoutePartPointColor, viewer_->inspectionRoutePartPointColor()).value<QColor>());
     viewer_->setInspectionRouteTrajectoryColor(
-        settings.value(QStringLiteral("visualization/routeTrajectoryColor"), viewer_->inspectionRouteTrajectoryColor()).value<QColor>());
-    viewer_->setUseRoundSplats(settings.value(QStringLiteral("visualization/useRoundSplats"), defaults.useRoundSplats).toBool());
-    viewer_->setShowAxes(settings.value(QStringLiteral("visualization/showAxes"), defaults.showAxes).toBool());
-    viewer_->setShowBoundingBox(settings.value(QStringLiteral("visualization/showBoundingBox"), defaults.showBoundingBox).toBool());
+        settings.value(settingskeys::kVisualizationRouteTrajectoryColor, viewer_->inspectionRouteTrajectoryColor()).value<QColor>());
+    viewer_->setUseRoundSplats(settings.value(settingskeys::kVisualizationUseRoundSplats, defaults.useRoundSplats).toBool());
+    viewer_->setShowAxes(settings.value(settingskeys::kVisualizationShowAxes, defaults.showAxes).toBool());
+    viewer_->setShowBoundingBox(settings.value(settingskeys::kVisualizationShowBoundingBox, defaults.showBoundingBox).toBool());
 }
 
 void MainWindow::persistVisualizationSettings() const
@@ -11343,35 +9272,35 @@ void MainWindow::persistVisualizationSettings() const
 
     QSettings settings;
     const PointCloudVisualizationOptions& options = viewer_->visualizationOptions();
-    settings.setValue(QStringLiteral("visualization/pointSize"), options.pointSize);
-    settings.setValue(QStringLiteral("visualization/pointOpacity"), options.pointOpacity * 100.0f);
-    settings.setValue(QStringLiteral("visualization/depthCueStrength"), options.depthCueStrength * 100.0f);
-    settings.setValue(QStringLiteral("visualization/edlStrength"), options.edlStrength * 100.0f);
-    settings.setValue(QStringLiteral("visualization/colorMode"), static_cast<int>(options.colorMode));
-    settings.setValue(QStringLiteral("visualization/singleColor"), options.singleColor);
+    settings.setValue(settingskeys::kVisualizationPointSize, options.pointSize);
+    settings.setValue(settingskeys::kVisualizationPointOpacity, options.pointOpacity * 100.0f);
+    settings.setValue(settingskeys::kVisualizationDepthCueStrength, options.depthCueStrength * 100.0f);
+    settings.setValue(settingskeys::kVisualizationEdlStrength, options.edlStrength * 100.0f);
+    settings.setValue(settingskeys::kVisualizationColorMode, static_cast<int>(options.colorMode));
+    settings.setValue(settingskeys::kVisualizationSingleColor, options.singleColor);
     settings.setValue(
-        QStringLiteral("visualization/classificationColorsJson"),
+        settingskeys::kVisualizationClassificationColorsJson,
         QJsonDocument(classificationColorMapToJson(options.classificationColors)).toJson(QJsonDocument::Compact));
     settings.setValue(
-        QStringLiteral("visualization/classificationVisibilityJson"),
+        settingskeys::kVisualizationClassificationVisibilityJson,
         QJsonDocument(classificationVisibilityMapToJson(options.classificationVisibility)).toJson(QJsonDocument::Compact));
     settings.setValue(
-        QStringLiteral("visualization/classificationNameOverridesJson"),
+        settingskeys::kVisualizationClassificationNameOverridesJson,
         QJsonDocument(classificationNameMapToJson(classificationNameOverrides_)).toJson(QJsonDocument::Compact));
-    settings.setValue(QStringLiteral("visualization/classificationFallbackColor"), options.classificationFallbackColor);
-    settings.setValue(QStringLiteral("visualization/backgroundColor"), options.backgroundColor);
-    settings.setValue(QStringLiteral("visualization/routeWaypointColor"), viewer_->inspectionRouteWaypointColor());
-    settings.setValue(QStringLiteral("visualization/routePartPointColor"), viewer_->inspectionRoutePartPointColor());
-    settings.setValue(QStringLiteral("visualization/routeTrajectoryColor"), viewer_->inspectionRouteTrajectoryColor());
-    settings.setValue(QStringLiteral("visualization/useRoundSplats"), options.useRoundSplats);
-    settings.setValue(QStringLiteral("visualization/showAxes"), options.showAxes);
-    settings.setValue(QStringLiteral("visualization/showBoundingBox"), options.showBoundingBox);
+    settings.setValue(settingskeys::kVisualizationClassificationFallbackColor, options.classificationFallbackColor);
+    settings.setValue(settingskeys::kVisualizationBackgroundColor, options.backgroundColor);
+    settings.setValue(settingskeys::kVisualizationRouteWaypointColor, viewer_->inspectionRouteWaypointColor());
+    settings.setValue(settingskeys::kVisualizationRoutePartPointColor, viewer_->inspectionRoutePartPointColor());
+    settings.setValue(settingskeys::kVisualizationRouteTrajectoryColor, viewer_->inspectionRouteTrajectoryColor());
+    settings.setValue(settingskeys::kVisualizationUseRoundSplats, options.useRoundSplats);
+    settings.setValue(settingskeys::kVisualizationShowAxes, options.showAxes);
+    settings.setValue(settingskeys::kVisualizationShowBoundingBox, options.showBoundingBox);
 }
 
 void MainWindow::loadLanguageSettings()
 {
     QSettings settings;
-    const QString storedLanguage = settings.value(QStringLiteral("ui/language")).toString();
+    const QString storedLanguage = settings.value(settingskeys::kUiLanguage).toString();
     if (storedLanguage == QStringLiteral("zh_CN")) {
         currentLanguage_ = UiLanguage::Chinese;
     } else if (storedLanguage == QStringLiteral("en")) {
@@ -11384,7 +9313,7 @@ void MainWindow::loadLanguageSettings()
 void MainWindow::persistLanguageSettings() const
 {
     QSettings settings;
-    settings.setValue(QStringLiteral("ui/language"), languageCodeFor(currentLanguage_));
+    settings.setValue(settingskeys::kUiLanguage, languageCodeFor(currentLanguage_));
 }
 
 void MainWindow::loadWindowSettings()
@@ -11392,26 +9321,26 @@ void MainWindow::loadWindowSettings()
     loadingWindowSettings_ = true;
     QSettings settings;
     const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
-    const QByteArray geometry = settings.value(QStringLiteral("window/geometry")).toByteArray();
-    const QByteArray state = settings.value(QStringLiteral("window/state")).toByteArray();
+    const QByteArray geometry = settings.value(settingskeys::kWindowGeometry).toByteArray();
+    const QByteArray state = settings.value(settingskeys::kWindowState).toByteArray();
     if (!geometry.isEmpty()) {
         restoreGeometry(geometry);
     }
     const bool restoredState = !state.isEmpty() && restoreState(state, kMainWindowStateVersion);
-    if (settings.value(QStringLiteral("window/maximized"), false).toBool()) {
+    if (settings.value(settingskeys::kWindowMaximized, false).toBool()) {
         showMaximized();
     }
 
     if (inspectorTabWidget_ != nullptr) {
-        inspectorTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/inspectorTab"), 0).toInt());
+        inspectorTabWidget_->setCurrentIndex(settings.value(settingskeys::kWindowInspectorTab, 0).toInt());
     }
     if (routeDetailsTabWidget_ != nullptr) {
-        routeDetailsTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/routeDetailsTab"), 0).toInt());
+        routeDetailsTabWidget_->setCurrentIndex(settings.value(settingskeys::kWindowRouteDetailsTab, 0).toInt());
     }
 
     const QList<DjiAircraftProfile> supportedProfiles = supportedDjiAircraftProfiles();
     const int aircraftProfileDefault = settings.value(
-        QStringLiteral("route/planning/aircraftProfile"),
+        settingskeys::kRoutePlanningAircraftProfile,
         static_cast<int>(routePlanningOptions_.aircraftProfile)).toInt();
     DjiAircraftProfile savedAircraftProfile = static_cast<DjiAircraftProfile>(uiHistoryStore.loadInt(
         QString::fromLatin1(kRouteHistoryIdPlanningAircraftProfile),
@@ -11423,27 +9352,27 @@ void MainWindow::loadWindowSettings()
     routePlanningOptions_.safety.safetyHeightMeters = static_cast<float>(uiHistoryStore.loadDouble(
         QString::fromLatin1(kRouteHistoryIdPlanningSafetyHeightMeters),
         settings.value(
-            QStringLiteral("route/planning/safetyHeightMeters"),
+            settingskeys::kRoutePlanningSafetyHeightMeters,
             routePlanningOptions_.safety.safetyHeightMeters).toDouble()));
     routePlanningOptions_.safety.defaultWaypointSpeedMps = static_cast<float>(uiHistoryStore.loadDouble(
         QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpeedMps),
         settings.value(
-            QStringLiteral("route/planning/waypointSpeedMps"),
+            settingskeys::kRoutePlanningWaypointSpeedMps,
             routePlanningOptions_.safety.defaultWaypointSpeedMps).toDouble()));
     routePlanningOptions_.generation.waypointSpacingMeters = static_cast<float>(uiHistoryStore.loadDouble(
         QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpacingMeters),
         settings.value(
-            QStringLiteral("route/planning/waypointSpacingMeters"),
+            settingskeys::kRoutePlanningWaypointSpacingMeters,
             routePlanningOptions_.generation.waypointSpacingMeters).toDouble()));
     routePlanningOptions_.generation.smoothingStrengthPercent = static_cast<float>(uiHistoryStore.loadDouble(
         QString::fromLatin1(kRouteHistoryIdPlanningSmoothingStrengthPercent),
         settings.value(
-            QStringLiteral("route/planning/smoothingStrengthPercent"),
+            settingskeys::kRoutePlanningSmoothingStrengthPercent,
             routePlanningOptions_.generation.smoothingStrengthPercent).toDouble()));
     routePlanningOptions_.safety.heightOffsetMeters = static_cast<float>(uiHistoryStore.loadDouble(
         QString::fromLatin1(kRouteHistoryIdPlanningHeightOffsetMeters),
         settings.value(
-            QStringLiteral("route/planning/heightOffsetMeters"),
+            settingskeys::kRoutePlanningHeightOffsetMeters,
             routePlanningOptions_.safety.heightOffsetMeters).toDouble()));
     if (aircraftProfileComboBox_ != nullptr) {
         const QSignalBlocker blocker(aircraftProfileComboBox_);
@@ -11480,12 +9409,12 @@ void MainWindow::loadWindowSettings()
         const double roamSpeed = uiHistoryStore.loadDouble(
             QString::fromLatin1(kRouteHistoryIdRoamSpeedMps),
             settings.value(
-                QStringLiteral("route/roam/speedMps"),
+                settingskeys::kRouteRoamSpeedMps,
                 viewer_->inspectionRouteRoamSpeedMetersPerSecond()).toDouble());
         const int savedRoamViewModeValue = uiHistoryStore.loadInt(
             QString::fromLatin1(kRouteHistoryIdRoamViewMode),
             settings.value(
-                QStringLiteral("route/roam/viewMode"),
+                settingskeys::kRouteRoamViewMode,
                 static_cast<int>(viewer_->inspectionRouteRoamViewMode())).toInt());
         const RouteRoamViewMode savedRoamViewMode =
             savedRoamViewModeValue == static_cast<int>(RouteRoamViewMode::FirstPerson)
@@ -11506,16 +9435,16 @@ void MainWindow::loadWindowSettings()
     setRouteEditingEnabled(
         uiHistoryStore.loadBool(
             QString::fromLatin1(kRouteHistoryIdEditingEnabled),
-            settings.value(QStringLiteral("route/editingEnabled"), routeEditingEnabled_).toBool()),
+            settings.value(settingskeys::kRouteEditingEnabled, routeEditingEnabled_).toBool()),
         false);
 
     if (routeWaypointLabelModeComboBox_ != nullptr) {
         const int savedWaypointLabelMode = uiHistoryStore.loadInt(
             QString::fromLatin1(kRouteHistoryIdDisplayWaypointLabelMode),
             settings.value(
-                QStringLiteral("route/display/waypointLabelMode"),
+                settingskeys::kRouteDisplayWaypointLabelMode,
                 settings.value(
-                    QStringLiteral("window/routeWaypointLabelMode"),
+                    settingskeys::kWindowRouteWaypointLabelMode,
                     static_cast<int>(RouteLabelDisplayMode::Name))).toInt());
         const int waypointLabelModeIndex = routeWaypointLabelModeComboBox_->findData(savedWaypointLabelMode);
         const QSignalBlocker blocker(routeWaypointLabelModeComboBox_);
@@ -11525,9 +9454,9 @@ void MainWindow::loadWindowSettings()
         const int savedPartLabelMode = uiHistoryStore.loadInt(
             QString::fromLatin1(kRouteHistoryIdDisplayPartLabelMode),
             settings.value(
-                QStringLiteral("route/display/partLabelMode"),
+                settingskeys::kRouteDisplayPartLabelMode,
                 settings.value(
-                    QStringLiteral("window/routePartLabelMode"),
+                    settingskeys::kWindowRoutePartLabelMode,
                     static_cast<int>(RouteLabelDisplayMode::Name))).toInt());
         const int partLabelModeIndex = routePartLabelModeComboBox_->findData(savedPartLabelMode);
         const QSignalBlocker blocker(routePartLabelModeComboBox_);
@@ -11539,8 +9468,8 @@ void MainWindow::loadWindowSettings()
             uiHistoryStore.loadBool(
                 QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCoordinates),
                 settings.value(
-                    QStringLiteral("route/display/waypointShowCoordinates"),
-                    settings.value(QStringLiteral("window/routeWaypointShowCoordinates"), true)).toBool()));
+                    settingskeys::kRouteDisplayWaypointShowCoordinates,
+                    settings.value(settingskeys::kWindowRouteWaypointShowCoordinates, true)).toBool()));
     }
     if (routeWaypointShowCaptureAnglesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routeWaypointShowCaptureAnglesCheckBox_);
@@ -11548,8 +9477,8 @@ void MainWindow::loadWindowSettings()
             uiHistoryStore.loadBool(
                 QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCaptureAngles),
                 settings.value(
-                    QStringLiteral("route/display/waypointShowCaptureAngles"),
-                    settings.value(QStringLiteral("window/routeWaypointShowCaptureAngles"), true)).toBool()));
+                    settingskeys::kRouteDisplayWaypointShowCaptureAngles,
+                    settings.value(settingskeys::kWindowRouteWaypointShowCaptureAngles, true)).toBool()));
     }
     if (routePartShowCoordinatesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routePartShowCoordinatesCheckBox_);
@@ -11557,8 +9486,8 @@ void MainWindow::loadWindowSettings()
             uiHistoryStore.loadBool(
                 QString::fromLatin1(kRouteHistoryIdDisplayPartShowCoordinates),
                 settings.value(
-                    QStringLiteral("route/display/partShowCoordinates"),
-                    settings.value(QStringLiteral("window/routePartShowCoordinates"), true)).toBool()));
+                    settingskeys::kRouteDisplayPartShowCoordinates,
+                    settings.value(settingskeys::kWindowRoutePartShowCoordinates, true)).toBool()));
     }
     if (routePartShowCaptureAnglesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routePartShowCaptureAnglesCheckBox_);
@@ -11566,8 +9495,8 @@ void MainWindow::loadWindowSettings()
             uiHistoryStore.loadBool(
                 QString::fromLatin1(kRouteHistoryIdDisplayPartShowCaptureAngles),
                 settings.value(
-                    QStringLiteral("route/display/partShowCaptureAngles"),
-                    settings.value(QStringLiteral("window/routePartShowCaptureAngles"), true)).toBool()));
+                    settingskeys::kRouteDisplayPartShowCaptureAngles,
+                    settings.value(settingskeys::kWindowRoutePartShowCaptureAngles, true)).toBool()));
     }
     if (viewer_ != nullptr) {
         if (routeWaypointLabelModeComboBox_ != nullptr) {
@@ -11582,22 +9511,17 @@ void MainWindow::loadWindowSettings()
     applyRouteWaypointTableColumnVisibility();
     applyRoutePartTableColumnVisibility();
 
-    if (logLevelFilterComboBox_ != nullptr) {
-        const int savedFilterLevel = settings.value(QStringLiteral("window/logFilterLevel"), -1).toInt();
-        const int filterIndex = logLevelFilterComboBox_->findData(savedFilterLevel);
-        logLevelFilterComboBox_->setCurrentIndex(filterIndex >= 0 ? filterIndex : 0);
-    }
-    if (logSearchLineEdit_ != nullptr) {
-        logSearchLineEdit_->setText(settings.value(QStringLiteral("window/logSearchKeyword")).toString());
-    }
-    if (logAutoScrollCheckBox_ != nullptr) {
-        logAutoScrollCheckBox_->setChecked(settings.value(QStringLiteral("window/logAutoScroll"), true).toBool());
+    if (logDock_ != nullptr) {
+        const int savedFilterLevel = settings.value(settingskeys::kWindowLogFilterLevel, -1).toInt();
+        logDock_->setSelectedFilterLevel(savedFilterLevel);
+        logDock_->setSearchKeyword(settings.value(settingskeys::kWindowLogSearchKeyword).toString());
+        logDock_->setAutoScrollEnabled(settings.value(settingskeys::kWindowLogAutoScroll, true).toBool());
     }
 
     if (!restoredState) {
-        const bool showLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
-        const bool showProfileClassification = settings.value(QStringLiteral("window/showProfileClassification"), false).toBool();
-        const bool showRouteDetails = settings.value(QStringLiteral("window/showRouteDetails"), false).toBool();
+        const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
+        const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
+        const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
         if (logDock_ != nullptr) {
             logDock_->setVisible(showLog);
         }
@@ -11641,44 +9565,44 @@ void MainWindow::persistWindowSettings() const
 
     QSettings settings;
     const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
-    settings.setValue(QStringLiteral("window/geometry"), saveGeometry());
-    settings.setValue(QStringLiteral("window/state"), saveState(kMainWindowStateVersion));
-    settings.setValue(QStringLiteral("window/maximized"), isMaximized());
-    settings.setValue(QStringLiteral("window/showLog"), logDock_ != nullptr && logDock_->isVisible());
-    settings.setValue(QStringLiteral("window/showProfile"), profileDock_ != nullptr && profileDock_->isVisible());
+    settings.setValue(settingskeys::kWindowGeometry, saveGeometry());
+    settings.setValue(settingskeys::kWindowState, saveState(kMainWindowStateVersion));
+    settings.setValue(settingskeys::kWindowMaximized, isMaximized());
+    settings.setValue(settingskeys::kWindowShowLog, logDock_ != nullptr && logDock_->isVisible());
+    settings.setValue(settingskeys::kWindowShowProfile, profileDock_ != nullptr && profileDock_->isVisible());
     settings.setValue(
-        QStringLiteral("window/showProfileClassification"),
+        settingskeys::kWindowShowProfileClassification,
         profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
     settings.setValue(
-        QStringLiteral("window/showRouteDetails"),
+        settingskeys::kWindowShowRouteDetails,
         routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible());
     settings.setValue(
-        QStringLiteral("window/inspectorTab"),
+        settingskeys::kWindowInspectorTab,
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
     settings.setValue(
-        QStringLiteral("window/routeDetailsTab"),
+        settingskeys::kWindowRouteDetailsTab,
         routeDetailsTabWidget_ != nullptr ? routeDetailsTabWidget_->currentIndex() : 0);
     settings.setValue(
-        QStringLiteral("window/routeWaypointLabelMode"),
+        settingskeys::kWindowRouteWaypointLabelMode,
         routeWaypointLabelModeComboBox_ != nullptr
             ? routeWaypointLabelModeComboBox_->currentData().toInt()
             : static_cast<int>(RouteLabelDisplayMode::Name));
     settings.setValue(
-        QStringLiteral("window/routePartLabelMode"),
+        settingskeys::kWindowRoutePartLabelMode,
         routePartLabelModeComboBox_ != nullptr
             ? routePartLabelModeComboBox_->currentData().toInt()
             : static_cast<int>(RouteLabelDisplayMode::Name));
     settings.setValue(
-        QStringLiteral("window/routeWaypointShowCoordinates"),
+        settingskeys::kWindowRouteWaypointShowCoordinates,
         routeWaypointShowCoordinatesCheckBox_ == nullptr || routeWaypointShowCoordinatesCheckBox_->isChecked());
     settings.setValue(
-        QStringLiteral("window/routeWaypointShowCaptureAngles"),
+        settingskeys::kWindowRouteWaypointShowCaptureAngles,
         routeWaypointShowCaptureAnglesCheckBox_ == nullptr || routeWaypointShowCaptureAnglesCheckBox_->isChecked());
     settings.setValue(
-        QStringLiteral("window/routePartShowCoordinates"),
+        settingskeys::kWindowRoutePartShowCoordinates,
         routePartShowCoordinatesCheckBox_ == nullptr || routePartShowCoordinatesCheckBox_->isChecked());
     settings.setValue(
-        QStringLiteral("window/routePartShowCaptureAngles"),
+        settingskeys::kWindowRoutePartShowCaptureAngles,
         routePartShowCaptureAnglesCheckBox_ == nullptr || routePartShowCaptureAnglesCheckBox_->isChecked());
     const int waypointLabelMode = routeWaypointLabelModeComboBox_ != nullptr
         ? routeWaypointLabelModeComboBox_->currentData().toInt()
@@ -11703,21 +9627,21 @@ void MainWindow::persistWindowSettings() const
             ? routeRoamViewModeComboBox_->currentData().toInt()
             : static_cast<int>(RouteRoamViewMode::ThirdPerson));
 
-    settings.setValue(QStringLiteral("route/display/waypointLabelMode"), waypointLabelMode);
-    settings.setValue(QStringLiteral("route/display/partLabelMode"), partLabelMode);
-    settings.setValue(QStringLiteral("route/display/waypointShowCoordinates"), waypointShowCoordinates);
-    settings.setValue(QStringLiteral("route/display/waypointShowCaptureAngles"), waypointShowCaptureAngles);
-    settings.setValue(QStringLiteral("route/display/partShowCoordinates"), partShowCoordinates);
-    settings.setValue(QStringLiteral("route/display/partShowCaptureAngles"), partShowCaptureAngles);
-    settings.setValue(QStringLiteral("route/editingEnabled"), routeEditingEnabled_);
-    settings.setValue(QStringLiteral("route/planning/aircraftProfile"), static_cast<int>(routePlanningOptions_.aircraftProfile));
-    settings.setValue(QStringLiteral("route/planning/safetyHeightMeters"), routePlanningOptions_.safety.safetyHeightMeters);
-    settings.setValue(QStringLiteral("route/planning/waypointSpeedMps"), routePlanningOptions_.safety.defaultWaypointSpeedMps);
-    settings.setValue(QStringLiteral("route/planning/waypointSpacingMeters"), routePlanningOptions_.generation.waypointSpacingMeters);
-    settings.setValue(QStringLiteral("route/planning/smoothingStrengthPercent"), routePlanningOptions_.generation.smoothingStrengthPercent);
-    settings.setValue(QStringLiteral("route/planning/heightOffsetMeters"), routePlanningOptions_.safety.heightOffsetMeters);
-    settings.setValue(QStringLiteral("route/roam/speedMps"), roamSpeed);
-    settings.setValue(QStringLiteral("route/roam/viewMode"), roamViewMode);
+    settings.setValue(settingskeys::kRouteDisplayWaypointLabelMode, waypointLabelMode);
+    settings.setValue(settingskeys::kRouteDisplayPartLabelMode, partLabelMode);
+    settings.setValue(settingskeys::kRouteDisplayWaypointShowCoordinates, waypointShowCoordinates);
+    settings.setValue(settingskeys::kRouteDisplayWaypointShowCaptureAngles, waypointShowCaptureAngles);
+    settings.setValue(settingskeys::kRouteDisplayPartShowCoordinates, partShowCoordinates);
+    settings.setValue(settingskeys::kRouteDisplayPartShowCaptureAngles, partShowCaptureAngles);
+    settings.setValue(settingskeys::kRouteEditingEnabled, routeEditingEnabled_);
+    settings.setValue(settingskeys::kRoutePlanningAircraftProfile, static_cast<int>(routePlanningOptions_.aircraftProfile));
+    settings.setValue(settingskeys::kRoutePlanningSafetyHeightMeters, routePlanningOptions_.safety.safetyHeightMeters);
+    settings.setValue(settingskeys::kRoutePlanningWaypointSpeedMps, routePlanningOptions_.safety.defaultWaypointSpeedMps);
+    settings.setValue(settingskeys::kRoutePlanningWaypointSpacingMeters, routePlanningOptions_.generation.waypointSpacingMeters);
+    settings.setValue(settingskeys::kRoutePlanningSmoothingStrengthPercent, routePlanningOptions_.generation.smoothingStrengthPercent);
+    settings.setValue(settingskeys::kRoutePlanningHeightOffsetMeters, routePlanningOptions_.safety.heightOffsetMeters);
+    settings.setValue(settingskeys::kRouteRoamSpeedMps, roamSpeed);
+    settings.setValue(settingskeys::kRouteRoamViewMode, roamViewMode);
 
     uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayWaypointLabelMode), waypointLabelMode);
     uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayPartLabelMode), partLabelMode);
@@ -11737,20 +9661,20 @@ void MainWindow::persistWindowSettings() const
     uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdRoamSpeedMps), roamSpeed);
     uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdRoamViewMode), roamViewMode);
     settings.setValue(
-        QStringLiteral("window/logFilterLevel"),
-        logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1);
+        settingskeys::kWindowLogFilterLevel,
+        logDock_ != nullptr ? logDock_->selectedFilterLevel() : -1);
     settings.setValue(
-        QStringLiteral("window/logSearchKeyword"),
-        logSearchLineEdit_ != nullptr ? logSearchLineEdit_->text() : QString());
+        settingskeys::kWindowLogSearchKeyword,
+        logDock_ != nullptr ? logDock_->searchKeyword() : QString());
     settings.setValue(
-        QStringLiteral("window/logAutoScroll"),
-        logAutoScrollCheckBox_ == nullptr || logAutoScrollCheckBox_->isChecked());
+        settingskeys::kWindowLogAutoScroll,
+        logDock_ == nullptr || logDock_->autoScrollEnabled());
 }
 
 void MainWindow::loadThemeSettings()
 {
     const int storedTheme = QSettings().value(
-        QStringLiteral("ui/theme"),
+        settingskeys::kUiTheme,
         static_cast<int>(Qtitan::RibbonStyle::Office2016Colorful)).toInt();
 
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
@@ -11763,7 +9687,7 @@ void MainWindow::loadThemeSettings()
 void MainWindow::persistThemeSettings() const
 {
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
-        QSettings().setValue(QStringLiteral("ui/theme"), static_cast<int>(ribbonStyle->getTheme()));
+        QSettings().setValue(settingskeys::kUiTheme, static_cast<int>(ribbonStyle->getTheme()));
     }
 }
 
@@ -12600,46 +10524,9 @@ void MainWindow::rebuildProjectTree()
 
 void MainWindow::refreshProjectTreeFilter()
 {
-    if (projectTreeWidget_ == nullptr) {
-        return;
+    if (projectExplorerController_ != nullptr) {
+        projectExplorerController_->refreshFilter();
     }
-
-    const QString filterText = projectSearchEdit_ != nullptr ? projectSearchEdit_->text().trimmed() : QString();
-    const auto updateItemVisibility = [&filterText](auto&& self, QTreeWidgetItem* item) -> bool {
-        if (item == nullptr) {
-            return false;
-        }
-
-        bool hasVisibleChild = false;
-        for (int childIndex = 0; childIndex < item->childCount(); ++childIndex) {
-            hasVisibleChild = self(self, item->child(childIndex)) || hasVisibleChild;
-        }
-
-        const QString itemText = item->text(0) + QLatin1Char('\n') + item->toolTip(0);
-        const bool matchesSelf =
-            filterText.isEmpty()
-            || itemText.contains(filterText, Qt::CaseInsensitive);
-        const QString itemType = item->data(0, kProjectTreeItemTypeRole).toString();
-        const bool forceVisible = itemType == QStringLiteral("pointCloudGroup")
-            || itemType == QStringLiteral("imageGroup")
-            || itemType == QStringLiteral("trajectoryGroup");
-        const bool visible = forceVisible || matchesSelf || hasVisibleChild;
-        item->setHidden(!visible);
-        if (!filterText.isEmpty() && visible && item->childCount() > 0) {
-            item->setExpanded(true);
-        }
-        return visible;
-    };
-
-    for (int rootIndex = 0; rootIndex < projectTreeWidget_->topLevelItemCount(); ++rootIndex) {
-        updateItemVisibility(updateItemVisibility, projectTreeWidget_->topLevelItem(rootIndex));
-    }
-
-    if (QTreeWidgetItem* currentItem = projectTreeWidget_->currentItem();
-        currentItem != nullptr && currentItem->isHidden()) {
-        projectTreeWidget_->setCurrentItem(nullptr);
-    }
-
     updateActionState();
 }
 
@@ -13468,3 +11355,6 @@ void MainWindow::applyLanguage(UiLanguage language)
     persistLanguageSettings();
     retranslateUi();
 }
+
+
+

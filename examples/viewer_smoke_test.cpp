@@ -1,9 +1,12 @@
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -11,13 +14,24 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
 #include <QOpenGLWidget>
+#include <QListWidget>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSet>
+#include <QSlider>
+#include <QSpinBox>
 #include <QSurfaceFormat>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
+#include <QToolBar>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QTranslator>
+#include <QLineEdit>
 
 #include <cmath>
 #include <functional>
@@ -26,8 +40,19 @@
 #include "crs/CrsAuthorityService.h"
 #include "domain/InspectionData.h"
 #include "domain/TowerFileInterop.h"
+#include "gui/ApplicationLogDock.h"
+#include "gui/IssueController.h"
 #include "gui/MainWindow.h"
+#include "gui/MeasurementAnalysisController.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/ProfileClassificationController.h"
+#include "gui/ProfileClassificationWidget.h"
+#include "gui/ProjectExplorerController.h"
+#include "gui/ProjectExplorerDock.h"
+#include "gui/RouteController.h"
+#include "gui/TowerController.h"
+#include "gui/VisualizationPanelController.h"
+#include "logging/ApplicationLogger.h"
 #include "route/InspectionRoutePlanning.h"
 #include "route/PowerlineRouteBridge.h"
 #include "route/PowerlineRouteJson.h"
@@ -224,6 +249,1167 @@ bool runMainBackstageSmoke(const QStringList&)
     }
 
     std::cout << "[PASS] Main backstage smoke test completed." << std::endl;
+    return true;
+}
+
+bool runLogPanelSmoke(const QStringList&)
+{
+    lasviewer::logging::ApplicationLogger::instance().clear();
+    lasviewer::logging::ApplicationLogger::instance().log(
+        lasviewer::logging::LogLevel::Info,
+        QStringLiteral("UI"),
+        QStringLiteral("Dock created"));
+    lasviewer::logging::ApplicationLogger::instance().log(
+        lasviewer::logging::LogLevel::Warning,
+        QStringLiteral("Route"),
+        QStringLiteral("Route review warning"));
+    lasviewer::logging::ApplicationLogger::instance().log(
+        lasviewer::logging::LogLevel::Error,
+        QStringLiteral("Tower"),
+        QStringLiteral("Tower sync failed"));
+
+    ApplicationLogDock dock;
+    dock.resize(900, 320);
+    dock.show();
+    pumpEvents(120);
+
+    if (!verify(dock.totalEntryCount() == 3, "Log dock should load all logger entries")) {
+        return false;
+    }
+    if (!verify(dock.visibleEntryCount() == 3, "Log dock should show all entries by default")) {
+        return false;
+    }
+
+    dock.setSelectedFilterLevel(static_cast<int>(lasviewer::logging::LogLevel::Warning));
+    pumpEvents(60);
+    if (!verify(dock.visibleEntryCount() == 1, "Warning filter should show one entry")) {
+        return false;
+    }
+
+    dock.setSelectedFilterLevel(-1);
+    dock.setSearchKeyword(QStringLiteral("tower"));
+    pumpEvents(60);
+    if (!verify(dock.visibleEntryCount() == 1, "Search keyword should narrow results to one entry")) {
+        return false;
+    }
+
+    lasviewer::logging::ApplicationLogger::instance().clear();
+    pumpEvents(60);
+    if (!verify(dock.totalEntryCount() == 0, "Clearing logger should refresh dock state")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Log panel smoke test completed." << std::endl;
+    return true;
+}
+
+bool runProjectExplorerDockSmoke(const QStringList&)
+{
+    ProjectExplorerDock dock;
+    dock.resize(960, 420);
+
+    QAction openAction(QStringLiteral("Open"), &dock);
+    QAction addAction(QStringLiteral("Add"), &dock);
+    QAction removeAction(QStringLiteral("Remove"), &dock);
+    dock.toolBar()->addAction(&openAction);
+    dock.toolBar()->addAction(&addAction);
+    dock.toolBar()->addAction(&removeAction);
+
+    auto* projectItem = new QTreeWidgetItem(QStringList { QStringLiteral("Project Properties") });
+    dock.treeWidget()->addTopLevelItem(projectItem);
+    dock.searchEdit()->setText(QStringLiteral("project"));
+    dock.show();
+    pumpEvents(120);
+
+    if (!verify(dock.toolBar()->actions().size() == 3, "Project explorer toolbar should expose injected actions")) {
+        return false;
+    }
+    if (!verify(dock.treeWidget()->topLevelItemCount() == 1, "Project explorer should expose the tree widget")) {
+        return false;
+    }
+    if (!verify(dock.searchEdit()->text() == QStringLiteral("project"), "Project explorer should expose the search field")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Project explorer dock smoke test completed." << std::endl;
+    return true;
+}
+
+bool runProjectExplorerControllerSmoke(const QStringList&)
+{
+    ProjectExplorerDock dock;
+    QAction openAction(QStringLiteral("Open"), &dock);
+    QAction addAction(QStringLiteral("Add"), &dock);
+    QAction removeAction(QStringLiteral("Remove"), &dock);
+    QAction locateAction(QStringLiteral("Locate"), &dock);
+    QAction copyAction(QStringLiteral("Copy"), &dock);
+    QAction expandAction(QStringLiteral("Expand"), &dock);
+    QAction collapseAction(QStringLiteral("Collapse"), &dock);
+
+    ProjectExplorerController controller(
+        &dock,
+        &openAction,
+        &addAction,
+        &removeAction,
+        &locateAction,
+        &copyAction,
+        &expandAction,
+        &collapseAction);
+
+    auto* root = new QTreeWidgetItem(QStringList { QStringLiteral("Root") });
+    auto* child = new QTreeWidgetItem(QStringList { QStringLiteral("Child") });
+    root->addChild(child);
+    dock.treeWidget()->addTopLevelItem(root);
+    auto* anotherRoot = new QTreeWidgetItem(QStringList { QStringLiteral("Images") });
+    dock.treeWidget()->addTopLevelItem(anotherRoot);
+
+    int searchSignalCount = 0;
+    int openRequestedCount = 0;
+    int locateRequestedCount = 0;
+    QObject::connect(&controller, &ProjectExplorerController::searchTextChanged, &dock, [&](const QString&) {
+        ++searchSignalCount;
+    });
+    QObject::connect(&controller, &ProjectExplorerController::openRequested, &dock, [&]() {
+        ++openRequestedCount;
+    });
+    QObject::connect(&controller, &ProjectExplorerController::locateSelectedRequested, &dock, [&]() {
+        ++locateRequestedCount;
+    });
+
+    dock.show();
+    pumpEvents(100);
+
+    int nonSeparatorActionCount = 0;
+    for (QAction* action : dock.toolBar()->actions()) {
+        if (action != nullptr && !action->isSeparator()) {
+            ++nonSeparatorActionCount;
+        }
+    }
+    if (!verify(nonSeparatorActionCount == 7, "Project explorer controller should populate toolbar actions")) {
+        return false;
+    }
+
+    dock.searchEdit()->setText(QStringLiteral("child"));
+    pumpEvents(50);
+    if (!verify(searchSignalCount == 1, "Controller should forward search text changes")) {
+        return false;
+    }
+    controller.refreshFilter();
+    if (!verify(!root->isHidden(), "Matching branch should stay visible after filter")) {
+        return false;
+    }
+    if (!verify(anotherRoot->isHidden(), "Non-matching branch should hide after filter")) {
+        return false;
+    }
+
+    openAction.trigger();
+    locateAction.trigger();
+    pumpEvents(30);
+    if (!verify(openRequestedCount == 1, "Controller should emit openRequested when open action triggers")) {
+        return false;
+    }
+    if (!verify(locateRequestedCount == 1, "Controller should emit locateSelectedRequested when locate action triggers")) {
+        return false;
+    }
+
+    expandAction.trigger();
+    pumpEvents(50);
+    if (!verify(root->isExpanded(), "Expand action should expand tree items")) {
+        return false;
+    }
+
+    collapseAction.trigger();
+    pumpEvents(50);
+    if (!verify(root->isExpanded(), "Collapse action should keep the first root expanded")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Project explorer controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runProfileClassificationWidgetSmoke(const QStringList&)
+{
+    ProfileClassificationWidget widget;
+    widget.resize(420, 760);
+    widget.show();
+    pumpEvents(120);
+
+    if (!verify(widget.title() == QString::fromUtf8("3D Profile Classification"), "Profile classification widget should set its group title")) {
+        return false;
+    }
+    if (!verify(widget.modeComboBox() != nullptr, "Profile classification widget should expose mode combo box")) {
+        return false;
+    }
+    if (!verify(widget.modeComboBox()->count() == 2, "Profile classification widget should provide 2 selection modes")) {
+        return false;
+    }
+    if (!verify(widget.sourceListWidget() != nullptr, "Profile classification widget should expose source list widget")) {
+        return false;
+    }
+    if (!verify(widget.targetListWidget() != nullptr, "Profile classification widget should expose target list widget")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Profile classification widget smoke test completed." << std::endl;
+    return true;
+}
+
+bool runProfileClassificationControllerSmoke(const QStringList& filePaths)
+{
+    PointCloudViewer viewer;
+    viewer.resize(1024, 768);
+    viewer.show();
+    pumpEvents(300);
+
+    const QString lasPath = filePaths.isEmpty() ? QString() : filePaths.first();
+    if (!verify(!lasPath.isEmpty(), "Profile classification controller smoke requires LAS input")) {
+        return false;
+    }
+    if (!verify(QFileInfo::exists(lasPath), "Profile classification controller smoke LAS file should exist")) {
+        return false;
+    }
+
+    QString errorMessage;
+    if (!viewer.loadPointCloud(lasPath, &errorMessage)) {
+        std::cerr << "[FAIL] loadPointCloud: " << errorMessage.toStdString() << std::endl;
+        return false;
+    }
+    pumpEvents(900);
+
+    ProfileClassificationWidget widget;
+    QAction profileAction(QStringLiteral("Profile"), &widget);
+    profileAction.setCheckable(true);
+    QAction saveAction(QStringLiteral("Save"), &widget);
+    QAction undoAction(QStringLiteral("Undo"), &widget);
+    QAction redoAction(QStringLiteral("Redo"), &widget);
+    QAction clearAction(QStringLiteral("Clear"), &widget);
+
+    ProfileClassificationController controller(
+        &widget,
+        &viewer,
+        &profileAction,
+        &saveAction,
+        &undoAction,
+        &redoAction,
+        &clearAction,
+        [](int classificationCode) {
+            return QStringLiteral("Class %1").arg(classificationCode);
+        });
+
+    controller.initializeClassificationItems(QList<int> { 2, 5, 16 });
+
+    widget.resize(420, 760);
+    widget.show();
+    pumpEvents(120);
+
+    if (!verify(widget.sourceListWidget()->count() == 3, "Profile classification controller should initialize source list items")) {
+        return false;
+    }
+    if (!verify(widget.targetListWidget()->count() == 3, "Profile classification controller should initialize target list items")) {
+        return false;
+    }
+    if (!verify(widget.sourceListWidget()->item(0)->text().contains(QStringLiteral("Class")), "Controller should apply classification display names")) {
+        return false;
+    }
+
+    widget.selectAllButton()->click();
+    pumpEvents(60);
+    if (!verify(viewer.profileClassificationSourceClasses().size() == 3, "Select all should sync source classes into viewer")) {
+        return false;
+    }
+
+    widget.clearSelectionButton()->click();
+    pumpEvents(60);
+    if (!verify(viewer.profileClassificationSourceClasses().isEmpty(), "Clear sources should clear selected classes in viewer")) {
+        return false;
+    }
+
+    widget.targetListWidget()->setCurrentRow(1);
+    pumpEvents(40);
+    if (!verify(viewer.profileClassificationTargetClass() == 5, "Target list selection should sync target class into viewer")) {
+        return false;
+    }
+
+    widget.modeComboBox()->setCurrentIndex(1);
+    pumpEvents(40);
+    if (!verify(
+            viewer.profileClassificationSelectionMode() == ProfileClassificationSelectionMode::Polygon,
+            "Mode combo box should sync selection mode into viewer")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Profile classification controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runVisualizationPanelControllerSmoke(const QStringList&)
+{
+    PointCloudViewer viewer;
+
+    QAction showAxesAction(QStringLiteral("Axes"), &viewer);
+    showAxesAction.setCheckable(true);
+    QAction showBoundingBoxAction(QStringLiteral("Bounds"), &viewer);
+    showBoundingBoxAction.setCheckable(true);
+    QAction darkBackgroundAction(QStringLiteral("Dark"), &viewer);
+    QAction lightBackgroundAction(QStringLiteral("Light"), &viewer);
+    QAction rgbColorAction(QStringLiteral("RGB"), &viewer);
+    QAction elevationColorAction(QStringLiteral("Elevation"), &viewer);
+    QAction singleColorAction(QStringLiteral("Single"), &viewer);
+    QAction classificationColorAction(QStringLiteral("Classification"), &viewer);
+
+    QSlider pointSizeSlider(Qt::Horizontal);
+    pointSizeSlider.setRange(1, 20);
+    QLabel pointSizeLabel;
+    QSlider pointOpacitySlider(Qt::Horizontal);
+    pointOpacitySlider.setRange(10, 100);
+    QLabel pointOpacityLabel;
+    QSlider depthCueSlider(Qt::Horizontal);
+    depthCueSlider.setRange(0, 100);
+    QLabel depthCueLabel;
+    QSlider edlStrengthSlider(Qt::Horizontal);
+    edlStrengthSlider.setRange(0, 100);
+    QLabel edlStrengthLabel;
+
+    QComboBox colorModeComboBox;
+    colorModeComboBox.addItem(QStringLiteral("RGB"));
+    colorModeComboBox.addItem(QStringLiteral("Elevation"));
+    colorModeComboBox.addItem(QStringLiteral("Single"));
+    colorModeComboBox.addItem(QStringLiteral("Classification"));
+
+    QPushButton pointColorButton(QStringLiteral("Point"));
+    QPushButton backgroundColorButton(QStringLiteral("Background"));
+    int choosePointColorCount = 0;
+    int chooseBackgroundColorCount = 0;
+
+    VisualizationPanelController controller(
+        &viewer,
+        &showAxesAction,
+        &showBoundingBoxAction,
+        &darkBackgroundAction,
+        &lightBackgroundAction,
+        &rgbColorAction,
+        &elevationColorAction,
+        &singleColorAction,
+        &classificationColorAction,
+        &pointSizeSlider,
+        &pointSizeLabel,
+        &pointOpacitySlider,
+        &pointOpacityLabel,
+        &depthCueSlider,
+        &depthCueLabel,
+        &edlStrengthSlider,
+        &edlStrengthLabel,
+        &colorModeComboBox,
+        &pointColorButton,
+        &backgroundColorButton,
+        [&choosePointColorCount]() { ++choosePointColorCount; },
+        [&chooseBackgroundColorCount]() { ++chooseBackgroundColorCount; });
+    Q_UNUSED(controller);
+
+    const bool initialAxesVisible = viewer.visualizationOptions().showAxes;
+    showAxesAction.setChecked(initialAxesVisible);
+    showAxesAction.setChecked(!initialAxesVisible);
+    if (!verify(
+            viewer.visualizationOptions().showAxes == !initialAxesVisible,
+            "Visualization controller should sync axes action to viewer")) {
+        return false;
+    }
+
+    const bool initialBoundsVisible = viewer.visualizationOptions().showBoundingBox;
+    showBoundingBoxAction.setChecked(initialBoundsVisible);
+    showBoundingBoxAction.setChecked(!initialBoundsVisible);
+    if (!verify(
+            viewer.visualizationOptions().showBoundingBox == !initialBoundsVisible,
+            "Visualization controller should sync bounds action to viewer")) {
+        return false;
+    }
+
+    darkBackgroundAction.trigger();
+    if (!verify(
+            viewer.visualizationOptions().backgroundColor == QColor(20, 28, 38),
+            "Visualization controller should apply dark background action")) {
+        return false;
+    }
+
+    lightBackgroundAction.trigger();
+    if (!verify(
+            viewer.visualizationOptions().backgroundColor == QColor(241, 244, 249),
+            "Visualization controller should apply light background action")) {
+        return false;
+    }
+
+    classificationColorAction.trigger();
+    if (!verify(
+            viewer.visualizationOptions().colorMode == PointCloudColorMode::Classification,
+            "Visualization controller should sync classification color action")) {
+        return false;
+    }
+
+    pointSizeSlider.setValue(12);
+    if (!verify(
+            viewer.visualizationOptions().pointSize == 12,
+            "Visualization controller should sync point size slider to viewer")) {
+        return false;
+    }
+    if (!verify(
+            pointSizeLabel.text().contains(QStringLiteral("12")),
+            "Visualization controller should update point size label text")) {
+        return false;
+    }
+
+    pointOpacitySlider.setValue(65);
+    if (!verifyClose(
+            viewer.visualizationOptions().pointOpacity,
+            0.65,
+            0.01,
+            "Visualization controller should sync point opacity slider to viewer")) {
+        return false;
+    }
+
+    colorModeComboBox.setCurrentIndex(2);
+    if (!verify(
+            viewer.visualizationOptions().colorMode == PointCloudColorMode::SingleColor,
+            "Visualization controller should sync color mode combo box")) {
+        return false;
+    }
+
+    pointColorButton.click();
+    backgroundColorButton.click();
+    if (!verify(choosePointColorCount == 1, "Visualization controller should forward point color button click")) {
+        return false;
+    }
+    if (!verify(chooseBackgroundColorCount == 1, "Visualization controller should forward background button click")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Visualization panel controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runMeasurementAnalysisControllerSmoke(const QStringList& filePaths)
+{
+    PointCloudViewer viewer;
+    viewer.resize(1024, 768);
+    viewer.show();
+    pumpEvents(300);
+
+    const QString lasPath = filePaths.isEmpty() ? QString() : filePaths.first();
+    if (!verify(!lasPath.isEmpty(), "Measurement analysis controller smoke requires LAS input")) {
+        return false;
+    }
+    if (!verify(QFileInfo::exists(lasPath), "Measurement analysis controller smoke LAS file should exist")) {
+        return false;
+    }
+
+    QString errorMessage;
+    if (!viewer.loadPointCloud(lasPath, &errorMessage)) {
+        std::cerr << "[FAIL] loadPointCloud: " << errorMessage.toStdString() << std::endl;
+        return false;
+    }
+    pumpEvents(900);
+
+    QAction measureAction(QStringLiteral("Measure"), &viewer);
+    measureAction.setCheckable(true);
+    QAction clearMeasurementAction(QStringLiteral("Clear"), &viewer);
+    QAction exportClearanceCsvAction(QStringLiteral("Export CSV"), &viewer);
+    QAction analyzeVegetationRisksAction(QStringLiteral("Analyze"), &viewer);
+    QAction focusVegetationRiskAction(QStringLiteral("Focus"), &viewer);
+    QAction createIssueFromRiskAction(QStringLiteral("Create One"), &viewer);
+    QAction createIssuesFromRisksAction(QStringLiteral("Create All"), &viewer);
+    QAction clearVegetationRisksAction(QStringLiteral("Clear Risks"), &viewer);
+
+    QPushButton measurementToggleButton(QStringLiteral("Toggle"));
+    QPushButton measurementClearButton(QStringLiteral("Clear"));
+    QDoubleSpinBox clearanceThresholdSpinBox;
+    QComboBox clearanceRulePresetComboBox;
+    clearanceRulePresetComboBox.addItem(QStringLiteral("Preset A"), 1);
+    clearanceRulePresetComboBox.addItem(QStringLiteral("Preset B"), 2);
+    QDoubleSpinBox vegetationSearchRadiusSpinBox;
+    QDoubleSpinBox vegetationClusterGapSpinBox;
+    QSpinBox vegetationClusterPointCountSpinBox;
+    QCheckBox preferVegetationClassificationCheckBox;
+    QTableWidget clearanceSegmentsTableWidget(2, 1);
+    QTableWidget vegetationRisksTableWidget(2, 1);
+
+    int syncProfileDockCallCount = 0;
+    int exportClearanceCsvCallCount = 0;
+    int analyzeVegetationRisksCallCount = 0;
+    int focusVegetationRiskCallCount = 0;
+    int createIssueFromSelectedRiskCallCount = 0;
+    int createIssuesFromRisksCallCount = 0;
+    int clearVegetationRisksCallCount = 0;
+    double latestClearanceThreshold = 0.0;
+    int latestClearanceRulePresetIndex = -1;
+    double latestVegetationSearchRadius = 0.0;
+    double latestVegetationClusterGap = 0.0;
+    int latestVegetationClusterPointCount = -1;
+    bool latestPreferVegetationClassification = false;
+    int latestSelectedClearanceSegment = -1;
+    int latestSelectedVegetationRisk = -1;
+
+    MeasurementAnalysisController controller(
+        &viewer,
+        &measureAction,
+        &clearMeasurementAction,
+        &exportClearanceCsvAction,
+        &analyzeVegetationRisksAction,
+        &focusVegetationRiskAction,
+        &createIssueFromRiskAction,
+        &createIssuesFromRisksAction,
+        &clearVegetationRisksAction,
+        &measurementToggleButton,
+        &measurementClearButton,
+        &clearanceThresholdSpinBox,
+        &clearanceRulePresetComboBox,
+        &vegetationSearchRadiusSpinBox,
+        &vegetationClusterGapSpinBox,
+        &vegetationClusterPointCountSpinBox,
+        &preferVegetationClassificationCheckBox,
+        &clearanceSegmentsTableWidget,
+        &vegetationRisksTableWidget,
+        [&syncProfileDockCallCount](bool) { ++syncProfileDockCallCount; },
+        [&exportClearanceCsvCallCount]() { ++exportClearanceCsvCallCount; },
+        [&analyzeVegetationRisksCallCount]() { ++analyzeVegetationRisksCallCount; },
+        [&focusVegetationRiskCallCount]() { ++focusVegetationRiskCallCount; },
+        [&createIssueFromSelectedRiskCallCount]() { ++createIssueFromSelectedRiskCallCount; },
+        [&createIssuesFromRisksCallCount]() { ++createIssuesFromRisksCallCount; },
+        [&clearVegetationRisksCallCount]() { ++clearVegetationRisksCallCount; },
+        [&latestClearanceThreshold](double value) { latestClearanceThreshold = value; },
+        [&latestClearanceRulePresetIndex](int index) { latestClearanceRulePresetIndex = index; },
+        [&latestVegetationSearchRadius](double value) { latestVegetationSearchRadius = value; },
+        [&latestVegetationClusterGap](double value) { latestVegetationClusterGap = value; },
+        [&latestVegetationClusterPointCount](int value) { latestVegetationClusterPointCount = value; },
+        [&latestPreferVegetationClassification](bool checked) { latestPreferVegetationClassification = checked; },
+        [&latestSelectedClearanceSegment](int row) { latestSelectedClearanceSegment = row; },
+        [&latestSelectedVegetationRisk](int row) { latestSelectedVegetationRisk = row; });
+    Q_UNUSED(controller);
+
+    const bool initialMeasurementEnabledFromAction = viewer.measurementEnabled();
+    measureAction.setChecked(initialMeasurementEnabledFromAction);
+    measureAction.setChecked(!initialMeasurementEnabledFromAction);
+    if (!verify(
+            viewer.measurementEnabled() == !initialMeasurementEnabledFromAction,
+            "Measurement controller should sync measure action to viewer")) {
+        return false;
+    }
+    if (!verify(syncProfileDockCallCount == 1, "Measurement controller should trigger profile dock sync callback")) {
+        return false;
+    }
+
+    const bool initialMeasurementEnabled = viewer.measurementEnabled();
+    measurementToggleButton.click();
+    if (!verify(
+            viewer.measurementEnabled() == !initialMeasurementEnabled,
+            "Measurement controller should toggle measurement mode from button")) {
+        return false;
+    }
+
+    exportClearanceCsvAction.trigger();
+    analyzeVegetationRisksAction.trigger();
+    focusVegetationRiskAction.trigger();
+    createIssueFromRiskAction.trigger();
+    createIssuesFromRisksAction.trigger();
+    clearVegetationRisksAction.trigger();
+    if (!verify(exportClearanceCsvCallCount == 1, "Measurement controller should forward export action")) {
+        return false;
+    }
+    if (!verify(analyzeVegetationRisksCallCount == 1, "Measurement controller should forward analyze action")) {
+        return false;
+    }
+    if (!verify(focusVegetationRiskCallCount == 1, "Measurement controller should forward focus action")) {
+        return false;
+    }
+    if (!verify(createIssueFromSelectedRiskCallCount == 1, "Measurement controller should forward create-one action")) {
+        return false;
+    }
+    if (!verify(createIssuesFromRisksCallCount == 1, "Measurement controller should forward create-all action")) {
+        return false;
+    }
+    if (!verify(clearVegetationRisksCallCount == 1, "Measurement controller should forward clear-risks action")) {
+        return false;
+    }
+
+    clearanceThresholdSpinBox.setValue(12.5);
+    if (!verifyClose(latestClearanceThreshold, 12.5, 0.001, "Measurement controller should forward threshold changes")) {
+        return false;
+    }
+    clearanceRulePresetComboBox.setCurrentIndex(1);
+    if (!verify(latestClearanceRulePresetIndex == 1, "Measurement controller should forward rule preset index")) {
+        return false;
+    }
+    vegetationSearchRadiusSpinBox.setValue(24.0);
+    if (!verifyClose(
+            latestVegetationSearchRadius,
+            24.0,
+            0.001,
+            "Measurement controller should forward vegetation search radius")) {
+        return false;
+    }
+    vegetationClusterGapSpinBox.setValue(6.0);
+    if (!verifyClose(
+            latestVegetationClusterGap,
+            6.0,
+            0.001,
+            "Measurement controller should forward vegetation cluster gap")) {
+        return false;
+    }
+    vegetationClusterPointCountSpinBox.setValue(5);
+    if (!verify(
+            latestVegetationClusterPointCount == 5,
+            "Measurement controller should forward vegetation cluster point count")) {
+        return false;
+    }
+    preferVegetationClassificationCheckBox.setChecked(true);
+    if (!verify(
+            latestPreferVegetationClassification,
+            "Measurement controller should forward prefer vegetation toggle")) {
+        return false;
+    }
+
+    clearanceSegmentsTableWidget.setCurrentCell(1, 0);
+    vegetationRisksTableWidget.setCurrentCell(1, 0);
+    if (!verify(
+            latestSelectedClearanceSegment == 1,
+            "Measurement controller should forward clearance table row selection")) {
+        return false;
+    }
+    if (!verify(
+            latestSelectedVegetationRisk == 1,
+            "Measurement controller should forward vegetation table row selection")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Measurement analysis controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runRouteControllerSmoke(const QStringList&)
+{
+    PointCloudViewer viewer;
+
+    QAction generateInspectionRouteAction(QStringLiteral("Generate"), &viewer);
+    QAction regenerateInspectionRouteAction(QStringLiteral("Regenerate"), &viewer);
+    QAction clearInspectionRouteAction(QStringLiteral("Clear Route"), &viewer);
+    QAction toggleRouteEditingAction(QStringLiteral("Edit"), &viewer);
+    toggleRouteEditingAction.setCheckable(true);
+    QAction startInspectionRouteRoamAction(QStringLiteral("Start Roam"), &viewer);
+    QAction pauseInspectionRouteRoamAction(QStringLiteral("Pause Roam"), &viewer);
+    QAction stopInspectionRouteRoamAction(QStringLiteral("Stop Roam"), &viewer);
+    QAction focusRouteWaypointAction(QStringLiteral("Focus Waypoint"), &viewer);
+    QAction importRouteFileAction(QStringLiteral("Import Route"), &viewer);
+    QAction saveRouteFileAction(QStringLiteral("Save Route"), &viewer);
+    QAction saveRouteFileAsAction(QStringLiteral("Save Route As"), &viewer);
+    QAction reloadRouteFileAction(QStringLiteral("Reload Route"), &viewer);
+    QAction importRouteKmlAction(QStringLiteral("Import KML"), &viewer);
+    QAction exportRouteKmlAction(QStringLiteral("Export KML"), &viewer);
+    QAction exportRouteDjiKmzAction(QStringLiteral("Export KMZ"), &viewer);
+
+    QPushButton routeRoamStartButton(QStringLiteral("Start"));
+    QPushButton routeRoamPauseResumeButton(QStringLiteral("Pause"));
+    QPushButton routeRoamStopButton(QStringLiteral("Stop"));
+    QDoubleSpinBox routeRoamSpeedSpinBox;
+    QComboBox routeRoamViewModeComboBox;
+    routeRoamViewModeComboBox.addItem(QStringLiteral("First"), 0);
+    routeRoamViewModeComboBox.addItem(QStringLiteral("Third"), 1);
+
+    int regenerateInspectionRouteCount = 0;
+    int clearInspectionRouteCount = 0;
+    int setRouteEditingEnabledCount = 0;
+    bool latestRouteEditingEnabled = false;
+    int startInspectionRouteRoamCount = 0;
+    int pauseResumeInspectionRouteRoamCount = 0;
+    int stopInspectionRouteRoamCount = 0;
+    double latestRouteRoamSpeed = 0.0;
+    int latestRouteRoamViewModeIndex = -1;
+    int focusRouteWaypointCount = 0;
+    int importRouteFileCount = 0;
+    int saveRouteFileCount = 0;
+    int saveRouteFileAsCount = 0;
+    int reloadRouteFileCount = 0;
+    int importRouteKmlCount = 0;
+    int exportRouteKmlCount = 0;
+    int exportRouteDjiKmzCount = 0;
+    int inspectionRouteRoamStateChangedCount = 0;
+    int inspectionRouteRoamPhotoCapturedCount = 0;
+
+    QList<PointRecord> roamWaypoints;
+    PointRecord first;
+    first.x = 0.0f;
+    first.y = 0.0f;
+    first.z = 30.0f;
+    roamWaypoints.append(first);
+    PointRecord second;
+    second.x = 120.0f;
+    second.y = 40.0f;
+    second.z = 32.0f;
+    roamWaypoints.append(second);
+    PointRecord third;
+    third.x = 240.0f;
+    third.y = 80.0f;
+    third.z = 35.0f;
+    roamWaypoints.append(third);
+
+    RouteController controller(
+        &viewer,
+        &generateInspectionRouteAction,
+        &regenerateInspectionRouteAction,
+        &clearInspectionRouteAction,
+        &toggleRouteEditingAction,
+        &startInspectionRouteRoamAction,
+        &pauseInspectionRouteRoamAction,
+        &stopInspectionRouteRoamAction,
+        &focusRouteWaypointAction,
+        &importRouteFileAction,
+        &saveRouteFileAction,
+        &saveRouteFileAsAction,
+        &reloadRouteFileAction,
+        &importRouteKmlAction,
+        &exportRouteKmlAction,
+        &exportRouteDjiKmzAction,
+        &routeRoamStartButton,
+        &routeRoamPauseResumeButton,
+        &routeRoamStopButton,
+        &routeRoamSpeedSpinBox,
+        &routeRoamViewModeComboBox,
+        [&regenerateInspectionRouteCount]() { ++regenerateInspectionRouteCount; },
+        [&clearInspectionRouteCount]() { ++clearInspectionRouteCount; },
+        [&setRouteEditingEnabledCount, &latestRouteEditingEnabled](bool enabled) {
+            ++setRouteEditingEnabledCount;
+            latestRouteEditingEnabled = enabled;
+        },
+        [&startInspectionRouteRoamCount]() { ++startInspectionRouteRoamCount; },
+        [&pauseResumeInspectionRouteRoamCount]() { ++pauseResumeInspectionRouteRoamCount; },
+        [&stopInspectionRouteRoamCount]() { ++stopInspectionRouteRoamCount; },
+        [&latestRouteRoamSpeed](double speed) { latestRouteRoamSpeed = speed; },
+        [&latestRouteRoamViewModeIndex](int index) { latestRouteRoamViewModeIndex = index; },
+        [&focusRouteWaypointCount]() { ++focusRouteWaypointCount; },
+        [&importRouteFileCount]() { ++importRouteFileCount; },
+        [&saveRouteFileCount]() { ++saveRouteFileCount; },
+        [&saveRouteFileAsCount]() { ++saveRouteFileAsCount; },
+        [&reloadRouteFileCount]() { ++reloadRouteFileCount; },
+        [&importRouteKmlCount]() { ++importRouteKmlCount; },
+        [&exportRouteKmlCount]() { ++exportRouteKmlCount; },
+        [&exportRouteDjiKmzCount]() { ++exportRouteDjiKmzCount; },
+        [&inspectionRouteRoamStateChangedCount]() { ++inspectionRouteRoamStateChangedCount; },
+        [&inspectionRouteRoamPhotoCapturedCount](int, int, const QString&, int) {
+            ++inspectionRouteRoamPhotoCapturedCount;
+        });
+    Q_UNUSED(controller);
+
+    generateInspectionRouteAction.trigger();
+    regenerateInspectionRouteAction.trigger();
+    if (!verify(regenerateInspectionRouteCount == 2, "Route controller should route generate/regenerate actions")) {
+        return false;
+    }
+
+    clearInspectionRouteAction.trigger();
+    if (!verify(clearInspectionRouteCount == 1, "Route controller should route clear route action")) {
+        return false;
+    }
+
+    toggleRouteEditingAction.setChecked(true);
+    if (!verify(setRouteEditingEnabledCount == 1 && latestRouteEditingEnabled, "Route controller should route route-edit toggles")) {
+        return false;
+    }
+
+    startInspectionRouteRoamAction.trigger();
+    pauseInspectionRouteRoamAction.trigger();
+    stopInspectionRouteRoamAction.trigger();
+    if (!verify(startInspectionRouteRoamCount == 1, "Route controller should route start roam action")) {
+        return false;
+    }
+    if (!verify(pauseResumeInspectionRouteRoamCount == 1, "Route controller should route pause/resume roam action")) {
+        return false;
+    }
+    if (!verify(stopInspectionRouteRoamCount == 1, "Route controller should route stop roam action")) {
+        return false;
+    }
+
+    routeRoamStartButton.click();
+    routeRoamPauseResumeButton.click();
+    routeRoamStopButton.click();
+    if (!verify(startInspectionRouteRoamCount == 2, "Route controller should bridge start roam button")) {
+        return false;
+    }
+    if (!verify(pauseResumeInspectionRouteRoamCount == 2, "Route controller should bridge pause/resume roam button")) {
+        return false;
+    }
+    if (!verify(stopInspectionRouteRoamCount == 2, "Route controller should bridge stop roam button")) {
+        return false;
+    }
+
+    routeRoamSpeedSpinBox.setValue(6.5);
+    routeRoamViewModeComboBox.setCurrentIndex(1);
+    if (!verifyClose(latestRouteRoamSpeed, 6.5, 0.001, "Route controller should route roam speed changes")) {
+        return false;
+    }
+    if (!verify(latestRouteRoamViewModeIndex == 1, "Route controller should route roam view mode changes")) {
+        return false;
+    }
+
+    focusRouteWaypointAction.trigger();
+    importRouteFileAction.trigger();
+    saveRouteFileAction.trigger();
+    saveRouteFileAsAction.trigger();
+    reloadRouteFileAction.trigger();
+    importRouteKmlAction.trigger();
+    exportRouteKmlAction.trigger();
+    exportRouteDjiKmzAction.trigger();
+    if (!verify(focusRouteWaypointCount == 1, "Route controller should route focus waypoint action")) {
+        return false;
+    }
+    if (!verify(importRouteFileCount == 1, "Route controller should route import route action")) {
+        return false;
+    }
+    if (!verify(saveRouteFileCount == 1, "Route controller should route save route action")) {
+        return false;
+    }
+    if (!verify(saveRouteFileAsCount == 1, "Route controller should route save-as route action")) {
+        return false;
+    }
+    if (!verify(reloadRouteFileCount == 1, "Route controller should route reload route action")) {
+        return false;
+    }
+    if (!verify(importRouteKmlCount == 1, "Route controller should route import KML action")) {
+        return false;
+    }
+    if (!verify(exportRouteKmlCount == 1, "Route controller should route export KML action")) {
+        return false;
+    }
+    if (!verify(exportRouteDjiKmzCount == 1, "Route controller should route export KMZ action")) {
+        return false;
+    }
+
+    if (!verify(
+            inspectionRouteRoamStateChangedCount == 0,
+            "Route controller roam state callback should remain idle without viewer roam transitions")) {
+        return false;
+    }
+    if (!verify(
+            inspectionRouteRoamPhotoCapturedCount == 0,
+            "Route controller photo callback should remain idle when no viewer photo capture occurs")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Route controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runTowerControllerSmoke(const QStringList&)
+{
+    QAction startTowerEditAction(QStringLiteral("Start Edit"), nullptr);
+    QAction finishTowerEditAction(QStringLiteral("Finish Edit"), nullptr);
+    QAction addTowerAction(QStringLiteral("Add Tower"), nullptr);
+    QAction insertTowerAction(QStringLiteral("Insert Tower"), nullptr);
+    QAction moveTowerAction(QStringLiteral("Move Tower"), nullptr);
+    QAction editCurrentTowerAction(QStringLiteral("Edit Current"), nullptr);
+    QAction focusTowerAction(QStringLiteral("Focus Tower"), nullptr);
+    QAction removeTowerAction(QStringLiteral("Remove Tower"), nullptr);
+    QAction clearTowersAction(QStringLiteral("Clear Towers"), nullptr);
+    QAction cancelTowerToolAction(QStringLiteral("Cancel Tool"), nullptr);
+    QAction importTowerFileAction(QStringLiteral("Import"), nullptr);
+    QAction saveTowerFileAction(QStringLiteral("Save"), nullptr);
+    QAction saveTowerFileAsAction(QStringLiteral("Save As"), nullptr);
+    QAction reloadTowerFileAction(QStringLiteral("Reload"), nullptr);
+    QAction showTowerXAction(QStringLiteral("Show X"), nullptr);
+    QAction showTowerYAction(QStringLiteral("Show Y"), nullptr);
+    QAction showTowerZAction(QStringLiteral("Show Z"), nullptr);
+    showTowerXAction.setCheckable(true);
+    showTowerYAction.setCheckable(true);
+    showTowerZAction.setCheckable(true);
+
+    QTableWidget towerTableWidget(2, 5);
+    towerTableWidget.setItem(0, 1, new QTableWidgetItem(QStringLiteral("T-001")));
+    towerTableWidget.setItem(1, 1, new QTableWidgetItem(QStringLiteral("T-002")));
+
+    QLineEdit towerCodeEdit;
+    QLineEdit towerLineNameEdit;
+    QLineEdit towerVoltageLevelEdit;
+    QComboBox towerTypeComboBox;
+    towerTypeComboBox.addItem(QStringLiteral("Unknown"), 0);
+    towerTypeComboBox.addItem(QStringLiteral("Tangent"), 1);
+    QLineEdit towerStructureTypeEdit;
+    QLineEdit towerInspectionDateEdit;
+    QLineEdit towerStatusEdit;
+    QPlainTextEdit towerNotesEdit;
+
+    int startEditCount = 0;
+    int finishEditCount = 0;
+    int addTowerCount = 0;
+    int insertTowerCount = 0;
+    int moveTowerCount = 0;
+    int editCurrentCount = 0;
+    int focusTowerCount = 0;
+    int removeTowerCount = 0;
+    int clearTowersCount = 0;
+    int cancelToolCount = 0;
+    int importTowerFileCount = 0;
+    int saveTowerFileCount = 0;
+    int saveTowerFileAsCount = 0;
+    int reloadTowerFileCount = 0;
+    int showColumnToggleCount = 0;
+    int selectionChangedCount = 0;
+    int latestSelectedRow = -1;
+    int towerNameEditedCount = 0;
+    int latestEditedRow = -1;
+    QString latestEditedName;
+    int commitTowerDetailsCount = 0;
+
+    TowerController controller(
+        &startTowerEditAction,
+        &finishTowerEditAction,
+        &addTowerAction,
+        &insertTowerAction,
+        &moveTowerAction,
+        &editCurrentTowerAction,
+        &focusTowerAction,
+        &removeTowerAction,
+        &clearTowersAction,
+        &cancelTowerToolAction,
+        &importTowerFileAction,
+        &saveTowerFileAction,
+        &saveTowerFileAsAction,
+        &reloadTowerFileAction,
+        &showTowerXAction,
+        &showTowerYAction,
+        &showTowerZAction,
+        &towerTableWidget,
+        &towerCodeEdit,
+        &towerLineNameEdit,
+        &towerVoltageLevelEdit,
+        &towerTypeComboBox,
+        &towerStructureTypeEdit,
+        &towerInspectionDateEdit,
+        &towerStatusEdit,
+        &towerNotesEdit,
+        [&startEditCount]() { ++startEditCount; },
+        [&finishEditCount]() { ++finishEditCount; },
+        [&addTowerCount]() { ++addTowerCount; },
+        [&insertTowerCount]() { ++insertTowerCount; },
+        [&moveTowerCount]() { ++moveTowerCount; },
+        [&editCurrentCount]() { ++editCurrentCount; },
+        [&focusTowerCount]() { ++focusTowerCount; },
+        [&removeTowerCount]() { ++removeTowerCount; },
+        [&clearTowersCount]() { ++clearTowersCount; },
+        [&cancelToolCount]() { ++cancelToolCount; },
+        [&importTowerFileCount]() { ++importTowerFileCount; },
+        [&saveTowerFileCount]() { ++saveTowerFileCount; },
+        [&saveTowerFileAsCount]() { ++saveTowerFileAsCount; },
+        [&reloadTowerFileCount]() { ++reloadTowerFileCount; },
+        [&showColumnToggleCount](bool) { ++showColumnToggleCount; },
+        [&showColumnToggleCount](bool) { ++showColumnToggleCount; },
+        [&showColumnToggleCount](bool) { ++showColumnToggleCount; },
+        [&selectionChangedCount, &latestSelectedRow](int currentRow) {
+            ++selectionChangedCount;
+            latestSelectedRow = currentRow;
+        },
+        [&towerNameEditedCount, &latestEditedRow, &latestEditedName](int row, const QString& name) {
+            ++towerNameEditedCount;
+            latestEditedRow = row;
+            latestEditedName = name;
+        },
+        [&commitTowerDetailsCount]() {
+            ++commitTowerDetailsCount;
+        });
+    Q_UNUSED(controller);
+
+    startTowerEditAction.trigger();
+    finishTowerEditAction.trigger();
+    addTowerAction.trigger();
+    insertTowerAction.trigger();
+    moveTowerAction.trigger();
+    editCurrentTowerAction.trigger();
+    focusTowerAction.trigger();
+    removeTowerAction.trigger();
+    clearTowersAction.trigger();
+    cancelTowerToolAction.trigger();
+    importTowerFileAction.trigger();
+    saveTowerFileAction.trigger();
+    saveTowerFileAsAction.trigger();
+    reloadTowerFileAction.trigger();
+
+    if (!verify(startEditCount == 1 && finishEditCount == 1, "Tower controller should forward start/finish edit actions")) {
+        return false;
+    }
+    if (!verify(addTowerCount == 1 && insertTowerCount == 1 && moveTowerCount == 1, "Tower controller should forward tower edit mode actions")) {
+        return false;
+    }
+    if (!verify(editCurrentCount == 1 && focusTowerCount == 1 && removeTowerCount == 1, "Tower controller should forward current tower operations")) {
+        return false;
+    }
+    if (!verify(clearTowersCount == 1 && cancelToolCount == 1, "Tower controller should forward clear/cancel actions")) {
+        return false;
+    }
+    if (!verify(
+            importTowerFileCount == 1
+                && saveTowerFileCount == 1
+                && saveTowerFileAsCount == 1
+                && reloadTowerFileCount == 1,
+            "Tower controller should forward tower file actions")) {
+        return false;
+    }
+
+    showTowerXAction.setChecked(true);
+    showTowerYAction.setChecked(true);
+    showTowerZAction.setChecked(true);
+    showTowerXAction.setChecked(false);
+    showTowerYAction.setChecked(false);
+    showTowerZAction.setChecked(false);
+    if (!verify(towerTableWidget.isColumnHidden(2), "Tower controller should toggle X column visibility")) {
+        return false;
+    }
+    if (!verify(towerTableWidget.isColumnHidden(3), "Tower controller should toggle Y column visibility")) {
+        return false;
+    }
+    if (!verify(towerTableWidget.isColumnHidden(4), "Tower controller should toggle Z column visibility")) {
+        return false;
+    }
+    if (!verify(showColumnToggleCount == 6, "Tower controller should invoke visibility callbacks for each toggle transition")) {
+        return false;
+    }
+
+    towerTableWidget.setCurrentCell(1, 1);
+    if (!verify(selectionChangedCount > 0 && latestSelectedRow == 1, "Tower controller should forward table selection changes")) {
+        return false;
+    }
+
+    if (QTableWidgetItem* item = towerTableWidget.item(1, 1)) {
+        item->setText(QStringLiteral("T-002-EDITED"));
+    }
+    if (!verify(
+            towerNameEditedCount > 0 && latestEditedRow == 1 && latestEditedName == QStringLiteral("T-002-EDITED"),
+            "Tower controller should forward tower name edits")) {
+        return false;
+    }
+
+    const int commitBaseline = commitTowerDetailsCount;
+    towerTypeComboBox.setCurrentIndex(1);
+    towerNotesEdit.setPlainText(QStringLiteral("updated"));
+    if (!verify(commitTowerDetailsCount >= commitBaseline + 2, "Tower controller should forward detail field edits")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Tower controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runIssueControllerSmoke(const QStringList&)
+{
+    QAction startIssueMarkAction(QStringLiteral("Mark Issue"), nullptr);
+    QAction cancelIssueToolAction(QStringLiteral("Cancel"), nullptr);
+    QAction focusIssueAction(QStringLiteral("Focus"), nullptr);
+    QAction removeIssueAction(QStringLiteral("Remove"), nullptr);
+    QAction clearIssuesAction(QStringLiteral("Clear"), nullptr);
+    QAction exportIssuesCsvAction(QStringLiteral("Export CSV"), nullptr);
+    QAction exportInspectionReportAction(QStringLiteral("Export Report"), nullptr);
+
+    QTableWidget issueTableWidget(2, 6);
+    issueTableWidget.setItem(0, 1, new QTableWidgetItem(QStringLiteral("Issue 1")));
+    issueTableWidget.setItem(1, 1, new QTableWidgetItem(QStringLiteral("Issue 2")));
+
+    QLineEdit issueTitleEdit;
+    QComboBox issueCategoryComboBox;
+    issueCategoryComboBox.setEditable(true);
+    issueCategoryComboBox.addItem(QStringLiteral("Other"));
+    issueCategoryComboBox.addItem(QStringLiteral("Vegetation"));
+    QComboBox issueSeverityComboBox;
+    issueSeverityComboBox.addItem(QStringLiteral("Info"));
+    issueSeverityComboBox.addItem(QStringLiteral("Major"));
+    QComboBox issueStatusComboBox;
+    issueStatusComboBox.addItem(QStringLiteral("Open"));
+    issueStatusComboBox.addItem(QStringLiteral("Resolved"));
+    QComboBox issueRelatedTowerComboBox;
+    issueRelatedTowerComboBox.addItem(QStringLiteral("None"), -1);
+    issueRelatedTowerComboBox.addItem(QStringLiteral("T-001"), 0);
+    QLineEdit issueImagePathEdit;
+    QPlainTextEdit issueDescriptionEdit;
+
+    int beginIssueMarkingCount = 0;
+    int cancelIssueToolCount = 0;
+    int focusSelectedIssueCount = 0;
+    int removeSelectedIssueCount = 0;
+    int clearAllIssuesCount = 0;
+    int exportIssuesCsvCount = 0;
+    int exportInspectionReportCount = 0;
+    int issueSelectionChangedCount = 0;
+    int latestIssueSelection = -1;
+    int commitIssueDetailsCount = 0;
+
+    IssueController controller(
+        &startIssueMarkAction,
+        &cancelIssueToolAction,
+        &focusIssueAction,
+        &removeIssueAction,
+        &clearIssuesAction,
+        &exportIssuesCsvAction,
+        &exportInspectionReportAction,
+        &issueTableWidget,
+        &issueTitleEdit,
+        &issueCategoryComboBox,
+        &issueSeverityComboBox,
+        &issueStatusComboBox,
+        &issueRelatedTowerComboBox,
+        &issueImagePathEdit,
+        &issueDescriptionEdit,
+        [&beginIssueMarkingCount]() { ++beginIssueMarkingCount; },
+        [&cancelIssueToolCount]() { ++cancelIssueToolCount; },
+        [&focusSelectedIssueCount]() { ++focusSelectedIssueCount; },
+        [&removeSelectedIssueCount]() { ++removeSelectedIssueCount; },
+        [&clearAllIssuesCount]() { ++clearAllIssuesCount; },
+        [&exportIssuesCsvCount]() { ++exportIssuesCsvCount; },
+        [&exportInspectionReportCount]() { ++exportInspectionReportCount; },
+        [&issueSelectionChangedCount, &latestIssueSelection](int row) {
+            ++issueSelectionChangedCount;
+            latestIssueSelection = row;
+        },
+        [&commitIssueDetailsCount]() { ++commitIssueDetailsCount; });
+    Q_UNUSED(controller);
+
+    startIssueMarkAction.trigger();
+    cancelIssueToolAction.trigger();
+    focusIssueAction.trigger();
+    removeIssueAction.trigger();
+    clearIssuesAction.trigger();
+    exportIssuesCsvAction.trigger();
+    exportInspectionReportAction.trigger();
+
+    if (!verify(beginIssueMarkingCount == 1, "Issue controller should forward start issue marking action")) {
+        return false;
+    }
+    if (!verify(cancelIssueToolCount == 1, "Issue controller should forward cancel issue tool action")) {
+        return false;
+    }
+    if (!verify(focusSelectedIssueCount == 1, "Issue controller should forward focus issue action")) {
+        return false;
+    }
+    if (!verify(removeSelectedIssueCount == 1 && clearAllIssuesCount == 1, "Issue controller should forward remove/clear issue actions")) {
+        return false;
+    }
+    if (!verify(exportIssuesCsvCount == 1 && exportInspectionReportCount == 1, "Issue controller should forward issue export actions")) {
+        return false;
+    }
+
+    issueTableWidget.setCurrentCell(1, 1);
+    if (!verify(issueSelectionChangedCount > 0 && latestIssueSelection == 1, "Issue controller should forward issue table selection")) {
+        return false;
+    }
+
+    const int commitBaseline = commitIssueDetailsCount;
+    issueTitleEdit.setText(QStringLiteral("Updated Issue"));
+    issueTitleEdit.editingFinished();
+    issueCategoryComboBox.setEditText(QStringLiteral("Vegetation"));
+    issueSeverityComboBox.setCurrentIndex(1);
+    issueStatusComboBox.setCurrentIndex(1);
+    issueRelatedTowerComboBox.setCurrentIndex(1);
+    issueImagePathEdit.setText(QStringLiteral("images/issue.jpg"));
+    issueImagePathEdit.editingFinished();
+    issueDescriptionEdit.setPlainText(QStringLiteral("updated notes"));
+    if (!verify(commitIssueDetailsCount >= commitBaseline + 7, "Issue controller should forward detail edits")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Issue controller smoke test completed." << std::endl;
     return true;
 }
 
@@ -1011,10 +2197,17 @@ QSet<QString> parseCsvValues(const QStringList& rawValues)
 void printUsageSummary()
 {
     std::cout
-        << "Modes: viewer-render, main-backstage, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
+        << "Modes: viewer-render, main-backstage, log-panel, project-explorer-dock, project-explorer-controller, visualization-panel-controller, measurement-analysis-controller, profile-classification-widget, profile-classification-controller, route-controller, tower-controller, issue-controller, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
         << "Categories: render, ui, route, tower, all" << std::endl
         << "Examples:" << std::endl
         << "  LASViewerSmokeTest --mode main-backstage" << std::endl
+        << "  LASViewerSmokeTest --mode visualization-panel-controller" << std::endl
+        << "  LASViewerSmokeTest --mode measurement-analysis-controller" << std::endl
+        << "  LASViewerSmokeTest --mode profile-classification-widget" << std::endl
+        << "  LASViewerSmokeTest --mode profile-classification-controller" << std::endl
+        << "  LASViewerSmokeTest --mode route-controller" << std::endl
+        << "  LASViewerSmokeTest --mode tower-controller" << std::endl
+        << "  LASViewerSmokeTest --mode issue-controller" << std::endl
         << "  LASViewerSmokeTest --mode route-roam --las .\\test_data\\ezhou_powerline_sample.las" << std::endl
         << "  LASViewerSmokeTest --category route --las .\\test_data\\ezhou_powerline_sample.las" << std::endl
         << "  LASViewerSmokeTest --mode all --las .\\test_data\\ezhou_powerline_sample.las" << std::endl;
@@ -1046,6 +2239,16 @@ bool validateSelections(const QSet<QString>& modeSet, const QSet<QString>& categ
     const QSet<QString> validModes {
         QStringLiteral("viewer-render"),
         QStringLiteral("main-backstage"),
+        QStringLiteral("log-panel"),
+        QStringLiteral("project-explorer-dock"),
+        QStringLiteral("project-explorer-controller"),
+        QStringLiteral("visualization-panel-controller"),
+        QStringLiteral("measurement-analysis-controller"),
+        QStringLiteral("profile-classification-widget"),
+        QStringLiteral("profile-classification-controller"),
+        QStringLiteral("route-controller"),
+        QStringLiteral("tower-controller"),
+        QStringLiteral("issue-controller"),
         QStringLiteral("route-json"),
         QStringLiteral("route-interop"),
         QStringLiteral("route-roam"),
@@ -1204,6 +2407,66 @@ int main(int argc, char* argv[])
             QStringLiteral("Main Backstage Smoke"),
             false,
             runMainBackstageSmoke },
+        SmokeCase {
+            QStringLiteral("log-panel"),
+            QStringLiteral("ui"),
+            QStringLiteral("Log Panel Smoke"),
+            false,
+            runLogPanelSmoke },
+        SmokeCase {
+            QStringLiteral("project-explorer-dock"),
+            QStringLiteral("ui"),
+            QStringLiteral("Project Explorer Dock Smoke"),
+            false,
+            runProjectExplorerDockSmoke },
+        SmokeCase {
+            QStringLiteral("project-explorer-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Project Explorer Controller Smoke"),
+            false,
+            runProjectExplorerControllerSmoke },
+        SmokeCase {
+            QStringLiteral("visualization-panel-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Visualization Panel Controller Smoke"),
+            false,
+            runVisualizationPanelControllerSmoke },
+        SmokeCase {
+            QStringLiteral("measurement-analysis-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Measurement Analysis Controller Smoke"),
+            true,
+            runMeasurementAnalysisControllerSmoke },
+        SmokeCase {
+            QStringLiteral("profile-classification-widget"),
+            QStringLiteral("ui"),
+            QStringLiteral("Profile Classification Widget Smoke"),
+            false,
+            runProfileClassificationWidgetSmoke },
+        SmokeCase {
+            QStringLiteral("profile-classification-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Profile Classification Controller Smoke"),
+            true,
+            runProfileClassificationControllerSmoke },
+        SmokeCase {
+            QStringLiteral("route-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Route Controller Smoke"),
+            false,
+            runRouteControllerSmoke },
+        SmokeCase {
+            QStringLiteral("tower-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Tower Controller Smoke"),
+            false,
+            runTowerControllerSmoke },
+        SmokeCase {
+            QStringLiteral("issue-controller"),
+            QStringLiteral("ui"),
+            QStringLiteral("Issue Controller Smoke"),
+            false,
+            runIssueControllerSmoke },
         SmokeCase {
             QStringLiteral("route-json"),
             QStringLiteral("route"),

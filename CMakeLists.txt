@@ -514,9 +514,46 @@ set(SOURCES
     src/domain/RuleBasedClearanceEngine.cpp
     src/domain/TowerFileInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
+    src/gui/ApplicationLogDock.cpp
+    src/gui/BackstageAboutWidget.cpp
+    src/gui/BackstageAboutWidget.ui
+    src/gui/BackstageApplicationSettingsWidget.cpp
+    src/gui/BackstageApplicationSettingsWidget.ui
+    src/gui/BackstageOpenActionsWidget.cpp
+    src/gui/BackstageOpenActionsWidget.ui
+    src/gui/BackstageOpenProjectWidget.cpp
+    src/gui/BackstageOpenProjectWidget.ui
+    src/gui/BackstagePageHeaderWidget.cpp
+    src/gui/BackstagePageHeaderWidget.ui
+    src/gui/BackstageProjectPropertiesWidget.cpp
+    src/gui/BackstageProjectPropertiesWidget.ui
+    src/gui/DatasetSummaryWidget.cpp
+    src/gui/DatasetSummaryWidget.ui
+    src/gui/IssueController.cpp
+    src/gui/IssueEditorWidget.cpp
+    src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
+    src/gui/MeasurementAnalysisController.cpp
+    src/gui/NavigationSettingsWidget.cpp
+    src/gui/NavigationSettingsWidget.ui
     src/gui/PointCloudViewer.cpp
+    src/gui/ProfileClassificationController.cpp
+    src/gui/ProfileClassificationDock.cpp
+    src/gui/ProfileClassificationWidget.cpp
+    src/gui/ProfileClassificationWidget.ui
+    src/gui/ProjectExplorerController.cpp
+    src/gui/ProjectExplorerDock.cpp
+    src/gui/RouteController.cpp
+    src/gui/RouteDetailsDock.cpp
+    src/gui/SceneInspectorDock.cpp
+    src/gui/SpanProfileDock.cpp
+    src/gui/TowerController.cpp
+    src/gui/TowerEditorWidget.cpp
+    src/gui/TowerEditorWidget.ui
     src/gui/UiHistoryStore.cpp
+    src/gui/VisualizationPanelController.cpp
+    src/gui/support/RibbonIconFactory.cpp
+    src/gui/support/UiHelpers.cpp
     src/gui/ProfilePlotWidget.cpp
     src/logging/ApplicationLogger.cpp
     src/pointcloud/LasReader.cpp
@@ -555,9 +592,36 @@ set(HEADERS
     src/domain/RuleBasedClearanceEngine.h
     src/domain/TowerFileInterop.h
     src/domain/VegetationRiskAnalysis.h
+    src/gui/ApplicationLogDock.h
+    src/gui/BackstageAboutWidget.h
+    src/gui/BackstageApplicationSettingsWidget.h
+    src/gui/BackstageOpenActionsWidget.h
+    src/gui/BackstageOpenProjectWidget.h
+    src/gui/BackstagePageHeaderWidget.h
+    src/gui/BackstageProjectPropertiesWidget.h
+    src/gui/DatasetSummaryWidget.h
+    src/gui/IssueController.h
+    src/gui/IssueEditorWidget.h
     src/gui/MainWindow.h
+    src/gui/MeasurementAnalysisController.h
+    src/gui/NavigationSettingsWidget.h
     src/gui/PointCloudViewer.h
+    src/gui/ProfileClassificationController.h
+    src/gui/ProfileClassificationDock.h
+    src/gui/ProfileClassificationWidget.h
+    src/gui/ProjectExplorerController.h
+    src/gui/ProjectExplorerDock.h
+    src/gui/RouteController.h
+    src/gui/RouteDetailsDock.h
+    src/gui/SceneInspectorDock.h
+    src/gui/SpanProfileDock.h
+    src/gui/TowerController.h
+    src/gui/TowerEditorWidget.h
+    src/gui/VisualizationPanelController.h
     src/gui/ProfilePlotWidget.h
+    src/gui/support/RibbonIconFactory.h
+    src/gui/support/SettingsKeys.h
+    src/gui/support/UiHelpers.h
     src/gui/UiHistoryStore.h
     src/logging/ApplicationLogger.h
     src/pointcloud/LasReader.h
@@ -682,10 +746,47 @@ set(BACKSTAGE_SMOKE_SOURCES
     src/domain/RuleBasedClearanceEngine.cpp
     src/domain/TowerFileInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
+    src/gui/ApplicationLogDock.cpp
+    src/gui/BackstageAboutWidget.cpp
+    src/gui/BackstageAboutWidget.ui
+    src/gui/BackstageApplicationSettingsWidget.cpp
+    src/gui/BackstageApplicationSettingsWidget.ui
+    src/gui/BackstageOpenActionsWidget.cpp
+    src/gui/BackstageOpenActionsWidget.ui
+    src/gui/BackstageOpenProjectWidget.cpp
+    src/gui/BackstageOpenProjectWidget.ui
+    src/gui/BackstagePageHeaderWidget.cpp
+    src/gui/BackstagePageHeaderWidget.ui
+    src/gui/BackstageProjectPropertiesWidget.cpp
+    src/gui/BackstageProjectPropertiesWidget.ui
+    src/gui/DatasetSummaryWidget.cpp
+    src/gui/DatasetSummaryWidget.ui
+    src/gui/IssueController.cpp
+    src/gui/IssueEditorWidget.cpp
+    src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
+    src/gui/MeasurementAnalysisController.cpp
+    src/gui/NavigationSettingsWidget.cpp
+    src/gui/NavigationSettingsWidget.ui
     src/gui/PointCloudViewer.cpp
+    src/gui/ProfileClassificationController.cpp
+    src/gui/ProfileClassificationDock.cpp
+    src/gui/ProfileClassificationWidget.cpp
+    src/gui/ProfileClassificationWidget.ui
+    src/gui/ProjectExplorerController.cpp
+    src/gui/ProjectExplorerDock.cpp
+    src/gui/RouteController.cpp
+    src/gui/RouteDetailsDock.cpp
+    src/gui/SceneInspectorDock.cpp
+    src/gui/SpanProfileDock.cpp
+    src/gui/TowerController.cpp
+    src/gui/TowerEditorWidget.cpp
+    src/gui/TowerEditorWidget.ui
     src/gui/ProfilePlotWidget.cpp
     src/gui/UiHistoryStore.cpp
+    src/gui/VisualizationPanelController.cpp
+    src/gui/support/RibbonIconFactory.cpp
+    src/gui/support/UiHelpers.cpp
     src/logging/ApplicationLogger.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
@@ -719,9 +820,36 @@ set(BACKSTAGE_SMOKE_HEADERS
     src/domain/RuleBasedClearanceEngine.h
     src/domain/TowerFileInterop.h
     src/domain/VegetationRiskAnalysis.h
+    src/gui/ApplicationLogDock.h
+    src/gui/BackstageAboutWidget.h
+    src/gui/BackstageApplicationSettingsWidget.h
+    src/gui/BackstageOpenActionsWidget.h
+    src/gui/BackstageOpenProjectWidget.h
+    src/gui/BackstagePageHeaderWidget.h
+    src/gui/BackstageProjectPropertiesWidget.h
+    src/gui/DatasetSummaryWidget.h
+    src/gui/IssueController.h
+    src/gui/IssueEditorWidget.h
     src/gui/MainWindow.h
+    src/gui/MeasurementAnalysisController.h
+    src/gui/NavigationSettingsWidget.h
     src/gui/PointCloudViewer.h
+    src/gui/ProfileClassificationController.h
+    src/gui/ProfileClassificationDock.h
+    src/gui/ProfileClassificationWidget.h
+    src/gui/ProjectExplorerController.h
+    src/gui/ProjectExplorerDock.h
+    src/gui/RouteController.h
+    src/gui/RouteDetailsDock.h
+    src/gui/SceneInspectorDock.h
+    src/gui/SpanProfileDock.h
+    src/gui/TowerController.h
+    src/gui/TowerEditorWidget.h
+    src/gui/VisualizationPanelController.h
     src/gui/ProfilePlotWidget.h
+    src/gui/support/RibbonIconFactory.h
+    src/gui/support/SettingsKeys.h
+    src/gui/support/UiHelpers.h
     src/gui/UiHistoryStore.h
     src/logging/ApplicationLogger.h
     src/pointcloud/LasReader.h
