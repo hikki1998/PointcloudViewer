@@ -73,6 +73,11 @@ constexpr double kRouteRoamThirdPersonDistanceMeters = 10.0;
 constexpr double kRouteRoamThirdPersonHeightMeters = 3.0;
 constexpr double kRouteRoamFirstPersonLookAheadMeters = 18.0;
 constexpr double kRouteRoamThirdPersonLookAheadMeters = 8.0;
+constexpr double kRoutePreviewDefaultFocalLengthRatio = 1.0;
+constexpr double kRoutePreviewBaseEquivalentFocalLengthMm = 24.0;
+constexpr double kRoutePreviewFullFrameSensorHeightMm = 24.0;
+constexpr double kRoutePreviewMinVerticalFovDeg = 8.0;
+constexpr double kRoutePreviewMaxVerticalFovDeg = 120.0;
 
 double routeSegmentLength(const PointRecord& startPoint, const PointRecord& endPoint)
 {
@@ -106,6 +111,27 @@ int wheelZoomStepMultiplierForSensitivity(int percent)
 {
     const double scale = wheelZoomSensitivityScale(percent);
     return std::clamp(static_cast<int>(std::lround(scale * 2.0)), 1, 4);
+}
+
+double normalizedRoutePreviewFocalLengthRatio(double ratio)
+{
+    if (!std::isfinite(ratio) || ratio <= 0.0) {
+        return kRoutePreviewDefaultFocalLengthRatio;
+    }
+
+    return std::clamp(ratio, 0.1, 64.0);
+}
+
+double routePreviewVerticalFovRadians(double focalLengthRatio)
+{
+    const double normalizedRatio = normalizedRoutePreviewFocalLengthRatio(focalLengthRatio);
+    const double equivalentFocalLengthMm = kRoutePreviewBaseEquivalentFocalLengthMm * normalizedRatio;
+    const double unclampedRadians = 2.0 * std::atan(
+        kRoutePreviewFullFrameSensorHeightMm / (2.0 * equivalentFocalLengthMm));
+    return std::clamp(
+        unclampedRadians,
+        qDegreesToRadians(kRoutePreviewMinVerticalFovDeg),
+        qDegreesToRadians(kRoutePreviewMaxVerticalFovDeg));
 }
 
 osg::Vec4 qColorToVec4(const QColor& color, float alphaScale = 1.0f)
@@ -485,6 +511,122 @@ float clampUnit(float value)
 int percentFromUnit(float value)
 {
     return static_cast<int>(std::lround(clampUnit(value) * 100.0f));
+}
+
+QColor routePreviewBlendColor(const QColor& first, const QColor& second, float factor)
+{
+    const float clampedFactor = std::clamp(factor, 0.0f, 1.0f);
+    const float inverseFactor = 1.0f - clampedFactor;
+    return QColor(
+        static_cast<int>(std::lround(first.red() * inverseFactor + second.red() * clampedFactor)),
+        static_cast<int>(std::lround(first.green() * inverseFactor + second.green() * clampedFactor)),
+        static_cast<int>(std::lround(first.blue() * inverseFactor + second.blue() * clampedFactor)));
+}
+
+QColor routePreviewColorForElevation(float normalizedHeight)
+{
+    const QColor lowColor(40, 110, 230);
+    const QColor midColor(56, 201, 166);
+    const QColor highColor(244, 146, 66);
+
+    if (normalizedHeight <= 0.5f) {
+        return routePreviewBlendColor(lowColor, midColor, normalizedHeight * 2.0f);
+    }
+
+    return routePreviewBlendColor(midColor, highColor, (normalizedHeight - 0.5f) * 2.0f);
+}
+
+int routePreviewEffectiveClassification(
+    const PointRecord& point,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    int classification = point.hasClassification ? static_cast<int>(point.classification) : -1;
+    if (visualizationOptions.classificationEditStore != nullptr && point.sourceDatasetId >= 0) {
+        const auto datasetPathIt = visualizationOptions.classificationDatasetPathsById.constFind(point.sourceDatasetId);
+        if (datasetPathIt != visualizationOptions.classificationDatasetPathsById.constEnd()) {
+            classification = visualizationOptions.classificationEditStore->effectiveClassification(
+                datasetPathIt.value(),
+                point.sourcePointIndex,
+                classification);
+        }
+    }
+
+    return classification;
+}
+
+bool routePreviewPointVisible(
+    const PointRecord& point,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    const bool fallbackVisible = visualizationOptions.classificationVisibility.value(-1, true);
+    if (!point.hasClassification) {
+        return fallbackVisible;
+    }
+
+    return visualizationOptions.classificationVisibility.value(
+        routePreviewEffectiveClassification(point, visualizationOptions),
+        fallbackVisible);
+}
+
+QColor routePreviewPointColor(
+    const PointRecord& point,
+    const PointCloudVisualizationOptions& visualizationOptions,
+    double minZ,
+    double heightSpan)
+{
+    switch (visualizationOptions.colorMode) {
+    case PointCloudColorMode::Elevation:
+    {
+        const double normalizedHeight = heightSpan > 0.0 ? (point.z - minZ) / heightSpan : 0.5;
+        QColor color = routePreviewColorForElevation(static_cast<float>(std::clamp(normalizedHeight, 0.0, 1.0)));
+        color.setAlpha(255);
+        return color;
+    }
+    case PointCloudColorMode::SingleColor:
+    {
+        QColor color = visualizationOptions.singleColor;
+        color.setAlpha(255);
+        return color;
+    }
+    case PointCloudColorMode::Classification:
+    {
+        if (!point.hasClassification) {
+            QColor color = visualizationOptions.classificationFallbackColor;
+            color.setAlpha(255);
+            return color;
+        }
+        const auto colorIt = visualizationOptions.classificationColors.constFind(
+            routePreviewEffectiveClassification(point, visualizationOptions));
+        QColor color = colorIt != visualizationOptions.classificationColors.constEnd()
+            ? colorIt.value()
+            : visualizationOptions.classificationFallbackColor;
+        color.setAlpha(255);
+        return color;
+    }
+    case PointCloudColorMode::Rgb:
+    default:
+        return QColor(point.r, point.g, point.b, point.a);
+    }
+}
+
+QRgb blendRoutePreviewPixel(QRgb backgroundPixel, const QColor& pointColor, float alpha)
+{
+    const float clampedAlpha = clampUnit(alpha);
+    if (clampedAlpha <= 0.0f) {
+        return backgroundPixel;
+    }
+    if (clampedAlpha >= 1.0f) {
+        return qRgba(pointColor.red(), pointColor.green(), pointColor.blue(), 255);
+    }
+
+    const float inverseAlpha = 1.0f - clampedAlpha;
+    const int red = static_cast<int>(std::lround(
+        qRed(backgroundPixel) * inverseAlpha + pointColor.red() * clampedAlpha));
+    const int green = static_cast<int>(std::lround(
+        qGreen(backgroundPixel) * inverseAlpha + pointColor.green() * clampedAlpha));
+    const int blue = static_cast<int>(std::lround(
+        qBlue(backgroundPixel) * inverseAlpha + pointColor.blue() * clampedAlpha));
+    return qRgba(red, green, blue, 255);
 }
 
 QString formatCoordinate(float value)
@@ -3176,11 +3318,13 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
     inspectionRouteWaypointGimbalPitchDegs_ = displayData.waypointGimbalPitchDegs;
     inspectionRouteWaypointCameraYawDegs_ = displayData.waypointCameraYawDegs;
     inspectionRouteWaypointCameraPitchDegs_ = displayData.waypointCameraPitchDegs;
+    inspectionRouteWaypointFocalLengthRatios_ = displayData.waypointFocalLengthRatios;
     inspectionRouteWaypointTargetLabels_ = displayData.waypointTargetLabels;
     inspectionRouteWaypointAllTargetPoints_ = displayData.waypointAllTargetPoints;
     inspectionRouteWaypointAllTargetPartIndices_ = displayData.waypointAllTargetPartIndices;
     inspectionRouteWaypointAllCameraYawDegs_ = displayData.waypointAllCameraYawDegs;
     inspectionRouteWaypointAllCameraPitchDegs_ = displayData.waypointAllCameraPitchDegs;
+    inspectionRouteWaypointAllFocalLengthRatios_ = displayData.waypointAllFocalLengthRatios;
     inspectionRouteWaypointAllTargetLabels_ = displayData.waypointAllTargetLabels;
     inspectionRouteVisible_ = true;
     routeWaypointDragActive_ = false;
@@ -3264,6 +3408,13 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
         inspectionRouteWaypointCameraPitchDegs_.removeLast();
     }
 
+    while (inspectionRouteWaypointFocalLengthRatios_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointFocalLengthRatios_.append(kRoutePreviewDefaultFocalLengthRatio);
+    }
+    while (inspectionRouteWaypointFocalLengthRatios_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointFocalLengthRatios_.removeLast();
+    }
+
     while (inspectionRouteWaypointTargetLabels_.size() < inspectionRouteWaypoints_.size()) {
         inspectionRouteWaypointTargetLabels_.append(QString());
     }
@@ -3299,6 +3450,13 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
         inspectionRouteWaypointAllCameraPitchDegs_.removeLast();
     }
 
+    while (inspectionRouteWaypointAllFocalLengthRatios_.size() < inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointAllFocalLengthRatios_.append(QList<double>());
+    }
+    while (inspectionRouteWaypointAllFocalLengthRatios_.size() > inspectionRouteWaypoints_.size()) {
+        inspectionRouteWaypointAllFocalLengthRatios_.removeLast();
+    }
+
     while (inspectionRouteWaypointAllTargetLabels_.size() < inspectionRouteWaypoints_.size()) {
         inspectionRouteWaypointAllTargetLabels_.append(QStringList());
     }
@@ -3311,6 +3469,7 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
         QList<int>& allTargetPartIndices = inspectionRouteWaypointAllTargetPartIndices_[waypointIndex];
         QList<double>& allCameraYawDegs = inspectionRouteWaypointAllCameraYawDegs_[waypointIndex];
         QList<double>& allCameraPitchDegs = inspectionRouteWaypointAllCameraPitchDegs_[waypointIndex];
+        QList<double>& allFocalLengthRatios = inspectionRouteWaypointAllFocalLengthRatios_[waypointIndex];
         QStringList& allTargetLabels = inspectionRouteWaypointAllTargetLabels_[waypointIndex];
 
         const bool hasLegacyTarget =
@@ -3334,6 +3493,9 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
         const double legacyCameraPitch = waypointIndex < inspectionRouteWaypointCameraPitchDegs_.size()
             ? inspectionRouteWaypointCameraPitchDegs_.at(waypointIndex)
             : 0.0;
+        const double legacyFocalLengthRatio = waypointIndex < inspectionRouteWaypointFocalLengthRatios_.size()
+            ? normalizedRoutePreviewFocalLengthRatio(inspectionRouteWaypointFocalLengthRatios_.at(waypointIndex))
+            : kRoutePreviewDefaultFocalLengthRatio;
         while (allCameraYawDegs.size() < allTargetPoints.size()) {
             allCameraYawDegs.append(legacyCameraYaw);
         }
@@ -3348,6 +3510,16 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
             allCameraPitchDegs.removeLast();
         }
 
+        while (allFocalLengthRatios.size() < allTargetPoints.size()) {
+            allFocalLengthRatios.append(legacyFocalLengthRatio);
+        }
+        while (allFocalLengthRatios.size() > allTargetPoints.size()) {
+            allFocalLengthRatios.removeLast();
+        }
+        for (double& focalLengthRatio : allFocalLengthRatios) {
+            focalLengthRatio = normalizedRoutePreviewFocalLengthRatio(focalLengthRatio);
+        }
+
         while (allTargetLabels.size() < allTargetPoints.size()) {
             allTargetLabels.append(tr("Target %1").arg(QLocale().toString(allTargetLabels.size() + 1)));
         }
@@ -3360,6 +3532,8 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
             inspectionRouteWaypointTargetPoints_[waypointIndex] = allTargetPoints.constFirst();
             inspectionRouteWaypointCameraYawDegs_[waypointIndex] = allCameraYawDegs.isEmpty() ? 0.0 : allCameraYawDegs.constFirst();
             inspectionRouteWaypointCameraPitchDegs_[waypointIndex] = allCameraPitchDegs.isEmpty() ? 0.0 : allCameraPitchDegs.constFirst();
+            inspectionRouteWaypointFocalLengthRatios_[waypointIndex] =
+                allFocalLengthRatios.isEmpty() ? legacyFocalLengthRatio : allFocalLengthRatios.constFirst();
             if (inspectionRouteWaypointTargetLabels_.at(waypointIndex).trimmed().isEmpty()) {
                 inspectionRouteWaypointTargetLabels_[waypointIndex] = allTargetLabels.isEmpty() ? QString() : allTargetLabels.constFirst();
             }
@@ -3368,6 +3542,7 @@ void PointCloudViewer::setInspectionRouteDisplayData(const InspectionRouteDispla
             inspectionRouteWaypointTargetPoints_[waypointIndex] = PointRecord();
             inspectionRouteWaypointCameraYawDegs_[waypointIndex] = 0.0;
             inspectionRouteWaypointCameraPitchDegs_[waypointIndex] = 0.0;
+            inspectionRouteWaypointFocalLengthRatios_[waypointIndex] = legacyFocalLengthRatio;
         }
     }
 
@@ -3477,11 +3652,13 @@ void PointCloudViewer::clearInspectionRouteWaypoints()
     inspectionRouteWaypointGimbalPitchDegs_.clear();
     inspectionRouteWaypointCameraYawDegs_.clear();
     inspectionRouteWaypointCameraPitchDegs_.clear();
+    inspectionRouteWaypointFocalLengthRatios_.clear();
     inspectionRouteWaypointTargetLabels_.clear();
     inspectionRouteWaypointAllTargetPoints_.clear();
     inspectionRouteWaypointAllTargetPartIndices_.clear();
     inspectionRouteWaypointAllCameraYawDegs_.clear();
     inspectionRouteWaypointAllCameraPitchDegs_.clear();
+    inspectionRouteWaypointAllFocalLengthRatios_.clear();
     inspectionRouteWaypointAllTargetLabels_.clear();
     inspectionRouteVisible_ = true;
     routeWaypointDragActive_ = false;
@@ -5952,6 +6129,7 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
     QList<PointRecord> waypointTargets;
     QList<double> waypointCameraYawCandidates;
     QList<double> waypointCameraPitchCandidates;
+    QList<double> waypointFocalLengthCandidates;
     QStringList waypointTargetLabels;
     if (waypointIndex < inspectionRouteWaypointAllTargetPoints_.size()) {
         waypointTargets = inspectionRouteWaypointAllTargetPoints_.at(waypointIndex);
@@ -5961,6 +6139,9 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
     }
     if (waypointIndex < inspectionRouteWaypointAllCameraPitchDegs_.size()) {
         waypointCameraPitchCandidates = inspectionRouteWaypointAllCameraPitchDegs_.at(waypointIndex);
+    }
+    if (waypointIndex < inspectionRouteWaypointAllFocalLengthRatios_.size()) {
+        waypointFocalLengthCandidates = inspectionRouteWaypointAllFocalLengthRatios_.at(waypointIndex);
     }
     if (waypointIndex < inspectionRouteWaypointAllTargetLabels_.size()) {
         waypointTargetLabels = inspectionRouteWaypointAllTargetLabels_.at(waypointIndex);
@@ -5978,6 +6159,9 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
             }
             if (waypointIndex < inspectionRouteWaypointCameraPitchDegs_.size()) {
                 waypointCameraPitchCandidates.append(inspectionRouteWaypointCameraPitchDegs_.at(waypointIndex));
+            }
+            if (waypointIndex < inspectionRouteWaypointFocalLengthRatios_.size()) {
+                waypointFocalLengthCandidates.append(inspectionRouteWaypointFocalLengthRatios_.at(waypointIndex));
             }
             const QString legacyTargetLabel =
                 waypointIndex < inspectionRouteWaypointTargetLabels_.size()
@@ -6012,6 +6196,12 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
             : (waypointIndex < inspectionRouteWaypointCameraPitchDegs_.size()
                 ? inspectionRouteWaypointCameraPitchDegs_.at(waypointIndex)
                 : 0.0);
+    const double focalLengthRatio =
+        (hasTarget && selectedTargetIndex >= 0 && selectedTargetIndex < waypointFocalLengthCandidates.size())
+            ? normalizedRoutePreviewFocalLengthRatio(waypointFocalLengthCandidates.at(selectedTargetIndex))
+            : (waypointIndex < inspectionRouteWaypointFocalLengthRatios_.size()
+                ? normalizedRoutePreviewFocalLengthRatio(inspectionRouteWaypointFocalLengthRatios_.at(waypointIndex))
+                : kRoutePreviewDefaultFocalLengthRatio);
 
     const double yawRadians = qDegreesToRadians(aircraftYawDeg + cameraYawDeg);
     const double pitchRadians = qDegreesToRadians(gimbalPitchDeg + cameraPitchDeg);
@@ -6035,18 +6225,24 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
     up.normalize();
 
     QImage previewImage(kRoutePreviewRenderWidth, kRoutePreviewRenderHeight, QImage::Format_ARGB32_Premultiplied);
-    previewImage.fill(QColor(8, 15, 25, 255));
+    previewImage.fill(visualizationOptions_.backgroundColor.rgba());
     std::vector<float> depthBuffer(static_cast<std::size_t>(previewImage.width() * previewImage.height()), std::numeric_limits<float>::max());
 
     const double aspectRatio = static_cast<double>(previewImage.width()) / static_cast<double>(previewImage.height());
-    const double verticalFovRadians = qDegreesToRadians(42.0);
+    const double verticalFovRadians = routePreviewVerticalFovRadians(focalLengthRatio);
     const double tanHalfFov = std::tan(verticalFovRadians * 0.5);
     const double nearPlane = 0.35;
+    const double minZ = currentPointCloud_->minBounds().z;
+    const double heightSpan = std::max(0.0, currentPointCloud_->maxBounds().z - minZ);
     const std::vector<PointRecord>& points = currentPointCloud_->points();
     const std::size_t pointStride = std::max<std::size_t>(1u, points.size() / 140000u);
 
     for (std::size_t pointIndex = 0; pointIndex < points.size(); pointIndex += pointStride) {
         const PointRecord& point = points[pointIndex];
+        if (!routePreviewPointVisible(point, visualizationOptions_)) {
+            continue;
+        }
+
         const osg::Vec3d relativePoint(
             static_cast<double>(point.x) - static_cast<double>(cameraPoint.x),
             static_cast<double>(point.y) - static_cast<double>(cameraPoint.y),
@@ -6078,17 +6274,21 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
         }
 
         depthBuffer[depthIndex] = static_cast<float>(zCamera);
-        const QRgb pointColor = qRgba(
-            point.r,
-            point.g,
-            point.b,
-            255);
-        reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY))[pixelX] = pointColor;
+        const QColor pointColor = routePreviewPointColor(point, visualizationOptions_, minZ, heightSpan);
+        const float pointAlpha = clampUnit(
+            static_cast<float>(pointColor.alphaF()) * clampUnit(visualizationOptions_.pointOpacity));
+        if (pointAlpha <= 0.01f) {
+            continue;
+        }
+
+        QRgb* scanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY));
+        scanLine[pixelX] = blendRoutePreviewPixel(scanLine[pixelX], pointColor, pointAlpha);
         if (pixelX + 1 < previewImage.width()) {
-            reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY))[pixelX + 1] = pointColor;
+            scanLine[pixelX + 1] = blendRoutePreviewPixel(scanLine[pixelX + 1], pointColor, pointAlpha);
         }
         if (pixelY + 1 < previewImage.height()) {
-            reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY + 1))[pixelX] = pointColor;
+            QRgb* nextScanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY + 1));
+            nextScanLine[pixelX] = blendRoutePreviewPixel(nextScanLine[pixelX], pointColor, pointAlpha);
         }
     }
 

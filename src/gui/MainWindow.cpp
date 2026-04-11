@@ -56,6 +56,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QSet>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSizePolicy>
@@ -739,6 +740,95 @@ bool captureTargetHasMeaningfulLocalPoint(const RouteCaptureTarget& captureTarge
         || !qFuzzyIsNull(static_cast<double>(captureTarget.targetLocalPoint.z));
 }
 
+double normalizedRouteFocalLengthRatio(double ratio)
+{
+    if (!std::isfinite(ratio) || ratio <= 0.0) {
+        return 1.0;
+    }
+
+    return std::clamp(ratio, 0.1, 64.0);
+}
+
+constexpr int kRecentProjectHistoryLimit = 10;
+
+QString normalizedProjectFilePath(const QString& filePath)
+{
+    const QString trimmedPath = filePath.trimmed();
+    if (trimmedPath.isEmpty()) {
+        return QString();
+    }
+
+    return QDir::fromNativeSeparators(QFileInfo(trimmedPath).absoluteFilePath());
+}
+
+bool isSupportedProjectFilePath(const QString& filePath)
+{
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    return suffix == QStringLiteral("json") || suffix == QStringLiteral("lpproj");
+}
+
+int indexOfProjectFilePath(const QStringList& filePaths, const QString& targetPath)
+{
+    for (int index = 0; index < filePaths.size(); ++index) {
+        if (QString::compare(filePaths.at(index), targetPath, Qt::CaseInsensitive) == 0) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+QStringList normalizedRecentProjectFiles(const QStringList& recentPaths, const QString& preferredPath = QString())
+{
+    QStringList normalizedPaths;
+    QSet<QString> dedupKeys;
+    const auto appendPath = [&](const QString& path, bool allowMissing) {
+        const QString normalizedPath = normalizedProjectFilePath(path);
+        if (normalizedPath.isEmpty() || !isSupportedProjectFilePath(normalizedPath)) {
+            return;
+        }
+
+        const QFileInfo fileInfo(normalizedPath);
+        if (!allowMissing && !fileInfo.exists()) {
+            return;
+        }
+
+        const QString dedupKey = normalizedPath.toLower();
+        if (dedupKeys.contains(dedupKey)) {
+            return;
+        }
+        dedupKeys.insert(dedupKey);
+        normalizedPaths.append(normalizedPath);
+    };
+
+    if (!preferredPath.isEmpty()) {
+        appendPath(preferredPath, false);
+    }
+    for (const QString& recentPath : recentPaths) {
+        appendPath(recentPath, false);
+    }
+
+    if (normalizedPaths.size() > kRecentProjectHistoryLimit) {
+        normalizedPaths = normalizedPaths.mid(0, kRecentProjectHistoryLimit);
+    }
+    return normalizedPaths;
+}
+
+void recordRecentProjectFilePath(const QString& filePath)
+{
+    const QString normalizedPath = normalizedProjectFilePath(filePath);
+    if (normalizedPath.isEmpty() || !QFileInfo::exists(normalizedPath)) {
+        return;
+    }
+
+    QSettings settings;
+    const QStringList recentProjects = normalizedRecentProjectFiles(
+        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
+        normalizedPath);
+    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
+    settings.setValue(QStringLiteral("project/lastOpenedProject"), normalizedPath);
+}
+
 QString routeCaptureTargetDisplayName(
     const RouteCaptureTarget& captureTarget,
     const QHash<int, RoutePartPoint>& partPointByIndex,
@@ -813,11 +903,13 @@ InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteD
     displayData.waypointGimbalPitchDegs.reserve(route.waypoints.size());
     displayData.waypointCameraYawDegs.reserve(route.waypoints.size());
     displayData.waypointCameraPitchDegs.reserve(route.waypoints.size());
+    displayData.waypointFocalLengthRatios.reserve(route.waypoints.size());
     displayData.waypointTargetLabels.reserve(route.waypoints.size());
     displayData.waypointAllTargetPoints.reserve(route.waypoints.size());
     displayData.waypointAllTargetPartIndices.reserve(route.waypoints.size());
     displayData.waypointAllCameraYawDegs.reserve(route.waypoints.size());
     displayData.waypointAllCameraPitchDegs.reserve(route.waypoints.size());
+    displayData.waypointAllFocalLengthRatios.reserve(route.waypoints.size());
     displayData.waypointAllTargetLabels.reserve(route.waypoints.size());
 
     QHash<int, PointRecord> partPointByIndex;
@@ -842,11 +934,13 @@ InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteD
         QList<int> allTargetPartIndices;
         QList<double> allCameraYawDegs;
         QList<double> allCameraPitchDegs;
+        QList<double> allFocalLengthRatios;
         QStringList allTargetLabels;
         allTargetPoints.reserve(waypoint.captureTargets.size());
         allTargetPartIndices.reserve(waypoint.captureTargets.size());
         allCameraYawDegs.reserve(waypoint.captureTargets.size());
         allCameraPitchDegs.reserve(waypoint.captureTargets.size());
+        allFocalLengthRatios.reserve(waypoint.captureTargets.size());
         allTargetLabels.reserve(waypoint.captureTargets.size());
 
         for (const RouteCaptureTarget& captureTarget : waypoint.captureTargets) {
@@ -868,6 +962,7 @@ InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteD
             allTargetPartIndices.append(captureTarget.partIndex);
             allCameraYawDegs.append(captureTarget.cameraYawDeg);
             allCameraPitchDegs.append(captureTarget.cameraPitchDeg);
+            allFocalLengthRatios.append(normalizedRouteFocalLengthRatio(captureTarget.focalLengthRatio));
             allTargetLabels.append(routeCaptureTargetDisplayName(captureTarget, routePartPointByIndex, allTargetLabels.size() + 1));
         }
 
@@ -875,6 +970,7 @@ InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteD
         displayData.waypointAllTargetPartIndices.append(allTargetPartIndices);
         displayData.waypointAllCameraYawDegs.append(allCameraYawDegs);
         displayData.waypointAllCameraPitchDegs.append(allCameraPitchDegs);
+        displayData.waypointAllFocalLengthRatios.append(allFocalLengthRatios);
         displayData.waypointAllTargetLabels.append(allTargetLabels);
 
         if (!allTargetPoints.isEmpty()) {
@@ -891,6 +987,10 @@ InspectionRouteDisplayData buildInspectionRouteDisplayData(const PowerlineRouteD
         displayData.waypointGimbalPitchDegs.append(waypoint.gimbalPitchDeg);
         displayData.waypointCameraYawDegs.append(allCameraYawDegs.isEmpty() ? primaryTarget.cameraYawDeg : allCameraYawDegs.constFirst());
         displayData.waypointCameraPitchDegs.append(allCameraPitchDegs.isEmpty() ? primaryTarget.cameraPitchDeg : allCameraPitchDegs.constFirst());
+        displayData.waypointFocalLengthRatios.append(
+            allFocalLengthRatios.isEmpty()
+                ? normalizedRouteFocalLengthRatio(primaryTarget.focalLengthRatio)
+                : allFocalLengthRatios.constFirst());
         displayData.waypointTargetLabels.append(routeWaypointPartSummary(waypoint, routePartPointByIndex));
     }
 
@@ -2281,26 +2381,41 @@ void MainWindow::createRibbon()
 
 void MainWindow::createViewQuickToolBar()
 {
+    const double quickToolUiScale = std::clamp(static_cast<double>(logicalDpiX()) / 96.0, 1.0, 2.0);
+    const int quickToolIconSize = static_cast<int>(std::lround(18.0 * quickToolUiScale));
+    const int quickToolSpacing = static_cast<int>(std::lround(4.0 * quickToolUiScale));
+    const int quickToolPaddingY = static_cast<int>(std::lround(6.0 * quickToolUiScale));
+    const int quickToolPaddingX = static_cast<int>(std::lround(3.0 * quickToolUiScale));
+    const int quickToolButtonPadding = static_cast<int>(std::lround(6.0 * quickToolUiScale));
+    const int quickToolButtonRadius = static_cast<int>(std::lround(8.0 * quickToolUiScale));
+    const int quickToolButtonSize = quickToolIconSize + quickToolButtonPadding * 2;
+    const int quickToolSeparatorMarginY = static_cast<int>(std::lround(6.0 * quickToolUiScale));
+    const int quickToolSeparatorMarginX = static_cast<int>(std::lround(8.0 * quickToolUiScale));
+    const int quickToolTipPaddingY = static_cast<int>(std::lround(4.0 * quickToolUiScale));
+    const int quickToolTipPaddingX = static_cast<int>(std::lround(8.0 * quickToolUiScale));
+
     viewQuickToolBar_ = new QToolBar(tr("View Toolbar"), this);
     viewQuickToolBar_->setObjectName(QStringLiteral("viewQuickToolBar"));
     viewQuickToolBar_->setOrientation(Qt::Vertical);
     viewQuickToolBar_->setMovable(false);
     viewQuickToolBar_->setFloatable(false);
-    viewQuickToolBar_->setIconSize(QSize(18, 18));
+    viewQuickToolBar_->setIconSize(QSize(quickToolIconSize, quickToolIconSize));
     viewQuickToolBar_->setToolButtonStyle(Qt::ToolButtonIconOnly);
     viewQuickToolBar_->setContextMenuPolicy(Qt::PreventContextMenu);
     viewQuickToolBar_->setStyleSheet(QStringLiteral(
         "QToolBar#viewQuickToolBar {"
         "background-color: #f8fbff;"
         "border-right: 1px solid #d5e2f0;"
-        "spacing: 4px;"
-        "padding: 6px 3px;"
+        "spacing: %1px;"
+        "padding: %2px %3px;"
         "}"
         "QToolButton {"
         "background: transparent;"
         "border: 1px solid transparent;"
-        "border-radius: 8px;"
-        "padding: 6px;"
+        "border-radius: %4px;"
+        "padding: %5px;"
+        "min-width: %6px;"
+        "min-height: %6px;"
         "color: #0f172a;"
         "}"
         "QToolButton:hover {"
@@ -2322,15 +2437,25 @@ void MainWindow::createViewQuickToolBar()
         "background-color: #f8fafc;"
         "color: #0f172a;"
         "border: 1px solid #94a3b8;"
-        "padding: 4px 8px;"
+        "padding: %7px %8px;"
         "border-radius: 4px;"
         "}"
         "QToolBar::separator {"
         "background: #d8e3f2;"
         "width: 1px;"
         "height: 1px;"
-        "margin: 6px 8px;"
-        "}"));
+        "margin: %9px %10px;"
+        "}")
+        .arg(quickToolSpacing)
+        .arg(quickToolPaddingY)
+        .arg(quickToolPaddingX)
+        .arg(quickToolButtonRadius)
+        .arg(quickToolButtonPadding)
+        .arg(quickToolButtonSize)
+        .arg(quickToolTipPaddingY)
+        .arg(quickToolTipPaddingX)
+        .arg(quickToolSeparatorMarginY)
+        .arg(quickToolSeparatorMarginX));
 
     viewQuickToolBar_->addAction(fitSceneAction_);
     viewQuickToolBar_->addAction(topViewAction_);
@@ -6254,6 +6379,7 @@ void MainWindow::createConnections()
             }
 
             const QModelIndex index = routeWaypointsTableWidget_->indexAt(pos);
+            const int contextWaypointIndex = index.isValid() ? index.row() : selectedRouteWaypointIndex_;
             if (index.isValid()) {
                 routeWaypointsTableWidget_->setCurrentCell(index.row(), kRouteWaypointColumnPart);
             }
@@ -6262,15 +6388,16 @@ void MainWindow::createConnections()
             QAction* editAction = menu.addAction(tr("Edit Waypoint"));
             QAction* focusAction = menu.addAction(tr("Focus Waypoint"));
             QAction* removeAction = menu.addAction(tr("Delete Waypoint"));
-            editAction->setEnabled(selectedRouteWaypointIndex_ >= 0 && routeEditingEnabled_);
-            removeAction->setEnabled(selectedRouteWaypointIndex_ >= 0 && routeEditingEnabled_);
+            editAction->setEnabled(contextWaypointIndex >= 0 && contextWaypointIndex < currentPowerlineRoute_.waypoints.size());
+            focusAction->setEnabled(contextWaypointIndex >= 0 && contextWaypointIndex < currentPowerlineRoute_.waypoints.size());
+            removeAction->setEnabled(contextWaypointIndex >= 0 && contextWaypointIndex < currentPowerlineRoute_.waypoints.size() && routeEditingEnabled_);
             QAction* chosenAction = menu.exec(routeWaypointsTableWidget_->viewport()->mapToGlobal(pos));
             if (chosenAction == editAction) {
-                editRouteWaypoint(selectedRouteWaypointIndex_);
+                editRouteWaypoint(contextWaypointIndex);
             } else if (chosenAction == focusAction) {
-                focusRouteWaypoint(selectedRouteWaypointIndex_);
+                focusRouteWaypoint(contextWaypointIndex);
             } else if (chosenAction == removeAction) {
-                removeRouteWaypoint(selectedRouteWaypointIndex_, true);
+                removeRouteWaypoint(contextWaypointIndex, true);
             }
         });
         connect(routeWaypointsTableWidget_, &QTableWidget::currentCellChanged, this, [this](int currentRow, int, int, int) {
@@ -7580,12 +7707,199 @@ void MainWindow::openProjectExplorerFile()
 
 void MainWindow::openProject()
 {
-    const QString filePath = showStyledOpenFileNameDialog(
-        this,
-        tr("Open Project"),
-        QString(),
-        tr("LiDAR Power Projects (*.json *.lpproj);;JSON Files (*.json);;All Files (*.*)"));
+    QSettings settings;
+    const QString lastOpenedProject = normalizedProjectFilePath(
+        settings.value(QStringLiteral("project/lastOpenedProject")).toString());
+    const QStringList recentProjects = normalizedRecentProjectFiles(
+        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
+        lastOpenedProject);
+    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
 
+    QDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("openProjectDialog"));
+    dialog.setWindowTitle(tr("Open Project"));
+    dialog.setModal(true);
+    dialog.resize(680, 230);
+    applyStyledDialogPalette(&dialog);
+    dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(
+        "#openProjectDialog QLabel {"
+        "color: #0f172a;"
+        "}"
+        "#openProjectDialog QLineEdit,"
+        "#openProjectDialog QComboBox {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 8px;"
+        "min-height: 30px;"
+        "padding: 4px 10px;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "}"
+        "#openProjectDialog QComboBox::drop-down {"
+        "subcontrol-origin: padding;"
+        "subcontrol-position: top right;"
+        "width: 26px;"
+        "border-left: 1px solid #cbd5e1;"
+        "background-color: #f8fafc;"
+        "}"
+        "#openProjectDialog QComboBox::down-arrow {"
+        "width: 0px;"
+        "height: 0px;"
+        "border-left: 5px solid transparent;"
+        "border-right: 5px solid transparent;"
+        "border-top: 6px solid #334155;"
+        "margin-right: 8px;"
+        "}"
+        "#openProjectDialog QLineEdit:disabled,"
+        "#openProjectDialog QComboBox:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #e2e8f0;"
+        "}"
+        "#openProjectDialog QComboBox QAbstractItemView {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "outline: none;"
+        "}"
+        "#openProjectDialog QPushButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 8px;"
+        "min-height: 30px;"
+        "padding: 4px 12px;"
+        "font-weight: 600;"
+        "}"
+        "#openProjectDialog QPushButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "#openProjectDialog QPushButton:pressed {"
+        "background-color: #dbeafe;"
+        "}"
+        "#openProjectDialog QPushButton:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #e2e8f0;"
+        "}"
+        "#openProjectDialog QDialogButtonBox QPushButton {"
+        "min-width: 96px;"
+        "}"
+    ));
+
+    auto* rootLayout = new QVBoxLayout(&dialog);
+    rootLayout->setContentsMargins(18, 16, 18, 16);
+    rootLayout->setSpacing(12);
+
+    auto* hintLabel = new QLabel(tr("Select a recent project or browse to a project file."), &dialog);
+    hintLabel->setWordWrap(true);
+    rootLayout->addWidget(hintLabel);
+
+    auto* formLayout = new QFormLayout();
+    formLayout->setHorizontalSpacing(10);
+    formLayout->setVerticalSpacing(10);
+    rootLayout->addLayout(formLayout, 1);
+
+    auto* recentComboBox = new QComboBox(&dialog);
+    recentComboBox->setMinimumWidth(500);
+    for (const QString& recentProject : recentProjects) {
+        const QString displayName = QFileInfo(recentProject).fileName();
+        const QString itemText = displayName.isEmpty() ? QDir::toNativeSeparators(recentProject) : displayName;
+        recentComboBox->addItem(itemText, recentProject);
+        recentComboBox->setItemData(
+            recentComboBox->count() - 1,
+            QDir::toNativeSeparators(recentProject),
+            Qt::ToolTipRole);
+    }
+    if (recentComboBox->count() == 0) {
+        recentComboBox->addItem(tr("No recent projects"), QString());
+        recentComboBox->setEnabled(false);
+    }
+    formLayout->addRow(tr("Recent Projects"), recentComboBox);
+
+    auto* pathLineEdit = new QLineEdit(&dialog);
+    pathLineEdit->setClearButtonEnabled(true);
+    pathLineEdit->setPlaceholderText(tr("Project file path"));
+
+    auto* browseButton = new QPushButton(tr("Browse..."), &dialog);
+    auto* pathRow = new QWidget(&dialog);
+    auto* pathRowLayout = new QHBoxLayout(pathRow);
+    pathRowLayout->setContentsMargins(0, 0, 0, 0);
+    pathRowLayout->setSpacing(8);
+    pathRowLayout->addWidget(pathLineEdit, 1);
+    pathRowLayout->addWidget(browseButton);
+    formLayout->addRow(tr("Project File"), pathRow);
+
+    const int defaultRecentIndex = lastOpenedProject.isEmpty()
+        ? -1
+        : indexOfProjectFilePath(recentProjects, lastOpenedProject);
+    if (recentComboBox->isEnabled()) {
+        recentComboBox->setCurrentIndex(defaultRecentIndex >= 0 ? defaultRecentIndex : 0);
+    }
+    const QString defaultProjectPath = defaultRecentIndex >= 0
+        ? recentProjects.at(defaultRecentIndex)
+        : (!recentProjects.isEmpty() ? recentProjects.constFirst() : QString());
+    pathLineEdit->setText(defaultProjectPath);
+
+    connect(recentComboBox, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [recentComboBox, pathLineEdit](int row) {
+        const QString selectedPath = recentComboBox->itemData(row).toString();
+        if (!selectedPath.isEmpty()) {
+            pathLineEdit->setText(selectedPath);
+        }
+    });
+
+    connect(browseButton, &QPushButton::clicked, &dialog, [this, &dialog, pathLineEdit]() {
+        const QString selectedPath = showStyledOpenFileNameDialog(
+            &dialog,
+            tr("Open Project"),
+            pathLineEdit->text().trimmed(),
+            tr("LiDAR Power Projects (*.json *.lpproj);;JSON Files (*.json);;All Files (*.*)"));
+        if (!selectedPath.isEmpty()) {
+            pathLineEdit->setText(normalizedProjectFilePath(selectedPath));
+        }
+    });
+
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Open | QDialogButtonBox::Cancel, &dialog);
+    rootLayout->addWidget(buttonBox);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttonBox->button(QDialogButtonBox::Open), &QPushButton::clicked, &dialog, [this, &dialog, pathLineEdit]() {
+        const QString projectPath = normalizedProjectFilePath(pathLineEdit->text());
+        if (projectPath.isEmpty()) {
+            QMessageBox::warning(
+                &dialog,
+                tr("Open Project"),
+                tr("Select an existing project file."));
+            return;
+        }
+        if (!QFileInfo::exists(projectPath)) {
+            QMessageBox::warning(
+                &dialog,
+                tr("Open Project"),
+                tr("Project file does not exist."));
+            return;
+        }
+        if (!isSupportedProjectFilePath(projectPath)) {
+            QMessageBox::warning(
+                &dialog,
+                tr("Open Project"),
+                tr("Choose a .json or .lpproj project file."));
+            return;
+        }
+
+        dialog.setProperty("selectedProjectFilePath", projectPath);
+        dialog.accept();
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        showUserMessage(LogLevel::Info, tr("Open project cancelled."), 2000);
+        return;
+    }
+
+    const QString filePath = dialog.property("selectedProjectFilePath").toString();
     if (filePath.isEmpty()) {
         showUserMessage(LogLevel::Info, tr("Open project cancelled."), 2000);
         return;
@@ -7807,16 +8121,33 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         return false;
     }
 
+    if (QDialog* existingDialog = findChild<QDialog*>(QStringLiteral("routeWaypointEditDialog"), Qt::FindDirectChildrenOnly);
+        existingDialog != nullptr) {
+        existingDialog->close();
+    }
+
+    struct RouteWaypointEditState
+    {
+        RouteWaypoint originalWaypoint;
+        int selectedTargetIndex = -1;
+        int originalTargetIndex = -1;
+        bool hasCaptureTargets = false;
+    };
+
     RouteWaypoint& waypoint = currentPowerlineRoute_.waypoints[waypointIndex];
     const RouteWaypoint originalWaypoint = waypoint;
     const bool hasCaptureTargets = !waypoint.captureTargets.isEmpty();
     const int originalTargetIndex = hasCaptureTargets
         ? std::clamp(selectedRouteWaypointTargetIndex_, 0, waypoint.captureTargets.size() - 1)
         : -1;
-    int selectedTargetIndex = originalTargetIndex;
+    const auto state = std::make_shared<RouteWaypointEditState>();
+    state->originalWaypoint = originalWaypoint;
+    state->selectedTargetIndex = originalTargetIndex;
+    state->originalTargetIndex = originalTargetIndex;
+    state->hasCaptureTargets = hasCaptureTargets;
     const RouteCaptureTarget selectedTarget =
-        (hasCaptureTargets && selectedTargetIndex >= 0 && selectedTargetIndex < originalWaypoint.captureTargets.size())
-            ? originalWaypoint.captureTargets.at(selectedTargetIndex)
+        (hasCaptureTargets && state->selectedTargetIndex >= 0 && state->selectedTargetIndex < originalWaypoint.captureTargets.size())
+            ? originalWaypoint.captureTargets.at(state->selectedTargetIndex)
             : RouteCaptureTarget();
 
     QHash<int, RoutePartPoint> partPointByIndex;
@@ -7826,11 +8157,14 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         }
     }
 
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("Edit Route Waypoint"));
-    dialog.setModal(true);
-    dialog.resize(540, 440);
-    dialog.setStyleSheet(QStringLiteral(
+    auto* dialog = new QDialog(this);
+    dialog->setObjectName(QStringLiteral("routeWaypointEditDialog"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose, true);
+    dialog->setWindowTitle(tr("Edit Route Waypoint"));
+    dialog->setModal(false);
+    dialog->setWindowModality(Qt::NonModal);
+    dialog->resize(560, 500);
+    dialog->setStyleSheet(QStringLiteral(
         "QDialog {"
         "background-color: #f3f7fb;"
         "}"
@@ -7902,11 +8236,11 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         "border-color: #93c5fd;"
         "}"));
 
-    auto* rootLayout = new QVBoxLayout(&dialog);
+    auto* rootLayout = new QVBoxLayout(dialog);
     rootLayout->setContentsMargins(24, 22, 24, 20);
     rootLayout->setSpacing(16);
 
-    auto* headerCard = new QFrame(&dialog);
+    auto* headerCard = new QFrame(dialog);
     headerCard->setObjectName(QStringLiteral("routeEditCard"));
     auto* headerLayout = new QVBoxLayout(headerCard);
     headerLayout->setContentsMargins(22, 18, 22, 18);
@@ -7945,7 +8279,7 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
 
     QTableWidget* targetTableWidget = nullptr;
     if (hasCaptureTargets) {
-        auto* targetsCard = new QFrame(&dialog);
+        auto* targetsCard = new QFrame(dialog);
         targetsCard->setObjectName(QStringLiteral("routeEditCard"));
         auto* targetsLayout = new QVBoxLayout(targetsCard);
         targetsLayout->setContentsMargins(22, 16, 22, 16);
@@ -8010,12 +8344,12 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
                 createReadOnlyItem(QLocale().toString(captureTarget.cameraPitchDeg, 'f', 2), Qt::AlignRight | Qt::AlignVCenter));
         }
 
-        targetTableWidget->setCurrentCell(std::max(0, selectedTargetIndex), 1);
+        targetTableWidget->setCurrentCell(std::max(0, state->selectedTargetIndex), 1);
         targetsLayout->addWidget(targetTableWidget, 1);
         rootLayout->addWidget(targetsCard, 1);
     }
 
-    auto* formCard = new QFrame(&dialog);
+    auto* formCard = new QFrame(dialog);
     formCard->setObjectName(QStringLiteral("routeEditCard"));
     auto* formLayout = new QFormLayout(formCard);
     formLayout->setContentsMargins(22, 18, 22, 18);
@@ -8035,12 +8369,19 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         spinBox->setSingleStep(1.0);
         spinBox->setValue(value);
     };
+    auto configureFocalRatioSpin = [](QDoubleSpinBox* spinBox, double value) {
+        spinBox->setRange(0.1, 64.0);
+        spinBox->setDecimals(2);
+        spinBox->setSingleStep(0.1);
+        spinBox->setValue(normalizedRouteFocalLengthRatio(value));
+    };
 
     auto* xSpinBox = new QDoubleSpinBox(formCard);
     auto* ySpinBox = new QDoubleSpinBox(formCard);
     auto* zSpinBox = new QDoubleSpinBox(formCard);
     auto* aircraftYawSpinBox = new QDoubleSpinBox(formCard);
     auto* gimbalPitchSpinBox = new QDoubleSpinBox(formCard);
+    auto* focalLengthRatioSpinBox = new QDoubleSpinBox(formCard);
     auto* cameraYawSpinBox = new QDoubleSpinBox(formCard);
     auto* cameraPitchSpinBox = new QDoubleSpinBox(formCard);
 
@@ -8049,9 +8390,11 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
     configureCoordinateSpin(zSpinBox, waypoint.localPoint.z);
     configureAngleSpin(aircraftYawSpinBox, -360.0, 360.0, waypoint.aircraftYawDeg);
     configureAngleSpin(gimbalPitchSpinBox, -180.0, 180.0, waypoint.gimbalPitchDeg);
+    configureFocalRatioSpin(focalLengthRatioSpinBox, selectedTarget.focalLengthRatio);
     configureAngleSpin(cameraYawSpinBox, -360.0, 360.0, selectedTarget.cameraYawDeg);
     configureAngleSpin(cameraPitchSpinBox, -180.0, 180.0, selectedTarget.cameraPitchDeg);
 
+    focalLengthRatioSpinBox->setEnabled(hasCaptureTargets);
     cameraYawSpinBox->setEnabled(hasCaptureTargets);
     cameraPitchSpinBox->setEnabled(hasCaptureTargets);
 
@@ -8060,16 +8403,24 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
     formLayout->addRow(tr("Z"), zSpinBox);
     formLayout->addRow(tr("Aircraft Yaw"), aircraftYawSpinBox);
     formLayout->addRow(tr("Gimbal Pitch"), gimbalPitchSpinBox);
+    formLayout->addRow(tr("Focal Ratio"), focalLengthRatioSpinBox);
     formLayout->addRow(tr("Camera Yaw"), cameraYawSpinBox);
     formLayout->addRow(tr("Camera Pitch"), cameraPitchSpinBox);
     rootLayout->addWidget(formCard, 1);
 
-    const auto refreshTargetTableRow = [&](int row) {
-        if (targetTableWidget == nullptr || row < 0 || row >= waypoint.captureTargets.size()) {
+    const auto refreshTargetTableRow = [this, targetTableWidget, waypointIndex](int row) {
+        if (targetTableWidget == nullptr
+            || waypointIndex < 0
+            || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
             return;
         }
 
-        const RouteCaptureTarget& captureTarget = waypoint.captureTargets.at(row);
+        const RouteWaypoint& currentWaypoint = currentPowerlineRoute_.waypoints.at(waypointIndex);
+        if (row < 0 || row >= currentWaypoint.captureTargets.size()) {
+            return;
+        }
+
+        const RouteCaptureTarget& captureTarget = currentWaypoint.captureTargets.at(row);
         if (QTableWidgetItem* focalItem = targetTableWidget->item(row, 2); focalItem != nullptr) {
             focalItem->setText(QLocale().toString(captureTarget.focalLengthRatio, 'f', 2));
         }
@@ -8081,30 +8432,48 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         }
     };
 
-    const auto applyCurrentEditorValues = [&]() {
-        waypoint.localPoint.x = xSpinBox->value();
-        waypoint.localPoint.y = ySpinBox->value();
-        waypoint.localPoint.z = zSpinBox->value();
-        waypoint.dh = zSpinBox->value();
-        waypoint.height = zSpinBox->value();
-        waypoint.aircraftYawDeg = aircraftYawSpinBox->value();
-        waypoint.gimbalPitchDeg = gimbalPitchSpinBox->value();
+    const auto applyCurrentEditorValues = [this,
+                                           waypointIndex,
+                                           state,
+                                           xSpinBox,
+                                           ySpinBox,
+                                           zSpinBox,
+                                           aircraftYawSpinBox,
+                                           gimbalPitchSpinBox,
+                                           focalLengthRatioSpinBox,
+                                           cameraYawSpinBox,
+                                           cameraPitchSpinBox,
+                                           refreshTargetTableRow]() {
+        if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+            return;
+        }
 
-        if (hasCaptureTargets) {
-            for (RouteCaptureTarget& captureTarget : waypoint.captureTargets) {
-                captureTarget.aircraftYawDeg = waypoint.aircraftYawDeg;
-                captureTarget.gimbalPitchDeg = waypoint.gimbalPitchDeg;
+        RouteWaypoint& currentWaypoint = currentPowerlineRoute_.waypoints[waypointIndex];
+        currentWaypoint.localPoint.x = xSpinBox->value();
+        currentWaypoint.localPoint.y = ySpinBox->value();
+        currentWaypoint.localPoint.z = zSpinBox->value();
+        currentWaypoint.dh = zSpinBox->value();
+        currentWaypoint.height = zSpinBox->value();
+        currentWaypoint.aircraftYawDeg = aircraftYawSpinBox->value();
+        currentWaypoint.gimbalPitchDeg = gimbalPitchSpinBox->value();
+
+        if (state->hasCaptureTargets) {
+            for (RouteCaptureTarget& captureTarget : currentWaypoint.captureTargets) {
+                captureTarget.aircraftYawDeg = currentWaypoint.aircraftYawDeg;
+                captureTarget.gimbalPitchDeg = currentWaypoint.gimbalPitchDeg;
             }
 
-            if (selectedTargetIndex >= 0 && selectedTargetIndex < waypoint.captureTargets.size()) {
-                waypoint.captureTargets[selectedTargetIndex].cameraYawDeg = cameraYawSpinBox->value();
-                waypoint.captureTargets[selectedTargetIndex].cameraPitchDeg = cameraPitchSpinBox->value();
-                refreshTargetTableRow(selectedTargetIndex);
+            if (state->selectedTargetIndex >= 0 && state->selectedTargetIndex < currentWaypoint.captureTargets.size()) {
+                RouteCaptureTarget& activeTarget = currentWaypoint.captureTargets[state->selectedTargetIndex];
+                activeTarget.focalLengthRatio = normalizedRouteFocalLengthRatio(focalLengthRatioSpinBox->value());
+                activeTarget.cameraYawDeg = cameraYawSpinBox->value();
+                activeTarget.cameraPitchDeg = cameraPitchSpinBox->value();
+                refreshTargetTableRow(state->selectedTargetIndex);
             }
         }
 
         selectedRouteWaypointIndex_ = waypointIndex;
-        selectedRouteWaypointTargetIndex_ = selectedTargetIndex;
+        selectedRouteWaypointTargetIndex_ = state->selectedTargetIndex;
         applyCurrentRouteToViewer();
         if (viewer_ != nullptr) {
             viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
@@ -8112,42 +8481,54 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         updateRoutePlanningPanel();
     };
 
-    const auto syncSelectedTargetFromTable = [&]() {
-        if (!hasCaptureTargets || targetTableWidget == nullptr) {
+    const auto syncSelectedTargetFromTable = [this,
+                                              waypointIndex,
+                                              state,
+                                              targetTableWidget,
+                                              focalLengthRatioSpinBox,
+                                              cameraYawSpinBox,
+                                              cameraPitchSpinBox]() {
+        if (!state->hasCaptureTargets
+            || targetTableWidget == nullptr
+            || waypointIndex < 0
+            || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
             return;
         }
 
+        const RouteWaypoint& currentWaypoint = currentPowerlineRoute_.waypoints.at(waypointIndex);
         int row = targetTableWidget->currentRow();
-        if (row < 0 || row >= waypoint.captureTargets.size()) {
+        if (row < 0 || row >= currentWaypoint.captureTargets.size()) {
             row = 0;
         }
 
-        selectedTargetIndex = row;
-        const RouteCaptureTarget& captureTarget = waypoint.captureTargets.at(selectedTargetIndex);
+        state->selectedTargetIndex = row;
+        const RouteCaptureTarget& captureTarget = currentWaypoint.captureTargets.at(state->selectedTargetIndex);
+        const QSignalBlocker focalRatioBlocker(focalLengthRatioSpinBox);
         const QSignalBlocker yawBlocker(cameraYawSpinBox);
         const QSignalBlocker pitchBlocker(cameraPitchSpinBox);
+        focalLengthRatioSpinBox->setValue(normalizedRouteFocalLengthRatio(captureTarget.focalLengthRatio));
         cameraYawSpinBox->setValue(captureTarget.cameraYawDeg);
         cameraPitchSpinBox->setValue(captureTarget.cameraPitchDeg);
 
-        selectedRouteWaypointTargetIndex_ = selectedTargetIndex;
+        selectedRouteWaypointTargetIndex_ = state->selectedTargetIndex;
         if (viewer_ != nullptr) {
             viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
         }
     };
 
     if (targetTableWidget != nullptr) {
-        connect(targetTableWidget, &QTableWidget::currentCellChanged, &dialog, [syncSelectedTargetFromTable](int, int, int, int) {
+        connect(targetTableWidget, &QTableWidget::currentCellChanged, dialog, [syncSelectedTargetFromTable](int, int, int, int) {
             syncSelectedTargetFromTable();
         });
         syncSelectedTargetFromTable();
     }
 
-    const auto connectRealtimePreview = [this, &dialog, &applyCurrentEditorValues](QDoubleSpinBox* spinBox) {
+    const auto connectRealtimePreview = [this, dialog, applyCurrentEditorValues](QDoubleSpinBox* spinBox) {
         QObject::connect(
             spinBox,
             qOverload<double>(&QDoubleSpinBox::valueChanged),
-            &dialog,
-            [this, &applyCurrentEditorValues](double) {
+            dialog,
+            [this, applyCurrentEditorValues](double) {
             applyCurrentEditorValues();
         });
     };
@@ -8157,18 +8538,37 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
     connectRealtimePreview(zSpinBox);
     connectRealtimePreview(aircraftYawSpinBox);
     connectRealtimePreview(gimbalPitchSpinBox);
+    connectRealtimePreview(focalLengthRatioSpinBox);
     connectRealtimePreview(cameraYawSpinBox);
     connectRealtimePreview(cameraPitchSpinBox);
 
-    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, dialog);
     QPushButton* resetButton = buttonBox->addButton(tr("Reset"), QDialogButtonBox::ResetRole);
-    connect(resetButton, &QPushButton::clicked, &dialog, [&]() {
-        waypoint = originalWaypoint;
+    connect(resetButton, &QPushButton::clicked, dialog, [this,
+                                                          waypointIndex,
+                                                          state,
+                                                          targetTableWidget,
+                                                          xSpinBox,
+                                                          ySpinBox,
+                                                          zSpinBox,
+                                                          aircraftYawSpinBox,
+                                                          gimbalPitchSpinBox,
+                                                          focalLengthRatioSpinBox,
+                                                          cameraYawSpinBox,
+                                                          cameraPitchSpinBox,
+                                                          refreshTargetTableRow,
+                                                          applyCurrentEditorValues]() {
+        if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+            return;
+        }
 
-        if (targetTableWidget != nullptr && originalTargetIndex >= 0) {
+        RouteWaypoint& currentWaypoint = currentPowerlineRoute_.waypoints[waypointIndex];
+        currentWaypoint = state->originalWaypoint;
+        state->selectedTargetIndex = state->originalTargetIndex;
+
+        if (targetTableWidget != nullptr && state->selectedTargetIndex >= 0) {
             const QSignalBlocker tableBlocker(targetTableWidget);
-            targetTableWidget->setCurrentCell(originalTargetIndex, 1);
-            selectedTargetIndex = originalTargetIndex;
+            targetTableWidget->setCurrentCell(state->selectedTargetIndex, 1);
         }
 
         const QSignalBlocker xBlocker(xSpinBox);
@@ -8176,88 +8576,105 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
         const QSignalBlocker zBlocker(zSpinBox);
         const QSignalBlocker aircraftYawBlocker(aircraftYawSpinBox);
         const QSignalBlocker gimbalPitchBlocker(gimbalPitchSpinBox);
+        const QSignalBlocker focalRatioBlocker(focalLengthRatioSpinBox);
         const QSignalBlocker cameraYawBlocker(cameraYawSpinBox);
         const QSignalBlocker cameraPitchBlocker(cameraPitchSpinBox);
 
-        xSpinBox->setValue(originalWaypoint.localPoint.x);
-        ySpinBox->setValue(originalWaypoint.localPoint.y);
-        zSpinBox->setValue(originalWaypoint.localPoint.z);
-        aircraftYawSpinBox->setValue(originalWaypoint.aircraftYawDeg);
-        gimbalPitchSpinBox->setValue(originalWaypoint.gimbalPitchDeg);
-        if (hasCaptureTargets && selectedTargetIndex >= 0 && selectedTargetIndex < waypoint.captureTargets.size()) {
-            cameraYawSpinBox->setValue(waypoint.captureTargets.at(selectedTargetIndex).cameraYawDeg);
-            cameraPitchSpinBox->setValue(waypoint.captureTargets.at(selectedTargetIndex).cameraPitchDeg);
+        xSpinBox->setValue(state->originalWaypoint.localPoint.x);
+        ySpinBox->setValue(state->originalWaypoint.localPoint.y);
+        zSpinBox->setValue(state->originalWaypoint.localPoint.z);
+        aircraftYawSpinBox->setValue(state->originalWaypoint.aircraftYawDeg);
+        gimbalPitchSpinBox->setValue(state->originalWaypoint.gimbalPitchDeg);
+        if (state->hasCaptureTargets
+            && state->selectedTargetIndex >= 0
+            && state->selectedTargetIndex < currentWaypoint.captureTargets.size()) {
+            const RouteCaptureTarget& captureTarget = currentWaypoint.captureTargets.at(state->selectedTargetIndex);
+            focalLengthRatioSpinBox->setValue(normalizedRouteFocalLengthRatio(captureTarget.focalLengthRatio));
+            cameraYawSpinBox->setValue(captureTarget.cameraYawDeg);
+            cameraPitchSpinBox->setValue(captureTarget.cameraPitchDeg);
         } else {
+            focalLengthRatioSpinBox->setValue(1.0);
             cameraYawSpinBox->setValue(0.0);
             cameraPitchSpinBox->setValue(0.0);
         }
 
         if (targetTableWidget != nullptr) {
-            for (int row = 0; row < waypoint.captureTargets.size(); ++row) {
+            for (int row = 0; row < currentWaypoint.captureTargets.size(); ++row) {
                 refreshTargetTableRow(row);
             }
         }
 
         applyCurrentEditorValues();
     });
-    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     rootLayout->addWidget(buttonBox);
 
-    if (dialog.exec() != QDialog::Accepted) {
-        waypoint = originalWaypoint;
+    connect(dialog, &QDialog::finished, this, [this, waypointIndex, state, applyCurrentEditorValues](int result) {
+        if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
+            return;
+        }
+
+        RouteWaypoint& currentWaypoint = currentPowerlineRoute_.waypoints[waypointIndex];
+        if (result != QDialog::Accepted) {
+            currentWaypoint = state->originalWaypoint;
+            selectedRouteWaypointIndex_ = waypointIndex;
+            selectedRouteWaypointTargetIndex_ = state->originalTargetIndex;
+            applyCurrentRouteToViewer();
+            if (viewer_ != nullptr) {
+                viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
+            }
+            updateRoutePlanningPanel();
+            return;
+        }
+
+        applyCurrentEditorValues();
+
+        QString geographicWarning;
+        if (projectCoordinateSystems_.pointCloudCrs.code > 0 && projectCoordinateSystems_.geographicCrs.code > 0) {
+            QPointF geographicPoint;
+            QString errorMessage;
+            if (CrsTransformService::transformPoint(
+                    projectCoordinateSystems_.pointCloudCrs,
+                    projectCoordinateSystems_.geographicCrs,
+                    QPointF(currentWaypoint.localPoint.x, currentWaypoint.localPoint.y),
+                    &geographicPoint,
+                    &errorMessage)) {
+                currentWaypoint.longitude = geographicPoint.x();
+                currentWaypoint.latitude = geographicPoint.y();
+            } else {
+                geographicWarning = errorMessage.isEmpty()
+                    ? tr("Waypoint local position was updated, but geographic coordinates could not be synchronized.")
+                    : errorMessage;
+            }
+        }
+
         selectedRouteWaypointIndex_ = waypointIndex;
-        selectedRouteWaypointTargetIndex_ = originalTargetIndex;
+        selectedRouteWaypointTargetIndex_ = state->selectedTargetIndex;
         applyCurrentRouteToViewer();
         if (viewer_ != nullptr) {
             viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
         }
         updateRoutePlanningPanel();
-        return false;
-    }
-
-    applyCurrentEditorValues();
-
-    QString geographicWarning;
-    if (projectCoordinateSystems_.pointCloudCrs.code > 0 && projectCoordinateSystems_.geographicCrs.code > 0) {
-        QPointF geographicPoint;
-        QString errorMessage;
-        if (CrsTransformService::transformPoint(
-                projectCoordinateSystems_.pointCloudCrs,
-                projectCoordinateSystems_.geographicCrs,
-                QPointF(waypoint.localPoint.x, waypoint.localPoint.y),
-                &geographicPoint,
-                &errorMessage)) {
-            waypoint.longitude = geographicPoint.x();
-            waypoint.latitude = geographicPoint.y();
-        } else {
-            geographicWarning = errorMessage.isEmpty()
-                ? tr("Waypoint local position was updated, but geographic coordinates could not be synchronized.")
-                : errorMessage;
+        rebuildProjectTree();
+        updateActionState();
+        if (viewer_ != nullptr) {
+            viewer_->focusOnPoint(currentWaypoint.localPoint, 0.2);
         }
-    }
 
-    selectedRouteWaypointIndex_ = waypointIndex;
-    selectedRouteWaypointTargetIndex_ = selectedTargetIndex;
-    applyCurrentRouteToViewer();
-    if (viewer_ != nullptr) {
-        viewer_->setSelectedInspectionRouteWaypointTargetIndex(selectedRouteWaypointTargetIndex_);
-    }
-    updateRoutePlanningPanel();
-    rebuildProjectTree();
-    updateActionState();
-    if (viewer_ != nullptr) {
-        viewer_->focusOnPoint(waypoint.localPoint, 0.2);
-    }
+        if (!geographicWarning.isEmpty()) {
+            showUserMessage(LogLevel::Warning, geographicWarning, 4500);
+        } else {
+            showUserMessage(
+                LogLevel::Info,
+                tr("Updated route waypoint #%1.").arg(QLocale().toString(waypointIndex + 1)),
+                3000);
+        }
+    });
 
-    if (!geographicWarning.isEmpty()) {
-        showUserMessage(LogLevel::Warning, geographicWarning, 4500);
-    } else {
-        showUserMessage(
-            LogLevel::Info,
-            tr("Updated route waypoint #%1.").arg(QLocale().toString(waypointIndex + 1)),
-            3000);
-    }
+    dialog->open();
+    dialog->raise();
+    dialog->activateWindow();
     return true;
 }
 
@@ -8818,6 +9235,7 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     currentProjectFilePath_ = filePath;
+    recordRecentProjectFilePath(filePath);
     classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     const QString languageCode = projectObject.value(QStringLiteral("language")).toString();
@@ -8995,6 +9413,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
     }
 
     currentProjectFilePath_ = filePath;
+    recordRecentProjectFilePath(filePath);
     classificationEditsDirty_ = false;
     rebuildProjectTree();
     if (towerFileSyncOk && routeFileSyncOk) {
@@ -9835,7 +10254,17 @@ void MainWindow::syncRouteRoamFloatingDialog()
     }
 
     if (!routeRoamFloatingDialog_->isVisible()) {
-        const QPoint anchor = mapToGlobal(QPoint(width() - routeRoamFloatingDialog_->width() - 24, 120));
+        QPoint anchor = mapToGlobal(QPoint(width() - routeRoamFloatingDialog_->width() - 24, 120));
+        if (viewer_ != nullptr) {
+            const QPoint viewerGlobalTopLeft = viewer_->mapToGlobal(QPoint(0, 0));
+            const QRect viewerGlobalRect(viewerGlobalTopLeft, viewer_->size());
+            const int anchorX = viewerGlobalRect.right() - routeRoamFloatingDialog_->width() - 16;
+            const int anchorY = viewerGlobalRect.top()
+                + std::max(
+                    16,
+                    (viewerGlobalRect.height() - routeRoamFloatingDialog_->height()) / 2);
+            anchor = QPoint(anchorX, anchorY);
+        }
         routeRoamFloatingDialog_->move(anchor);
     }
     routeRoamFloatingDialog_->show();

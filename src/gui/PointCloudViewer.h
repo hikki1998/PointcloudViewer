@@ -98,11 +98,13 @@ struct InspectionRouteDisplayData
     QList<double> waypointGimbalPitchDegs;
     QList<double> waypointCameraYawDegs;
     QList<double> waypointCameraPitchDegs;
+    QList<double> waypointFocalLengthRatios;
     QStringList waypointTargetLabels;
     QList<QList<PointRecord>> waypointAllTargetPoints;
     QList<QList<int>> waypointAllTargetPartIndices;
     QList<QList<double>> waypointAllCameraYawDegs;
     QList<QList<double>> waypointAllCameraPitchDegs;
+    QList<QList<double>> waypointAllFocalLengthRatios;
     QList<QStringList> waypointAllTargetLabels;
 };
 
@@ -570,11 +572,13 @@ private:
     QList<double> inspectionRouteWaypointGimbalPitchDegs_;
     QList<double> inspectionRouteWaypointCameraYawDegs_;
     QList<double> inspectionRouteWaypointCameraPitchDegs_;
+    QList<double> inspectionRouteWaypointFocalLengthRatios_;
     QStringList inspectionRouteWaypointTargetLabels_;
     QList<QList<PointRecord>> inspectionRouteWaypointAllTargetPoints_;
     QList<QList<int>> inspectionRouteWaypointAllTargetPartIndices_;
     QList<QList<double>> inspectionRouteWaypointAllCameraYawDegs_;
     QList<QList<double>> inspectionRouteWaypointAllCameraPitchDegs_;
+    QList<QList<double>> inspectionRouteWaypointAllFocalLengthRatios_;
     QList<QStringList> inspectionRouteWaypointAllTargetLabels_;
     QSet<int> hiddenInspectionIssueIndices_;
     bool inspectionRouteVisible_ = true;
