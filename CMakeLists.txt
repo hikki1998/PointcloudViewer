@@ -657,6 +657,79 @@ set(COMMON_HEADERS
     src/route/RouteInterop.h
 )
 
+set(BACKSTAGE_SMOKE_SOURCES
+    resources.qrc
+    src/crs/CrsCatalogService.cpp
+    src/crs/CrsAuthorityService.cpp
+    src/crs/CrsProjRuntime.cpp
+    src/crs/CrsSelectionDialog.cpp
+    src/crs/CrsTransformService.cpp
+    src/crs/CrsTypes.cpp
+    src/crs/ProjectCoordinateSystemsDialog.cpp
+    src/crs/RecentCrsStore.cpp
+    src/domain/AnalysisData.cpp
+    src/domain/ClassificationEditStore.cpp
+    src/domain/ClearanceAnalysis.cpp
+    src/domain/ClearanceReportExporter.cpp
+    src/domain/DataManager.cpp
+    src/domain/InspectionData.cpp
+    src/domain/InspectionReportExporter.cpp
+    src/domain/ProfileMarkerProjection.cpp
+    src/domain/RuleBasedClearanceEngine.cpp
+    src/domain/TowerFileInterop.cpp
+    src/domain/VegetationRiskAnalysis.cpp
+    src/gui/MainWindow.cpp
+    src/gui/PointCloudViewer.cpp
+    src/gui/ProfilePlotWidget.cpp
+    src/logging/ApplicationLogger.cpp
+    src/pointcloud/LasReader.cpp
+    src/pointcloud/PointCloudData.cpp
+    src/pointcloud/PointCloudTileStore.cpp
+    src/osg/OsgPointCloudNode.cpp
+    src/route/InspectionRoutePlanning.cpp
+    src/route/PowerlineRouteBridge.cpp
+    src/route/PowerlineRouteJson.cpp
+    src/route/RouteInterop.cpp
+)
+
+set(BACKSTAGE_SMOKE_HEADERS
+    src/crs/CrsCatalogService.h
+    src/crs/CrsAuthorityService.h
+    src/crs/CrsProjRuntime.h
+    src/crs/CrsSelectionDialog.h
+    src/crs/CrsTransformService.h
+    src/crs/CrsTypes.h
+    src/crs/LASViewerCrsExport.h
+    src/crs/ProjectCoordinateSystemsDialog.h
+    src/crs/RecentCrsStore.h
+    src/domain/AnalysisData.h
+    src/domain/ClassificationEditStore.h
+    src/domain/ClearanceAnalysis.h
+    src/domain/ClearanceReportExporter.h
+    src/domain/DataManager.h
+    src/domain/InspectionData.h
+    src/domain/InspectionReportExporter.h
+    src/domain/ProjectMetadata.h
+    src/domain/ProfileMarkerProjection.h
+    src/domain/RuleBasedClearanceEngine.h
+    src/domain/TowerFileInterop.h
+    src/domain/VegetationRiskAnalysis.h
+    src/gui/MainWindow.h
+    src/gui/PointCloudViewer.h
+    src/gui/ProfilePlotWidget.h
+    src/logging/ApplicationLogger.h
+    src/pointcloud/LasReader.h
+    src/pointcloud/PointCloudData.h
+    src/pointcloud/PointCloudTileStore.h
+    src/osg/PointCloudVisualization.h
+    src/osg/OsgPointCloudNode.h
+    src/route/InspectionRoutePlanning.h
+    src/route/PowerlineRouteBridge.h
+    src/route/PowerlineRouteJson.h
+    src/route/PowerlineRouteTypes.h
+    src/route/RouteInterop.h
+)
+
 add_executable(${PROJECT_NAME} WIN32 ${SOURCES} ${HEADERS})
 
 function(configure_las_viewer_target target_name use_qtitan)
@@ -1063,6 +1136,16 @@ set_target_properties(LASViewerSmokeTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
+add_executable(LASViewerBackstageSmokeTest
+    examples/backstage_smoke_test.cpp
+    ${BACKSTAGE_SMOKE_SOURCES}
+    ${BACKSTAGE_SMOKE_HEADERS}
+)
+configure_las_viewer_target(LASViewerBackstageSmokeTest TRUE)
+set_target_properties(LASViewerBackstageSmokeTest PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
 if(WIN32)
     deploy_osg_runtime(${PROJECT_NAME})
     deploy_qt_runtime(${PROJECT_NAME} TRUE)
@@ -1073,6 +1156,11 @@ if(WIN32)
     deploy_qt_runtime(LASViewerSmokeTest FALSE)
     deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
     deploy_proj_runtime_assets(LASViewerSmokeTest)
+    deploy_osg_runtime(LASViewerBackstageSmokeTest)
+    deploy_qt_runtime(LASViewerBackstageSmokeTest TRUE)
+    deploy_runtime_dependencies(LASViewerBackstageSmokeTest TRUE)
+    deploy_translation_runtime(LASViewerBackstageSmokeTest)
+    deploy_proj_runtime_assets(LASViewerBackstageSmokeTest)
 endif()
 
 

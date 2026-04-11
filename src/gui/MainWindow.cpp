@@ -94,9 +94,11 @@
 #endif
 
 #include "QtnRibbonBar.h"
+#include "QtnRibbonBackstageView.h"
 #include "QtnRibbonGroup.h"
 #include "QtnRibbonPage.h"
 #include "QtnRibbonQuickAccessBar.h"
+#include "QtnRibbonSystemPopupBar.h"
 
 #include "crs/CrsAuthorityService.h"
 #include "crs/CrsTransformService.h"
@@ -1491,6 +1493,137 @@ QString showStyledSaveFileNameDialog(
     return dialog.selectedFiles().constFirst();
 }
 
+QString backstagePageStyleSheet()
+{
+    return QStringLiteral(
+        "QWidget {"
+        "background-color: #f8fbff;"
+        "color: #0f172a;"
+        "}"
+        "QFrame#backstageCard {"
+        "background-color: #ffffff;"
+        "border: 1px solid #d8e3f0;"
+        "border-radius: 14px;"
+        "}"
+        "QLabel#backstageTitleLabel {"
+        "font-size: 28px;"
+        "font-weight: 700;"
+        "color: #0f172a;"
+        "}"
+        "QLabel#backstageSubtitleLabel {"
+        "font-size: 13px;"
+        "color: #475569;"
+        "}"
+        "QLabel#backstageSectionLabel {"
+        "font-size: 15px;"
+        "font-weight: 700;"
+        "color: #0f172a;"
+        "}"
+        "QLabel#backstageBodyLabel {"
+        "font-size: 13px;"
+        "line-height: 1.4;"
+        "color: #334155;"
+        "}"
+        "QLineEdit, QListWidget {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 10px;"
+        "padding: 6px 10px;"
+        "selection-background-color: #dbeafe;"
+        "selection-color: #0f172a;"
+        "}"
+        "QListWidget::item {"
+        "padding: 8px 10px;"
+        "border-radius: 8px;"
+        "}"
+        "QListWidget::item:selected {"
+        "background-color: #dbeafe;"
+        "color: #0f172a;"
+        "}"
+        "QPushButton, QToolButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 10px;"
+        "padding: 8px 14px;"
+        "font-weight: 600;"
+        "}"
+        "QPushButton:hover, QToolButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QPushButton:pressed, QToolButton:pressed {"
+        "background-color: #dbeafe;"
+        "}"
+        "QPushButton:disabled, QToolButton:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #e2e8f0;"
+        "}"
+        "QToolButton:checked {"
+        "background-color: #dbeafe;"
+        "border-color: #60a5fa;"
+        "}"
+        "QGroupBox {"
+        "font-weight: 700;"
+        "color: #0f172a;"
+        "border: 1px solid #d8e3f0;"
+        "border-radius: 12px;"
+        "margin-top: 16px;"
+        "padding: 16px 14px 14px 14px;"
+        "background-color: #ffffff;"
+        "}"
+        "QGroupBox::title {"
+        "subcontrol-origin: margin;"
+        "left: 12px;"
+        "padding: 0 6px;"
+        "}"
+        "QCheckBox {"
+        "color: #0f172a;"
+        "spacing: 8px;"
+        "}"
+        "QCheckBox::indicator {"
+        "width: 16px;"
+        "height: 16px;"
+        "}"
+        "QCheckBox::indicator:unchecked {"
+        "background-color: #ffffff;"
+        "border: 1px solid #94a3b8;"
+        "border-radius: 4px;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "background-color: #2563eb;"
+        "border: 1px solid #2563eb;"
+        "border-radius: 4px;"
+        "}");
+}
+
+QFrame* createBackstageCard(QWidget* parent = nullptr)
+{
+    auto* card = new QFrame(parent);
+    card->setObjectName(QStringLiteral("backstageCard"));
+    return card;
+}
+
+QLabel* createBackstageHeaderLabel(const QString& objectName, const QString& text, QWidget* parent = nullptr)
+{
+    auto* label = new QLabel(text, parent);
+    label->setObjectName(objectName);
+    label->setWordWrap(true);
+    return label;
+}
+
+QToolButton* createBackstageActionButton(QAction* action, QWidget* parent = nullptr)
+{
+    auto* button = new QToolButton(parent);
+    button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    button->setAutoRaise(false);
+    button->setDefaultAction(action);
+    button->setIconSize(QSize(20, 20));
+    return button;
+}
+
 QIcon createRibbonIcon(RibbonGlyph glyph)
 {
     constexpr int iconSize = 48;
@@ -2285,6 +2418,9 @@ void MainWindow::createRibbon()
     ribbonBar_->installEventFilter(this);
     setRibbonBar(ribbonBar_);
     createWindowControls();
+    ribbonBar_->addSystemButton(createRibbonIcon(RibbonGlyph::Open), tr("File"));
+    backstageSystemButton_ = ribbonBar_->getSystemButton();
+    createBackstageView();
 
     ribbonBar_->quickAccessBar()->addAction(openAction_);
     ribbonBar_->quickAccessBar()->addAction(saveProjectAction_);
@@ -2296,10 +2432,19 @@ void MainWindow::createRibbon()
     datasetRibbonGroup_ = homePage_->addGroup(tr("Dataset"));
     datasetRibbonGroup_->addAction(openAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(addPointCloudAction_, Qt::ToolButtonTextUnderIcon);
-    datasetRibbonGroup_->addAction(openProjectAction_, Qt::ToolButtonTextUnderIcon);
-    datasetRibbonGroup_->addAction(saveProjectAction_, Qt::ToolButtonTextUnderIcon);
-    datasetRibbonGroup_->addAction(saveProjectAsAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
+
+    cameraRibbonGroup_ = homePage_->addGroup(tr("Camera"));
+    cameraRibbonGroup_->addAction(fitSceneAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(topViewAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(frontViewAction_, Qt::ToolButtonTextUnderIcon);
+    cameraRibbonGroup_->addAction(rightViewAction_, Qt::ToolButtonTextUnderIcon);
+
+    sceneRibbonGroup_ = homePage_->addGroup(tr("Scene"));
+    sceneRibbonGroup_->addAction(showAxesAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
+    sceneRibbonGroup_->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
 
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);
@@ -2314,11 +2459,6 @@ void MainWindow::createRibbon()
     classificationRibbonGroup_->addAction(redoProfileClassificationAction_, Qt::ToolButtonTextUnderIcon);
     classificationRibbonGroup_->addAction(clearProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
     classificationRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
-
-    workspaceRibbonGroup_ = homePage_->addGroup(tr("Workspace"));
-    workspaceRibbonGroup_->addAction(projectCoordinateSystemsAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(showLogAction_, Qt::ToolButtonTextUnderIcon);
-    workspaceRibbonGroup_->addAction(exitAction_, Qt::ToolButtonTextUnderIcon);
 
     routePage_ = ribbonBar_->addPage(tr("Route"));
     routePlanningRibbonGroup_ = routePage_->addGroup(tr("Route Planning"));
@@ -2368,15 +2508,300 @@ void MainWindow::createRibbon()
     colorRibbonGroup_->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(classificationColorAction_, Qt::ToolButtonTextUnderIcon);
+}
 
-    themeRibbonGroup_ = appearancePage_->addGroup(tr("Office Theme"));
-    themeRibbonGroup_->addAction(themeColorfulAction_, Qt::ToolButtonTextUnderIcon);
-    themeRibbonGroup_->addAction(themeWhiteAction_, Qt::ToolButtonTextUnderIcon);
-    themeRibbonGroup_->addAction(themeDarkGrayAction_, Qt::ToolButtonTextUnderIcon);
+void MainWindow::createBackstageView()
+{
+    if (ribbonBar_ == nullptr || backstageSystemButton_ == nullptr) {
+        return;
+    }
 
-    languageRibbonGroup_ = appearancePage_->addGroup(tr("Language"));
-    languageRibbonGroup_->addAction(languageEnglishAction_, Qt::ToolButtonTextUnderIcon);
-    languageRibbonGroup_->addAction(languageChineseAction_, Qt::ToolButtonTextUnderIcon);
+    backstageView_ = new Qtitan::RibbonBackstageView(ribbonBar_);
+    backstageView_->setObjectName(QStringLiteral("mainBackstageView"));
+
+    const auto initializeBackstagePage = [](QWidget* page) {
+        if (page == nullptr) {
+            return;
+        }
+        page->setStyleSheet(backstagePageStyleSheet());
+    };
+
+    backstageOpenPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
+    backstageOpenPage_->setObjectName(QStringLiteral("backstageOpenPage"));
+    backstageOpenPage_->setWindowTitle(tr("Open"));
+    initializeBackstagePage(backstageOpenPage_);
+    {
+        auto* layout = new QVBoxLayout(backstageOpenPage_);
+        layout->setContentsMargins(34, 28, 34, 28);
+        layout->setSpacing(18);
+
+        backstageOpenTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("Open"), backstageOpenPage_);
+        backstageOpenSubtitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageSubtitleLabel"),
+            tr("Open point clouds and projects, or continue from a recent engineering file."),
+            backstageOpenPage_);
+        layout->addWidget(backstageOpenTitleLabel_);
+        layout->addWidget(backstageOpenSubtitleLabel_);
+
+        auto* actionsCard = createBackstageCard(backstageOpenPage_);
+        auto* actionsLayout = new QVBoxLayout(actionsCard);
+        actionsLayout->setContentsMargins(20, 20, 20, 20);
+        actionsLayout->setSpacing(12);
+        actionsLayout->addWidget(createBackstageActionButton(openAction_, actionsCard));
+        actionsLayout->addWidget(createBackstageActionButton(addPointCloudAction_, actionsCard));
+        actionsLayout->addWidget(createBackstageActionButton(openProjectAction_, actionsCard));
+        actionsLayout->addWidget(createBackstageActionButton(saveProjectAction_, actionsCard));
+        actionsLayout->addWidget(createBackstageActionButton(saveProjectAsAction_, actionsCard));
+        actionsLayout->addStretch(1);
+        layout->addWidget(actionsCard, 1);
+    }
+    backstageOpenPageAction_ = backstageView_->addPage(backstageOpenPage_);
+
+    backstageOpenProjectPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
+    backstageOpenProjectPage_->setObjectName(QStringLiteral("backstageOpenProjectPage"));
+    backstageOpenProjectPage_->setWindowTitle(tr("Open Project"));
+    initializeBackstagePage(backstageOpenProjectPage_);
+    {
+        auto* layout = new QVBoxLayout(backstageOpenProjectPage_);
+        layout->setContentsMargins(34, 28, 34, 28);
+        layout->setSpacing(18);
+
+        backstageOpenProjectTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("Open Project"), backstageOpenProjectPage_);
+        backstageOpenProjectSubtitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageSubtitleLabel"),
+            tr("Select a recent project or browse to a project file."),
+            backstageOpenProjectPage_);
+        layout->addWidget(backstageOpenProjectTitleLabel_);
+        layout->addWidget(backstageOpenProjectSubtitleLabel_);
+
+        auto* contentCard = createBackstageCard(backstageOpenProjectPage_);
+        auto* contentLayout = new QVBoxLayout(contentCard);
+        contentLayout->setContentsMargins(20, 20, 20, 20);
+        contentLayout->setSpacing(14);
+
+        auto* recentProjectsGroup = new QGroupBox(contentCard);
+        recentProjectsGroup->setObjectName(QStringLiteral("backstageRecentProjectsGroup"));
+        auto* recentProjectsLayout = new QVBoxLayout(recentProjectsGroup);
+        recentProjectsLayout->setContentsMargins(14, 22, 14, 14);
+        backstageRecentProjectsListWidget_ = new QListWidget(recentProjectsGroup);
+        backstageRecentProjectsListWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
+        backstageRecentProjectsListWidget_->setMinimumHeight(220);
+        recentProjectsLayout->addWidget(backstageRecentProjectsListWidget_);
+        contentLayout->addWidget(recentProjectsGroup);
+
+        auto* projectFileGroup = new QGroupBox(contentCard);
+        projectFileGroup->setObjectName(QStringLiteral("backstageProjectFileGroup"));
+        auto* projectFileLayout = new QVBoxLayout(projectFileGroup);
+        projectFileLayout->setContentsMargins(14, 22, 14, 14);
+        projectFileLayout->setSpacing(10);
+        backstageProjectPathLineEdit_ = new QLineEdit(projectFileGroup);
+        backstageProjectPathLineEdit_->setClearButtonEnabled(true);
+        projectFileLayout->addWidget(backstageProjectPathLineEdit_);
+
+        auto* buttonRowLayout = new QHBoxLayout();
+        buttonRowLayout->setSpacing(10);
+        buttonRowLayout->addStretch(1);
+        backstageProjectBrowseButton_ = new QPushButton(projectFileGroup);
+        backstageProjectOpenButton_ = new QPushButton(projectFileGroup);
+        backstageProjectOpenButton_->setEnabled(false);
+        buttonRowLayout->addWidget(backstageProjectBrowseButton_);
+        buttonRowLayout->addWidget(backstageProjectOpenButton_);
+        projectFileLayout->addLayout(buttonRowLayout);
+        contentLayout->addWidget(projectFileGroup);
+
+        layout->addWidget(contentCard, 1);
+    }
+    backstageOpenProjectPageAction_ = backstageView_->addPage(backstageOpenProjectPage_);
+
+    backstageSaveAction_ = backstageView_->addAction(saveProjectAction_->icon(), saveProjectAction_->text());
+    backstageSaveAsAction_ = backstageView_->addAction(saveProjectAsAction_->icon(), saveProjectAsAction_->text());
+
+    backstageProjectPropertiesPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
+    backstageProjectPropertiesPage_->setObjectName(QStringLiteral("backstageProjectPropertiesPage"));
+    backstageProjectPropertiesPage_->setWindowTitle(tr("Project Properties"));
+    initializeBackstagePage(backstageProjectPropertiesPage_);
+    {
+        auto* layout = new QVBoxLayout(backstageProjectPropertiesPage_);
+        layout->setContentsMargins(34, 28, 34, 28);
+        layout->setSpacing(18);
+
+        backstageProjectPropertiesTitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageTitleLabel"),
+            tr("Project Properties"),
+            backstageProjectPropertiesPage_);
+        backstageProjectPropertiesSubtitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageSubtitleLabel"),
+            tr("Review the active project file and coordinate system configuration."),
+            backstageProjectPropertiesPage_);
+        layout->addWidget(backstageProjectPropertiesTitleLabel_);
+        layout->addWidget(backstageProjectPropertiesSubtitleLabel_);
+
+        auto* summaryCard = createBackstageCard(backstageProjectPropertiesPage_);
+        auto* summaryLayout = new QFormLayout(summaryCard);
+        summaryLayout->setContentsMargins(20, 20, 20, 20);
+        summaryLayout->setHorizontalSpacing(18);
+        summaryLayout->setVerticalSpacing(12);
+
+        auto* projectFileLabel = new QLabel(summaryCard);
+        projectFileLabel->setObjectName(QStringLiteral("backstageProjectFileLabel"));
+        auto* datasetCountLabel = new QLabel(summaryCard);
+        datasetCountLabel->setObjectName(QStringLiteral("backstageProjectDatasetsLabel"));
+        auto* coordinateSystemsLabel = new QLabel(summaryCard);
+        coordinateSystemsLabel->setObjectName(QStringLiteral("backstageProjectCoordinateSystemsLabel"));
+        backstageProjectFileValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
+        backstageProjectDatasetCountValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
+        backstageProjectCoordinateSystemsValueLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), summaryCard);
+        summaryLayout->addRow(projectFileLabel, backstageProjectFileValueLabel_);
+        summaryLayout->addRow(datasetCountLabel, backstageProjectDatasetCountValueLabel_);
+        summaryLayout->addRow(coordinateSystemsLabel, backstageProjectCoordinateSystemsValueLabel_);
+
+        backstageEditProjectPropertiesButton_ = new QPushButton(summaryCard);
+        summaryLayout->addRow(QString(), backstageEditProjectPropertiesButton_);
+        layout->addWidget(summaryCard);
+        layout->addStretch(1);
+    }
+    backstageProjectPropertiesPageAction_ = backstageView_->addPage(backstageProjectPropertiesPage_);
+
+    backstageApplicationSettingsPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
+    backstageApplicationSettingsPage_->setObjectName(QStringLiteral("backstageApplicationSettingsPage"));
+    backstageApplicationSettingsPage_->setWindowTitle(tr("Application Settings"));
+    initializeBackstagePage(backstageApplicationSettingsPage_);
+    {
+        auto* layout = new QVBoxLayout(backstageApplicationSettingsPage_);
+        layout->setContentsMargins(34, 28, 34, 28);
+        layout->setSpacing(18);
+
+        backstageApplicationSettingsTitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageTitleLabel"),
+            tr("Application Settings"),
+            backstageApplicationSettingsPage_);
+        backstageApplicationSettingsSubtitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageSubtitleLabel"),
+            tr("Adjust the office theme, interface language, and workspace panels."),
+            backstageApplicationSettingsPage_);
+        layout->addWidget(backstageApplicationSettingsTitleLabel_);
+        layout->addWidget(backstageApplicationSettingsSubtitleLabel_);
+
+        auto* themeGroup = new QGroupBox(backstageApplicationSettingsPage_);
+        themeGroup->setObjectName(QStringLiteral("backstageThemeGroup"));
+        auto* themeLayout = new QHBoxLayout(themeGroup);
+        themeLayout->setContentsMargins(14, 22, 14, 14);
+        themeLayout->setSpacing(10);
+        themeLayout->addWidget(createBackstageActionButton(themeColorfulAction_, themeGroup));
+        themeLayout->addWidget(createBackstageActionButton(themeWhiteAction_, themeGroup));
+        themeLayout->addWidget(createBackstageActionButton(themeDarkGrayAction_, themeGroup));
+        themeLayout->addStretch(1);
+        layout->addWidget(themeGroup);
+
+        auto* languageGroup = new QGroupBox(backstageApplicationSettingsPage_);
+        languageGroup->setObjectName(QStringLiteral("backstageLanguageGroup"));
+        auto* languageLayout = new QHBoxLayout(languageGroup);
+        languageLayout->setContentsMargins(14, 22, 14, 14);
+        languageLayout->setSpacing(10);
+        languageLayout->addWidget(createBackstageActionButton(languageEnglishAction_, languageGroup));
+        languageLayout->addWidget(createBackstageActionButton(languageChineseAction_, languageGroup));
+        languageLayout->addStretch(1);
+        layout->addWidget(languageGroup);
+
+        auto* workspaceGroup = new QGroupBox(backstageApplicationSettingsPage_);
+        workspaceGroup->setObjectName(QStringLiteral("backstageWorkspaceGroup"));
+        auto* workspaceLayout = new QVBoxLayout(workspaceGroup);
+        workspaceLayout->setContentsMargins(14, 22, 14, 14);
+        backstageShowLogCheckBox_ = new QCheckBox(workspaceGroup);
+        workspaceLayout->addWidget(backstageShowLogCheckBox_);
+        workspaceLayout->addStretch(1);
+        layout->addWidget(workspaceGroup);
+        layout->addStretch(1);
+    }
+    backstageApplicationSettingsPageAction_ = backstageView_->addPage(backstageApplicationSettingsPage_);
+
+    backstageAboutPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
+    backstageAboutPage_->setObjectName(QStringLiteral("backstageAboutPage"));
+    backstageAboutPage_->setWindowTitle(tr("About"));
+    initializeBackstagePage(backstageAboutPage_);
+    {
+        auto* layout = new QVBoxLayout(backstageAboutPage_);
+        layout->setContentsMargins(34, 28, 34, 28);
+        layout->setSpacing(18);
+
+        backstageAboutTitleLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageTitleLabel"), tr("About"), backstageAboutPage_);
+        backstageAboutSubtitleLabel_ = createBackstageHeaderLabel(
+            QStringLiteral("backstageSubtitleLabel"),
+            tr("Build information and the key runtime components used by this application."),
+            backstageAboutPage_);
+        layout->addWidget(backstageAboutTitleLabel_);
+        layout->addWidget(backstageAboutSubtitleLabel_);
+
+        auto* aboutCard = createBackstageCard(backstageAboutPage_);
+        auto* aboutLayout = new QVBoxLayout(aboutCard);
+        aboutLayout->setContentsMargins(20, 20, 20, 20);
+        backstageAboutBodyLabel_ = createBackstageHeaderLabel(QStringLiteral("backstageBodyLabel"), QString(), aboutCard);
+        aboutLayout->addWidget(backstageAboutBodyLabel_);
+        layout->addWidget(aboutCard);
+        layout->addStretch(1);
+    }
+    backstageAboutPageAction_ = backstageView_->addPage(backstageAboutPage_);
+
+    backstageView_->addSeparator();
+    backstageExitAction_ = backstageView_->addAction(exitAction_->icon(), exitAction_->text());
+
+    backstageSystemButton_->setBackstage(backstageView_);
+
+    connect(backstageSaveAction_, &QAction::triggered, this, [this]() { saveProject(); });
+    connect(backstageSaveAsAction_, &QAction::triggered, this, [this]() { saveProjectAs(); });
+    connect(backstageExitAction_, &QAction::triggered, this, [this]() {
+        hideBackstageView();
+        close();
+    });
+    connect(backstageProjectBrowseButton_, &QPushButton::clicked, this, [this]() {
+        const QString selectedPath = showStyledOpenFileNameDialog(
+            this,
+            tr("Open Project"),
+            backstageProjectPathLineEdit_ != nullptr ? backstageProjectPathLineEdit_->text().trimmed() : QString(),
+            tr("LiDAR Power Projects (*.json *.lpproj);;JSON Files (*.json);;All Files (*.*)"));
+        if (!selectedPath.isEmpty() && backstageProjectPathLineEdit_ != nullptr) {
+            backstageProjectPathLineEdit_->setText(normalizedProjectFilePath(selectedPath));
+        }
+    });
+    connect(backstageProjectOpenButton_, &QPushButton::clicked, this, [this]() { openProjectFromBackstage(); });
+    connect(backstageProjectPathLineEdit_, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (backstageProjectOpenButton_ != nullptr) {
+            backstageProjectOpenButton_->setEnabled(!normalizedProjectFilePath(text).isEmpty());
+        }
+    });
+    connect(backstageRecentProjectsListWidget_, &QListWidget::currentItemChanged, this, [this](QListWidgetItem* current, QListWidgetItem*) {
+        if (current == nullptr || backstageProjectPathLineEdit_ == nullptr) {
+            return;
+        }
+        const QString selectedPath = current->data(Qt::UserRole).toString();
+        if (!selectedPath.isEmpty()) {
+            backstageProjectPathLineEdit_->setText(selectedPath);
+        }
+    });
+    connect(backstageRecentProjectsListWidget_, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* item) {
+        if (item == nullptr || item->data(Qt::UserRole).toString().isEmpty()) {
+            return;
+        }
+        openProjectFromBackstage();
+    });
+    connect(backstageEditProjectPropertiesButton_, &QPushButton::clicked, this, [this]() { openProjectCoordinateSystems(); });
+    connect(backstageShowLogCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
+        if (showLogAction_ != nullptr && showLogAction_->isChecked() != checked) {
+            showLogAction_->setChecked(checked);
+        }
+    });
+    connect(showLogAction_, &QAction::toggled, this, [this](bool checked) {
+        if (backstageShowLogCheckBox_ != nullptr && backstageShowLogCheckBox_->isChecked() != checked) {
+            const QSignalBlocker blocker(backstageShowLogCheckBox_);
+            backstageShowLogCheckBox_->setChecked(checked);
+        }
+    });
+    connect(backstageView_, &Qtitan::RibbonBackstageView::aboutToShow, this, [this]() {
+        refreshBackstageRecentProjects();
+        refreshBackstageProjectPropertiesPage();
+        refreshBackstageApplicationSettingsPage();
+        refreshBackstageAboutPage();
+    });
 }
 
 void MainWindow::createViewQuickToolBar()
@@ -3697,9 +4122,12 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointModeLayout->setContentsMargins(0, 0, 0, 0);
     routeWaypointModeLayout->setSpacing(8);
     routeWaypointLabelModeComboBox_ = new QComboBox(routeWaypointModeRow);
-    routeWaypointLabelModeComboBox_->setMinimumWidth(120);
+    routeWaypointLabelModeComboBox_->setMinimumWidth(160);
     routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+    routeWaypointLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
+    routeWaypointLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
+    routeWaypointLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
     routeWaypointLabelModeComboBox_->setCurrentIndex(0);
     routeWaypointModeLayout->addStretch(1);
     routeWaypointModeLayout->addWidget(routeWaypointLabelModeComboBox_, 0);
@@ -3811,9 +4239,12 @@ void MainWindow::createRouteDetailsDock()
     routePartModeLayout->setContentsMargins(0, 0, 0, 0);
     routePartModeLayout->setSpacing(8);
     routePartLabelModeComboBox_ = new QComboBox(routePartModeRow);
-    routePartLabelModeComboBox_->setMinimumWidth(120);
+    routePartLabelModeComboBox_->setMinimumWidth(160);
     routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+    routePartLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
+    routePartLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
+    routePartLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
     routePartLabelModeComboBox_->setCurrentIndex(0);
     routePartModeLayout->addStretch(1);
     routePartModeLayout->addWidget(routePartLabelModeComboBox_, 0);
@@ -4583,6 +5014,124 @@ void MainWindow::retranslateUi()
     languageEnglishAction_->setText(QStringLiteral("English"));
     languageChineseAction_->setText(QStringLiteral("\u4e2d\u6587"));
 
+    if (backstageSystemButton_ != nullptr) {
+        backstageSystemButton_->setText(tr("File"));
+        backstageSystemButton_->setToolTip(tr("Open the backstage view"));
+    }
+    if (backstageOpenPage_ != nullptr) {
+        backstageOpenPage_->setWindowTitle(tr("Open"));
+    }
+    if (backstageOpenProjectPage_ != nullptr) {
+        backstageOpenProjectPage_->setWindowTitle(tr("Open Project"));
+    }
+    if (backstageProjectPropertiesPage_ != nullptr) {
+        backstageProjectPropertiesPage_->setWindowTitle(tr("Project Properties"));
+    }
+    if (backstageApplicationSettingsPage_ != nullptr) {
+        backstageApplicationSettingsPage_->setWindowTitle(tr("Application Settings"));
+    }
+    if (backstageAboutPage_ != nullptr) {
+        backstageAboutPage_->setWindowTitle(tr("About"));
+    }
+    if (backstageOpenPageAction_ != nullptr) {
+        backstageOpenPageAction_->setText(tr("Open"));
+        backstageOpenPageAction_->setIcon(createRibbonIcon(RibbonGlyph::Open));
+    }
+    if (backstageOpenProjectPageAction_ != nullptr) {
+        backstageOpenProjectPageAction_->setText(tr("Open Project"));
+        backstageOpenProjectPageAction_->setIcon(createRibbonIcon(RibbonGlyph::Open));
+    }
+    if (backstageSaveAction_ != nullptr) {
+        backstageSaveAction_->setText(saveProjectAction_->text());
+        backstageSaveAction_->setIcon(saveProjectAction_->icon());
+    }
+    if (backstageSaveAsAction_ != nullptr) {
+        backstageSaveAsAction_->setText(saveProjectAsAction_->text());
+        backstageSaveAsAction_->setIcon(saveProjectAsAction_->icon());
+    }
+    if (backstageProjectPropertiesPageAction_ != nullptr) {
+        backstageProjectPropertiesPageAction_->setText(tr("Project Properties"));
+    }
+    if (backstageApplicationSettingsPageAction_ != nullptr) {
+        backstageApplicationSettingsPageAction_->setText(tr("Application Settings"));
+    }
+    if (backstageAboutPageAction_ != nullptr) {
+        backstageAboutPageAction_->setText(tr("About"));
+    }
+    if (backstageExitAction_ != nullptr) {
+        backstageExitAction_->setText(exitAction_->text());
+        backstageExitAction_->setIcon(exitAction_->icon());
+    }
+    if (backstageOpenTitleLabel_ != nullptr) {
+        backstageOpenTitleLabel_->setText(tr("Open"));
+    }
+    if (backstageOpenSubtitleLabel_ != nullptr) {
+        backstageOpenSubtitleLabel_->setText(tr("Open point clouds and projects, or continue from a recent engineering file."));
+    }
+    if (backstageOpenProjectTitleLabel_ != nullptr) {
+        backstageOpenProjectTitleLabel_->setText(tr("Open Project"));
+    }
+    if (backstageOpenProjectSubtitleLabel_ != nullptr) {
+        backstageOpenProjectSubtitleLabel_->setText(tr("Select a recent project or browse to a project file."));
+    }
+    if (backstageProjectPropertiesTitleLabel_ != nullptr) {
+        backstageProjectPropertiesTitleLabel_->setText(tr("Project Properties"));
+    }
+    if (backstageProjectPropertiesSubtitleLabel_ != nullptr) {
+        backstageProjectPropertiesSubtitleLabel_->setText(tr("Review the active project file and coordinate system configuration."));
+    }
+    if (backstageApplicationSettingsTitleLabel_ != nullptr) {
+        backstageApplicationSettingsTitleLabel_->setText(tr("Application Settings"));
+    }
+    if (backstageApplicationSettingsSubtitleLabel_ != nullptr) {
+        backstageApplicationSettingsSubtitleLabel_->setText(tr("Adjust the office theme, interface language, and workspace panels."));
+    }
+    if (backstageAboutTitleLabel_ != nullptr) {
+        backstageAboutTitleLabel_->setText(tr("About"));
+    }
+    if (backstageAboutSubtitleLabel_ != nullptr) {
+        backstageAboutSubtitleLabel_->setText(tr("Build information and the key runtime components used by this application."));
+    }
+    if (backstageProjectPathLineEdit_ != nullptr) {
+        backstageProjectPathLineEdit_->setPlaceholderText(tr("Project file path"));
+    }
+    if (backstageProjectBrowseButton_ != nullptr) {
+        backstageProjectBrowseButton_->setText(tr("Browse..."));
+    }
+    if (backstageProjectOpenButton_ != nullptr) {
+        backstageProjectOpenButton_->setText(tr("Open"));
+    }
+    if (backstageEditProjectPropertiesButton_ != nullptr) {
+        backstageEditProjectPropertiesButton_->setText(tr("Edit Coordinate Systems"));
+    }
+    if (backstageShowLogCheckBox_ != nullptr) {
+        backstageShowLogCheckBox_->setText(tr("Show log panel"));
+    }
+    if (QGroupBox* recentProjectsGroup = findChild<QGroupBox*>(QStringLiteral("backstageRecentProjectsGroup"))) {
+        recentProjectsGroup->setTitle(tr("Recent Projects"));
+    }
+    if (QGroupBox* projectFileGroup = findChild<QGroupBox*>(QStringLiteral("backstageProjectFileGroup"))) {
+        projectFileGroup->setTitle(tr("Project File"));
+    }
+    if (QGroupBox* themeGroup = findChild<QGroupBox*>(QStringLiteral("backstageThemeGroup"))) {
+        themeGroup->setTitle(tr("Office Theme"));
+    }
+    if (QGroupBox* languageGroup = findChild<QGroupBox*>(QStringLiteral("backstageLanguageGroup"))) {
+        languageGroup->setTitle(tr("Language"));
+    }
+    if (QGroupBox* workspaceGroup = findChild<QGroupBox*>(QStringLiteral("backstageWorkspaceGroup"))) {
+        workspaceGroup->setTitle(tr("Workspace"));
+    }
+    if (QLabel* projectFileLabel = findChild<QLabel*>(QStringLiteral("backstageProjectFileLabel"))) {
+        projectFileLabel->setText(tr("Project File"));
+    }
+    if (QLabel* datasetCountLabel = findChild<QLabel*>(QStringLiteral("backstageProjectDatasetsLabel"))) {
+        datasetCountLabel->setText(tr("Datasets"));
+    }
+    if (QLabel* coordinateSystemsLabel = findChild<QLabel*>(QStringLiteral("backstageProjectCoordinateSystemsLabel"))) {
+        coordinateSystemsLabel->setText(tr("Coordinate Systems"));
+    }
+
     if (homePage_ != nullptr) {
         homePage_->setTitle(tr("Home"));
     }
@@ -4643,6 +5192,11 @@ void MainWindow::retranslateUi()
     if (languageRibbonGroup_ != nullptr) {
         languageRibbonGroup_->setTitle(tr("Language"));
     }
+
+    refreshBackstageRecentProjects();
+    refreshBackstageProjectPropertiesPage();
+    refreshBackstageApplicationSettingsPage();
+    refreshBackstageAboutPage();
 
     if (projectDock_ != nullptr) {
         projectDock_->setWindowTitle(tr("Project Explorer"));
@@ -4709,6 +5263,9 @@ void MainWindow::retranslateUi()
         routeWaypointLabelModeComboBox_->clear();
         routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
         routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+        routeWaypointLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
+        routeWaypointLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
+        routeWaypointLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
         const int selectedModeIndex = routeWaypointLabelModeComboBox_->findData(selectedMode);
         routeWaypointLabelModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
     }
@@ -4718,6 +5275,9 @@ void MainWindow::retranslateUi()
         routePartLabelModeComboBox_->clear();
         routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
         routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
+        routePartLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
+        routePartLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
+        routePartLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
         const int selectedModeIndex = routePartLabelModeComboBox_->findData(selectedMode);
         routePartLabelModeComboBox_->setCurrentIndex(selectedModeIndex >= 0 ? selectedModeIndex : 0);
     }
@@ -5670,7 +6230,7 @@ void MainWindow::createConnections()
     connect(openProjectAction_, &QAction::triggered, this, [this]() { openProject(); });
     connect(saveProjectAction_, &QAction::triggered, this, [this]() { saveProject(); });
     connect(saveProjectAsAction_, &QAction::triggered, this, [this]() { saveProjectAs(); });
-    connect(projectCoordinateSystemsAction_, &QAction::triggered, this, [this]() { openProjectCoordinateSystems(); });
+    connect(projectCoordinateSystemsAction_, &QAction::triggered, this, [this]() { openBackstagePage(backstageProjectPropertiesPage_); });
     connect(clearAction_, &QAction::triggered, this, [this]() { clearPointCloud(); });
     connect(exitAction_, &QAction::triggered, this, &QWidget::close);
 
@@ -7647,8 +8207,161 @@ void MainWindow::createConnections()
     });
 }
 
+void MainWindow::openBackstagePage(QWidget* page)
+{
+    if (backstageView_ == nullptr || page == nullptr) {
+        return;
+    }
+
+    if (page == backstageOpenProjectPage_) {
+        refreshBackstageRecentProjects();
+    } else if (page == backstageProjectPropertiesPage_) {
+        refreshBackstageProjectPropertiesPage();
+    } else if (page == backstageApplicationSettingsPage_) {
+        refreshBackstageApplicationSettingsPage();
+    } else if (page == backstageAboutPage_) {
+        refreshBackstageAboutPage();
+    }
+
+    backstageView_->setActivePage(page);
+    backstageView_->open();
+}
+
+void MainWindow::hideBackstageView()
+{
+    if (backstageView_ != nullptr && backstageView_->isVisible()) {
+        backstageView_->hide();
+    }
+}
+
+void MainWindow::refreshBackstageRecentProjects()
+{
+    if (backstageRecentProjectsListWidget_ == nullptr || backstageProjectPathLineEdit_ == nullptr) {
+        return;
+    }
+
+    QSettings settings;
+    const QString lastOpenedProject = normalizedProjectFilePath(
+        settings.value(QStringLiteral("project/lastOpenedProject")).toString());
+    const QStringList recentProjects = normalizedRecentProjectFiles(
+        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
+        lastOpenedProject);
+    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
+
+    const QSignalBlocker listBlocker(backstageRecentProjectsListWidget_);
+    backstageRecentProjectsListWidget_->clear();
+
+    for (const QString& recentProject : recentProjects) {
+        const QString displayName = QFileInfo(recentProject).fileName();
+        auto* item = new QListWidgetItem(
+            displayName.isEmpty() ? QDir::toNativeSeparators(recentProject) : displayName,
+            backstageRecentProjectsListWidget_);
+        item->setData(Qt::UserRole, recentProject);
+        item->setToolTip(QDir::toNativeSeparators(recentProject));
+    }
+
+    if (backstageRecentProjectsListWidget_->count() == 0) {
+        auto* item = new QListWidgetItem(tr("No recent projects"), backstageRecentProjectsListWidget_);
+        item->setFlags(item->flags() & ~Qt::ItemIsSelectable & ~Qt::ItemIsEnabled);
+    }
+
+    if (!recentProjects.isEmpty()) {
+        const int defaultRecentIndex = lastOpenedProject.isEmpty()
+            ? 0
+            : indexOfProjectFilePath(recentProjects, lastOpenedProject);
+        backstageRecentProjectsListWidget_->setCurrentRow(defaultRecentIndex >= 0 ? defaultRecentIndex : 0);
+        backstageProjectPathLineEdit_->setText(
+            defaultRecentIndex >= 0 ? recentProjects.at(defaultRecentIndex) : recentProjects.constFirst());
+    } else if (!currentProjectFilePath_.isEmpty()) {
+        backstageProjectPathLineEdit_->setText(currentProjectFilePath_);
+    } else {
+        backstageProjectPathLineEdit_->clear();
+    }
+
+    if (backstageProjectOpenButton_ != nullptr) {
+        backstageProjectOpenButton_->setEnabled(!normalizedProjectFilePath(backstageProjectPathLineEdit_->text()).isEmpty());
+    }
+}
+
+void MainWindow::refreshBackstageProjectPropertiesPage()
+{
+    if (backstageProjectFileValueLabel_ == nullptr
+        || backstageProjectDatasetCountValueLabel_ == nullptr
+        || backstageProjectCoordinateSystemsValueLabel_ == nullptr) {
+        return;
+    }
+
+    const QString projectPath = currentProjectFilePath_.trimmed().isEmpty()
+        ? tr("Unsaved project")
+        : QDir::toNativeSeparators(currentProjectFilePath_);
+
+    backstageProjectFileValueLabel_->setText(projectPath);
+    backstageProjectDatasetCountValueLabel_->setText(
+        viewer_ != nullptr
+            ? QLocale().toString(viewer_->currentFilePaths().size())
+            : QStringLiteral("0"));
+    backstageProjectCoordinateSystemsValueLabel_->setText(
+        formatProjectCoordinateSystemsSummary(projectCoordinateSystems_));
+}
+
+void MainWindow::refreshBackstageApplicationSettingsPage()
+{
+    if (backstageShowLogCheckBox_ != nullptr && showLogAction_ != nullptr) {
+        const QSignalBlocker blocker(backstageShowLogCheckBox_);
+        backstageShowLogCheckBox_->setChecked(showLogAction_->isChecked());
+    }
+}
+
+void MainWindow::refreshBackstageAboutPage()
+{
+    if (backstageAboutBodyLabel_ == nullptr) {
+        return;
+    }
+
+    backstageAboutBodyLabel_->setText(tr(
+        "Version: %1\n"
+        "Frameworks: Qt %2, OpenSceneGraph, Qtitan Ribbon\n"
+        "Point cloud stack: LASlib / LASzip, optional PROJ / GDAL support\n"
+        "Repository: LAS Point Cloud Viewer for transmission line inspection workflows.")
+            .arg(QCoreApplication::applicationVersion(), QString::fromLatin1(qVersion())));
+}
+
+void MainWindow::openProjectFromBackstage()
+{
+    if (backstageProjectPathLineEdit_ == nullptr) {
+        return;
+    }
+
+    const QString projectPath = normalizedProjectFilePath(backstageProjectPathLineEdit_->text());
+    if (projectPath.isEmpty()) {
+        QMessageBox::warning(
+            this,
+            tr("Open Project"),
+            tr("Select an existing project file."));
+        return;
+    }
+    if (!QFileInfo::exists(projectPath)) {
+        QMessageBox::warning(
+            this,
+            tr("Open Project"),
+            tr("Project file does not exist."));
+        return;
+    }
+    if (!isSupportedProjectFilePath(projectPath)) {
+        QMessageBox::warning(
+            this,
+            tr("Open Project"),
+            tr("Choose a .json or .lpproj project file."));
+        return;
+    }
+
+    hideBackstageView();
+    loadProjectFile(projectPath);
+}
+
 void MainWindow::openProjectExplorerFile()
 {
+    hideBackstageView();
     const QString filePath = showStyledOpenFileNameDialog(
         this,
         tr("Open"),
@@ -7707,209 +8420,12 @@ void MainWindow::openProjectExplorerFile()
 
 void MainWindow::openProject()
 {
-    QSettings settings;
-    const QString lastOpenedProject = normalizedProjectFilePath(
-        settings.value(QStringLiteral("project/lastOpenedProject")).toString());
-    const QStringList recentProjects = normalizedRecentProjectFiles(
-        settings.value(QStringLiteral("project/recentProjects")).toStringList(),
-        lastOpenedProject);
-    settings.setValue(QStringLiteral("project/recentProjects"), recentProjects);
-
-    QDialog dialog(this);
-    dialog.setObjectName(QStringLiteral("openProjectDialog"));
-    dialog.setWindowTitle(tr("Open Project"));
-    dialog.setModal(true);
-    dialog.resize(680, 230);
-    applyStyledDialogPalette(&dialog);
-    dialog.setStyleSheet(dialog.styleSheet() + QStringLiteral(
-        "#openProjectDialog QLabel {"
-        "color: #0f172a;"
-        "}"
-        "#openProjectDialog QLineEdit,"
-        "#openProjectDialog QComboBox {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 8px;"
-        "min-height: 30px;"
-        "padding: 4px 10px;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #0f172a;"
-        "}"
-        "#openProjectDialog QComboBox::drop-down {"
-        "subcontrol-origin: padding;"
-        "subcontrol-position: top right;"
-        "width: 26px;"
-        "border-left: 1px solid #cbd5e1;"
-        "background-color: #f8fafc;"
-        "}"
-        "#openProjectDialog QComboBox::down-arrow {"
-        "width: 0px;"
-        "height: 0px;"
-        "border-left: 5px solid transparent;"
-        "border-right: 5px solid transparent;"
-        "border-top: 6px solid #334155;"
-        "margin-right: 8px;"
-        "}"
-        "#openProjectDialog QLineEdit:disabled,"
-        "#openProjectDialog QComboBox:disabled {"
-        "background-color: #f1f5f9;"
-        "color: #94a3b8;"
-        "border-color: #e2e8f0;"
-        "}"
-        "#openProjectDialog QComboBox QAbstractItemView {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "selection-background-color: #dbeafe;"
-        "selection-color: #0f172a;"
-        "outline: none;"
-        "}"
-        "#openProjectDialog QPushButton {"
-        "background-color: #ffffff;"
-        "color: #0f172a;"
-        "border: 1px solid #cbd5e1;"
-        "border-radius: 8px;"
-        "min-height: 30px;"
-        "padding: 4px 12px;"
-        "font-weight: 600;"
-        "}"
-        "#openProjectDialog QPushButton:hover {"
-        "background-color: #eef4ff;"
-        "border-color: #93c5fd;"
-        "}"
-        "#openProjectDialog QPushButton:pressed {"
-        "background-color: #dbeafe;"
-        "}"
-        "#openProjectDialog QPushButton:disabled {"
-        "background-color: #f1f5f9;"
-        "color: #94a3b8;"
-        "border-color: #e2e8f0;"
-        "}"
-        "#openProjectDialog QDialogButtonBox QPushButton {"
-        "min-width: 96px;"
-        "}"
-    ));
-
-    auto* rootLayout = new QVBoxLayout(&dialog);
-    rootLayout->setContentsMargins(18, 16, 18, 16);
-    rootLayout->setSpacing(12);
-
-    auto* hintLabel = new QLabel(tr("Select a recent project or browse to a project file."), &dialog);
-    hintLabel->setWordWrap(true);
-    rootLayout->addWidget(hintLabel);
-
-    auto* formLayout = new QFormLayout();
-    formLayout->setHorizontalSpacing(10);
-    formLayout->setVerticalSpacing(10);
-    rootLayout->addLayout(formLayout, 1);
-
-    auto* recentComboBox = new QComboBox(&dialog);
-    recentComboBox->setMinimumWidth(500);
-    for (const QString& recentProject : recentProjects) {
-        const QString displayName = QFileInfo(recentProject).fileName();
-        const QString itemText = displayName.isEmpty() ? QDir::toNativeSeparators(recentProject) : displayName;
-        recentComboBox->addItem(itemText, recentProject);
-        recentComboBox->setItemData(
-            recentComboBox->count() - 1,
-            QDir::toNativeSeparators(recentProject),
-            Qt::ToolTipRole);
-    }
-    if (recentComboBox->count() == 0) {
-        recentComboBox->addItem(tr("No recent projects"), QString());
-        recentComboBox->setEnabled(false);
-    }
-    formLayout->addRow(tr("Recent Projects"), recentComboBox);
-
-    auto* pathLineEdit = new QLineEdit(&dialog);
-    pathLineEdit->setClearButtonEnabled(true);
-    pathLineEdit->setPlaceholderText(tr("Project file path"));
-
-    auto* browseButton = new QPushButton(tr("Browse..."), &dialog);
-    auto* pathRow = new QWidget(&dialog);
-    auto* pathRowLayout = new QHBoxLayout(pathRow);
-    pathRowLayout->setContentsMargins(0, 0, 0, 0);
-    pathRowLayout->setSpacing(8);
-    pathRowLayout->addWidget(pathLineEdit, 1);
-    pathRowLayout->addWidget(browseButton);
-    formLayout->addRow(tr("Project File"), pathRow);
-
-    const int defaultRecentIndex = lastOpenedProject.isEmpty()
-        ? -1
-        : indexOfProjectFilePath(recentProjects, lastOpenedProject);
-    if (recentComboBox->isEnabled()) {
-        recentComboBox->setCurrentIndex(defaultRecentIndex >= 0 ? defaultRecentIndex : 0);
-    }
-    const QString defaultProjectPath = defaultRecentIndex >= 0
-        ? recentProjects.at(defaultRecentIndex)
-        : (!recentProjects.isEmpty() ? recentProjects.constFirst() : QString());
-    pathLineEdit->setText(defaultProjectPath);
-
-    connect(recentComboBox, qOverload<int>(&QComboBox::currentIndexChanged), &dialog, [recentComboBox, pathLineEdit](int row) {
-        const QString selectedPath = recentComboBox->itemData(row).toString();
-        if (!selectedPath.isEmpty()) {
-            pathLineEdit->setText(selectedPath);
-        }
-    });
-
-    connect(browseButton, &QPushButton::clicked, &dialog, [this, &dialog, pathLineEdit]() {
-        const QString selectedPath = showStyledOpenFileNameDialog(
-            &dialog,
-            tr("Open Project"),
-            pathLineEdit->text().trimmed(),
-            tr("LiDAR Power Projects (*.json *.lpproj);;JSON Files (*.json);;All Files (*.*)"));
-        if (!selectedPath.isEmpty()) {
-            pathLineEdit->setText(normalizedProjectFilePath(selectedPath));
-        }
-    });
-
-    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Open | QDialogButtonBox::Cancel, &dialog);
-    rootLayout->addWidget(buttonBox);
-    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    connect(buttonBox->button(QDialogButtonBox::Open), &QPushButton::clicked, &dialog, [this, &dialog, pathLineEdit]() {
-        const QString projectPath = normalizedProjectFilePath(pathLineEdit->text());
-        if (projectPath.isEmpty()) {
-            QMessageBox::warning(
-                &dialog,
-                tr("Open Project"),
-                tr("Select an existing project file."));
-            return;
-        }
-        if (!QFileInfo::exists(projectPath)) {
-            QMessageBox::warning(
-                &dialog,
-                tr("Open Project"),
-                tr("Project file does not exist."));
-            return;
-        }
-        if (!isSupportedProjectFilePath(projectPath)) {
-            QMessageBox::warning(
-                &dialog,
-                tr("Open Project"),
-                tr("Choose a .json or .lpproj project file."));
-            return;
-        }
-
-        dialog.setProperty("selectedProjectFilePath", projectPath);
-        dialog.accept();
-    });
-
-    if (dialog.exec() != QDialog::Accepted) {
-        showUserMessage(LogLevel::Info, tr("Open project cancelled."), 2000);
-        return;
-    }
-
-    const QString filePath = dialog.property("selectedProjectFilePath").toString();
-    if (filePath.isEmpty()) {
-        showUserMessage(LogLevel::Info, tr("Open project cancelled."), 2000);
-        return;
-    }
-
-    loadProjectFile(filePath);
+    openBackstagePage(backstageOpenProjectPage_);
 }
 
 void MainWindow::saveProject()
 {
+    hideBackstageView();
     if (currentProjectFilePath_.isEmpty()) {
         saveProjectAs();
         return;
@@ -7920,6 +8436,7 @@ void MainWindow::saveProject()
 
 void MainWindow::saveProjectAs()
 {
+    hideBackstageView();
     const QString initialPath = currentProjectFilePath_.isEmpty()
         ? QStringLiteral("project.lpproj")
         : currentProjectFilePath_;
@@ -7944,6 +8461,7 @@ void MainWindow::saveProjectAs()
 
 void MainWindow::openProjectCoordinateSystems()
 {
+    hideBackstageView();
     ProjectCoordinateSystemsDialog dialog(this);
     dialog.setCoordinateSystems(projectCoordinateSystems_);
     if (dialog.exec() != QDialog::Accepted) {
@@ -9436,6 +9954,7 @@ bool MainWindow::saveProjectFile(const QString& filePath)
 
 void MainWindow::openPointCloud()
 {
+    hideBackstageView();
     const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
         tr("Open LAS Point Clouds"),
@@ -9452,6 +9971,7 @@ void MainWindow::openPointCloud()
 
 void MainWindow::addPointCloudFiles()
 {
+    hideBackstageView();
     const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
         tr("Add LAS Point Clouds"),
@@ -10403,6 +10923,8 @@ void MainWindow::updateActionState()
         routeRoamStopButton_->setEnabled(routeRoamReady && routeRoamActive);
     }
     syncRouteRoamFloatingDialog();
+    refreshBackstageProjectPropertiesPage();
+    refreshBackstageApplicationSettingsPage();
 }
 
 void MainWindow::setColorButtonAppearance(QPushButton* button, const QColor& color, const QString& fallbackText) const

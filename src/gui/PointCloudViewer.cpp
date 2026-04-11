@@ -513,6 +513,23 @@ int percentFromUnit(float value)
     return static_cast<int>(std::lround(clampUnit(value) * 100.0f));
 }
 
+bool routeLabelModeUsesSequence(RouteLabelDisplayMode mode)
+{
+    return mode == RouteLabelDisplayMode::Sequence
+        || mode == RouteLabelDisplayMode::CompactSequence;
+}
+
+bool routeLabelModeHidden(RouteLabelDisplayMode mode)
+{
+    return mode == RouteLabelDisplayMode::Hidden;
+}
+
+bool routeLabelModeCompact(RouteLabelDisplayMode mode)
+{
+    return mode == RouteLabelDisplayMode::CompactName
+        || mode == RouteLabelDisplayMode::CompactSequence;
+}
+
 QColor routePreviewBlendColor(const QColor& first, const QColor& second, float factor)
 {
     const float clampedFactor = std::clamp(factor, 0.0f, 1.0f);
@@ -2665,7 +2682,7 @@ void PointCloudViewer::setProfileClassificationModeEnabled(bool enabled)
         !profileClassificationModeEnabled_
             ? tr("Profile classification mode disabled.")
             : (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
-                ? tr("Profile classification mode enabled (polygon). Left-click to add vertices, right-click to apply, drag to adjust view, and press Esc to clear or exit.")
+                ? tr("Profile classification mode enabled (polygon). Left-click to add vertices, double-click to apply, right-click to undo one vertex, drag to adjust view, and press Esc to clear or exit.")
                 : tr("Profile classification mode enabled (rectangle). Drag a rectangle to classify source classes, hold Alt and drag left mouse to adjust view, right-click to exit, and press Esc to cancel.")),
         false);
 }
@@ -2690,7 +2707,7 @@ void PointCloudViewer::setProfileClassificationSelectionMode(ProfileClassificati
 
     emit measurementMessage(
         profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
-            ? tr("Switched to polygon selection. Left-click to add vertices and right-click to apply while freely adjusting the view.")
+            ? tr("Switched to polygon selection. Left-click to add vertices, double-click to apply, and right-click to undo one vertex.")
             : tr("Switched to rectangle selection. Drag a rectangle to apply profile classification."),
         false);
 }
@@ -4610,7 +4627,7 @@ void PointCloudViewer::handleSceneClick(const QPointF& localPos)
             emit profileClassificationStateChanged();
             emit measurementMessage(
                 profileClassificationPolygonPoints_.size() >= 3
-                    ? tr("Polygon vertex %1 added. Right-click to apply selection.")
+                    ? tr("Polygon vertex %1 added. Double-click to apply, right-click to undo one vertex.")
                         .arg(QLocale().toString(profileClassificationPolygonPoints_.size()))
                     : tr("Polygon vertex %1 added. Add at least %2 vertices to apply.")
                         .arg(QLocale().toString(profileClassificationPolygonPoints_.size()))
@@ -4728,8 +4745,19 @@ void PointCloudViewer::handleScenePress(const QPointF& localPos)
 
 void PointCloudViewer::handleSceneDoubleClick(const QPointF& localPos)
 {
-    if (profileClassificationModeEnabled_
-        || measurementEnabled_
+    if (profileClassificationModeEnabled_) {
+        if (profileClassificationSelectionMode_ == ProfileClassificationSelectionMode::Polygon
+            && !profileClassificationTaskActive_) {
+            if (profileClassificationPolygonPoints_.size() < 3) {
+                emit measurementMessage(tr("Add at least three polygon vertices before applying profile classification."), true);
+            } else {
+                tryFinishProfileClassificationPolygonSelection();
+            }
+        }
+        return;
+    }
+
+    if (measurementEnabled_
         || towerEditMode_ != TowerEditMode::None
         || issueEditMode_ != IssueEditMode::None
         || !inspectionRouteEditingEnabled_) {
@@ -4835,14 +4863,27 @@ void PointCloudViewer::handleSceneSecondaryClick(const QPointF& localPos)
             if (profileClassificationTaskActive_) {
                 return;
             }
-            if (profileClassificationPolygonPoints_.size() >= 3) {
-                tryFinishProfileClassificationPolygonSelection();
-            } else if (!profileClassificationPolygonPoints_.isEmpty()) {
-                clearProfileClassificationPolygonSelection();
+            if (!profileClassificationPolygonPoints_.isEmpty()) {
+                profileClassificationPolygonPoints_.removeLast();
+                if (profileClassificationPolygonPoints_.isEmpty()) {
+                    profileClassificationPolygonPreviewPoint_ = QPointF();
+                    profileClassificationPolygonPreviewActive_ = false;
+                } else {
+                    profileClassificationPolygonPreviewPoint_ = profileClassificationPolygonPoints_.constLast();
+                    profileClassificationPolygonPreviewActive_ = true;
+                }
+                updateProfileClassificationPolygonOverlay();
                 emit profileClassificationStateChanged();
-                emit measurementMessage(tr("Polygon selection cancelled."), false);
+                emit measurementMessage(
+                    profileClassificationPolygonPoints_.isEmpty()
+                        ? tr("Polygon vertex undone. Selection is now empty.")
+                        : tr("Polygon vertex undone. %1 vertex/vertices remain.")
+                            .arg(QLocale().toString(profileClassificationPolygonPoints_.size())),
+                    false);
             } else {
-                setProfileClassificationModeEnabled(false);
+                emit measurementMessage(
+                    tr("No polygon vertex to undo. Left-click to add vertices, double-click to apply."),
+                    true);
             }
             return;
         }
@@ -5997,6 +6038,13 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
         }
     }
 
+    const RouteLabelDisplayMode waypointLabelMode = routeWaypointLabelDisplayMode_;
+    const RouteLabelDisplayMode partLabelMode = routePartLabelDisplayMode_;
+    const bool waypointLabelsHidden = routeLabelModeHidden(waypointLabelMode);
+    const bool partLabelsHidden = routeLabelModeHidden(partLabelMode);
+    const bool compactWaypointLabels = routeLabelModeCompact(waypointLabelMode);
+    const bool compactPartLabels = routeLabelModeCompact(partLabelMode);
+
     while (inspectionRouteOverlayLabels_.size() < inspectionRouteWaypoints_.size()) {
         auto* label = new QLabel(osgWidget_);
         label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -6014,6 +6062,10 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
             label->hide();
             continue;
         }
+        if (waypointLabelsHidden) {
+            label->hide();
+            continue;
+        }
 
         bool pointVisible = false;
         const PointRecord& waypoint = overlayWaypoints.at(waypointIndex);
@@ -6025,20 +6077,41 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
 
         const bool isSelected = waypointIndex == selectedInspectionRouteWaypointIndex_;
         const QString labelText = inspectionRouteWaypointLabelText(waypointIndex);
+        if (labelText.isEmpty()) {
+            label->hide();
+            continue;
+        }
         label->setText(labelText);
-        label->setStyleSheet(QStringLiteral(
-            "QLabel {"
-            "background-color: %1;"
-            "color: #0f172a;"
-            "border: 1px solid %2;"
-            "border-radius: 8px;"
-            "padding: 3px 8px;"
-            "font-size: 11px;"
-            "font-weight: 700;"
-            "}").arg(
-                isSelected ? QStringLiteral("rgba(254, 240, 138, 236)") : QStringLiteral("rgba(224, 242, 254, 232)"),
-                isSelected ? QStringLiteral("rgba(245, 158, 11, 220)") : QStringLiteral("rgba(56, 189, 248, 180)")));
-        positionOverlayLabel(label, anchor, QPoint(14, -16));
+        if (compactWaypointLabels) {
+            label->setStyleSheet(QStringLiteral(
+                "QLabel {"
+                "background-color: %1;"
+                "color: %2;"
+                "border: 1px solid %3;"
+                "border-radius: 6px;"
+                "padding: 2px 6px;"
+                "font-size: 10px;"
+                "font-weight: 600;"
+                "}").arg(
+                    isSelected ? QStringLiteral("rgba(37, 99, 235, 214)") : QStringLiteral("rgba(15, 23, 42, 158)"),
+                    QStringLiteral("#f8fafc"),
+                    isSelected ? QStringLiteral("rgba(191, 219, 254, 220)") : QStringLiteral("rgba(148, 163, 184, 170)")));
+            positionOverlayLabel(label, anchor, QPoint(10, -12));
+        } else {
+            label->setStyleSheet(QStringLiteral(
+                "QLabel {"
+                "background-color: %1;"
+                "color: #0f172a;"
+                "border: 1px solid %2;"
+                "border-radius: 8px;"
+                "padding: 3px 8px;"
+                "font-size: 11px;"
+                "font-weight: 700;"
+                "}").arg(
+                    isSelected ? QStringLiteral("rgba(254, 240, 138, 236)") : QStringLiteral("rgba(224, 242, 254, 232)"),
+                    isSelected ? QStringLiteral("rgba(245, 158, 11, 220)") : QStringLiteral("rgba(56, 189, 248, 180)")));
+            positionOverlayLabel(label, anchor, QPoint(14, -16));
+        }
     }
 
     while (inspectionRoutePartOverlayLabels_.size() < inspectionRoutePartPoints_.size()) {
@@ -6058,6 +6131,10 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
             label->hide();
             continue;
         }
+        if (partLabelsHidden) {
+            label->hide();
+            continue;
+        }
 
         bool pointVisible = false;
         const PointRecord& partPoint = inspectionRoutePartPoints_.at(partIndex);
@@ -6072,29 +6149,58 @@ void PointCloudViewer::updateInspectionRouteOverlayWidgets()
         const bool isPrimaryTarget = currentPartIndex > 0 && currentPartIndex == primaryHighlightPartIndex;
         const bool isSecondaryTarget =
             !isPrimaryTarget && currentPartIndex > 0 && secondaryHighlightPartIndices.contains(currentPartIndex);
-        label->setText(inspectionRoutePartLabelText(partIndex));
-        label->setStyleSheet(QStringLiteral(
-            "QLabel {"
-            "background-color: %1;"
-            "color: %2;"
-            "border: 1px solid %3;"
-            "border-radius: 8px;"
-            "padding: 3px 8px;"
-            "font-size: 11px;"
-            "font-weight: 700;"
-            "}").arg(
-                isPrimaryTarget
-                    ? QStringLiteral("rgba(255, 153, 102, 245)")
-                    : (isSecondaryTarget
-                        ? QStringLiteral("rgba(255, 224, 178, 240)")
-                        : QStringLiteral("rgba(255, 237, 213, 236)")),
-                isPrimaryTarget ? QStringLiteral("#7c2d12") : QStringLiteral("#7c2d12"),
-                isPrimaryTarget
-                    ? QStringLiteral("rgba(234, 88, 12, 230)")
-                    : (isSecondaryTarget
-                        ? QStringLiteral("rgba(249, 115, 22, 220)")
-                        : QStringLiteral("rgba(251, 146, 60, 200)"))));
-        positionOverlayLabel(label, anchor, QPoint(14, 16));
+        const QString labelText = inspectionRoutePartLabelText(partIndex);
+        if (labelText.isEmpty()) {
+            label->hide();
+            continue;
+        }
+        label->setText(labelText);
+        if (compactPartLabels) {
+            label->setStyleSheet(QStringLiteral(
+                "QLabel {"
+                "background-color: %1;"
+                "color: #fef3c7;"
+                "border: 1px solid %2;"
+                "border-radius: 6px;"
+                "padding: 2px 6px;"
+                "font-size: 10px;"
+                "font-weight: 600;"
+                "}").arg(
+                    isPrimaryTarget
+                        ? QStringLiteral("rgba(180, 83, 9, 220)")
+                        : (isSecondaryTarget
+                            ? QStringLiteral("rgba(120, 53, 15, 196)")
+                            : QStringLiteral("rgba(68, 64, 60, 150)")),
+                    isPrimaryTarget
+                        ? QStringLiteral("rgba(253, 186, 116, 230)")
+                        : (isSecondaryTarget
+                            ? QStringLiteral("rgba(251, 146, 60, 210)")
+                            : QStringLiteral("rgba(216, 180, 147, 168)"))));
+            positionOverlayLabel(label, anchor, QPoint(10, 12));
+        } else {
+            label->setStyleSheet(QStringLiteral(
+                "QLabel {"
+                "background-color: %1;"
+                "color: %2;"
+                "border: 1px solid %3;"
+                "border-radius: 8px;"
+                "padding: 3px 8px;"
+                "font-size: 11px;"
+                "font-weight: 700;"
+                "}").arg(
+                    isPrimaryTarget
+                        ? QStringLiteral("rgba(255, 153, 102, 245)")
+                        : (isSecondaryTarget
+                            ? QStringLiteral("rgba(255, 224, 178, 240)")
+                            : QStringLiteral("rgba(255, 237, 213, 236)")),
+                    QStringLiteral("#7c2d12"),
+                    isPrimaryTarget
+                        ? QStringLiteral("rgba(234, 88, 12, 230)")
+                        : (isSecondaryTarget
+                            ? QStringLiteral("rgba(249, 115, 22, 220)")
+                            : QStringLiteral("rgba(251, 146, 60, 200)"))));
+            positionOverlayLabel(label, anchor, QPoint(14, 16));
+        }
     }
 }
 
@@ -6360,7 +6466,10 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
         }
     }
 
-    const QString labelText = inspectionRouteWaypointLabelText(waypointIndex);
+    QString labelText = inspectionRouteWaypointLabelText(waypointIndex);
+    if (labelText.isEmpty()) {
+        labelText = QLocale().toString(waypointIndex + 1);
+    }
     const QString targetLabel = hasTarget
         ? ((selectedTargetIndex >= 0
             && selectedTargetIndex < waypointTargetLabels.size()
@@ -6441,7 +6550,11 @@ QString PointCloudViewer::inspectionRouteWaypointLabelText(int index) const
         return QString();
     }
 
-    if (routeWaypointLabelDisplayMode_ == RouteLabelDisplayMode::Sequence) {
+    if (routeLabelModeHidden(routeWaypointLabelDisplayMode_)) {
+        return QString();
+    }
+
+    if (routeLabelModeUsesSequence(routeWaypointLabelDisplayMode_)) {
         return QLocale().toString(index + 1);
     }
 
@@ -6461,7 +6574,11 @@ QString PointCloudViewer::inspectionRoutePartLabelText(int index) const
         return QString();
     }
 
-    if (routePartLabelDisplayMode_ == RouteLabelDisplayMode::Sequence) {
+    if (routeLabelModeHidden(routePartLabelDisplayMode_)) {
+        return QString();
+    }
+
+    if (routeLabelModeUsesSequence(routePartLabelDisplayMode_)) {
         return QLocale().toString(index + 1);
     }
 

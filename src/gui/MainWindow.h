@@ -54,8 +54,10 @@ class QWidget;
 namespace Qtitan
 {
 class RibbonBar;
+class RibbonBackstageView;
 class RibbonGroup;
 class RibbonPage;
+class RibbonSystemButton;
 }
 
 class PointCloudViewer;
@@ -96,6 +98,7 @@ private:
 
     void createActions();
     void createRibbon();
+    void createBackstageView();
     void createViewQuickToolBar();
     void createWindowControls();
     void createProjectDock();
@@ -107,6 +110,13 @@ private:
     void createStatusBar();
     void createConnections();
     void retranslateUi();
+    void openBackstagePage(QWidget* page);
+    void hideBackstageView();
+    void refreshBackstageRecentProjects();
+    void refreshBackstageProjectPropertiesPage();
+    void refreshBackstageApplicationSettingsPage();
+    void refreshBackstageAboutPage();
+    void openProjectFromBackstage();
     void openProjectExplorerFile();
     void openPointCloud();
     void addPointCloudFiles();
@@ -217,6 +227,8 @@ private:
 
     PointCloudViewer* viewer_ = nullptr;
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
+    Qtitan::RibbonSystemButton* backstageSystemButton_ = nullptr;
+    Qtitan::RibbonBackstageView* backstageView_ = nullptr;
     QDockWidget* projectDock_ = nullptr;
     QDockWidget* inspectorDock_ = nullptr;
     QDockWidget* routeDetailsDock_ = nullptr;
@@ -235,6 +247,14 @@ private:
     Qtitan::RibbonPage* issuePage_ = nullptr;
     Qtitan::RibbonPage* towerPage_ = nullptr;
     Qtitan::RibbonPage* appearancePage_ = nullptr;
+    QAction* backstageOpenPageAction_ = nullptr;
+    QAction* backstageOpenProjectPageAction_ = nullptr;
+    QAction* backstageSaveAction_ = nullptr;
+    QAction* backstageSaveAsAction_ = nullptr;
+    QAction* backstageProjectPropertiesPageAction_ = nullptr;
+    QAction* backstageApplicationSettingsPageAction_ = nullptr;
+    QAction* backstageAboutPageAction_ = nullptr;
+    QAction* backstageExitAction_ = nullptr;
     Qtitan::RibbonGroup* datasetRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* cameraRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* sceneRibbonGroup_ = nullptr;
@@ -249,6 +269,11 @@ private:
     Qtitan::RibbonGroup* colorRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* themeRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* languageRibbonGroup_ = nullptr;
+    QWidget* backstageOpenPage_ = nullptr;
+    QWidget* backstageOpenProjectPage_ = nullptr;
+    QWidget* backstageProjectPropertiesPage_ = nullptr;
+    QWidget* backstageApplicationSettingsPage_ = nullptr;
+    QWidget* backstageAboutPage_ = nullptr;
 
     QGroupBox* datasetGroupBox_ = nullptr;
     QFormLayout* datasetLayout_ = nullptr;
@@ -305,6 +330,20 @@ private:
     QLabel* issueToolStatusLabel_ = nullptr;
     QLabel* issueLocationValueLabel_ = nullptr;
     QLabel* issueCreatedAtValueLabel_ = nullptr;
+    QLabel* backstageOpenTitleLabel_ = nullptr;
+    QLabel* backstageOpenSubtitleLabel_ = nullptr;
+    QLabel* backstageOpenProjectTitleLabel_ = nullptr;
+    QLabel* backstageOpenProjectSubtitleLabel_ = nullptr;
+    QLabel* backstageProjectPropertiesTitleLabel_ = nullptr;
+    QLabel* backstageProjectPropertiesSubtitleLabel_ = nullptr;
+    QLabel* backstageProjectFileValueLabel_ = nullptr;
+    QLabel* backstageProjectDatasetCountValueLabel_ = nullptr;
+    QLabel* backstageProjectCoordinateSystemsValueLabel_ = nullptr;
+    QLabel* backstageApplicationSettingsTitleLabel_ = nullptr;
+    QLabel* backstageApplicationSettingsSubtitleLabel_ = nullptr;
+    QLabel* backstageAboutTitleLabel_ = nullptr;
+    QLabel* backstageAboutSubtitleLabel_ = nullptr;
+    QLabel* backstageAboutBodyLabel_ = nullptr;
 
     QWidget* pointSizeControl_ = nullptr;
     QWidget* pointOpacityControl_ = nullptr;
@@ -356,6 +395,7 @@ private:
     QCheckBox* roundSplatsCheckBox_ = nullptr;
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
+    QCheckBox* backstageShowLogCheckBox_ = nullptr;
     QCheckBox* routeWaypointShowCoordinatesCheckBox_ = nullptr;
     QCheckBox* routeWaypointShowCaptureAnglesCheckBox_ = nullptr;
     QCheckBox* routePartShowCoordinatesCheckBox_ = nullptr;
@@ -366,8 +406,10 @@ private:
     QCheckBox* preferVegetationClassificationCheckBox_ = nullptr;
     QLabel* navigationTipsLabel_ = nullptr;
     QLineEdit* projectSearchEdit_ = nullptr;
+    QLineEdit* backstageProjectPathLineEdit_ = nullptr;
     QListWidget* profileClassificationSourceListWidget_ = nullptr;
     QListWidget* profileClassificationTargetListWidget_ = nullptr;
+    QListWidget* backstageRecentProjectsListWidget_ = nullptr;
     QTreeWidget* projectTreeWidget_ = nullptr;
     QTableWidget* towerTableWidget_ = nullptr;
     QTableWidget* issueTableWidget_ = nullptr;
@@ -410,6 +452,9 @@ private:
     QLineEdit* issueImagePathEdit_ = nullptr;
     QPlainTextEdit* issueDescriptionEdit_ = nullptr;
     QPushButton* resetClassificationColorsButton_ = nullptr;
+    QPushButton* backstageProjectBrowseButton_ = nullptr;
+    QPushButton* backstageProjectOpenButton_ = nullptr;
+    QPushButton* backstageEditProjectPropertiesButton_ = nullptr;
     QPushButton* profileClassificationToggleButton_ = nullptr;
     QPushButton* profileClassificationSelectAllButton_ = nullptr;
     QPushButton* profileClassificationClearSelectionButton_ = nullptr;

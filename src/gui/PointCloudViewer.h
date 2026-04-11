@@ -111,7 +111,10 @@ struct InspectionRouteDisplayData
 enum class RouteLabelDisplayMode
 {
     Sequence = 0,
-    Name
+    Name,
+    Hidden,
+    CompactName,
+    CompactSequence
 };
 
 enum class RouteRoamViewMode
