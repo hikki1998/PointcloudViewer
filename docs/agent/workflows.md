@@ -20,6 +20,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ### smoke test
 ```powershell
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
 ```
 
@@ -59,6 +60,10 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ### 默认最少验证
 - 改 UI、交互、翻译、渲染、点选、构建脚本时：
   - 至少做一次 `Release` 构建
+- 仓库只保留一个主冒烟可执行文件：`LASViewerSmokeTest.exe`
+- 新增 smoke 场景时：
+  - 必须并入 `LASViewerSmokeTest` 的新 `mode` 或新 `category`
+  - 不要新增零散的独立 smoke exe
 
 ### 需要补 smoke 的场景
 - 改点云渲染

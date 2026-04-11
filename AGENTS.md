@@ -45,6 +45,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ```powershell
 .\out\build\bin\Release\LASViewerSmokeTest.exe .\test_data\ezhou_powerline_sample.las
 ```
+- 仓库只保留一个主冒烟可执行文件 `LASViewerSmokeTest.exe`；新增 smoke 场景时，必须并入该 exe 的新 `mode` 或 `category`，不要再新增独立 smoke exe。
 - 涉及 UI、翻译、渲染、点选、量测、构建脚本时，默认至少做一次构建验证；如果改动影响显示结果，优先再跑 smoke test。
 - 涉及 UI 样式或主题改动时，额外检查 dock、Ribbon、Message Box、表格、ComboBox（含下拉列表）和覆盖层，确认没有“黑色背景覆盖深色文字/文字不可读”的回归。
 

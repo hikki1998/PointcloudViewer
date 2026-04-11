@@ -17,6 +17,7 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
+#include <QTranslator>
 
 #include <cmath>
 #include <functional>
@@ -25,11 +26,16 @@
 #include "crs/CrsAuthorityService.h"
 #include "domain/InspectionData.h"
 #include "domain/TowerFileInterop.h"
+#include "gui/MainWindow.h"
 #include "gui/PointCloudViewer.h"
 #include "route/InspectionRoutePlanning.h"
 #include "route/PowerlineRouteBridge.h"
 #include "route/PowerlineRouteJson.h"
 #include "route/RouteInterop.h"
+
+#include "QtnRibbonBackstageView.h"
+#include "QtnRibbonBar.h"
+#include "QtnRibbonSystemPopupBar.h"
 
 namespace
 {
@@ -154,6 +160,71 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
     }
 
     return allPassed;
+}
+
+bool runMainBackstageSmoke(const QStringList&)
+{
+    QTranslator appTranslator;
+    QTranslator qtTranslator;
+    MainWindow window(&appTranslator, &qtTranslator);
+    window.resize(1400, 900);
+    window.show();
+    pumpEvents(300);
+
+    Qtitan::RibbonBar* ribbonBar = window.ribbonBar();
+    if (!verify(ribbonBar != nullptr, "MainWindow should expose a RibbonBar")) {
+        return false;
+    }
+
+    Qtitan::RibbonSystemButton* systemButton = ribbonBar->getSystemButton();
+    if (!verify(systemButton != nullptr, "Ribbon system button should exist")) {
+        return false;
+    }
+
+    Qtitan::RibbonBackstageView* backstageView =
+        window.findChild<Qtitan::RibbonBackstageView*>(QStringLiteral("mainBackstageView"));
+    if (!verify(backstageView != nullptr, "Backstage view should be created")) {
+        return false;
+    }
+
+    systemButton->click();
+    pumpEvents(200);
+    if (!verify(ribbonBar->isBackstageVisible(), "Backstage should become visible after clicking system button")) {
+        return false;
+    }
+
+    QWidget* applicationSettingsPage =
+        window.findChild<QWidget*>(QStringLiteral("backstageApplicationSettingsPage"));
+    QWidget* aboutPage = window.findChild<QWidget*>(QStringLiteral("backstageAboutPage"));
+    if (!verify(applicationSettingsPage != nullptr, "Application Settings backstage page should exist")) {
+        return false;
+    }
+    if (!verify(aboutPage != nullptr, "About backstage page should exist")) {
+        return false;
+    }
+
+    backstageView->setActivePage(applicationSettingsPage);
+    if (!verify(
+            backstageView->getActivePage() == applicationSettingsPage,
+            "Backstage should switch to Application Settings page")) {
+        return false;
+    }
+
+    backstageView->setActivePage(aboutPage);
+    if (!verify(
+            backstageView->getActivePage() == aboutPage,
+            "Backstage should switch to About page")) {
+        return false;
+    }
+
+    backstageView->hide();
+    pumpEvents(120);
+    if (!verify(!ribbonBar->isBackstageVisible(), "Backstage should hide when requested")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Main backstage smoke test completed." << std::endl;
+    return true;
 }
 
 QList<PointRecord> buildSyntheticWaypoints()
@@ -940,9 +1011,10 @@ QSet<QString> parseCsvValues(const QStringList& rawValues)
 void printUsageSummary()
 {
     std::cout
-        << "Modes: viewer-render, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
-        << "Categories: render, route, tower, all" << std::endl
+        << "Modes: viewer-render, main-backstage, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
+        << "Categories: render, ui, route, tower, all" << std::endl
         << "Examples:" << std::endl
+        << "  LASViewerSmokeTest --mode main-backstage" << std::endl
         << "  LASViewerSmokeTest --mode route-roam --las .\\test_data\\ezhou_powerline_sample.las" << std::endl
         << "  LASViewerSmokeTest --category route --las .\\test_data\\ezhou_powerline_sample.las" << std::endl
         << "  LASViewerSmokeTest --mode all --las .\\test_data\\ezhou_powerline_sample.las" << std::endl;
@@ -973,6 +1045,7 @@ bool validateSelections(const QSet<QString>& modeSet, const QSet<QString>& categ
 {
     const QSet<QString> validModes {
         QStringLiteral("viewer-render"),
+        QStringLiteral("main-backstage"),
         QStringLiteral("route-json"),
         QStringLiteral("route-interop"),
         QStringLiteral("route-roam"),
@@ -982,6 +1055,7 @@ bool validateSelections(const QSet<QString>& modeSet, const QSet<QString>& categ
     };
     const QSet<QString> validCategories {
         QStringLiteral("render"),
+        QStringLiteral("ui"),
         QStringLiteral("route"),
         QStringLiteral("tower"),
         QStringLiteral("all")
@@ -1124,6 +1198,12 @@ int main(int argc, char* argv[])
             QStringLiteral("Viewer Render Smoke"),
             true,
             runViewerRenderSmoke },
+        SmokeCase {
+            QStringLiteral("main-backstage"),
+            QStringLiteral("ui"),
+            QStringLiteral("Main Backstage Smoke"),
+            false,
+            runMainBackstageSmoke },
         SmokeCase {
             QStringLiteral("route-json"),
             QStringLiteral("route"),

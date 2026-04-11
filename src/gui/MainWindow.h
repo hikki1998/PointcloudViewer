@@ -262,7 +262,9 @@ private:
     Qtitan::RibbonGroup* classificationRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* vegetationRiskRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routePlanningRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* routeRoamRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routeFileRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* routeExchangeRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* issueRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
@@ -584,6 +586,7 @@ private:
     int selectedRouteWaypointTargetIndex_ = -1;
     int selectedRouteQaIssueIndex_ = -1;
     bool routeEditingEnabled_ = false;
+    bool loadingWindowSettings_ = false;
     bool updatingRouteTables_ = false;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;

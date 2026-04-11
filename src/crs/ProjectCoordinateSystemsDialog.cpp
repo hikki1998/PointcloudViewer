@@ -27,8 +27,12 @@ void applyProjectDialogStyle(QDialog* dialog)
         "QLabel#projectCrsTitle { color: #0f172a; font-size: 16px; font-weight: 700; }"
         "QLabel#projectCrsLabel { color: #64748b; font-size: 12px; font-weight: 600; }"
         "QLabel#projectCrsValue { color: #0f172a; font-size: 13px; font-weight: 500; }"
-        "QPushButton { min-width: 88px; padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(37,99,235,0.18); background-color: #e0ecff; color: #1d4ed8; font-weight: 600; }"
-        "QPushButton:hover { background-color: #d4e4ff; }"));
+        "QPushButton { min-width: 88px; padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(37,99,235,0.18); background-color: #ffffff; color: #0f172a; font-weight: 600; }"
+        "QPushButton:hover { background-color: #eef4ff; border-color: #93c5fd; }"
+        "QPushButton:pressed { background-color: #dbeafe; border-color: #60a5fa; }"
+        "QPushButton:default { background-color: #e0ecff; color: #1d4ed8; border-color: #93c5fd; }"
+        "QPushButton:default:hover { background-color: #d4e4ff; }"
+        "QPushButton:disabled { background-color: #f1f5f9; color: #94a3b8; border-color: #dbe3ee; }"));
 }
 
 QFrame* createProjectCard(QWidget* parent)

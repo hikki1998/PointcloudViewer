@@ -516,6 +516,7 @@ set(SOURCES
     src/domain/VegetationRiskAnalysis.cpp
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
+    src/gui/UiHistoryStore.cpp
     src/gui/ProfilePlotWidget.cpp
     src/logging/ApplicationLogger.cpp
     src/pointcloud/LasReader.cpp
@@ -557,6 +558,7 @@ set(HEADERS
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
     src/gui/ProfilePlotWidget.h
+    src/gui/UiHistoryStore.h
     src/logging/ApplicationLogger.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
@@ -617,6 +619,7 @@ set(COMMON_SOURCES
     src/domain/TowerFileInterop.cpp
     src/domain/VegetationRiskAnalysis.cpp
     src/gui/PointCloudViewer.cpp
+    src/gui/UiHistoryStore.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
     src/pointcloud/PointCloudTileStore.cpp
@@ -645,6 +648,7 @@ set(COMMON_HEADERS
     src/domain/TowerFileInterop.h
     src/domain/VegetationRiskAnalysis.h
     src/gui/PointCloudViewer.h
+    src/gui/UiHistoryStore.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
     src/pointcloud/PointCloudTileStore.h
@@ -681,6 +685,7 @@ set(BACKSTAGE_SMOKE_SOURCES
     src/gui/MainWindow.cpp
     src/gui/PointCloudViewer.cpp
     src/gui/ProfilePlotWidget.cpp
+    src/gui/UiHistoryStore.cpp
     src/logging/ApplicationLogger.cpp
     src/pointcloud/LasReader.cpp
     src/pointcloud/PointCloudData.cpp
@@ -717,6 +722,7 @@ set(BACKSTAGE_SMOKE_HEADERS
     src/gui/MainWindow.h
     src/gui/PointCloudViewer.h
     src/gui/ProfilePlotWidget.h
+    src/gui/UiHistoryStore.h
     src/logging/ApplicationLogger.h
     src/pointcloud/LasReader.h
     src/pointcloud/PointCloudData.h
@@ -1128,21 +1134,11 @@ endif()
 
 add_executable(LASViewerSmokeTest
     examples/viewer_smoke_test.cpp
-    ${COMMON_SOURCES}
-    ${COMMON_HEADERS}
-)
-configure_las_viewer_target(LASViewerSmokeTest FALSE)
-set_target_properties(LASViewerSmokeTest PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
-add_executable(LASViewerBackstageSmokeTest
-    examples/backstage_smoke_test.cpp
     ${BACKSTAGE_SMOKE_SOURCES}
     ${BACKSTAGE_SMOKE_HEADERS}
 )
-configure_las_viewer_target(LASViewerBackstageSmokeTest TRUE)
-set_target_properties(LASViewerBackstageSmokeTest PROPERTIES
+configure_las_viewer_target(LASViewerSmokeTest TRUE)
+set_target_properties(LASViewerSmokeTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
@@ -1153,14 +1149,10 @@ if(WIN32)
     deploy_translation_runtime(${PROJECT_NAME})
     deploy_proj_runtime_assets(${PROJECT_NAME})
     deploy_osg_runtime(LASViewerSmokeTest)
-    deploy_qt_runtime(LASViewerSmokeTest FALSE)
-    deploy_runtime_dependencies(LASViewerSmokeTest FALSE)
+    deploy_qt_runtime(LASViewerSmokeTest TRUE)
+    deploy_runtime_dependencies(LASViewerSmokeTest TRUE)
+    deploy_translation_runtime(LASViewerSmokeTest)
     deploy_proj_runtime_assets(LASViewerSmokeTest)
-    deploy_osg_runtime(LASViewerBackstageSmokeTest)
-    deploy_qt_runtime(LASViewerBackstageSmokeTest TRUE)
-    deploy_runtime_dependencies(LASViewerBackstageSmokeTest TRUE)
-    deploy_translation_runtime(LASViewerBackstageSmokeTest)
-    deploy_proj_runtime_assets(LASViewerBackstageSmokeTest)
 endif()
 
 

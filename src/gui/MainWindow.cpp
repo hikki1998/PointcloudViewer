@@ -116,6 +116,7 @@
 #include "domain/VegetationRiskAnalysis.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfilePlotWidget.h"
+#include "gui/UiHistoryStore.h"
 #include "logging/ApplicationLogger.h"
 #include "osg/PointCloudVisualization.h"
 #include "pointcloud/LasReader.h"
@@ -752,6 +753,21 @@ double normalizedRouteFocalLengthRatio(double ratio)
 }
 
 constexpr int kRecentProjectHistoryLimit = 10;
+const char kRouteHistoryIdDisplayWaypointLabelMode[] = "route.display.waypointLabelMode";
+const char kRouteHistoryIdDisplayPartLabelMode[] = "route.display.partLabelMode";
+const char kRouteHistoryIdDisplayWaypointShowCoordinates[] = "route.display.waypointShowCoordinates";
+const char kRouteHistoryIdDisplayWaypointShowCaptureAngles[] = "route.display.waypointShowCaptureAngles";
+const char kRouteHistoryIdDisplayPartShowCoordinates[] = "route.display.partShowCoordinates";
+const char kRouteHistoryIdDisplayPartShowCaptureAngles[] = "route.display.partShowCaptureAngles";
+const char kRouteHistoryIdEditingEnabled[] = "route.editingEnabled";
+const char kRouteHistoryIdPlanningAircraftProfile[] = "route.planning.aircraftProfile";
+const char kRouteHistoryIdPlanningSafetyHeightMeters[] = "route.planning.safetyHeightMeters";
+const char kRouteHistoryIdPlanningWaypointSpeedMps[] = "route.planning.waypointSpeedMps";
+const char kRouteHistoryIdPlanningWaypointSpacingMeters[] = "route.planning.waypointSpacingMeters";
+const char kRouteHistoryIdPlanningSmoothingStrengthPercent[] = "route.planning.smoothingStrengthPercent";
+const char kRouteHistoryIdPlanningHeightOffsetMeters[] = "route.planning.heightOffsetMeters";
+const char kRouteHistoryIdRoamSpeedMps[] = "route.roam.speedMps";
+const char kRouteHistoryIdRoamViewMode[] = "route.roam.viewMode";
 
 QString normalizedProjectFilePath(const QString& filePath)
 {
@@ -1110,6 +1126,86 @@ QFrame* createDetailsStatCard(const QString& labelText, const QString& valueText
     return card;
 }
 
+QString lightDialogPushButtonStyleSheet()
+{
+    return QStringLiteral(
+        "QPushButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 6px 14px;"
+        "min-width: 84px;"
+        "}"
+        "QPushButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QPushButton:pressed {"
+        "background-color: #dbeafe;"
+        "border-color: #60a5fa;"
+        "}"
+        "QPushButton:default {"
+        "background-color: #e0ecff;"
+        "color: #1d4ed8;"
+        "border-color: #93c5fd;"
+        "}"
+        "QPushButton:default:hover {"
+        "background-color: #d4e4ff;"
+        "}"
+        "QPushButton:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #dbe3ee;"
+        "}");
+}
+
+QString lightDialogToolButtonStyleSheet()
+{
+    return QStringLiteral(
+        "QToolButton {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 3px 8px;"
+        "}"
+        "QToolButton:hover {"
+        "background-color: #eef4ff;"
+        "border-color: #93c5fd;"
+        "}"
+        "QToolButton:pressed {"
+        "background-color: #dbeafe;"
+        "border-color: #60a5fa;"
+        "}"
+        "QToolButton:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #dbe3ee;"
+        "}");
+}
+
+void enforceLightDialogButtonStyles(QWidget* root)
+{
+    if (root == nullptr) {
+        return;
+    }
+
+    const QString pushButtonStyle = lightDialogPushButtonStyleSheet();
+    const QString toolButtonStyle = lightDialogToolButtonStyleSheet();
+
+    for (QPushButton* button : root->findChildren<QPushButton*>()) {
+        if (button != nullptr) {
+            button->setStyleSheet(pushButtonStyle);
+        }
+    }
+    for (QToolButton* button : root->findChildren<QToolButton*>()) {
+        if (button != nullptr) {
+            button->setStyleSheet(toolButtonStyle);
+        }
+    }
+}
+
 void showStyledDetailsDialog(
     QWidget* parent,
     const QString& title,
@@ -1253,6 +1349,7 @@ void showStyledDetailsDialog(
     QObject::connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     rootLayout->addWidget(buttonBox);
 
+    enforceLightDialogButtonStyles(&dialog);
     dialog.exec();
 }
 
@@ -1289,7 +1386,8 @@ QColor showStyledColorDialog(
         "QColorDialog QSpinBox,"
         "QColorDialog QDoubleSpinBox,"
         "QColorDialog QComboBox,"
-        "QColorDialog QPushButton {"
+        "QColorDialog QPushButton,"
+        "QColorDialog QToolButton {"
         "background-color: #ffffff;"
         "color: #0f172a;"
         "border: 1px solid #cbd5e1;"
@@ -1297,15 +1395,31 @@ QColor showStyledColorDialog(
         "min-height: 24px;"
         "padding: 3px 8px;"
         "}"
-        "QColorDialog QPushButton:hover {"
+        "QColorDialog QPushButton:hover,"
+        "QColorDialog QToolButton:hover {"
         "background-color: #eef4ff;"
         "border-color: #93c5fd;"
         "}"
-        "QColorDialog QPushButton:pressed {"
+        "QColorDialog QPushButton:pressed,"
+        "QColorDialog QToolButton:pressed {"
         "background-color: #dbeafe;"
+        "}"
+        "QColorDialog QToolButton:disabled,"
+        "QColorDialog QPushButton:disabled {"
+        "background-color: #f1f5f9;"
+        "color: #94a3b8;"
+        "border-color: #dbe3ee;"
         "}"
         "QColorDialog QDialogButtonBox QPushButton {"
         "min-width: 80px;"
+        "}"
+        "QColorDialog QDialogButtonBox QPushButton:default {"
+        "background-color: #e0ecff;"
+        "color: #1d4ed8;"
+        "border-color: #93c5fd;"
+        "}"
+        "QColorDialog QDialogButtonBox QPushButton:default:hover {"
+        "background-color: #d4e4ff;"
         "}"
         "QColorDialog QAbstractItemView {"
         "background-color: #ffffff;"
@@ -1314,7 +1428,9 @@ QColor showStyledColorDialog(
         "selection-color: #0f172a;"
         "border: 1px solid #cbd5e1;"
         "}"
-        "QColorDialog QLabel {"
+        "QColorDialog QLabel,"
+        "QColorDialog QCheckBox,"
+        "QColorDialog QRadioButton {"
         "color: #0f172a;"
         "}"
     ));
@@ -1325,10 +1441,12 @@ QColor showStyledColorDialog(
     palette.setColor(QPalette::AlternateBase, QColor(241, 245, 249));
     palette.setColor(QPalette::WindowText, QColor(15, 23, 42));
     palette.setColor(QPalette::Text, QColor(15, 23, 42));
+    palette.setColor(QPalette::Button, QColor(255, 255, 255));
     palette.setColor(QPalette::ButtonText, QColor(15, 23, 42));
     palette.setColor(QPalette::Highlight, QColor(219, 234, 254));
     palette.setColor(QPalette::HighlightedText, QColor(15, 23, 42));
     dialog.setPalette(palette);
+    enforceLightDialogButtonStyles(&dialog);
 
     if (dialog.exec() == QDialog::Accepted) {
         return dialog.currentColor();
@@ -1380,6 +1498,14 @@ QString styledDialogStyleSheet()
         "}"
         "QFileDialog QPushButton:pressed {"
         "background-color: #dbeafe;"
+        "}"
+        "QFileDialog QPushButton:default {"
+        "background-color: #e0ecff;"
+        "color: #1d4ed8;"
+        "border-color: #93c5fd;"
+        "}"
+        "QFileDialog QPushButton:default:hover {"
+        "background-color: #d4e4ff;"
         "}"
         "QFileDialog QPushButton:disabled {"
         "background-color: #f1f5f9;"
@@ -1437,6 +1563,7 @@ void applyStyledDialogPalette(QDialog* dialog)
     palette.setColor(QPalette::Highlight, QColor(219, 234, 254));
     palette.setColor(QPalette::HighlightedText, QColor(15, 23, 42));
     dialog->setPalette(palette);
+    enforceLightDialogButtonStyles(dialog);
 }
 
 QString showStyledOpenFileNameDialog(
@@ -1943,7 +2070,17 @@ QMessageBox::StandardButton showLightStyledMessageBox(
         "}"
         "QMessageBox QPushButton:pressed {"
         "background-color: #e2e8f0;"
+        "border-color: #94a3b8;"
+        "}"
+        "QMessageBox QPushButton:default {"
+        "background-color: #e0ecff;"
+        "color: #1d4ed8;"
+        "border-color: #93c5fd;"
+        "}"
+        "QMessageBox QPushButton:default:hover {"
+        "background-color: #d4e4ff;"
         "}"));
+    enforceLightDialogButtonStyles(&messageBox);
     if (defaultButton != QMessageBox::NoButton) {
         messageBox.setDefaultButton(defaultButton);
     }
@@ -2381,9 +2518,9 @@ void MainWindow::createActions()
     languageActionGroup_ = new QActionGroup(this);
     languageActionGroup_->setExclusive(true);
 
-    languageEnglishAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), QStringLiteral("English"), this);
+    languageEnglishAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), tr("English"), this);
     languageEnglishAction_->setCheckable(true);
-    languageChineseAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), QStringLiteral("\u4e2d\u6587"), this);
+    languageChineseAction_ = new QAction(createRibbonIcon(RibbonGlyph::Language), tr("Chinese"), this);
     languageChineseAction_->setCheckable(true);
 
     languageActionGroup_->addAction(languageEnglishAction_);
@@ -2466,18 +2603,23 @@ void MainWindow::createRibbon()
     routePlanningRibbonGroup_->addAction(regenerateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routePlanningRibbonGroup_->addAction(clearInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routePlanningRibbonGroup_->addAction(toggleRouteEditingAction_, Qt::ToolButtonTextUnderIcon);
-    routePlanningRibbonGroup_->addAction(startInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routePlanningRibbonGroup_->addAction(pauseInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routePlanningRibbonGroup_->addAction(stopInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routePlanningRibbonGroup_->addAction(focusRouteWaypointAction_, Qt::ToolButtonTextUnderIcon);
+
+    routeRoamRibbonGroup_ = routePage_->addGroup(tr("Route Roam"));
+    routeRoamRibbonGroup_->addAction(startInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
+    routeRoamRibbonGroup_->addAction(pauseInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
+    routeRoamRibbonGroup_->addAction(stopInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
+    routeRoamRibbonGroup_->addAction(focusRouteWaypointAction_, Qt::ToolButtonTextUnderIcon);
 
     routeFileRibbonGroup_ = routePage_->addGroup(tr("Route Files"));
     routeFileRibbonGroup_->addAction(importRouteFileAction_, Qt::ToolButtonTextUnderIcon);
     routeFileRibbonGroup_->addAction(saveRouteFileAction_, Qt::ToolButtonTextUnderIcon);
+    routeFileRibbonGroup_->addAction(saveRouteFileAsAction_, Qt::ToolButtonTextUnderIcon);
     routeFileRibbonGroup_->addAction(reloadRouteFileAction_, Qt::ToolButtonTextUnderIcon);
-    routeFileRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
-    routeFileRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
-    routeFileRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
+
+    routeExchangeRibbonGroup_ = routePage_->addGroup(tr("Route Exchange"));
+    routeExchangeRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
+    routeExchangeRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
+    routeExchangeRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
 
     analysisPage_ = ribbonBar_->addPage(tr("Analysis"));
     vegetationRiskRibbonGroup_ = analysisPage_->addGroup(tr("Vegetation Risks"));
@@ -4090,38 +4232,11 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointsLayout->setContentsMargins(10, 10, 10, 10);
     routeWaypointsLayout->setSpacing(8);
 
-    auto* routeToolbarHost = new QWidget(routeWaypointsGroupBox_);
-    auto* routeToolbarLayout = new QHBoxLayout(routeToolbarHost);
-    routeToolbarLayout->setContentsMargins(0, 0, 0, 0);
-    routeToolbarLayout->setSpacing(8);
-    auto* routeToolBar = new QToolBar(routeToolbarHost);
-    routeToolBar->setIconSize(QSize(16, 16));
-    routeToolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    routeToolBar->setMovable(false);
-    routeToolBar->setFloatable(false);
-    routeToolBar->addAction(generateInspectionRouteAction_);
-    routeToolBar->addAction(regenerateInspectionRouteAction_);
-    routeToolBar->addAction(clearInspectionRouteAction_);
-    routeToolBar->addAction(startInspectionRouteRoamAction_);
-    routeToolBar->addAction(pauseInspectionRouteRoamAction_);
-    routeToolBar->addAction(stopInspectionRouteRoamAction_);
-    routeToolBar->addSeparator();
-    routeToolBar->addAction(focusRouteWaypointAction_);
-    routeToolBar->addAction(importRouteFileAction_);
-    routeToolBar->addAction(saveRouteFileAction_);
-    routeToolBar->addAction(saveRouteFileAsAction_);
-    routeToolBar->addAction(reloadRouteFileAction_);
-    routeToolBar->addSeparator();
-    routeToolBar->addAction(importRouteKmlAction_);
-    routeToolBar->addAction(exportRouteKmlAction_);
-    routeToolBar->addAction(exportRouteDjiKmzAction_);
-    routeToolbarLayout->addWidget(routeToolBar, 1);
-
-    auto* routeWaypointModeRow = new QWidget(routeWaypointsGroupBox_);
-    auto* routeWaypointModeLayout = new QHBoxLayout(routeWaypointModeRow);
-    routeWaypointModeLayout->setContentsMargins(0, 0, 0, 0);
-    routeWaypointModeLayout->setSpacing(8);
-    routeWaypointLabelModeComboBox_ = new QComboBox(routeWaypointModeRow);
+    auto* routeWaypointOptionsRow = new QWidget(routeWaypointsGroupBox_);
+    auto* routeWaypointOptionsLayout = new QHBoxLayout(routeWaypointOptionsRow);
+    routeWaypointOptionsLayout->setContentsMargins(0, 0, 0, 0);
+    routeWaypointOptionsLayout->setSpacing(8);
+    routeWaypointLabelModeComboBox_ = new QComboBox(routeWaypointOptionsRow);
     routeWaypointLabelModeComboBox_->setMinimumWidth(160);
     routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
@@ -4129,13 +4244,6 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
     routeWaypointLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
     routeWaypointLabelModeComboBox_->setCurrentIndex(0);
-    routeWaypointModeLayout->addStretch(1);
-    routeWaypointModeLayout->addWidget(routeWaypointLabelModeComboBox_, 0);
-
-    auto* routeWaypointOptionsRow = new QWidget(routeWaypointsGroupBox_);
-    auto* routeWaypointOptionsLayout = new QHBoxLayout(routeWaypointOptionsRow);
-    routeWaypointOptionsLayout->setContentsMargins(0, 0, 0, 0);
-    routeWaypointOptionsLayout->setSpacing(8);
     routeWaypointShowCoordinatesCheckBox_ = new QCheckBox(tr("Show Coordinates"), routeWaypointOptionsRow);
     routeWaypointShowCaptureAnglesCheckBox_ = new QCheckBox(tr("Show Capture Angles"), routeWaypointOptionsRow);
     routeWaypointShowCoordinatesCheckBox_->setChecked(true);
@@ -4144,11 +4252,12 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointColorButton_ = new QPushButton(tr("Waypoint Color"), routeWaypointOptionsRow);
     routeTrajectoryColorButton_->setMinimumWidth(124);
     routeWaypointColorButton_->setMinimumWidth(124);
-    routeWaypointOptionsLayout->addWidget(routeWaypointShowCoordinatesCheckBox_);
-    routeWaypointOptionsLayout->addWidget(routeWaypointShowCaptureAnglesCheckBox_);
-    routeWaypointOptionsLayout->addStretch(1);
+    routeWaypointOptionsLayout->addWidget(routeWaypointLabelModeComboBox_);
     routeWaypointOptionsLayout->addWidget(routeTrajectoryColorButton_);
     routeWaypointOptionsLayout->addWidget(routeWaypointColorButton_);
+    routeWaypointOptionsLayout->addStretch(1);
+    routeWaypointOptionsLayout->addWidget(routeWaypointShowCoordinatesCheckBox_);
+    routeWaypointOptionsLayout->addWidget(routeWaypointShowCaptureAnglesCheckBox_);
 
     routeWaypointsTableWidget_ = new QTableWidget(routeWaypointsGroupBox_);
     routeWaypointsTableWidget_->setColumnCount(9);
@@ -4217,8 +4326,6 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointTargetsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     routeWaypointTargetsLayout->addWidget(routeWaypointTargetsTableWidget_);
 
-    routeWaypointsLayout->addWidget(routeToolbarHost);
-    routeWaypointsLayout->addWidget(routeWaypointModeRow);
     routeWaypointsLayout->addWidget(routeWaypointOptionsRow);
     routeWaypointsLayout->addWidget(routeWaypointsTableWidget_, 1);
     routeWaypointsLayout->addWidget(routeWaypointTargetsGroupBox_, 0);
@@ -4234,11 +4341,11 @@ void MainWindow::createRouteDetailsDock()
     routePartsLayout->setContentsMargins(10, 10, 10, 10);
     routePartsLayout->setSpacing(8);
 
-    auto* routePartModeRow = new QWidget(routePartsGroupBox_);
-    auto* routePartModeLayout = new QHBoxLayout(routePartModeRow);
-    routePartModeLayout->setContentsMargins(0, 0, 0, 0);
-    routePartModeLayout->setSpacing(8);
-    routePartLabelModeComboBox_ = new QComboBox(routePartModeRow);
+    auto* routePartOptionsRow = new QWidget(routePartsGroupBox_);
+    auto* routePartOptionsLayout = new QHBoxLayout(routePartOptionsRow);
+    routePartOptionsLayout->setContentsMargins(0, 0, 0, 0);
+    routePartOptionsLayout->setSpacing(8);
+    routePartLabelModeComboBox_ = new QComboBox(routePartOptionsRow);
     routePartLabelModeComboBox_->setMinimumWidth(160);
     routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
@@ -4246,23 +4353,17 @@ void MainWindow::createRouteDetailsDock()
     routePartLabelModeComboBox_->addItem(tr("Compact Index"), static_cast<int>(RouteLabelDisplayMode::CompactSequence));
     routePartLabelModeComboBox_->addItem(tr("Hidden"), static_cast<int>(RouteLabelDisplayMode::Hidden));
     routePartLabelModeComboBox_->setCurrentIndex(0);
-    routePartModeLayout->addStretch(1);
-    routePartModeLayout->addWidget(routePartLabelModeComboBox_, 0);
-
-    auto* routePartOptionsRow = new QWidget(routePartsGroupBox_);
-    auto* routePartOptionsLayout = new QHBoxLayout(routePartOptionsRow);
-    routePartOptionsLayout->setContentsMargins(0, 0, 0, 0);
-    routePartOptionsLayout->setSpacing(8);
     routePartShowCoordinatesCheckBox_ = new QCheckBox(tr("Show Coordinates"), routePartOptionsRow);
     routePartShowCaptureAnglesCheckBox_ = new QCheckBox(tr("Show Capture Angles"), routePartOptionsRow);
     routePartShowCoordinatesCheckBox_->setChecked(true);
     routePartShowCaptureAnglesCheckBox_->setChecked(true);
     routePartPointColorButton_ = new QPushButton(tr("Part Point Color"), routePartOptionsRow);
     routePartPointColorButton_->setMinimumWidth(124);
+    routePartOptionsLayout->addWidget(routePartLabelModeComboBox_);
+    routePartOptionsLayout->addWidget(routePartPointColorButton_);
+    routePartOptionsLayout->addStretch(1);
     routePartOptionsLayout->addWidget(routePartShowCoordinatesCheckBox_);
     routePartOptionsLayout->addWidget(routePartShowCaptureAnglesCheckBox_);
-    routePartOptionsLayout->addStretch(1);
-    routePartOptionsLayout->addWidget(routePartPointColorButton_);
 
     routePartPointsTableWidget_ = new QTableWidget(routePartsGroupBox_);
     routePartPointsTableWidget_->setColumnCount(8);
@@ -4295,7 +4396,6 @@ void MainWindow::createRouteDetailsDock()
     routePartPointsTableWidget_->setStyleSheet(routeTableStyleSheet());
     routePartPointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    routePartsLayout->addWidget(routePartModeRow);
     routePartsLayout->addWidget(routePartOptionsRow);
     routePartsLayout->addWidget(routePartPointsTableWidget_, 1);
     partPointsTabLayout->addWidget(routePartsGroupBox_, 1);
@@ -5011,8 +5111,8 @@ void MainWindow::retranslateUi()
     exportInspectionReportAction_->setText(tr("Export Inspection Report"));
     showLogAction_->setText(tr("Log"));
     showLogAction_->setToolTip(tr("Show or hide the log panel"));
-    languageEnglishAction_->setText(QStringLiteral("English"));
-    languageChineseAction_->setText(QStringLiteral("\u4e2d\u6587"));
+    languageEnglishAction_->setText(tr("English"));
+    languageChineseAction_->setText(tr("Chinese"));
 
     if (backstageSystemButton_ != nullptr) {
         backstageSystemButton_->setText(tr("File"));
@@ -5171,8 +5271,14 @@ void MainWindow::retranslateUi()
     if (routePlanningRibbonGroup_ != nullptr) {
         routePlanningRibbonGroup_->setTitle(tr("Route Planning"));
     }
+    if (routeRoamRibbonGroup_ != nullptr) {
+        routeRoamRibbonGroup_->setTitle(tr("Route Roam"));
+    }
     if (routeFileRibbonGroup_ != nullptr) {
         routeFileRibbonGroup_->setTitle(tr("Route Files"));
+    }
+    if (routeExchangeRibbonGroup_ != nullptr) {
+        routeExchangeRibbonGroup_->setTitle(tr("Route Exchange"));
     }
     if (issueRibbonGroup_ != nullptr) {
         issueRibbonGroup_->setTitle(tr("Inspection Issues"));
@@ -6602,6 +6708,7 @@ void MainWindow::createConnections()
                 return;
             }
             viewer_->setInspectionRouteRoamSpeedMetersPerSecond(speed);
+            persistWindowSettings();
         });
     }
     if (routeRoamViewModeComboBox_ != nullptr) {
@@ -6610,6 +6717,7 @@ void MainWindow::createConnections()
                 return;
             }
             viewer_->setInspectionRouteRoamViewMode(static_cast<RouteRoamViewMode>(routeRoamViewModeComboBox_->currentData().toInt()));
+            persistWindowSettings();
         });
     }
 
@@ -6782,8 +6890,9 @@ void MainWindow::createConnections()
 
         if (routeQaReport_.hasWarnings()) {
             showRouteDetailsDock(2);
-            const QMessageBox::StandardButton choice = QMessageBox::warning(
+            const QMessageBox::StandardButton choice = showLightStyledMessageBox(
                 this,
+                QMessageBox::Warning,
                 tr("Route QA Warning"),
                 tr("Route QA found %1 warning issue(s). Continue exporting DJI KMZ?")
                     .arg(QLocale().toString(routeQaReport_.warningIssueCount)),
@@ -7109,26 +7218,33 @@ void MainWindow::createConnections()
         const QVariant profileValue = aircraftProfileComboBox_->currentData();
         const int profileIndex = profileValue.isValid() ? profileValue.toInt() : static_cast<int>(routePlanningOptions_.aircraftProfile);
         routePlanningOptions_.aircraftProfile = static_cast<DjiAircraftProfile>(profileIndex);
+        updateRoutePlanningPanel();
+        persistWindowSettings();
     });
     connect(routeSafetyHeightSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         routePlanningOptions_.safety.safetyHeightMeters = static_cast<float>(value);
         updateRoutePlanningPanel();
+        persistWindowSettings();
     });
     connect(routeWaypointSpeedSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         routePlanningOptions_.safety.defaultWaypointSpeedMps = static_cast<float>(value);
         updateRoutePlanningPanel();
+        persistWindowSettings();
     });
     connect(routeWaypointSpacingSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         routePlanningOptions_.generation.waypointSpacingMeters = static_cast<float>(value);
         updateRoutePlanningPanel();
+        persistWindowSettings();
     });
     connect(routeSmoothingStrengthSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         routePlanningOptions_.generation.smoothingStrengthPercent = static_cast<float>(value);
         updateRoutePlanningPanel();
+        persistWindowSettings();
     });
     connect(routeHeightOffsetSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double value) {
         routePlanningOptions_.safety.heightOffsetMeters = static_cast<float>(value);
         updateRoutePlanningPanel();
+        persistWindowSettings();
     });
 
     connect(pointSizeSlider_, &QSlider::valueChanged, viewer_, &PointCloudViewer::setPointSize);
@@ -8334,24 +8450,30 @@ void MainWindow::openProjectFromBackstage()
 
     const QString projectPath = normalizedProjectFilePath(backstageProjectPathLineEdit_->text());
     if (projectPath.isEmpty()) {
-        QMessageBox::warning(
+        showLightStyledMessageBox(
             this,
+            QMessageBox::Warning,
             tr("Open Project"),
-            tr("Select an existing project file."));
+            tr("Select an existing project file."),
+            QMessageBox::Ok);
         return;
     }
     if (!QFileInfo::exists(projectPath)) {
-        QMessageBox::warning(
+        showLightStyledMessageBox(
             this,
+            QMessageBox::Warning,
             tr("Open Project"),
-            tr("Project file does not exist."));
+            tr("Project file does not exist."),
+            QMessageBox::Ok);
         return;
     }
     if (!isSupportedProjectFilePath(projectPath)) {
-        QMessageBox::warning(
+        showLightStyledMessageBox(
             this,
+            QMessageBox::Warning,
             tr("Open Project"),
-            tr("Choose a .json or .lpproj project file."));
+            tr("Choose a .json or .lpproj project file."),
+            QMessageBox::Ok);
         return;
     }
 
@@ -8620,6 +8742,7 @@ void MainWindow::setRouteEditingEnabled(bool enabled, bool notify)
 
     updateRoutePlanningPanel();
     updateActionState();
+    persistWindowSettings();
 
     if (notify) {
         showUserMessage(
@@ -9127,6 +9250,7 @@ bool MainWindow::editRouteWaypoint(int waypointIndex)
     connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
     connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     rootLayout->addWidget(buttonBox);
+    enforceLightDialogButtonStyles(dialog);
 
     connect(dialog, &QDialog::finished, this, [this, waypointIndex, state, applyCurrentEditorValues](int result) {
         if (waypointIndex < 0 || waypointIndex >= currentPowerlineRoute_.waypoints.size()) {
@@ -10725,6 +10849,7 @@ void MainWindow::ensureRouteRoamFloatingDialog()
     connect(routeRoamFloatingSpeedSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double speed) {
         if (viewer_ != nullptr) {
             viewer_->setInspectionRouteRoamSpeedMetersPerSecond(speed);
+            persistWindowSettings();
         }
     });
     connect(routeRoamFloatingViewModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
@@ -10732,6 +10857,7 @@ void MainWindow::ensureRouteRoamFloatingDialog()
             return;
         }
         viewer_->setInspectionRouteRoamViewMode(static_cast<RouteRoamViewMode>(routeRoamFloatingViewModeComboBox_->currentData().toInt()));
+        persistWindowSettings();
     });
 }
 
@@ -11263,7 +11389,9 @@ void MainWindow::persistLanguageSettings() const
 
 void MainWindow::loadWindowSettings()
 {
+    loadingWindowSettings_ = true;
     QSettings settings;
+    const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
     const QByteArray geometry = settings.value(QStringLiteral("window/geometry")).toByteArray();
     const QByteArray state = settings.value(QStringLiteral("window/state")).toByteArray();
     if (!geometry.isEmpty()) {
@@ -11281,39 +11409,165 @@ void MainWindow::loadWindowSettings()
         routeDetailsTabWidget_->setCurrentIndex(settings.value(QStringLiteral("window/routeDetailsTab"), 0).toInt());
     }
 
+    const QList<DjiAircraftProfile> supportedProfiles = supportedDjiAircraftProfiles();
+    const int aircraftProfileDefault = settings.value(
+        QStringLiteral("route/planning/aircraftProfile"),
+        static_cast<int>(routePlanningOptions_.aircraftProfile)).toInt();
+    DjiAircraftProfile savedAircraftProfile = static_cast<DjiAircraftProfile>(uiHistoryStore.loadInt(
+        QString::fromLatin1(kRouteHistoryIdPlanningAircraftProfile),
+        aircraftProfileDefault));
+    if (!supportedProfiles.contains(savedAircraftProfile)) {
+        savedAircraftProfile = routePlanningOptions_.aircraftProfile;
+    }
+    routePlanningOptions_.aircraftProfile = savedAircraftProfile;
+    routePlanningOptions_.safety.safetyHeightMeters = static_cast<float>(uiHistoryStore.loadDouble(
+        QString::fromLatin1(kRouteHistoryIdPlanningSafetyHeightMeters),
+        settings.value(
+            QStringLiteral("route/planning/safetyHeightMeters"),
+            routePlanningOptions_.safety.safetyHeightMeters).toDouble()));
+    routePlanningOptions_.safety.defaultWaypointSpeedMps = static_cast<float>(uiHistoryStore.loadDouble(
+        QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpeedMps),
+        settings.value(
+            QStringLiteral("route/planning/waypointSpeedMps"),
+            routePlanningOptions_.safety.defaultWaypointSpeedMps).toDouble()));
+    routePlanningOptions_.generation.waypointSpacingMeters = static_cast<float>(uiHistoryStore.loadDouble(
+        QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpacingMeters),
+        settings.value(
+            QStringLiteral("route/planning/waypointSpacingMeters"),
+            routePlanningOptions_.generation.waypointSpacingMeters).toDouble()));
+    routePlanningOptions_.generation.smoothingStrengthPercent = static_cast<float>(uiHistoryStore.loadDouble(
+        QString::fromLatin1(kRouteHistoryIdPlanningSmoothingStrengthPercent),
+        settings.value(
+            QStringLiteral("route/planning/smoothingStrengthPercent"),
+            routePlanningOptions_.generation.smoothingStrengthPercent).toDouble()));
+    routePlanningOptions_.safety.heightOffsetMeters = static_cast<float>(uiHistoryStore.loadDouble(
+        QString::fromLatin1(kRouteHistoryIdPlanningHeightOffsetMeters),
+        settings.value(
+            QStringLiteral("route/planning/heightOffsetMeters"),
+            routePlanningOptions_.safety.heightOffsetMeters).toDouble()));
+    if (aircraftProfileComboBox_ != nullptr) {
+        const QSignalBlocker blocker(aircraftProfileComboBox_);
+        const int profileIndex = aircraftProfileComboBox_->findData(static_cast<int>(savedAircraftProfile));
+        aircraftProfileComboBox_->setCurrentIndex(profileIndex >= 0 ? profileIndex : 0);
+    }
+    if (routeSafetyHeightSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeSafetyHeightSpinBox_);
+        routeSafetyHeightSpinBox_->setValue(routePlanningOptions_.safety.safetyHeightMeters);
+        routePlanningOptions_.safety.safetyHeightMeters = static_cast<float>(routeSafetyHeightSpinBox_->value());
+    }
+    if (routeWaypointSpeedSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeWaypointSpeedSpinBox_);
+        routeWaypointSpeedSpinBox_->setValue(routePlanningOptions_.safety.defaultWaypointSpeedMps);
+        routePlanningOptions_.safety.defaultWaypointSpeedMps = static_cast<float>(routeWaypointSpeedSpinBox_->value());
+    }
+    if (routeWaypointSpacingSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeWaypointSpacingSpinBox_);
+        routeWaypointSpacingSpinBox_->setValue(routePlanningOptions_.generation.waypointSpacingMeters);
+        routePlanningOptions_.generation.waypointSpacingMeters = static_cast<float>(routeWaypointSpacingSpinBox_->value());
+    }
+    if (routeSmoothingStrengthSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeSmoothingStrengthSpinBox_);
+        routeSmoothingStrengthSpinBox_->setValue(routePlanningOptions_.generation.smoothingStrengthPercent);
+        routePlanningOptions_.generation.smoothingStrengthPercent = static_cast<float>(routeSmoothingStrengthSpinBox_->value());
+    }
+    if (routeHeightOffsetSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeHeightOffsetSpinBox_);
+        routeHeightOffsetSpinBox_->setValue(routePlanningOptions_.safety.heightOffsetMeters);
+        routePlanningOptions_.safety.heightOffsetMeters = static_cast<float>(routeHeightOffsetSpinBox_->value());
+    }
+
+    if (viewer_ != nullptr) {
+        const double roamSpeed = uiHistoryStore.loadDouble(
+            QString::fromLatin1(kRouteHistoryIdRoamSpeedMps),
+            settings.value(
+                QStringLiteral("route/roam/speedMps"),
+                viewer_->inspectionRouteRoamSpeedMetersPerSecond()).toDouble());
+        const int savedRoamViewModeValue = uiHistoryStore.loadInt(
+            QString::fromLatin1(kRouteHistoryIdRoamViewMode),
+            settings.value(
+                QStringLiteral("route/roam/viewMode"),
+                static_cast<int>(viewer_->inspectionRouteRoamViewMode())).toInt());
+        const RouteRoamViewMode savedRoamViewMode =
+            savedRoamViewModeValue == static_cast<int>(RouteRoamViewMode::FirstPerson)
+                ? RouteRoamViewMode::FirstPerson
+                : RouteRoamViewMode::ThirdPerson;
+        viewer_->setInspectionRouteRoamSpeedMetersPerSecond(roamSpeed);
+        viewer_->setInspectionRouteRoamViewMode(savedRoamViewMode);
+        if (routeRoamSpeedSpinBox_ != nullptr) {
+            const QSignalBlocker blocker(routeRoamSpeedSpinBox_);
+            routeRoamSpeedSpinBox_->setValue(viewer_->inspectionRouteRoamSpeedMetersPerSecond());
+        }
+        if (routeRoamViewModeComboBox_ != nullptr) {
+            const QSignalBlocker blocker(routeRoamViewModeComboBox_);
+            const int roamModeIndex = routeRoamViewModeComboBox_->findData(static_cast<int>(savedRoamViewMode));
+            routeRoamViewModeComboBox_->setCurrentIndex(roamModeIndex >= 0 ? roamModeIndex : 0);
+        }
+    }
+    setRouteEditingEnabled(
+        uiHistoryStore.loadBool(
+            QString::fromLatin1(kRouteHistoryIdEditingEnabled),
+            settings.value(QStringLiteral("route/editingEnabled"), routeEditingEnabled_).toBool()),
+        false);
+
     if (routeWaypointLabelModeComboBox_ != nullptr) {
-        const int savedWaypointLabelMode = settings.value(
-            QStringLiteral("window/routeWaypointLabelMode"),
-            static_cast<int>(RouteLabelDisplayMode::Name)).toInt();
+        const int savedWaypointLabelMode = uiHistoryStore.loadInt(
+            QString::fromLatin1(kRouteHistoryIdDisplayWaypointLabelMode),
+            settings.value(
+                QStringLiteral("route/display/waypointLabelMode"),
+                settings.value(
+                    QStringLiteral("window/routeWaypointLabelMode"),
+                    static_cast<int>(RouteLabelDisplayMode::Name))).toInt());
         const int waypointLabelModeIndex = routeWaypointLabelModeComboBox_->findData(savedWaypointLabelMode);
+        const QSignalBlocker blocker(routeWaypointLabelModeComboBox_);
         routeWaypointLabelModeComboBox_->setCurrentIndex(waypointLabelModeIndex >= 0 ? waypointLabelModeIndex : 0);
     }
     if (routePartLabelModeComboBox_ != nullptr) {
-        const int savedPartLabelMode = settings.value(
-            QStringLiteral("window/routePartLabelMode"),
-            static_cast<int>(RouteLabelDisplayMode::Name)).toInt();
+        const int savedPartLabelMode = uiHistoryStore.loadInt(
+            QString::fromLatin1(kRouteHistoryIdDisplayPartLabelMode),
+            settings.value(
+                QStringLiteral("route/display/partLabelMode"),
+                settings.value(
+                    QStringLiteral("window/routePartLabelMode"),
+                    static_cast<int>(RouteLabelDisplayMode::Name))).toInt());
         const int partLabelModeIndex = routePartLabelModeComboBox_->findData(savedPartLabelMode);
+        const QSignalBlocker blocker(routePartLabelModeComboBox_);
         routePartLabelModeComboBox_->setCurrentIndex(partLabelModeIndex >= 0 ? partLabelModeIndex : 0);
     }
     if (routeWaypointShowCoordinatesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routeWaypointShowCoordinatesCheckBox_);
         routeWaypointShowCoordinatesCheckBox_->setChecked(
-            settings.value(QStringLiteral("window/routeWaypointShowCoordinates"), true).toBool());
+            uiHistoryStore.loadBool(
+                QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCoordinates),
+                settings.value(
+                    QStringLiteral("route/display/waypointShowCoordinates"),
+                    settings.value(QStringLiteral("window/routeWaypointShowCoordinates"), true)).toBool()));
     }
     if (routeWaypointShowCaptureAnglesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routeWaypointShowCaptureAnglesCheckBox_);
         routeWaypointShowCaptureAnglesCheckBox_->setChecked(
-            settings.value(QStringLiteral("window/routeWaypointShowCaptureAngles"), true).toBool());
+            uiHistoryStore.loadBool(
+                QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCaptureAngles),
+                settings.value(
+                    QStringLiteral("route/display/waypointShowCaptureAngles"),
+                    settings.value(QStringLiteral("window/routeWaypointShowCaptureAngles"), true)).toBool()));
     }
     if (routePartShowCoordinatesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routePartShowCoordinatesCheckBox_);
         routePartShowCoordinatesCheckBox_->setChecked(
-            settings.value(QStringLiteral("window/routePartShowCoordinates"), true).toBool());
+            uiHistoryStore.loadBool(
+                QString::fromLatin1(kRouteHistoryIdDisplayPartShowCoordinates),
+                settings.value(
+                    QStringLiteral("route/display/partShowCoordinates"),
+                    settings.value(QStringLiteral("window/routePartShowCoordinates"), true)).toBool()));
     }
     if (routePartShowCaptureAnglesCheckBox_ != nullptr) {
         const QSignalBlocker blocker(routePartShowCaptureAnglesCheckBox_);
         routePartShowCaptureAnglesCheckBox_->setChecked(
-            settings.value(QStringLiteral("window/routePartShowCaptureAngles"), true).toBool());
+            uiHistoryStore.loadBool(
+                QString::fromLatin1(kRouteHistoryIdDisplayPartShowCaptureAngles),
+                settings.value(
+                    QStringLiteral("route/display/partShowCaptureAngles"),
+                    settings.value(QStringLiteral("window/routePartShowCaptureAngles"), true)).toBool()));
     }
     if (viewer_ != nullptr) {
         if (routeWaypointLabelModeComboBox_ != nullptr) {
@@ -11376,11 +11630,17 @@ void MainWindow::loadWindowSettings()
         projectDock_->show();
         projectDock_->raise();
     }
+    loadingWindowSettings_ = false;
 }
 
 void MainWindow::persistWindowSettings() const
 {
+    if (loadingWindowSettings_) {
+        return;
+    }
+
     QSettings settings;
+    const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
     settings.setValue(QStringLiteral("window/geometry"), saveGeometry());
     settings.setValue(QStringLiteral("window/state"), saveState(kMainWindowStateVersion));
     settings.setValue(QStringLiteral("window/maximized"), isMaximized());
@@ -11420,6 +11680,62 @@ void MainWindow::persistWindowSettings() const
     settings.setValue(
         QStringLiteral("window/routePartShowCaptureAngles"),
         routePartShowCaptureAnglesCheckBox_ == nullptr || routePartShowCaptureAnglesCheckBox_->isChecked());
+    const int waypointLabelMode = routeWaypointLabelModeComboBox_ != nullptr
+        ? routeWaypointLabelModeComboBox_->currentData().toInt()
+        : static_cast<int>(RouteLabelDisplayMode::Name);
+    const int partLabelMode = routePartLabelModeComboBox_ != nullptr
+        ? routePartLabelModeComboBox_->currentData().toInt()
+        : static_cast<int>(RouteLabelDisplayMode::Name);
+    const bool waypointShowCoordinates =
+        routeWaypointShowCoordinatesCheckBox_ == nullptr || routeWaypointShowCoordinatesCheckBox_->isChecked();
+    const bool waypointShowCaptureAngles =
+        routeWaypointShowCaptureAnglesCheckBox_ == nullptr || routeWaypointShowCaptureAnglesCheckBox_->isChecked();
+    const bool partShowCoordinates =
+        routePartShowCoordinatesCheckBox_ == nullptr || routePartShowCoordinatesCheckBox_->isChecked();
+    const bool partShowCaptureAngles =
+        routePartShowCaptureAnglesCheckBox_ == nullptr || routePartShowCaptureAnglesCheckBox_->isChecked();
+    const double roamSpeed = viewer_ != nullptr
+        ? viewer_->inspectionRouteRoamSpeedMetersPerSecond()
+        : (routeRoamSpeedSpinBox_ != nullptr ? routeRoamSpeedSpinBox_->value() : 2.0);
+    const int roamViewMode = viewer_ != nullptr
+        ? static_cast<int>(viewer_->inspectionRouteRoamViewMode())
+        : (routeRoamViewModeComboBox_ != nullptr
+            ? routeRoamViewModeComboBox_->currentData().toInt()
+            : static_cast<int>(RouteRoamViewMode::ThirdPerson));
+
+    settings.setValue(QStringLiteral("route/display/waypointLabelMode"), waypointLabelMode);
+    settings.setValue(QStringLiteral("route/display/partLabelMode"), partLabelMode);
+    settings.setValue(QStringLiteral("route/display/waypointShowCoordinates"), waypointShowCoordinates);
+    settings.setValue(QStringLiteral("route/display/waypointShowCaptureAngles"), waypointShowCaptureAngles);
+    settings.setValue(QStringLiteral("route/display/partShowCoordinates"), partShowCoordinates);
+    settings.setValue(QStringLiteral("route/display/partShowCaptureAngles"), partShowCaptureAngles);
+    settings.setValue(QStringLiteral("route/editingEnabled"), routeEditingEnabled_);
+    settings.setValue(QStringLiteral("route/planning/aircraftProfile"), static_cast<int>(routePlanningOptions_.aircraftProfile));
+    settings.setValue(QStringLiteral("route/planning/safetyHeightMeters"), routePlanningOptions_.safety.safetyHeightMeters);
+    settings.setValue(QStringLiteral("route/planning/waypointSpeedMps"), routePlanningOptions_.safety.defaultWaypointSpeedMps);
+    settings.setValue(QStringLiteral("route/planning/waypointSpacingMeters"), routePlanningOptions_.generation.waypointSpacingMeters);
+    settings.setValue(QStringLiteral("route/planning/smoothingStrengthPercent"), routePlanningOptions_.generation.smoothingStrengthPercent);
+    settings.setValue(QStringLiteral("route/planning/heightOffsetMeters"), routePlanningOptions_.safety.heightOffsetMeters);
+    settings.setValue(QStringLiteral("route/roam/speedMps"), roamSpeed);
+    settings.setValue(QStringLiteral("route/roam/viewMode"), roamViewMode);
+
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayWaypointLabelMode), waypointLabelMode);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayPartLabelMode), partLabelMode);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCoordinates), waypointShowCoordinates);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayWaypointShowCaptureAngles), waypointShowCaptureAngles);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayPartShowCoordinates), partShowCoordinates);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdDisplayPartShowCaptureAngles), partShowCaptureAngles);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdEditingEnabled), routeEditingEnabled_);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdPlanningAircraftProfile), static_cast<int>(routePlanningOptions_.aircraftProfile));
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdPlanningSafetyHeightMeters), routePlanningOptions_.safety.safetyHeightMeters);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpeedMps), routePlanningOptions_.safety.defaultWaypointSpeedMps);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdPlanningWaypointSpacingMeters), routePlanningOptions_.generation.waypointSpacingMeters);
+    uiHistoryStore.save(
+        QString::fromLatin1(kRouteHistoryIdPlanningSmoothingStrengthPercent),
+        routePlanningOptions_.generation.smoothingStrengthPercent);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdPlanningHeightOffsetMeters), routePlanningOptions_.safety.heightOffsetMeters);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdRoamSpeedMps), roamSpeed);
+    uiHistoryStore.save(QString::fromLatin1(kRouteHistoryIdRoamViewMode), roamViewMode);
     settings.setValue(
         QStringLiteral("window/logFilterLevel"),
         logLevelFilterComboBox_ != nullptr ? logLevelFilterComboBox_->currentData().toInt() : -1);

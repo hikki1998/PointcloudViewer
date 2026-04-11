@@ -40,8 +40,12 @@ void applyCrsDialogStyle(QDialog* dialog)
         "selection-background-color: #dbeafe; selection-color: #0f172a; }"
         "QLineEdit, QComboBox { min-height: 28px; padding: 2px 8px; }"
         "QHeaderView::section { background-color: #e2e8f0; color: #0f172a; padding: 5px 8px; border: 1px solid #cbd5e1; font-weight: 600; }"
-        "QPushButton { min-width: 88px; padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(37,99,235,0.18); background-color: #e0ecff; color: #1d4ed8; font-weight: 600; }"
-        "QPushButton:hover { background-color: #d4e4ff; }"
+        "QPushButton { min-width: 88px; padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(37,99,235,0.18); background-color: #ffffff; color: #0f172a; font-weight: 600; }"
+        "QPushButton:hover { background-color: #eef4ff; border-color: #93c5fd; }"
+        "QPushButton:pressed { background-color: #dbeafe; border-color: #60a5fa; }"
+        "QPushButton:default { background-color: #e0ecff; color: #1d4ed8; border-color: #93c5fd; }"
+        "QPushButton:default:hover { background-color: #d4e4ff; }"
+        "QPushButton:disabled { background-color: #f1f5f9; color: #94a3b8; border-color: #dbe3ee; }"
         "QCheckBox { color: #334155; }"
         "QPlainTextEdit { padding: 6px; }"));
 }
