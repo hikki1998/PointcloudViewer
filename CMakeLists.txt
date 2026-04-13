@@ -533,6 +533,8 @@ set(SOURCES
     src/gui/IssueEditorWidget.cpp
     src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
+    src/gui/MainWindow.Helpers.cpp
+    src/gui/MainWindow.Core.cpp
     src/gui/MeasurementAnalysisController.cpp
     src/gui/NavigationSettingsWidget.cpp
     src/gui/NavigationSettingsWidget.ui
@@ -765,6 +767,8 @@ set(BACKSTAGE_SMOKE_SOURCES
     src/gui/IssueEditorWidget.cpp
     src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
+    src/gui/MainWindow.Helpers.cpp
+    src/gui/MainWindow.Core.cpp
     src/gui/MeasurementAnalysisController.cpp
     src/gui/NavigationSettingsWidget.cpp
     src/gui/NavigationSettingsWidget.ui
