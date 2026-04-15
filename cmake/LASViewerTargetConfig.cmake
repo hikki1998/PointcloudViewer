@@ -1,5 +1,18 @@
 include_guard(GLOBAL)
 
+function(las_viewer_add_app_sources)
+    target_sources(${PROJECT_NAME} PRIVATE ${ARGN})
+endfunction()
+
+function(las_viewer_add_smoke_sources)
+    target_sources(LASViewerSmokeTest PRIVATE ${ARGN})
+endfunction()
+
+function(las_viewer_add_shared_sources)
+    las_viewer_add_app_sources(${ARGN})
+    las_viewer_add_smoke_sources(${ARGN})
+endfunction()
+
 function(configure_las_viewer_target target_name use_qtitan)
     target_include_directories(${target_name} PRIVATE
         "${CMAKE_SOURCE_DIR}/src"

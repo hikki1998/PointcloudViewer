@@ -1,0 +1,19 @@
+las_viewer_add_shared_sources(
+    CrsAuthorityService.cpp
+    CrsAuthorityService.h
+    CrsCatalogService.cpp
+    CrsCatalogService.h
+    CrsProjRuntime.cpp
+    CrsProjRuntime.h
+    CrsSelectionDialog.cpp
+    CrsSelectionDialog.h
+    CrsTransformService.cpp
+    CrsTransformService.h
+    CrsTypes.cpp
+    CrsTypes.h
+    LASViewerCrsExport.h
+    ProjectCoordinateSystemsDialog.cpp
+    ProjectCoordinateSystemsDialog.h
+    RecentCrsStore.cpp
+    RecentCrsStore.h
+)

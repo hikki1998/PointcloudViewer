@@ -1,0 +1,11 @@
+las_viewer_add_shared_sources(
+    InspectionRoutePlanning.cpp
+    InspectionRoutePlanning.h
+    PowerlineRouteBridge.cpp
+    PowerlineRouteBridge.h
+    PowerlineRouteJson.cpp
+    PowerlineRouteJson.h
+    PowerlineRouteTypes.h
+    RouteInterop.cpp
+    RouteInterop.h
+)

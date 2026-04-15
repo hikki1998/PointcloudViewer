@@ -1,0 +1,1 @@
+las_viewer_add_smoke_sources(viewer_smoke_test.cpp)

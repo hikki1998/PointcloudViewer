@@ -19,6 +19,12 @@
 - `docs/agent/`：面向 agent 的渐进式披露文档
 - `planning/`：规划与路线图文档
 
+源码声明采用按目录就近维护：
+
+- 顶层 `CMakeLists.txt` 只负责项目入口、目标创建和模块接线
+- `cmake/*.cmake` 负责依赖、翻译、目标配置和 runtime deploy
+- `src/*/CMakeLists.txt` 与 `examples/CMakeLists.txt` 负责各目录源码通过 `target_sources()` 加入目标
+
 ## 构建
 
 推荐使用独立输出目录，避免将编译产物混入源码树：
@@ -32,6 +38,8 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 ```
 
 默认会使用仓库内 `3rd/` 作为 `THIRDPARTY_ROOT`。其中包含 `osg/`、`qtitan/`、`laslib/`、`lastools/` 这几个精简版 release 依赖目录，每个目录根下都有 `.version` 标记文件。Qt 不随仓库分发，仍需通过 `QT_ROOT` 单独指定。
+
+新增源码文件时，不需要回头修改顶层 `CMakeLists.txt`，只需要更新所属目录下的本地 `CMakeLists.txt`。
 
 ## 运行
 

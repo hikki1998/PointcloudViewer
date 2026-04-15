@@ -22,7 +22,7 @@
 - 点云渲染与 shader：`src/osg/OsgPointCloudNode.cpp`
 - LAS/LAZ 读取：`src/pointcloud/LasReader.cpp`
 - 中文翻译：`translations/lasviewer_zh_CN.ts`
-- 构建与部署逻辑：`CMakeLists.txt`、`cmake/LASViewerDependencies.cmake`、`cmake/LASViewerSources.cmake`、`cmake/LASViewerTargetConfig.cmake`、`cmake/LASViewerRuntimeDeploy.cmake`
+- 构建与部署逻辑：`CMakeLists.txt`、`cmake/LASViewerDependencies.cmake`、`cmake/LASViewerTargetConfig.cmake`、`cmake/LASViewerRuntimeDeploy.cmake`、`src/*/CMakeLists.txt`、`examples/CMakeLists.txt`
 
 ## Current User-Facing Features
 - 加载一个或多个 `.las/.laz`
@@ -120,15 +120,17 @@
 ### `cmake/*.cmake`
 - `LASViewerDependencies.cmake`
   - 依赖探测与三方根目录解析
-- `LASViewerSources.cmake`
-  - 主程序与 smoke 共享源清单
 - `LASViewerTranslations.cmake`
   - Qt 翻译 `.qm` 生成
 - `LASViewerTargetConfig.cmake`
-  - 目标 include/link/compile 配置
+  - 目标 include/link/compile 配置，以及共享 `target_sources()` helper
 - `LASViewerRuntimeDeploy.cmake`
   - Windows 运行时 DLL、翻译和 PROJ 资源部署
 - Visual Studio / MSVC 并行编译配置仍在顶层 `CMakeLists.txt`
+
+### `src/*/CMakeLists.txt` / `examples/CMakeLists.txt`
+- 各目录源码通过 `target_sources()` 就近加入主程序或 smoke target
+- 新增文件时，优先修改所属目录的本地 `CMakeLists.txt`，不要回到顶层集中登记
 
 ## Standard Validation
 ```powershell
@@ -166,7 +168,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 - 改相机或拾取逻辑后，最好同时验证缩放、悬停坐标、量测点选、杆塔/隐患选择。
 - 改工程文件结构后，要同时检查旧工程兼容和新字段保存加载。
 - 改量测逻辑后，要同时检查量测表格、剖面 dock 和导出结果是否一致。
-- CMake 依赖 Windows 和本地 Qt 路径，排查构建问题时优先看 `CMakeLists.txt`、`cmake/*.cmake` 和 `out/build/CMakeCache.txt`。
+- CMake 依赖 Windows 和本地 Qt 路径，排查构建问题时优先看 `CMakeLists.txt`、`cmake/*.cmake`、`src/*/CMakeLists.txt` 和 `out/build/CMakeCache.txt`。
 
 ## What To Read For Typical Tasks
 - “加一个显示选项”：
@@ -203,6 +205,8 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 - “修构建或部署”：
   - `CMakeLists.txt`
   - `cmake/*.cmake`
+  - `src/*/CMakeLists.txt`
+  - `examples/CMakeLists.txt`
 
 ## Goal For New Sessions
 新对话的 agent 读完本文件后，应当已经知道：

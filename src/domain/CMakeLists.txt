@@ -1,0 +1,25 @@
+las_viewer_add_shared_sources(
+    AnalysisData.cpp
+    AnalysisData.h
+    ClassificationEditStore.cpp
+    ClassificationEditStore.h
+    ClearanceAnalysis.cpp
+    ClearanceAnalysis.h
+    ClearanceReportExporter.cpp
+    ClearanceReportExporter.h
+    DataManager.cpp
+    DataManager.h
+    InspectionData.cpp
+    InspectionData.h
+    InspectionReportExporter.cpp
+    InspectionReportExporter.h
+    ProfileMarkerProjection.cpp
+    ProfileMarkerProjection.h
+    ProjectMetadata.h
+    RuleBasedClearanceEngine.cpp
+    RuleBasedClearanceEngine.h
+    TowerFileInterop.cpp
+    TowerFileInterop.h
+    VegetationRiskAnalysis.cpp
+    VegetationRiskAnalysis.h
+)

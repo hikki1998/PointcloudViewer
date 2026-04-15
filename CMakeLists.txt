@@ -35,27 +35,23 @@ set(PROJ_ROOT "" CACHE PATH "Optional PROJ installation root")
 list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(LASViewerDependencies)
-include(LASViewerSources)
 include(LASViewerTranslations)
 include(LASViewerTargetConfig)
 include(LASViewerRuntimeDeploy)
 
-add_executable(${PROJECT_NAME} WIN32
-    ${LAS_VIEWER_APP_ENTRY_SOURCES}
-    ${LAS_VIEWER_COMMON_SOURCES}
-    ${LAS_VIEWER_COMMON_HEADERS}
-)
+add_executable(${PROJECT_NAME} WIN32)
 configure_las_viewer_target(${PROJECT_NAME} TRUE)
 if(TARGET lasviewer_translations)
     add_dependencies(${PROJECT_NAME} lasviewer_translations)
 endif()
 
-add_executable(LASViewerSmokeTest
-    ${LAS_VIEWER_SMOKE_ENTRY_SOURCES}
-    ${LAS_VIEWER_COMMON_SOURCES}
-    ${LAS_VIEWER_COMMON_HEADERS}
-)
+add_executable(LASViewerSmokeTest)
 configure_las_viewer_target(LASViewerSmokeTest TRUE)
+
+las_viewer_add_shared_sources(resources.qrc)
+
+add_subdirectory(src)
+add_subdirectory(examples)
 
 deploy_las_viewer_runtime(${PROJECT_NAME} TRUE)
 deploy_las_viewer_runtime(LASViewerSmokeTest TRUE)
