@@ -12,6 +12,11 @@ cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DQT_ROOT=E:/code/Qt5.
 cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
 ```
 
+### worktree 下的重构验证
+```powershell
+cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false
+```
+
 ### 运行
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
@@ -35,7 +40,14 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ### 改 UI / Ribbon / dock / 表格 / 弹窗
 1. `src/gui/MainWindow.h`
 2. `src/gui/MainWindow.cpp`
-3. 如果联动场景交互，再看 `src/gui/PointCloudViewer.*`
+3. 如果是已拆分区域，优先定位对应实现文件：
+   - `MainWindow.Docks.cpp`
+   - `MainWindow.Backstage.cpp`
+   - `MainWindow.Ribbon.cpp`
+   - `MainWindow.Actions.cpp`
+   - `MainWindow.SettingsStore.cpp`
+   - `MainWindow.ProjectSerializer.cpp`
+4. 如果联动场景交互，再看 `src/gui/PointCloudViewer.*`
 
 ### 改点拾取 / 相机 / overlay / 漫游 / 状态栏
 1. `src/gui/PointCloudViewer.h`
@@ -54,12 +66,15 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 2. `src/domain/ProfileMarkerProjection.*`
 3. `src/gui/ProfilePlotWidget.*`
 4. `src/gui/MainWindow.cpp`
+5. 如涉及参数持久化，再看 `src/gui/MainWindow.SettingsStore.cpp`
 
 ## 验证基线
 
 ### 默认最少验证
 - 改 UI、交互、翻译、渲染、点选、构建脚本时：
   - 至少做一次 `Release` 构建
+- 在 `mainwindow-refactor` 这类重构 worktree 中：
+  - 优先使用 `-- /p:PostBuildEventUseInBuild=false`，先验证编译与 smoke，再单独处理 runtime 收集问题
 - 仓库只保留一个主冒烟可执行文件：`LASViewerSmokeTest.exe`
 - 新增 smoke 场景时：
   - 必须并入 `LASViewerSmokeTest` 的新 `mode` 或新 `category`

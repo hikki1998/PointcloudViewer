@@ -534,9 +534,17 @@ set(SOURCES
     src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
     src/gui/MainWindow.Actions.cpp
+    src/gui/MainWindow.Backstage.cpp
+    src/gui/MainWindow.Connections.cpp
     src/gui/MainWindow.Helpers.cpp
     src/gui/MainWindow.Core.cpp
+    src/gui/MainWindow.Docks.cpp
+    src/gui/MainWindow.PointCloud.cpp
+    src/gui/MainWindow.ProjectSerializer.cpp
+    src/gui/MainWindow.SettingsStore.cpp
+    src/gui/MainWindow.Route.cpp
     src/gui/MainWindow.Ribbon.cpp
+    src/gui/MainWindow.TowerIssue.cpp
     src/gui/MeasurementAnalysisController.cpp
     src/gui/NavigationSettingsWidget.cpp
     src/gui/NavigationSettingsWidget.ui
@@ -770,9 +778,17 @@ set(BACKSTAGE_SMOKE_SOURCES
     src/gui/IssueEditorWidget.ui
     src/gui/MainWindow.cpp
     src/gui/MainWindow.Actions.cpp
+    src/gui/MainWindow.Backstage.cpp
+    src/gui/MainWindow.Connections.cpp
     src/gui/MainWindow.Helpers.cpp
     src/gui/MainWindow.Core.cpp
+    src/gui/MainWindow.Docks.cpp
+    src/gui/MainWindow.PointCloud.cpp
+    src/gui/MainWindow.ProjectSerializer.cpp
+    src/gui/MainWindow.SettingsStore.cpp
+    src/gui/MainWindow.Route.cpp
     src/gui/MainWindow.Ribbon.cpp
+    src/gui/MainWindow.TowerIssue.cpp
     src/gui/MeasurementAnalysisController.cpp
     src/gui/NavigationSettingsWidget.cpp
     src/gui/NavigationSettingsWidget.ui

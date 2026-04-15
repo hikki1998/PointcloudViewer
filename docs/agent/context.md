@@ -13,7 +13,7 @@
 
 ## Fast Orientation
 - 入口：`src/main.cpp`
-- 主窗口与 Ribbon：`src/gui/MainWindow.cpp`
+- 主窗口与 Ribbon：`src/gui/MainWindow.cpp`、`src/gui/MainWindow.Ribbon.cpp`、`src/gui/MainWindow.Docks.cpp`
 - 视图交互、量测、悬停拾取、状态栏：`src/gui/PointCloudViewer.cpp`
 - 巡检业务模型：`src/domain/InspectionData.*`
 - 净空分析与导出：`src/domain/ClearanceAnalysis.*`、`src/domain/ClearanceReportExporter.*`
@@ -50,6 +50,34 @@
 - 设置持久化
 - 语言切换
 - 与 `PointCloudViewer` 的信号槽连接
+
+当前已按职责拆分为：
+- `src/gui/MainWindow.Core.cpp`
+  - 生命周期、拖放、窗口事件、无边框窗口行为
+- `src/gui/MainWindow.Actions.cpp`
+  - QAction 创建与分组
+- `src/gui/MainWindow.Ribbon.cpp`
+  - Ribbon 页面、组、快速工具栏、窗口控制
+- `src/gui/MainWindow.Backstage.cpp`
+  - Backstage 页面、最近工程、应用设置入口
+- `src/gui/MainWindow.Docks.cpp`
+  - dock、检查器、日志、状态栏
+- `src/gui/MainWindow.Connections.cpp`
+  - viewer、dock、controller、动作之间的信号槽连接
+- `src/gui/MainWindow.PointCloud.cpp`
+  - 点云打开、追加、清空、配色和基础显示同步
+- `src/gui/MainWindow.Route.cpp`
+  - 航线导入导出、编辑、焦点、表格刷新、漫游状态同步
+- `src/gui/MainWindow.TowerIssue.cpp`
+  - 杆塔/隐患面板、详情编辑器、导入导出与聚焦
+- `src/gui/MainWindow.ProjectSerializer.cpp`
+  - 工程文件 JSON 读写
+- `src/gui/MainWindow.SettingsStore.cpp`
+  - `QSettings` / `UiHistoryStore` 持久化
+- `src/gui/MainWindow.Helpers.cpp`
+  - 共享 helper 与内部辅助转换
+- `src/gui/MainWindowInternal.h`
+  - 拆分后的共享内部声明与常量
 
 ### `src/gui/PointCloudViewer.*`
 - OSG 嵌入小部件
@@ -100,6 +128,12 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
 ```
 
+如在 `mainwindow-refactor` 这类重构 worktree 中验证，可先使用：
+```powershell
+cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
+```
+
 如需快速检查 GUI 是否能正常启动：
 ```powershell
 .\out\build\bin\Release\LASPointCloudViewer.exe
@@ -128,14 +162,20 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 - “加一个显示选项”：
   - `src/osg/PointCloudVisualization.h`
   - `src/gui/MainWindow.cpp`
+  - `src/gui/MainWindow.Docks.cpp`
   - `src/gui/PointCloudViewer.cpp`
   - `src/osg/OsgPointCloudNode.cpp`
 - “修 UI 或交互”：
   - `src/gui/MainWindow.cpp`
+  - `src/gui/MainWindow.Docks.cpp`
+  - `src/gui/MainWindow.Ribbon.cpp`
+  - `src/gui/MainWindow.Backstage.cpp`
   - `src/gui/PointCloudViewer.cpp`
 - “修电力巡检业务功能”：
   - `src/domain/InspectionData.*`
   - `src/gui/MainWindow.cpp`
+  - `src/gui/MainWindow.Route.cpp`
+  - `src/gui/MainWindow.TowerIssue.cpp`
   - `src/gui/PointCloudViewer.cpp`
 - “修净空分析或剖面图”：
   - `src/domain/ClearanceAnalysis.*`
@@ -143,9 +183,12 @@ cmake --build out/build --config Release --target LASPointCloudViewer
   - `src/domain/ProfileMarkerProjection.*`
   - `src/gui/ProfilePlotWidget.*`
   - `src/gui/MainWindow.cpp`
+  - `src/gui/MainWindow.Docks.cpp`
 - “修翻译”：
   - `translations/lasviewer_zh_CN.ts`
   - `src/gui/MainWindow.cpp`
+  - `src/gui/MainWindow.Ribbon.cpp`
+  - `src/gui/MainWindow.Backstage.cpp`
   - `src/gui/PointCloudViewer.cpp`
 - “修构建或部署”：
   - `CMakeLists.txt`
