@@ -31,6 +31,14 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 
 ## 常见改动路径
 
+### 改构建 / 依赖 / 部署
+1. `CMakeLists.txt`
+2. `cmake/LASViewerDependencies.cmake`
+3. `cmake/LASViewerSources.cmake`
+4. `cmake/LASViewerTranslations.cmake`
+5. `cmake/LASViewerTargetConfig.cmake`
+6. `cmake/LASViewerRuntimeDeploy.cmake`
+
 ### 加一个显示参数
 1. `src/osg/PointCloudVisualization.h`
 2. `src/gui/MainWindow.*`
