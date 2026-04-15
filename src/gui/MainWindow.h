@@ -1,9 +1,7 @@
 #pragma once
 
-#include <QColor>
 #include <QMap>
 #include <QStringList>
-#include <QStyle>
 
 #include "QtnRibbonMainWindow.h"
 #include "QtnRibbonStyle.h"
@@ -18,21 +16,19 @@ class QAction;
 class QActionGroup;
 class QByteArray;
 class QCheckBox;
+class QColor;
 class QComboBox;
 class QCloseEvent;
 class QDialog;
-class QDockWidget;
 class QDoubleSpinBox;
 class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
 class QFormLayout;
 class QGroupBox;
-class QIcon;
 class QLabel;
 class QLineEdit;
 class QListWidget;
-class QListWidgetItem;
 class QObject;
 class QPlainTextEdit;
 class QProgressBar;
@@ -42,7 +38,6 @@ class QSpinBox;
 class QMenu;
 class QTabWidget;
 class QTableWidget;
-class QTableWidgetItem;
 class QTextEdit;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -86,7 +81,6 @@ class RibbonSystemButton;
 class PointCloudViewer;
 class ProfilePlotWidget;
 struct ClearanceAnalysisResult;
-
 class MainWindow final : public Qtitan::RibbonMainWindow
 {
     Q_OBJECT
@@ -621,3 +615,4 @@ private:
     bool savingProfileClassificationEdits_ = false;
     QMap<int, QString> classificationNameOverrides_;
 };
+

@@ -43,10 +43,43 @@
 5. `MainWindow` / `PointCloudViewer`
   - 实现航线表格、场景 overlay、编辑、预览、漫游
 
+## MainWindow 拆分边界
+
+- `src/gui/MainWindow.Core.cpp`
+  - 主窗口构造、关闭、拖放、窗口事件与无边框窗口行为
+- `src/gui/MainWindow.Actions.cpp`
+  - QAction 创建与动作分组
+- `src/gui/MainWindow.Ribbon.cpp`
+  - Ribbon 页面、组、快速工具栏、窗口控制按钮
+- `src/gui/MainWindow.Backstage.cpp`
+  - Backstage 页面、最近工程、应用设置入口
+- `src/gui/MainWindow.Docks.cpp`
+  - 左右/底部 dock、检查器区、量测区、日志区、状态栏
+- `src/gui/MainWindow.Connections.cpp`
+  - viewer、dock、controller、动作之间的信号槽连接
+- `src/gui/MainWindow.PointCloud.cpp`
+  - 点云打开、追加、清空、配色和基础显示同步
+- `src/gui/MainWindow.Route.cpp`
+  - 航线导入导出、编辑、焦点、表格刷新、漫游状态同步
+- `src/gui/MainWindow.TowerIssue.cpp`
+  - 杆塔/隐患面板、详情编辑器、导入导出与聚焦
+- `src/gui/MainWindow.ProjectSerializer.cpp`
+  - 工程文件 JSON 读写与工程内嵌状态恢复
+- `src/gui/MainWindow.SettingsStore.cpp`
+  - `QSettings` / `UiHistoryStore` 读写与窗口状态恢复
+- `src/gui/MainWindow.Helpers.cpp`
+  - 共享 helper、JSON 辅助转换、最近工程记录等稳定内部实现
+- `src/gui/MainWindowInternal.h`
+  - `MainWindow` 拆分后共享的最小内部声明与常量
+
 ## 当前高热文件
 
 ### UI / 交互
 - `src/gui/MainWindow.cpp`
+- `src/gui/MainWindow.Docks.cpp`
+- `src/gui/MainWindow.Route.cpp`
+- `src/gui/MainWindow.ProjectSerializer.cpp`
+- `src/gui/MainWindow.SettingsStore.cpp`
 - `src/gui/MainWindow.h`
 - `src/gui/PointCloudViewer.cpp`
 - `src/gui/PointCloudViewer.h`
@@ -73,3 +106,4 @@
 - 业务模型不要直接耦合到 OSG 绘制结构，尽量经由 viewer/bridge 投影到显示层。
 - 工程文件、外部 route 文件、导出格式是三个不同边界，不要混成一个模型层。
 - 对已有大文件，优先沿现有结构最小侵入修改；只有在职责已经明显失控时才拆分。
+- `MainWindow.ProjectSerializer.cpp` 和 `MainWindow.SettingsStore.cpp` 是正式编译单元，不要再用 `.cpp` 包含 `.cpp` 的方式继续扩展。
