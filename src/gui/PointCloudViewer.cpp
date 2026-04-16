@@ -1325,7 +1325,6 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
 
     if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
         emit scenePressed(event->localPos());
-        update();
         return;
     }
 
@@ -1358,6 +1357,8 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
+    bool needsRedraw = false;
+
     if (rectangleSelectionEnabled_ && event->button() == Qt::LeftButton && selectionDragActive_) {
         const QRectF selectionRect(selectionAnchor_, event->localPos());
         selectionDragActive_ = false;
@@ -1365,21 +1366,20 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         if (selectionRect.normalized().width() >= 4.0 && selectionRect.normalized().height() >= 4.0) {
             emit selectionRectangleFinished(selectionRect.normalized());
         }
-        update();
-        return;
-    }
-
-    if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
+        needsRedraw = true;
+    } else if (sceneClickModeEnabled_ && event->button() == Qt::LeftButton) {
         if (sceneDragCaptureEnabled_) {
             emit sceneDragReleased(event->localPos());
             sceneDragCaptureEnabled_ = false;
         } else if (leftButtonEventDispatched_) {
             dispatchMouseButtonEvent(event->localPos(), event->button(), false);
+            needsRedraw = true;
         } else if (!leftButtonDragDetected_) {
             emit sceneClicked(event->localPos());
         }
     } else {
         dispatchMouseButtonEvent(event->localPos(), event->button(), false);
+        needsRedraw = true;
         if (sceneClickModeEnabled_ && event->button() == Qt::RightButton && !rightButtonDragDetected_) {
             emit sceneSecondaryClicked(event->localPos());
         }
@@ -1396,7 +1396,9 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         rightButtonDragDetected_ = false;
     }
 
-    update();
+    if (needsRedraw) {
+        update();
+    }
 }
 
 void OsgWidget::mouseMoveEvent(QMouseEvent* event)
@@ -1404,6 +1406,8 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
     if (event == nullptr) {
         return;
     }
+
+    bool needsRedraw = false;
 
     if (rectangleSelectionEnabled_ && selectionDragActive_) {
         emit selectionRectangleChanged(QRectF(selectionAnchor_, event->localPos()).normalized(), true);
@@ -1449,7 +1453,6 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
 
     if (sceneClickModeEnabled_ && leftButtonPressed_ && sceneDragCaptureEnabled_) {
         emit sceneDragged(event->localPos());
-        update();
         return;
     }
 
@@ -1463,13 +1466,16 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         || !leftButtonPressed_
         || leftButtonEventDispatched_) {
         dispatchMouseMotion(adjustedPosition);
+        needsRedraw = true;
     }
 
     if (event->buttons() == Qt::NoButton) {
         emit sceneHovered(event->localPos());
     }
 
-    update();
+    if (needsRedraw) {
+        update();
+    }
 }
 
 void OsgWidget::dispatchMouseButtonEvent(const QPointF& localPos, Qt::MouseButton button, bool pressed)
@@ -1662,19 +1668,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::selectionRectangleChanged, this, &PointCloudViewer::handleSelectionRectangleChanged);
     connect(osgWidget_, &OsgWidget::selectionRectangleFinished, this, &PointCloudViewer::handleSelectionRectangleFinished);
     connect(osgWidget_, &OsgWidget::selectionEscapePressed, this, &PointCloudViewer::handleSelectionEscapePressed);
-    connect(osgWidget_, &OsgWidget::frameRendered, this, [this]() {
-        updateMeasurementOverlayWidgets();
-        updateTowerOverlayWidgets();
-        updateInspectionIssueOverlayWidgets();
-        updateInspectionRouteOverlayWidgets();
-        if (selectionRubberBand_ != nullptr && selectionRubberBand_->isVisible()) {
-            selectionRubberBand_->raise();
-        }
-        if (profileClassificationPolygonOverlay_ != nullptr && profileClassificationPolygonOverlay_->isVisible()) {
-            profileClassificationPolygonOverlay_->raise();
-        }
-        updateAxisIndicator();
-    });
+    connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::scheduleOverlayWidgetRefresh);
 
     classificationTaskStatusTimer_ = new QTimer(this);
     classificationTaskStatusTimer_->setInterval(250);
@@ -6694,6 +6688,35 @@ void PointCloudViewer::refreshInspectionRouteOverlay()
     if (osgWidget_ != nullptr) {
         osgWidget_->update();
     }
+}
+
+void PointCloudViewer::scheduleOverlayWidgetRefresh()
+{
+    if (overlayWidgetRefreshPending_) {
+        return;
+    }
+
+    overlayWidgetRefreshPending_ = true;
+    QMetaObject::invokeMethod(
+        this,
+        [this]() { flushOverlayWidgetRefresh(); },
+        Qt::QueuedConnection);
+}
+
+void PointCloudViewer::flushOverlayWidgetRefresh()
+{
+    overlayWidgetRefreshPending_ = false;
+    updateMeasurementOverlayWidgets();
+    updateTowerOverlayWidgets();
+    updateInspectionIssueOverlayWidgets();
+    updateInspectionRouteOverlayWidgets();
+    if (selectionRubberBand_ != nullptr && selectionRubberBand_->isVisible()) {
+        selectionRubberBand_->raise();
+    }
+    if (profileClassificationPolygonOverlay_ != nullptr && profileClassificationPolygonOverlay_->isVisible()) {
+        profileClassificationPolygonOverlay_->raise();
+    }
+    updateAxisIndicator();
 }
 
 void PointCloudViewer::updateInspectionRouteRoam()

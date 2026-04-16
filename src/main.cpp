@@ -1,6 +1,8 @@
 #include <QApplication>
+#include <QCursor>
 #include <QFont>
 #include <QIcon>
+#include <QScreen>
 #include <QSplashScreen>
 #include <QSurfaceFormat>
 #include <QTimer>
@@ -9,6 +11,34 @@
 #include "QtnRibbonStyle.h"
 
 #include "gui/MainWindow.h"
+
+namespace
+{
+QScreen* resolveSplashTargetScreen()
+{
+    if (QScreen* cursorScreen = QGuiApplication::screenAt(QCursor::pos())) {
+        return cursorScreen;
+    }
+    return QGuiApplication::primaryScreen();
+}
+
+QPixmap buildScaledSplashPixmap(const QPixmap& sourcePixmap, const QRect& availableGeometry)
+{
+    if (sourcePixmap.isNull() || !availableGeometry.isValid()) {
+        return sourcePixmap;
+    }
+
+    const QSize maxSplashSize(
+        std::max(640, static_cast<int>(std::lround(availableGeometry.width() * 0.72))),
+        std::max(360, static_cast<int>(std::lround(availableGeometry.height() * 0.72))));
+    if (sourcePixmap.size().width() <= maxSplashSize.width()
+        && sourcePixmap.size().height() <= maxSplashSize.height()) {
+        return sourcePixmap;
+    }
+
+    return sourcePixmap.scaled(maxSplashSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+}
 
 int main(int argc, char* argv[])
 {
@@ -44,9 +74,22 @@ int main(int argc, char* argv[])
     const QIcon appIcon(QStringLiteral(":/assets/icon/software.png"));
     app.setWindowIcon(appIcon);
 
-    QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
-    QSplashScreen splashScreen(splashPixmap);
+    const QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
+    QScreen* splashTargetScreen = resolveSplashTargetScreen();
+    const QRect splashAvailableGeometry =
+        splashTargetScreen != nullptr ? splashTargetScreen->availableGeometry() : QRect();
+    QSplashScreen splashScreen(
+        splashTargetScreen,
+        buildScaledSplashPixmap(splashPixmap, splashAvailableGeometry));
     splashScreen.setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    if (splashAvailableGeometry.isValid()) {
+        const QRect centeredGeometry(
+            QPoint(
+                splashAvailableGeometry.left() + (splashAvailableGeometry.width() - splashScreen.width()) / 2,
+                splashAvailableGeometry.top() + (splashAvailableGeometry.height() - splashScreen.height()) / 2),
+            splashScreen.size());
+        splashScreen.setGeometry(centeredGeometry);
+    }
     splashScreen.show();
     app.processEvents();
 

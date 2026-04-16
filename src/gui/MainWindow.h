@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QPoint>
 #include <QMap>
 #include <QStringList>
 
@@ -36,6 +37,7 @@ class QPushButton;
 class QSlider;
 class QSpinBox;
 class QMenu;
+class QShowEvent;
 class QTabWidget;
 class QTableWidget;
 class QTextEdit;
@@ -101,6 +103,7 @@ protected:
     void dropEvent(QDropEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 #ifdef Q_OS_WIN
     bool nativeEvent(const QByteArray& eventType, void* message, long* result) override;
 #endif
@@ -161,6 +164,9 @@ private:
     void updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme);
     void updateWindowControlButtons();
     void updateWindowControlAppearance(Qtitan::RibbonStyle::Theme theme);
+#ifdef Q_OS_WIN
+    void normalizeNativeWindowStyle();
+#endif
     void toggleMaximizedWindow();
     bool isDraggableRibbonArea(const QPoint& position) const;
     bool isInteractiveRibbonWidget(const QWidget* widget) const;
@@ -609,7 +615,9 @@ private:
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
     bool updatingClassificationColorTable_ = false;
+    bool pendingRibbonWindowMove_ = false;
     QString routeRoamLastCaptureSummary_;
+    QPoint pendingRibbonWindowMoveGlobalPos_;
     bool classificationEditsDirty_ = false;
     bool handlingProfileClassificationExitPrompt_ = false;
     bool savingProfileClassificationEdits_ = false;

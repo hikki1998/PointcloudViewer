@@ -479,6 +479,8 @@ private:
     void refreshTowerMarkersOverlay();
     void refreshInspectionIssuesOverlay();
     void refreshInspectionRouteOverlay();
+    void scheduleOverlayWidgetRefresh();
+    void flushOverlayWidgetRefresh();
     void updateMeasurementOverlayWidgets();
     void updateTowerOverlayWidgets();
     void updateInspectionIssueOverlayWidgets();
@@ -653,6 +655,7 @@ private:
     bool fullResolutionTilesReady_ = false;
     bool frameCameraStateValid_ = false;
     bool cameraMoving_ = false;
+    bool overlayWidgetRefreshPending_ = false;
     osg::Matrixd lastCameraViewMatrix_;
     std::uint64_t asyncLoadToken_ = 0;
     std::atomic_bool asyncLoadCancellationRequested_ = false;

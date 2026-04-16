@@ -143,6 +143,11 @@ void MainWindow::createRibbon()
     colorRibbonGroup_->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
     colorRibbonGroup_->addAction(classificationColorAction_, Qt::ToolButtonTextUnderIcon);
+
+    const QList<QWidget*> ribbonWidgets = ribbonBar_->findChildren<QWidget*>();
+    for (QWidget* ribbonWidget : ribbonWidgets) {
+        ribbonWidget->installEventFilter(this);
+    }
 }
 
 void MainWindow::createViewQuickToolBar()

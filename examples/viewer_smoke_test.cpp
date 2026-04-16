@@ -21,6 +21,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QSlider>
+#include <QMouseEvent>
 #include <QSpinBox>
 #include <QSurfaceFormat>
 #include <QTableWidget>
@@ -33,6 +34,11 @@
 #include <QTranslator>
 #include <QLineEdit>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -101,6 +107,169 @@ bool verifyClose(double left, double right, double tolerance, const std::string&
     }
     return true;
 }
+
+#ifdef Q_OS_WIN
+HWND findVisibleProcessTopLevelWindow(const QString& expectedTitle = QString())
+{
+    struct WindowSearchContext
+    {
+        DWORD processId = 0;
+        QString expectedTitle;
+        HWND exactMatchWindow = nullptr;
+        HWND window = nullptr;
+        LONG bestArea = -1;
+    } context;
+
+    context.processId = GetCurrentProcessId();
+    context.expectedTitle = expectedTitle;
+    EnumWindows(
+        [](HWND hwnd, LPARAM lParam) -> BOOL {
+            auto* context = reinterpret_cast<WindowSearchContext*>(lParam);
+            if (context == nullptr) {
+                return FALSE;
+            }
+
+            DWORD windowProcessId = 0;
+            GetWindowThreadProcessId(hwnd, &windowProcessId);
+            if (windowProcessId != context->processId || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER) != nullptr) {
+                return TRUE;
+            }
+
+            wchar_t className[256] = {};
+            const int classNameLength = GetClassNameW(hwnd, className, static_cast<int>(sizeof(className) / sizeof(className[0])));
+            if (classNameLength <= 0 || !QString::fromWCharArray(className, classNameLength).startsWith(QStringLiteral("Qt"), Qt::CaseInsensitive)) {
+                return TRUE;
+            }
+
+            wchar_t windowTitle[512] = {};
+            const int windowTitleLength = GetWindowTextW(hwnd, windowTitle, static_cast<int>(sizeof(windowTitle) / sizeof(windowTitle[0])));
+            const QString title = QString::fromWCharArray(windowTitle, windowTitleLength);
+            if (!context->expectedTitle.isEmpty() && title == context->expectedTitle) {
+                context->exactMatchWindow = hwnd;
+                return FALSE;
+            }
+
+            RECT windowRect {};
+            if (!GetWindowRect(hwnd, &windowRect)) {
+                return TRUE;
+            }
+
+            const LONG width = windowRect.right - windowRect.left;
+            const LONG height = windowRect.bottom - windowRect.top;
+            const LONG area = width * height;
+            if (area <= context->bestArea) {
+                return TRUE;
+            }
+
+            context->bestArea = area;
+            context->window = hwnd;
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&context));
+    return context.exactMatchWindow != nullptr ? context.exactMatchWindow : context.window;
+}
+
+bool verifyWindowHasResizeFrame(HWND hwnd, const std::string& message)
+{
+    if (hwnd == nullptr) {
+        std::cerr << "[FAIL] " << message << " hwnd is null" << std::endl;
+        return false;
+    }
+
+    const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
+    const bool hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+    const bool hasThickFrame = (style & WS_THICKFRAME) == WS_THICKFRAME;
+    const bool hasMinimizeBox = (style & WS_MINIMIZEBOX) == WS_MINIMIZEBOX;
+    const bool hasMaximizeBox = (style & WS_MAXIMIZEBOX) == WS_MAXIMIZEBOX;
+    const bool hasPopup = (style & WS_POPUP) == WS_POPUP;
+    if (!hasCaption || !hasThickFrame || !hasMinimizeBox || !hasMaximizeBox || hasPopup) {
+        std::cerr << "[FAIL] " << message
+                  << " style=0x" << std::hex << static_cast<unsigned long long>(style) << std::dec
+                  << " caption=" << hasCaption
+                  << " thickFrame=" << hasThickFrame
+                  << " minimizeBox=" << hasMinimizeBox
+                  << " maximizeBox=" << hasMaximizeBox
+                  << " popup=" << hasPopup
+                  << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool verifyWindowUsesWorkArea(HWND hwnd, const std::string& message)
+{
+    if (hwnd == nullptr) {
+        std::cerr << "[FAIL] " << message << " hwnd is null" << std::endl;
+        return false;
+    }
+
+    RECT windowRect {};
+    if (!GetWindowRect(hwnd, &windowRect)) {
+        std::cerr << "[FAIL] " << message << " GetWindowRect failed" << std::endl;
+        return false;
+    }
+
+    MONITORINFO monitorInfo {};
+    monitorInfo.cbSize = sizeof(MONITORINFO);
+    const HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor == nullptr || !GetMonitorInfoW(monitor, &monitorInfo)) {
+        std::cerr << "[FAIL] " << message << " GetMonitorInfo failed" << std::endl;
+        return false;
+    }
+
+    const RECT& workRect = monitorInfo.rcWork;
+    constexpr int kMaximizedBorderTolerance = 12;
+    const bool matchesWorkAreaWithFrameTolerance =
+        windowRect.left >= workRect.left - kMaximizedBorderTolerance
+        && windowRect.left <= workRect.left
+        && windowRect.top >= workRect.top - kMaximizedBorderTolerance
+        && windowRect.top <= workRect.top
+        && windowRect.right >= workRect.right
+        && windowRect.right <= workRect.right + kMaximizedBorderTolerance
+        && windowRect.bottom >= workRect.bottom
+        && windowRect.bottom <= workRect.bottom + kMaximizedBorderTolerance;
+    if (!matchesWorkAreaWithFrameTolerance) {
+        std::cerr << "[FAIL] " << message
+                  << " windowRect=[" << windowRect.left << "," << windowRect.top << "]-[" << windowRect.right << "," << windowRect.bottom << "]"
+                  << " workRect=[" << workRect.left << "," << workRect.top << "]-[" << workRect.right << "," << workRect.bottom << "]"
+                  << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+QPoint findCaptionHitPoint(HWND hwnd, Qtitan::RibbonBar* ribbonBar)
+{
+    if (hwnd == nullptr || ribbonBar == nullptr) {
+        return QPoint();
+    }
+
+    int titleBandHeight = ribbonBar->titleBarHeight();
+    if (titleBandHeight <= 0) {
+        titleBandHeight = std::min(48, ribbonBar->height());
+    } else {
+        titleBandHeight = std::min(titleBandHeight, ribbonBar->height());
+    }
+
+    for (int y = 4; y < titleBandHeight; y += 3) {
+        for (int x = 8; x < ribbonBar->width() - 8; x += 8) {
+            const QPoint globalPoint = ribbonBar->mapToGlobal(QPoint(x, y));
+            const LRESULT hitResult = SendMessageW(
+                hwnd,
+                WM_NCHITTEST,
+                0,
+                MAKELPARAM(globalPoint.x(), globalPoint.y()));
+            if (hitResult == HTCAPTION) {
+                return globalPoint;
+            }
+        }
+    }
+
+    return QPoint();
+}
+#endif
 
 bool hasVisiblePixels(const QImage& image, int* nonBackgroundPixelCount)
 {
@@ -181,6 +350,45 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             std::cerr << "Rendered framebuffer appears empty for "
                       << filePath.toStdString() << std::endl;
             allPassed = false;
+            continue;
+        }
+
+        const QPoint clickPoint = glWidget->rect().center();
+        QMouseEvent pressEvent(
+            QEvent::MouseButtonPress,
+            QPointF(clickPoint),
+            Qt::LeftButton,
+            Qt::LeftButton,
+            Qt::NoModifier);
+        QApplication::sendEvent(glWidget, &pressEvent);
+
+        QMouseEvent releaseEvent(
+            QEvent::MouseButtonRelease,
+            QPointF(clickPoint),
+            Qt::LeftButton,
+            Qt::NoButton,
+            Qt::NoModifier);
+        QApplication::sendEvent(glWidget, &releaseEvent);
+        pumpEvents(200);
+
+        const QImage clickedFrame = glWidget->grabFramebuffer();
+        if (clickedFrame.isNull()) {
+            std::cerr << "grabFramebuffer() returned a null image after click for "
+                      << filePath.toStdString() << std::endl;
+            allPassed = false;
+            continue;
+        }
+
+        int clickedNonBackgroundPixelCount = 0;
+        const bool visiblePixelsAfterClick = hasVisiblePixels(clickedFrame, &clickedNonBackgroundPixelCount);
+        std::cout << "After click " << filePath.toStdString()
+                  << " framebuffer=" << clickedFrame.width() << "x" << clickedFrame.height()
+                  << " nonBackgroundPixels=" << clickedNonBackgroundPixelCount << std::endl;
+
+        if (!visiblePixelsAfterClick) {
+            std::cerr << "Rendered framebuffer appears empty after click for "
+                      << filePath.toStdString() << std::endl;
+            allPassed = false;
         }
     }
 
@@ -200,6 +408,76 @@ bool runMainBackstageSmoke(const QStringList&)
     if (!verify(ribbonBar != nullptr, "MainWindow should expose a RibbonBar")) {
         return false;
     }
+
+#ifdef Q_OS_WIN
+    pumpEvents(200);
+    HWND visibleMainWindow = findVisibleProcessTopLevelWindow(window.windowTitle());
+    if (!verifyWindowHasResizeFrame(visibleMainWindow, "Main window should keep a standard resize frame style")) {
+        return false;
+    }
+
+    window.showMaximized();
+    pumpEvents(300);
+    visibleMainWindow = findVisibleProcessTopLevelWindow(window.windowTitle());
+    if (!verifyWindowHasResizeFrame(visibleMainWindow, "Maximized main window should keep resize frame style")) {
+        return false;
+    }
+    if (!verifyWindowUsesWorkArea(visibleMainWindow, "Maximized frameless main window should fit monitor work area")) {
+        return false;
+    }
+
+    window.showNormal();
+    pumpEvents(300);
+    visibleMainWindow = findVisibleProcessTopLevelWindow(window.windowTitle());
+    const QPoint captionGlobalPoint = findCaptionHitPoint(visibleMainWindow, ribbonBar);
+    if (!verify(captionGlobalPoint != QPoint(), "Ribbon title area should expose a draggable HTCAPTION point")) {
+        return false;
+    }
+
+    QWidget* captionTarget = QApplication::widgetAt(captionGlobalPoint);
+    if (captionTarget == nullptr || (captionTarget != ribbonBar && !ribbonBar->isAncestorOf(captionTarget))) {
+        captionTarget = ribbonBar;
+    }
+
+    const QPoint localCaptionPoint = captionTarget->mapFromGlobal(captionGlobalPoint);
+    QMouseEvent doubleClickEvent(
+        QEvent::MouseButtonDblClick,
+        QPointF(localCaptionPoint),
+        QPointF(captionGlobalPoint),
+        Qt::LeftButton,
+        Qt::LeftButton,
+        Qt::NoModifier);
+    QApplication::sendEvent(captionTarget, &doubleClickEvent);
+    pumpEvents(250);
+    if (!verify(window.isMaximized(), "Double-clicking ribbon blank area should maximize the window")) {
+        return false;
+    }
+
+    visibleMainWindow = findVisibleProcessTopLevelWindow(window.windowTitle());
+    const QPoint maximizedCaptionPoint = findCaptionHitPoint(visibleMainWindow, ribbonBar);
+    if (!verify(maximizedCaptionPoint != QPoint(), "Maximized window should keep a draggable HTCAPTION point")) {
+        return false;
+    }
+
+    QWidget* maximizedCaptionTarget = QApplication::widgetAt(maximizedCaptionPoint);
+    if (maximizedCaptionTarget == nullptr || (maximizedCaptionTarget != ribbonBar && !ribbonBar->isAncestorOf(maximizedCaptionTarget))) {
+        maximizedCaptionTarget = ribbonBar;
+    }
+
+    const QPoint maximizedLocalCaptionPoint = maximizedCaptionTarget->mapFromGlobal(maximizedCaptionPoint);
+    QMouseEvent restoreDoubleClickEvent(
+        QEvent::MouseButtonDblClick,
+        QPointF(maximizedLocalCaptionPoint),
+        QPointF(maximizedCaptionPoint),
+        Qt::LeftButton,
+        Qt::LeftButton,
+        Qt::NoModifier);
+    QApplication::sendEvent(maximizedCaptionTarget, &restoreDoubleClickEvent);
+    pumpEvents(250);
+    if (!verify(!window.isMaximized(), "Double-clicking ribbon blank area again should restore the window")) {
+        return false;
+    }
+#endif
 
     Qtitan::RibbonSystemButton* systemButton = ribbonBar->getSystemButton();
     if (!verify(systemButton != nullptr, "Ribbon system button should exist")) {
