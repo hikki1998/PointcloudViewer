@@ -5,6 +5,8 @@
 #include <QLayout>
 #include <QPalette>
 #include <QScrollArea>
+#include <QSizePolicy>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QToolTip>
 #include <QVBoxLayout>
@@ -13,6 +15,7 @@
 SceneInspectorDock::SceneInspectorDock(QWidget* parent)
     : QDockWidget(parent)
 {
+    setObjectName(QStringLiteral("sceneInspectorDock"));
     setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
 
@@ -20,6 +23,13 @@ SceneInspectorDock::SceneInspectorDock(QWidget* parent)
     tabWidget_->setObjectName(QStringLiteral("sceneInspectorTabs"));
     tabWidget_->setDocumentMode(true);
     tabWidget_->setMovable(false);
+    tabWidget_->setUsesScrollButtons(true);
+    tabWidget_->setElideMode(Qt::ElideRight);
+    tabWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    if (QTabBar* tabBar = tabWidget_->tabBar()) {
+        tabBar->setExpanding(false);
+        tabBar->setElideMode(Qt::ElideRight);
+    }
 
     overviewTab_ = createTabPage(QStringLiteral("sceneInspectorOverviewPage"));
     towerTab_ = createTabPage(QStringLiteral("sceneInspectorTowerPage"));
@@ -53,8 +63,8 @@ SceneInspectorDock::SceneInspectorDock(QWidget* parent)
         "border-bottom: none;"
         "border-top-left-radius: 8px;"
         "border-top-right-radius: 8px;"
-        "padding: 8px 14px;"
-        "margin-right: 4px;"
+        "padding: 8px 10px;"
+        "margin-right: 2px;"
         "color: #475569;"
         "font-weight: 600;"
         "}"
@@ -251,15 +261,16 @@ SceneInspectorDock::TabPage SceneInspectorDock::createTabPage(const QString& obj
     tabPage.scrollArea = new QScrollArea(tabWidget_);
     tabPage.scrollArea->setWidgetResizable(true);
     tabPage.scrollArea->setFrameShape(QFrame::NoFrame);
-    tabPage.scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    tabPage.scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     tabPage.scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     auto* page = new QWidget(tabPage.scrollArea);
     page->setObjectName(objectName);
+    page->setMinimumWidth(0);
     tabPage.layout = new QVBoxLayout(page);
     tabPage.layout->setContentsMargins(14, 14, 14, 14);
     tabPage.layout->setSpacing(12);
-    tabPage.layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+    tabPage.layout->setSizeConstraint(QLayout::SetDefaultConstraint);
     tabPage.scrollArea->setWidget(page);
     return tabPage;
 }

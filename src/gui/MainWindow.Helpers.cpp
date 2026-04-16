@@ -3,19 +3,27 @@
 #include <QAction>
 #include <QColorDialog>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QDir>
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QJsonObject>
 #include <QLocale>
 #include <QMap>
 #include <QPalette>
+#include <QScreen>
 #include <QSet>
 #include <QSettings>
 #include <QSize>
 #include <QToolButton>
 #include <QTreeWidgetItem>
+#include <QWindow>
+#include <QWidget>
+
+#include <algorithm>
+#include <cmath>
 
 #include "gui/support/SettingsKeys.h"
 #include "gui/support/UiHelpers.h"
@@ -86,10 +94,59 @@ bool isSupportedPointCloudFile(const QString& filePath)
     return suffix == QStringLiteral("las") || suffix == QStringLiteral("laz");
 }
 
+QRect availableScreenGeometryFor(const QWidget* widget)
+{
+    if (widget != nullptr) {
+        if (const QScreen* screen = widget->screen()) {
+            return screen->availableGeometry();
+        }
+
+        if (const QWindow* window = widget->windowHandle()) {
+            if (const QScreen* screen = window->screen()) {
+                return screen->availableGeometry();
+            }
+        }
+
+        if (const QWidget* topLevel = widget->window()) {
+            if (const QScreen* screen = topLevel->screen()) {
+                return screen->availableGeometry();
+            }
+        }
+    }
+
+    if (const QPoint cursorPosition = QCursor::pos();
+        QScreen* screen = QGuiApplication::screenAt(cursorPosition)) {
+        return screen->availableGeometry();
+    }
+
+    if (QScreen* screen = QGuiApplication::primaryScreen()) {
+        return screen->availableGeometry();
+    }
+
+    return QRect();
+}
+
+int adaptiveDockWidth(const QWidget* widget, double widthRatio, int minimumWidth, int maximumWidth)
+{
+    const QRect availableGeometry = availableScreenGeometryFor(widget);
+    if (!availableGeometry.isValid()) {
+        return maximumWidth;
+    }
+
+    const int adaptiveWidth = static_cast<int>(std::lround(static_cast<double>(availableGeometry.width()) * widthRatio));
+    return std::clamp(adaptiveWidth, minimumWidth, maximumWidth);
+}
+
 void applyDefaultDockWidths(MainWindow* window, QDockWidget* projectDock, QDockWidget* inspectorDock)
 {
     if (window != nullptr && projectDock != nullptr && inspectorDock != nullptr) {
-        window->resizeDocks({ projectDock, inspectorDock }, { 320, 380 }, Qt::Horizontal);
+        window->resizeDocks(
+            { projectDock, inspectorDock },
+            {
+                adaptiveDockWidth(window, 0.15, 240, 300),
+                adaptiveDockWidth(window, 0.15, 240, 320)
+            },
+            Qt::Horizontal);
     }
 }
 

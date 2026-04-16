@@ -44,6 +44,7 @@
 #include "gui/ProjectExplorerController.h"
 #include "gui/ProjectExplorerDock.h"
 #include "gui/RouteController.h"
+#include "gui/RouteDetailsDock.h"
 #include "gui/SceneInspectorDock.h"
 #include "gui/SpanProfileDock.h"
 #include "gui/TowerController.h"
@@ -263,12 +264,14 @@ void MainWindow::createWindowAndViewerConnections()
         if (showLogAction_ != nullptr && showLogAction_->isChecked() != visible) {
             showLogAction_->setChecked(visible);
         }
+        scheduleDockPanelSizing();
         persistWindowSettings();
     });
     connect(profileDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
         if (showProfileDockAction_ != nullptr && showProfileDockAction_->isChecked() != visible) {
             showProfileDockAction_->setChecked(visible);
         }
+        scheduleDockPanelSizing();
         persistWindowSettings();
     });
     connect(profileClassificationDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
@@ -276,10 +279,16 @@ void MainWindow::createWindowAndViewerConnections()
             const QSignalBlocker blocker(showProfileClassificationDockAction_);
             showProfileClassificationDockAction_->setChecked(visible);
         }
+        scheduleDockPanelSizing();
+        persistWindowSettings();
+    });
+    connect(routeDetailsDock_, &QDockWidget::visibilityChanged, this, [this](bool) {
+        scheduleDockPanelSizing();
         persistWindowSettings();
     });
 
     const auto persistDockState = [this]() {
+        scheduleDockPanelSizing();
         persistWindowSettings();
     };
     connect(projectDock_, &QDockWidget::dockLocationChanged, this, persistDockState);

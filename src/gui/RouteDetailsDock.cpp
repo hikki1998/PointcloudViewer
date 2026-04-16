@@ -1,6 +1,8 @@
 #include "gui/RouteDetailsDock.h"
 
 #include <QLayout>
+#include <QSizePolicy>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -14,12 +16,19 @@ RouteDetailsDock::RouteDetailsDock(QWidget* parent)
         QDockWidget::DockWidgetClosable
         | QDockWidget::DockWidgetMovable
         | QDockWidget::DockWidgetFloatable);
-    setMinimumWidth(460);
+    setMinimumWidth(240);
 
     tabWidget_ = new QTabWidget(this);
     tabWidget_->setObjectName(QStringLiteral("routeDetailsTabs"));
     tabWidget_->setDocumentMode(true);
     tabWidget_->setMovable(false);
+    tabWidget_->setUsesScrollButtons(true);
+    tabWidget_->setElideMode(Qt::ElideRight);
+    tabWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    if (QTabBar* tabBar = tabWidget_->tabBar()) {
+        tabBar->setExpanding(false);
+        tabBar->setElideMode(Qt::ElideRight);
+    }
 
     waypointsTab_ = createTabPage(QStringLiteral("routeDetailsWaypointsPage"));
     partPointsTab_ = createTabPage(QStringLiteral("routeDetailsPartPointsPage"));
@@ -45,8 +54,8 @@ RouteDetailsDock::RouteDetailsDock(QWidget* parent)
         "border-bottom: none;"
         "border-top-left-radius: 8px;"
         "border-top-right-radius: 8px;"
-        "padding: 8px 14px;"
-        "margin-right: 4px;"
+        "padding: 8px 10px;"
+        "margin-right: 2px;"
         "color: #475569;"
         "font-weight: 600;"
         "}"
@@ -126,9 +135,10 @@ RouteDetailsDock::TabPage RouteDetailsDock::createTabPage(const QString& objectN
     TabPage tabPage;
     tabPage.page = new QWidget(tabWidget_);
     tabPage.page->setObjectName(objectName);
+    tabPage.page->setMinimumWidth(0);
     tabPage.layout = new QVBoxLayout(tabPage.page);
     tabPage.layout->setContentsMargins(10, 10, 10, 10);
     tabPage.layout->setSpacing(8);
-    tabPage.layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+    tabPage.layout->setSizeConstraint(QLayout::SetDefaultConstraint);
     return tabPage;
 }

@@ -5,6 +5,7 @@
 #include "crs/CrsTypes.h"
 
 #include <array>
+#include <QRect>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -62,6 +63,8 @@ extern const std::array<ClassificationDisplayItem, 33> kClassificationDisplayIte
 
 MainWindow::UiLanguage defaultLanguageFromLocale();
 bool isSupportedPointCloudFile(const QString& filePath);
+QRect availableScreenGeometryFor(const QWidget* widget);
+int adaptiveDockWidth(const QWidget* widget, double widthRatio, int minimumWidth, int maximumWidth);
 void applyDefaultDockWidths(MainWindow* window, QDockWidget* projectDock, QDockWidget* inspectorDock);
 QString formatCoordinateSystemCode(const lasviewer::crs::CoordinateSystemRef& crs, const QString& unsetText);
 QString formatProjectCoordinateSystemsSummary(const lasviewer::crs::ProjectCoordinateSystems& coordinateSystems);

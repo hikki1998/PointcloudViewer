@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -23,6 +24,7 @@
 #include <QSlider>
 #include <QMouseEvent>
 #include <QSpinBox>
+#include <QScreen>
 #include <QSurfaceFormat>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -55,7 +57,9 @@
 #include "gui/ProfileClassificationWidget.h"
 #include "gui/ProjectExplorerController.h"
 #include "gui/ProjectExplorerDock.h"
+#include "gui/RouteDetailsDock.h"
 #include "gui/RouteController.h"
+#include "gui/SceneInspectorDock.h"
 #include "gui/TowerController.h"
 #include "gui/VisualizationPanelController.h"
 #include "logging/ApplicationLogger.h"
@@ -409,6 +413,66 @@ bool runMainBackstageSmoke(const QStringList&)
         return false;
     }
 
+    QScreen* targetScreen = window.screen();
+    if (targetScreen == nullptr) {
+        targetScreen = QGuiApplication::screenAt(window.frameGeometry().center());
+    }
+    if (targetScreen == nullptr) {
+        targetScreen = QGuiApplication::primaryScreen();
+    }
+    if (!verify(targetScreen != nullptr, "MainWindow should resolve an active screen")) {
+        return false;
+    }
+
+    SceneInspectorDock* inspectorDock = window.findChild<SceneInspectorDock*>();
+    if (!verify(inspectorDock != nullptr, "MainWindow should create the scene inspector dock")) {
+        return false;
+    }
+
+    const int inspectorWidthCap = std::min(
+        400,
+        static_cast<int>(std::lround(static_cast<double>(targetScreen->availableGeometry().width()) * 0.22)));
+    if (!verify(
+            inspectorDock->width() <= inspectorWidthCap + 24,
+            "Scene inspector dock should adapt its width to the current screen")) {
+        return false;
+    }
+
+    RouteDetailsDock* routeDetailsDock = window.findChild<RouteDetailsDock*>();
+    if (!verify(routeDetailsDock != nullptr, "MainWindow should create the route details dock")) {
+        return false;
+    }
+    routeDetailsDock->show();
+    routeDetailsDock->raise();
+    pumpEvents(250);
+
+    const int routeDockWidthCap = std::min(
+        340,
+        static_cast<int>(std::lround(static_cast<double>(targetScreen->availableGeometry().width()) * 0.18)));
+    if (!verify(
+            routeDetailsDock->width() <= routeDockWidthCap + 24,
+            "Route details dock should adapt its width to the current screen")) {
+        return false;
+    }
+
+    const int routeDockShrinkTarget = std::min(
+        280,
+        std::max(240, static_cast<int>(std::lround(static_cast<double>(targetScreen->availableGeometry().width()) * 0.14))));
+    window.resizeDocks({ routeDetailsDock }, { routeDockShrinkTarget }, Qt::Horizontal);
+    pumpEvents(250);
+    if (routeDetailsDock->width() > routeDockShrinkTarget + 24) {
+        std::cerr << "[INFO] route details shrink target=" << routeDockShrinkTarget
+                  << " actual=" << routeDetailsDock->width()
+                  << " minimumWidth=" << routeDetailsDock->minimumWidth()
+                  << " minimumSizeHint=" << routeDetailsDock->minimumSizeHint().width()
+                  << std::endl;
+    }
+    if (!verify(
+            routeDetailsDock->width() <= routeDockShrinkTarget + 24,
+            "Route details dock should remain shrinkable after showing its contents")) {
+        return false;
+    }
+
 #ifdef Q_OS_WIN
     pumpEvents(200);
     HWND visibleMainWindow = findVisibleProcessTopLevelWindow(window.windowTitle());
@@ -526,6 +590,8 @@ bool runMainBackstageSmoke(const QStringList&)
         return false;
     }
 
+    window.close();
+    pumpEvents(200);
     std::cout << "[PASS] Main backstage smoke test completed." << std::endl;
     return true;
 }

@@ -474,6 +474,7 @@ void MainWindow::loadWindowSettings()
         projectDock_->raise();
     }
     loadingWindowSettings_ = false;
+    scheduleDockPanelSizing();
 }
 
 void MainWindow::persistWindowSettings() const

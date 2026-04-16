@@ -167,6 +167,8 @@ private:
 #ifdef Q_OS_WIN
     void normalizeNativeWindowStyle();
 #endif
+    void scheduleDockPanelSizing();
+    void normalizeDockPanelSizing();
     void toggleMaximizedWindow();
     bool isDraggableRibbonArea(const QPoint& position) const;
     bool isInteractiveRibbonWidget(const QWidget* widget) const;
@@ -615,6 +617,8 @@ private:
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;
     bool updatingClassificationColorTable_ = false;
+    bool dockPanelSizingPending_ = false;
+    bool dockScreenTrackingConnected_ = false;
     bool pendingRibbonWindowMove_ = false;
     QString routeRoamLastCaptureSummary_;
     QPoint pendingRibbonWindowMoveGlobalPos_;

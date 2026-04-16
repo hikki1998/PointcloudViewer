@@ -4,12 +4,14 @@
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QComboBox>
+#include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QScreen>
 #include <QTabBar>
 #include <QTimer>
 #include <QUrl>
@@ -26,7 +28,9 @@
 #include "QtnRibbonSystemPopupBar.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/ProfileClassificationDock.h"
 #include "gui/ProjectExplorerDock.h"
+#include "gui/RouteDetailsDock.h"
 #include "gui/SceneInspectorDock.h"
 
 using namespace mainwindow_internal;
@@ -369,6 +373,20 @@ void MainWindow::changeEvent(QEvent* event)
 void MainWindow::showEvent(QShowEvent* event)
 {
     Qtitan::RibbonMainWindow::showEvent(event);
+    scheduleDockPanelSizing();
+    QTimer::singleShot(120, this, [this]() { scheduleDockPanelSizing(); });
+    QTimer::singleShot(400, this, [this]() { scheduleDockPanelSizing(); });
+
+    if (!dockScreenTrackingConnected_) {
+        if (QWindow* win = windowHandle()) {
+            connect(
+                win,
+                &QWindow::screenChanged,
+                this,
+                [this](QScreen*) { scheduleDockPanelSizing(); });
+            dockScreenTrackingConnected_ = true;
+        }
+    }
 #ifdef Q_OS_WIN
     normalizeNativeWindowStyle();
     QTimer::singleShot(120, this, [this]() { normalizeNativeWindowStyle(); });
@@ -468,6 +486,63 @@ void MainWindow::normalizeNativeWindowStyle()
     applyCustomWindowStyle(hwnd);
 }
 #endif
+
+void MainWindow::scheduleDockPanelSizing()
+{
+    if (dockPanelSizingPending_) {
+        return;
+    }
+
+    dockPanelSizingPending_ = true;
+    QTimer::singleShot(0, this, [this]() { normalizeDockPanelSizing(); });
+}
+
+void MainWindow::normalizeDockPanelSizing()
+{
+    dockPanelSizingPending_ = false;
+
+    if (isMinimized()) {
+        return;
+    }
+
+    const int projectMinimumWidth = adaptiveDockWidth(this, 0.14, 220, 280);
+    const int projectMaximumWidth = adaptiveDockWidth(this, 0.18, projectMinimumWidth, 320);
+    const int inspectorMinimumWidth = adaptiveDockWidth(this, 0.14, 240, 300);
+    const int inspectorMaximumWidth = adaptiveDockWidth(this, 0.18, inspectorMinimumWidth, 340);
+    const int routeDetailsMinimumWidth = adaptiveDockWidth(this, 0.14, 240, 300);
+    const int routeDetailsMaximumWidth = adaptiveDockWidth(this, 0.18, routeDetailsMinimumWidth, 340);
+    const int profileClassificationMinimumWidth = adaptiveDockWidth(this, 0.16, 240, 300);
+    const int profileClassificationMaximumWidth = adaptiveDockWidth(this, 0.19, profileClassificationMinimumWidth, 340);
+
+    if (projectDock_ != nullptr) {
+        projectDock_->setMinimumWidth(projectMinimumWidth);
+    }
+    if (inspectorDock_ != nullptr) {
+        inspectorDock_->setMinimumWidth(inspectorMinimumWidth);
+    }
+    if (routeDetailsDock_ != nullptr) {
+        routeDetailsDock_->setMinimumWidth(routeDetailsMinimumWidth);
+    }
+    if (profileClassificationDock_ != nullptr) {
+        profileClassificationDock_->setMinimumWidth(profileClassificationMinimumWidth);
+    }
+
+    auto shrinkDockWidth = [this](QDockWidget* dock, int maximumWidth) {
+        if (dock == nullptr || dock->isFloating() || !dock->isVisible()) {
+            return;
+        }
+
+        const int currentWidth = dock->width();
+        if (currentWidth > maximumWidth) {
+            resizeDocks({ dock }, { maximumWidth }, Qt::Horizontal);
+        }
+    };
+
+    shrinkDockWidth(projectDock_, projectMaximumWidth);
+    shrinkDockWidth(inspectorDock_, inspectorMaximumWidth);
+    shrinkDockWidth(routeDetailsDock_, routeDetailsMaximumWidth);
+    shrinkDockWidth(profileClassificationDock_, profileClassificationMaximumWidth);
+}
 
 void MainWindow::toggleMaximizedWindow()
 {

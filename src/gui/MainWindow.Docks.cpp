@@ -48,6 +48,7 @@ using namespace mainwindow_internal;
 void MainWindow::createProjectDock()
 {
     projectDock_ = new ProjectExplorerDock(this);
+    projectDock_->setMinimumWidth(adaptiveDockWidth(this, 0.14, 220, 280));
     projectExplorerController_ = new ProjectExplorerController(
         projectDock_,
         openAction_,
@@ -67,6 +68,7 @@ void MainWindow::createProjectDock()
 void MainWindow::createInspectorPanel()
 {
     inspectorDock_ = new SceneInspectorDock(this);
+    inspectorDock_->setMinimumWidth(adaptiveDockWidth(this, 0.14, 240, 300));
     inspectorTabWidget_ = inspectorDock_->tabWidget();
 
     auto overviewTab = qMakePair(inspectorDock_->overviewScrollArea(), inspectorDock_->overviewLayout());
@@ -593,20 +595,30 @@ void MainWindow::createInspectorPanel()
 void MainWindow::createRouteDetailsDock()
 {
     routeDetailsDock_ = new RouteDetailsDock(this);
+    routeDetailsDock_->setMinimumWidth(adaptiveDockWidth(this, 0.14, 240, 300));
     routeDetailsTabWidget_ = routeDetailsDock_->tabWidget();
     auto* waypointsTabLayout = routeDetailsDock_->waypointsLayout();
 
     routeWaypointsGroupBox_ = new QGroupBox(tr("Route Waypoints"), routeDetailsTabWidget_);
+    routeWaypointsGroupBox_->setMinimumWidth(0);
     auto* routeWaypointsLayout = new QVBoxLayout(routeWaypointsGroupBox_);
     routeWaypointsLayout->setContentsMargins(10, 10, 10, 10);
     routeWaypointsLayout->setSpacing(8);
 
     auto* routeWaypointOptionsRow = new QWidget(routeWaypointsGroupBox_);
-    auto* routeWaypointOptionsLayout = new QHBoxLayout(routeWaypointOptionsRow);
+    routeWaypointOptionsRow->setMinimumWidth(0);
+    auto* routeWaypointOptionsLayout = new QVBoxLayout(routeWaypointOptionsRow);
     routeWaypointOptionsLayout->setContentsMargins(0, 0, 0, 0);
-    routeWaypointOptionsLayout->setSpacing(8);
+    routeWaypointOptionsLayout->setSpacing(6);
+    auto* routeWaypointPrimaryRow = new QHBoxLayout();
+    routeWaypointPrimaryRow->setContentsMargins(0, 0, 0, 0);
+    routeWaypointPrimaryRow->setSpacing(8);
+    auto* routeWaypointSecondaryRow = new QHBoxLayout();
+    routeWaypointSecondaryRow->setContentsMargins(0, 0, 0, 0);
+    routeWaypointSecondaryRow->setSpacing(8);
     routeWaypointLabelModeComboBox_ = new QComboBox(routeWaypointOptionsRow);
-    routeWaypointLabelModeComboBox_->setMinimumWidth(160);
+    routeWaypointLabelModeComboBox_->setMinimumWidth(0);
+    routeWaypointLabelModeComboBox_->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
     routeWaypointLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routeWaypointLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
     routeWaypointLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
@@ -619,21 +631,29 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointShowCaptureAnglesCheckBox_->setChecked(true);
     routeTrajectoryColorButton_ = new QPushButton(tr("Trajectory Color"), routeWaypointOptionsRow);
     routeWaypointColorButton_ = new QPushButton(tr("Waypoint Color"), routeWaypointOptionsRow);
-    routeTrajectoryColorButton_->setMinimumWidth(124);
-    routeWaypointColorButton_->setMinimumWidth(124);
-    routeWaypointOptionsLayout->addWidget(routeWaypointLabelModeComboBox_);
-    routeWaypointOptionsLayout->addWidget(routeTrajectoryColorButton_);
-    routeWaypointOptionsLayout->addWidget(routeWaypointColorButton_);
-    routeWaypointOptionsLayout->addStretch(1);
-    routeWaypointOptionsLayout->addWidget(routeWaypointShowCoordinatesCheckBox_);
-    routeWaypointOptionsLayout->addWidget(routeWaypointShowCaptureAnglesCheckBox_);
+    routeTrajectoryColorButton_->setMinimumWidth(0);
+    routeWaypointColorButton_->setMinimumWidth(0);
+    routeTrajectoryColorButton_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    routeWaypointColorButton_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    routeWaypointPrimaryRow->addWidget(routeWaypointLabelModeComboBox_, 1);
+    routeWaypointPrimaryRow->addWidget(routeTrajectoryColorButton_);
+    routeWaypointPrimaryRow->addWidget(routeWaypointColorButton_);
+    routeWaypointSecondaryRow->addWidget(routeWaypointShowCoordinatesCheckBox_);
+    routeWaypointSecondaryRow->addWidget(routeWaypointShowCaptureAnglesCheckBox_);
+    routeWaypointSecondaryRow->addStretch(1);
+    routeWaypointOptionsLayout->addLayout(routeWaypointPrimaryRow);
+    routeWaypointOptionsLayout->addLayout(routeWaypointSecondaryRow);
 
     routeWaypointsTableWidget_ = new QTableWidget(routeWaypointsGroupBox_);
+    routeWaypointsTableWidget_->setMinimumWidth(0);
     routeWaypointsTableWidget_->setColumnCount(9);
     routeWaypointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     routeWaypointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     routeWaypointsTableWidget_->setAlternatingRowColors(true);
     routeWaypointsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routeWaypointsTableWidget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    routeWaypointsTableWidget_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    routeWaypointsTableWidget_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
     routeWaypointsTableWidget_->setHorizontalHeaderLabels({
         tr("Index"),
         tr("Part"),
@@ -659,19 +679,24 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointsTableWidget_->setColumnWidth(7, 116);
     routeWaypointsTableWidget_->setColumnWidth(8, 116);
     routeWaypointsTableWidget_->setStyleSheet(routeTableStyleSheet());
-    routeWaypointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    routeWaypointsTableWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
 
     routeWaypointTargetsGroupBox_ = new QGroupBox(tr("Waypoint Targets"), routeWaypointsGroupBox_);
+    routeWaypointTargetsGroupBox_->setMinimumWidth(0);
     auto* routeWaypointTargetsLayout = new QVBoxLayout(routeWaypointTargetsGroupBox_);
     routeWaypointTargetsLayout->setContentsMargins(8, 8, 8, 8);
     routeWaypointTargetsLayout->setSpacing(6);
 
     routeWaypointTargetsTableWidget_ = new QTableWidget(routeWaypointTargetsGroupBox_);
+    routeWaypointTargetsTableWidget_->setMinimumWidth(0);
     routeWaypointTargetsTableWidget_->setColumnCount(6);
     routeWaypointTargetsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     routeWaypointTargetsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     routeWaypointTargetsTableWidget_->setAlternatingRowColors(true);
     routeWaypointTargetsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routeWaypointTargetsTableWidget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    routeWaypointTargetsTableWidget_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    routeWaypointTargetsTableWidget_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
     routeWaypointTargetsTableWidget_->setHorizontalHeaderLabels({
         tr("Index"),
         tr("Part"),
@@ -692,7 +717,7 @@ void MainWindow::createRouteDetailsDock()
     routeWaypointTargetsTableWidget_->setColumnWidth(5, 220);
     routeWaypointTargetsTableWidget_->setMinimumHeight(170);
     routeWaypointTargetsTableWidget_->setStyleSheet(routeTableStyleSheet());
-    routeWaypointTargetsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    routeWaypointTargetsTableWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     routeWaypointTargetsLayout->addWidget(routeWaypointTargetsTableWidget_);
 
     routeWaypointsLayout->addWidget(routeWaypointOptionsRow);
@@ -703,16 +728,25 @@ void MainWindow::createRouteDetailsDock()
     auto* partPointsTabLayout = routeDetailsDock_->partPointsLayout();
 
     routePartsGroupBox_ = new QGroupBox(tr("Route Part Points"), routeDetailsTabWidget_);
+    routePartsGroupBox_->setMinimumWidth(0);
     auto* routePartsLayout = new QVBoxLayout(routePartsGroupBox_);
     routePartsLayout->setContentsMargins(10, 10, 10, 10);
     routePartsLayout->setSpacing(8);
 
     auto* routePartOptionsRow = new QWidget(routePartsGroupBox_);
-    auto* routePartOptionsLayout = new QHBoxLayout(routePartOptionsRow);
+    routePartOptionsRow->setMinimumWidth(0);
+    auto* routePartOptionsLayout = new QVBoxLayout(routePartOptionsRow);
     routePartOptionsLayout->setContentsMargins(0, 0, 0, 0);
-    routePartOptionsLayout->setSpacing(8);
+    routePartOptionsLayout->setSpacing(6);
+    auto* routePartPrimaryRow = new QHBoxLayout();
+    routePartPrimaryRow->setContentsMargins(0, 0, 0, 0);
+    routePartPrimaryRow->setSpacing(8);
+    auto* routePartSecondaryRow = new QHBoxLayout();
+    routePartSecondaryRow->setContentsMargins(0, 0, 0, 0);
+    routePartSecondaryRow->setSpacing(8);
     routePartLabelModeComboBox_ = new QComboBox(routePartOptionsRow);
-    routePartLabelModeComboBox_->setMinimumWidth(160);
+    routePartLabelModeComboBox_->setMinimumWidth(0);
+    routePartLabelModeComboBox_->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
     routePartLabelModeComboBox_->addItem(tr("Name"), static_cast<int>(RouteLabelDisplayMode::Name));
     routePartLabelModeComboBox_->addItem(tr("Index"), static_cast<int>(RouteLabelDisplayMode::Sequence));
     routePartLabelModeComboBox_->addItem(tr("Compact Name"), static_cast<int>(RouteLabelDisplayMode::CompactName));
@@ -724,19 +758,26 @@ void MainWindow::createRouteDetailsDock()
     routePartShowCoordinatesCheckBox_->setChecked(true);
     routePartShowCaptureAnglesCheckBox_->setChecked(true);
     routePartPointColorButton_ = new QPushButton(tr("Part Point Color"), routePartOptionsRow);
-    routePartPointColorButton_->setMinimumWidth(124);
-    routePartOptionsLayout->addWidget(routePartLabelModeComboBox_);
-    routePartOptionsLayout->addWidget(routePartPointColorButton_);
-    routePartOptionsLayout->addStretch(1);
-    routePartOptionsLayout->addWidget(routePartShowCoordinatesCheckBox_);
-    routePartOptionsLayout->addWidget(routePartShowCaptureAnglesCheckBox_);
+    routePartPointColorButton_->setMinimumWidth(0);
+    routePartPointColorButton_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    routePartPrimaryRow->addWidget(routePartLabelModeComboBox_, 1);
+    routePartPrimaryRow->addWidget(routePartPointColorButton_);
+    routePartSecondaryRow->addWidget(routePartShowCoordinatesCheckBox_);
+    routePartSecondaryRow->addWidget(routePartShowCaptureAnglesCheckBox_);
+    routePartSecondaryRow->addStretch(1);
+    routePartOptionsLayout->addLayout(routePartPrimaryRow);
+    routePartOptionsLayout->addLayout(routePartSecondaryRow);
 
     routePartPointsTableWidget_ = new QTableWidget(routePartsGroupBox_);
+    routePartPointsTableWidget_->setMinimumWidth(0);
     routePartPointsTableWidget_->setColumnCount(8);
     routePartPointsTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     routePartPointsTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     routePartPointsTableWidget_->setAlternatingRowColors(true);
     routePartPointsTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routePartPointsTableWidget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    routePartPointsTableWidget_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    routePartPointsTableWidget_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
     routePartPointsTableWidget_->setHorizontalHeaderLabels({
         tr("Index"),
         tr("Part Name"),
@@ -760,7 +801,7 @@ void MainWindow::createRouteDetailsDock()
     routePartPointsTableWidget_->setColumnWidth(6, 98);
     routePartPointsTableWidget_->setColumnWidth(7, 98);
     routePartPointsTableWidget_->setStyleSheet(routeTableStyleSheet());
-    routePartPointsTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    routePartPointsTableWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
 
     routePartsLayout->addWidget(routePartOptionsRow);
     routePartsLayout->addWidget(routePartPointsTableWidget_, 1);
@@ -769,6 +810,7 @@ void MainWindow::createRouteDetailsDock()
     auto* routeQaTabLayout = routeDetailsDock_->routeQaLayout();
 
     routeQaGroupBox_ = new QGroupBox(tr("Route QA"), routeDetailsTabWidget_);
+    routeQaGroupBox_->setMinimumWidth(0);
     auto* routeQaLayout = new QVBoxLayout(routeQaGroupBox_);
     routeQaLayout->setContentsMargins(10, 10, 10, 10);
     routeQaLayout->setSpacing(8);
@@ -778,11 +820,15 @@ void MainWindow::createRouteDetailsDock()
     routeQaSummaryValueLabel_->setStyleSheet(QStringLiteral("color: #166534; font-weight: 600;"));
 
     routeQaIssuesTableWidget_ = new QTableWidget(routeQaGroupBox_);
+    routeQaIssuesTableWidget_->setMinimumWidth(0);
     routeQaIssuesTableWidget_->setColumnCount(5);
     routeQaIssuesTableWidget_->setSelectionMode(QAbstractItemView::SingleSelection);
     routeQaIssuesTableWidget_->setSelectionBehavior(QAbstractItemView::SelectRows);
     routeQaIssuesTableWidget_->setAlternatingRowColors(true);
     routeQaIssuesTableWidget_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    routeQaIssuesTableWidget_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    routeQaIssuesTableWidget_->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+    routeQaIssuesTableWidget_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
     routeQaIssuesTableWidget_->setHorizontalHeaderLabels({
         tr("Severity"),
         tr("Issue"),
@@ -800,7 +846,7 @@ void MainWindow::createRouteDetailsDock()
     routeQaIssuesTableWidget_->setColumnWidth(3, 170);
     routeQaIssuesTableWidget_->setColumnWidth(4, 360);
     routeQaIssuesTableWidget_->setStyleSheet(routeTableStyleSheet());
-    routeQaIssuesTableWidget_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    routeQaIssuesTableWidget_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
 
     routeQaLayout->addWidget(routeQaSummaryValueLabel_);
     routeQaLayout->addWidget(routeQaIssuesTableWidget_, 1);
@@ -824,6 +870,7 @@ void MainWindow::createRouteDetailsDock()
 void MainWindow::createProfileClassificationDock()
 {
     profileClassificationDock_ = new ProfileClassificationDock(this);
+    profileClassificationDock_->setMinimumWidth(adaptiveDockWidth(this, 0.16, 240, 300));
     profileClassificationDock_->setContentWidget(profileClassificationGroupBox_);
 
     addDockWidget(Qt::LeftDockWidgetArea, profileClassificationDock_);
