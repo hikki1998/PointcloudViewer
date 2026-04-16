@@ -61,6 +61,7 @@ void MainWindow::createRibbon()
     datasetRibbonGroup_ = homePage_->addGroup(tr("Dataset"));
     datasetRibbonGroup_->addAction(openAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(addPointCloudAction_, Qt::ToolButtonTextUnderIcon);
+    datasetRibbonGroup_->addAction(projectCoordinateSystemsAction_, Qt::ToolButtonTextUnderIcon);
     datasetRibbonGroup_->addAction(clearAction_, Qt::ToolButtonTextUnderIcon);
 
     cameraRibbonGroup_ = homePage_->addGroup(tr("Camera"));

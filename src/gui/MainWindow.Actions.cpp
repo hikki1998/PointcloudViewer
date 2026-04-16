@@ -33,10 +33,10 @@ void MainWindow::createActions()
     saveProjectAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Project"), this);
     saveProjectAsAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Save Project As"), this);
     projectCoordinateSystemsAction_ = new QAction(
-        style()->standardIcon(QStyle::SP_FileDialogDetailedView),
-        tr("Project Properties"),
+        createRibbonIcon(RibbonGlyph::Open),
+        tr("Project Management"),
         this);
-    projectCoordinateSystemsAction_->setToolTip(tr("Open project coordinate system settings"));
+    projectCoordinateSystemsAction_->setToolTip(tr("Open project management in the backstage view"));
 
     clearAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear"), this);
     clearAction_->setToolTip(tr("Clear the current scene"));

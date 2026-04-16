@@ -60,6 +60,16 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.drawLine(QPointF(r.center().x(), r.bottom() - 2.0), QPointF(r.center().x() - 5.0, r.bottom() - 7.0));
         painter.drawLine(QPointF(r.center().x(), r.bottom() - 2.0), QPointF(r.center().x() + 5.0, r.bottom() - 7.0));
         break;
+    case RibbonGlyph::Save:
+        painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 4.0, 20.0, 20.0), 3.0, 3.0);
+        painter.drawRect(QRectF(r.left() + 7.0, r.top() + 6.0, 10.0, 6.5));
+        painter.setBrush(QColor(219, 234, 254));
+        painter.setPen(QPen(QColor(37, 99, 235), 1.8));
+        painter.drawRect(QRectF(r.left() + 7.0, r.top() + 15.0, 12.0, 7.0));
+        painter.setPen(QPen(kRibbonAccentColor, 2.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawLine(QPointF(r.right() - 1.0, r.bottom() - 1.0), QPointF(r.right() - 6.0, r.bottom() - 6.0));
+        painter.drawLine(QPointF(r.right() - 1.0, r.bottom() - 1.0), QPointF(r.right() - 1.0, r.bottom() - 7.0));
+        break;
     case RibbonGlyph::Clear:
         painter.drawRoundedRect(QRectF(r.left() + 3.0, r.top() + 10.0, 18.0, 12.0), 3.0, 3.0);
         painter.drawLine(QPointF(r.left() + 8.0, r.top() + 10.0), QPointF(r.left() + 12.0, r.top() + 5.0));
@@ -294,6 +304,24 @@ QIcon createRibbonIcon(RibbonGlyph glyph)
         painter.drawLine(QPointF(r.left() + 4.0, r.center().y()), QPointF(r.right() + 4.0, r.center().y()));
         painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 90 * 16, 180 * 16);
         painter.drawArc(QRectF(r.left() + 7.0, r.top() + 4.0, 12.0, 18.0), 270 * 16, 180 * 16);
+        break;
+    case RibbonGlyph::Settings:
+        painter.drawEllipse(QRectF(r.left() + 6.0, r.top() + 6.0, 12.0, 12.0));
+        painter.drawEllipse(QRectF(r.left() + 10.0, r.top() + 10.0, 4.0, 4.0));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 1.0), QPointF(r.center().x(), r.top() + 5.0));
+        painter.drawLine(QPointF(r.center().x(), r.bottom() - 1.0), QPointF(r.center().x(), r.bottom() - 5.0));
+        painter.drawLine(QPointF(r.left() + 1.0, r.center().y()), QPointF(r.left() + 5.0, r.center().y()));
+        painter.drawLine(QPointF(r.right() - 1.0, r.center().y()), QPointF(r.right() - 5.0, r.center().y()));
+        painter.drawLine(QPointF(r.left() + 4.0, r.top() + 4.0), QPointF(r.left() + 7.0, r.top() + 7.0));
+        painter.drawLine(QPointF(r.right() - 4.0, r.top() + 4.0), QPointF(r.right() - 7.0, r.top() + 7.0));
+        painter.drawLine(QPointF(r.left() + 4.0, r.bottom() - 4.0), QPointF(r.left() + 7.0, r.bottom() - 7.0));
+        painter.drawLine(QPointF(r.right() - 4.0, r.bottom() - 4.0), QPointF(r.right() - 7.0, r.bottom() - 7.0));
+        break;
+    case RibbonGlyph::About:
+        painter.drawEllipse(QRectF(r.left() + 4.0, r.top() + 4.0, 18.0, 18.0));
+        painter.setPen(QPen(kRibbonAccentColor, 2.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter.drawPoint(QPointF(r.center().x(), r.top() + 8.0));
+        painter.drawLine(QPointF(r.center().x(), r.top() + 12.0), QPointF(r.center().x(), r.bottom() - 2.0));
         break;
     }
 

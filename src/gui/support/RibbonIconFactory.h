@@ -9,6 +9,7 @@ namespace lasviewer::gui
 enum class RibbonGlyph
 {
     Open,
+    Save,
     Clear,
     Exit,
     Fit,
@@ -35,7 +36,9 @@ enum class RibbonGlyph
     TowerAdjust,
     TowerFocus,
     TowerRemove,
-    Language
+    Language,
+    Settings,
+    About
 };
 
 enum class WindowControlGlyph

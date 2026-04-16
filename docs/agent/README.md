@@ -12,6 +12,7 @@
 1. 根目录 `AGENTS.md`
 2. 根目录 `CLAUDE.md`（如果你使用 Claude Code）
 3. `context.md`
+4. `session-handoff.md`（如果需要快速接上最近一轮工程整理和高频改动点）
 
 ### 第 2 层：按任务选专题
 - 改架构、定位模块边界：
@@ -28,6 +29,8 @@
 - 近期设计/实现过程：
   - `docs/superpowers/specs/`
   - `docs/superpowers/plans/`
+- 最近一轮会话接手摘要：
+  - `session-handoff.md`
 - 发布说明：
   - `docs/releases/`
 
@@ -51,6 +54,8 @@
   - Claude Code 自动读取的兼容入口，内容尽量薄。
 - `docs/agent/context.md`
   - 5 分钟内建立仓库上下文。
+- `docs/agent/session-handoff.md`
+  - 最近一轮工程整理、代码热区和直接可执行的接手入口。
 - `docs/history/codex-collaboration-retrospective.md`
   - 项目演进复盘，不作为日常 onboarding 主入口。
 
@@ -59,4 +64,5 @@
 - 新增功能时，优先更新 `product-state.md`。
 - 新增常改路径、验证方法、翻译/发布流程时，优先更新 `workflows.md`。
 - 模块边界、核心数据流变化时，优先更新 `architecture.md`。
+- 会话级接手信息和近期高频改动入口，优先更新 `session-handoff.md`。
 - 只有当首读顺序变化时，才更新本文件和根目录 `AGENTS.md` / `CLAUDE.md`。

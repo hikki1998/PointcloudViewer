@@ -4,6 +4,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QFont>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -24,14 +25,41 @@
 #include "gui/BackstageProjectPropertiesWidget.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/support/RibbonIconFactory.h"
 #include "gui/support/SettingsKeys.h"
 #include "gui/support/UiHelpers.h"
 
 using namespace mainwindow_internal;
+using lasviewer::gui::RibbonGlyph;
+using lasviewer::gui::createRibbonIcon;
 using lasviewer::gui::showLightStyledMessageBox;
 using lasviewer::gui::showStyledOpenFileNameDialog;
 namespace settingskeys = lasviewer::gui::settingskeys;
 
+namespace
+{
+void normalizeBackstageNavigationButton(Qtitan::RibbonBackstageView* backstageView, QAction* action)
+{
+    if (backstageView == nullptr || action == nullptr) {
+        return;
+    }
+
+    const QList<Qtitan::RibbonBackstageButton*> buttons = backstageView->findChildren<Qtitan::RibbonBackstageButton*>();
+    for (Qtitan::RibbonBackstageButton* button : buttons) {
+        if (button == nullptr || button->defaultAction() != action) {
+            continue;
+        }
+
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        button->setIconSize(QSize(20, 20));
+        button->setMinimumHeight(38);
+        button->setTabStyle(true);
+        button->setFlatStyle(false);
+        button->updateGeometry();
+        button->update();
+    }
+}
+}
 void MainWindow::createBackstageView()
 {
     if (ribbonBar_ == nullptr || backstageSystemButton_ == nullptr) {
@@ -46,6 +74,18 @@ void MainWindow::createBackstageView()
             return;
         }
         page->setStyleSheet(backstagePageStyleSheet());
+    };
+    QFont backstageNavigationFont = font();
+    if (backstageNavigationFont.pointSizeF() < 11.0) {
+        backstageNavigationFont.setPointSizeF(11.0);
+    }
+    backstageNavigationFont.setWeight(QFont::Medium);
+    const auto configureBackstageNavigationAction = [&backstageNavigationFont](QAction* action, const QIcon& icon) {
+        if (action == nullptr) {
+            return;
+        }
+        action->setIcon(icon);
+        action->setFont(backstageNavigationFont);
     };
 
     backstageOpenPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
@@ -81,6 +121,7 @@ void MainWindow::createBackstageView()
         layout->addWidget(actionsCard, 1);
     }
     backstageOpenPageAction_ = backstageView_->addPage(backstageOpenPage_);
+    configureBackstageNavigationAction(backstageOpenPageAction_, createRibbonIcon(RibbonGlyph::Open));
 
     backstageOpenProjectPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
     backstageOpenProjectPage_->setObjectName(QStringLiteral("backstageOpenProjectPage"));
@@ -113,13 +154,16 @@ void MainWindow::createBackstageView()
         layout->addWidget(contentCard, 1);
     }
     backstageOpenProjectPageAction_ = backstageView_->addPage(backstageOpenProjectPage_);
+    configureBackstageNavigationAction(backstageOpenProjectPageAction_, createRibbonIcon(RibbonGlyph::Open));
 
-    backstageSaveAction_ = backstageView_->addAction(saveProjectAction_->icon(), saveProjectAction_->text());
-    backstageSaveAsAction_ = backstageView_->addAction(saveProjectAsAction_->icon(), saveProjectAsAction_->text());
+    backstageSaveAction_ = backstageView_->addAction(createRibbonIcon(RibbonGlyph::Save), saveProjectAction_->text());
+    configureBackstageNavigationAction(backstageSaveAction_, createRibbonIcon(RibbonGlyph::Save));
+    backstageSaveAsAction_ = backstageView_->addAction(createRibbonIcon(RibbonGlyph::Save), saveProjectAsAction_->text());
+    configureBackstageNavigationAction(backstageSaveAsAction_, createRibbonIcon(RibbonGlyph::Save));
 
     backstageProjectPropertiesPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
     backstageProjectPropertiesPage_->setObjectName(QStringLiteral("backstageProjectPropertiesPage"));
-    backstageProjectPropertiesPage_->setWindowTitle(tr("Project Properties"));
+    backstageProjectPropertiesPage_->setWindowTitle(tr("Project Management"));
     initializeBackstagePage(backstageProjectPropertiesPage_);
     {
         auto* layout = new QVBoxLayout(backstageProjectPropertiesPage_);
@@ -127,8 +171,8 @@ void MainWindow::createBackstageView()
         layout->setSpacing(18);
 
         auto* projectPropertiesHeaderWidget = new BackstagePageHeaderWidget(backstageProjectPropertiesPage_);
-        projectPropertiesHeaderWidget->setTitleText(tr("Project Properties"));
-        projectPropertiesHeaderWidget->setSubtitleText(tr("Review the active project file and coordinate system configuration."));
+        projectPropertiesHeaderWidget->setTitleText(tr("Project Management"));
+        projectPropertiesHeaderWidget->setSubtitleText(tr("Review the active project file, datasets, and coordinate system configuration."));
         backstageProjectPropertiesTitleLabel_ = projectPropertiesHeaderWidget->titleLabel();
         backstageProjectPropertiesSubtitleLabel_ = projectPropertiesHeaderWidget->subtitleLabel();
         layout->addWidget(projectPropertiesHeaderWidget);
@@ -148,6 +192,7 @@ void MainWindow::createBackstageView()
         layout->addStretch(1);
     }
     backstageProjectPropertiesPageAction_ = backstageView_->addPage(backstageProjectPropertiesPage_);
+    configureBackstageNavigationAction(backstageProjectPropertiesPageAction_, projectCoordinateSystemsAction_->icon());
 
     backstageApplicationSettingsPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
     backstageApplicationSettingsPage_->setObjectName(QStringLiteral("backstageApplicationSettingsPage"));
@@ -182,6 +227,7 @@ void MainWindow::createBackstageView()
         layout->addStretch(1);
     }
     backstageApplicationSettingsPageAction_ = backstageView_->addPage(backstageApplicationSettingsPage_);
+    configureBackstageNavigationAction(backstageApplicationSettingsPageAction_, createRibbonIcon(RibbonGlyph::Settings));
 
     backstageAboutPage_ = new Qtitan::RibbonBackstagePage(backstageView_);
     backstageAboutPage_->setObjectName(QStringLiteral("backstageAboutPage"));
@@ -209,9 +255,11 @@ void MainWindow::createBackstageView()
         layout->addStretch(1);
     }
     backstageAboutPageAction_ = backstageView_->addPage(backstageAboutPage_);
+    configureBackstageNavigationAction(backstageAboutPageAction_, createRibbonIcon(RibbonGlyph::About));
 
     backstageView_->addSeparator();
     backstageExitAction_ = backstageView_->addAction(exitAction_->icon(), exitAction_->text());
+    configureBackstageNavigationAction(backstageExitAction_, createRibbonIcon(RibbonGlyph::Exit));
 
     backstageSystemButton_->setBackstage(backstageView_);
 
@@ -265,6 +313,9 @@ void MainWindow::createBackstageView()
         }
     });
     connect(backstageView_, &Qtitan::RibbonBackstageView::aboutToShow, this, [this]() {
+        normalizeBackstageNavigationButton(backstageView_, backstageSaveAction_);
+        normalizeBackstageNavigationButton(backstageView_, backstageSaveAsAction_);
+        normalizeBackstageNavigationButton(backstageView_, backstageExitAction_);
         refreshBackstageRecentProjects();
         refreshBackstageProjectPropertiesPage();
         refreshBackstageApplicationSettingsPage();

@@ -1120,8 +1120,8 @@ void MainWindow::retranslateActionsAndBackstage()
     openProjectAction_->setText(tr("Open Project"));
     saveProjectAction_->setText(tr("Save Project"));
     saveProjectAsAction_->setText(tr("Save Project As"));
-    projectCoordinateSystemsAction_->setText(tr("Project Properties"));
-    projectCoordinateSystemsAction_->setToolTip(tr("Open project coordinate system settings"));
+    projectCoordinateSystemsAction_->setText(tr("Project Management"));
+    projectCoordinateSystemsAction_->setToolTip(tr("Open project management in the backstage view"));
     clearAction_->setText(tr("Clear"));
     clearAction_->setToolTip(tr("Clear the current scene"));
     exitAction_->setText(tr("Exit"));
@@ -1229,7 +1229,7 @@ void MainWindow::retranslateActionsAndBackstage()
         backstageOpenProjectPage_->setWindowTitle(tr("Open Project"));
     }
     if (backstageProjectPropertiesPage_ != nullptr) {
-        backstageProjectPropertiesPage_->setWindowTitle(tr("Project Properties"));
+        backstageProjectPropertiesPage_->setWindowTitle(tr("Project Management"));
     }
     if (backstageApplicationSettingsPage_ != nullptr) {
         backstageApplicationSettingsPage_->setWindowTitle(tr("Application Settings"));
@@ -1247,24 +1247,27 @@ void MainWindow::retranslateActionsAndBackstage()
     }
     if (backstageSaveAction_ != nullptr) {
         backstageSaveAction_->setText(saveProjectAction_->text());
-        backstageSaveAction_->setIcon(saveProjectAction_->icon());
+        backstageSaveAction_->setIcon(createRibbonIcon(RibbonGlyph::Save));
     }
     if (backstageSaveAsAction_ != nullptr) {
         backstageSaveAsAction_->setText(saveProjectAsAction_->text());
-        backstageSaveAsAction_->setIcon(saveProjectAsAction_->icon());
+        backstageSaveAsAction_->setIcon(createRibbonIcon(RibbonGlyph::Save));
     }
     if (backstageProjectPropertiesPageAction_ != nullptr) {
-        backstageProjectPropertiesPageAction_->setText(tr("Project Properties"));
+        backstageProjectPropertiesPageAction_->setText(tr("Project Management"));
+        backstageProjectPropertiesPageAction_->setIcon(projectCoordinateSystemsAction_->icon());
     }
     if (backstageApplicationSettingsPageAction_ != nullptr) {
         backstageApplicationSettingsPageAction_->setText(tr("Application Settings"));
+        backstageApplicationSettingsPageAction_->setIcon(createRibbonIcon(RibbonGlyph::Settings));
     }
     if (backstageAboutPageAction_ != nullptr) {
         backstageAboutPageAction_->setText(tr("About"));
+        backstageAboutPageAction_->setIcon(createRibbonIcon(RibbonGlyph::About));
     }
     if (backstageExitAction_ != nullptr) {
         backstageExitAction_->setText(exitAction_->text());
-        backstageExitAction_->setIcon(exitAction_->icon());
+        backstageExitAction_->setIcon(createRibbonIcon(RibbonGlyph::Exit));
     }
     if (backstageOpenTitleLabel_ != nullptr) {
         backstageOpenTitleLabel_->setText(tr("Open"));
@@ -1282,10 +1285,10 @@ void MainWindow::retranslateActionsAndBackstage()
         backstageOpenProjectWidget_->retranslateUi();
     }
     if (backstageProjectPropertiesTitleLabel_ != nullptr) {
-        backstageProjectPropertiesTitleLabel_->setText(tr("Project Properties"));
+        backstageProjectPropertiesTitleLabel_->setText(tr("Project Management"));
     }
     if (backstageProjectPropertiesSubtitleLabel_ != nullptr) {
-        backstageProjectPropertiesSubtitleLabel_->setText(tr("Review the active project file and coordinate system configuration."));
+        backstageProjectPropertiesSubtitleLabel_->setText(tr("Review the active project file, datasets, and coordinate system configuration."));
     }
     if (backstageProjectPropertiesWidget_ != nullptr) {
         backstageProjectPropertiesWidget_->retranslateUi();
@@ -4107,7 +4110,7 @@ void MainWindow::rebuildProjectTree()
     const QString projectName = currentProjectFilePath_.trimmed().isEmpty()
         ? tr("Unsaved Project")
         : QFileInfo(currentProjectFilePath_).completeBaseName();
-    auto* coordinateSystemsItem = new QTreeWidgetItem(projectTreeWidget_, QStringList { tr("Project Properties") });
+    auto* coordinateSystemsItem = new QTreeWidgetItem(projectTreeWidget_, QStringList { tr("Project Management") });
     coordinateSystemsItem->setData(0, kProjectTreeItemTypeRole, QStringLiteral("coordinateSystemsItem"));
     coordinateSystemsItem->setIcon(0, style()->standardIcon(QStyle::SP_FileDialogContentsView));
     coordinateSystemsItem->setToolTip(
@@ -4654,7 +4657,7 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     }
 
     if (itemType == QStringLiteral("projectGroup") || itemType == QStringLiteral("coordinateSystemsItem")) {
-        QAction* propertiesAction = menu.addAction(tr("Project Properties"));
+        QAction* propertiesAction = menu.addAction(tr("Project Management"));
         QAction* chosenAction = menu.exec(globalPos);
         if (chosenAction == propertiesAction) {
             openProjectCoordinateSystems();
