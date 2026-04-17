@@ -101,6 +101,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
+    bool event(QEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
     void changeEvent(QEvent* event) override;
     void showEvent(QShowEvent* event) override;
@@ -190,7 +191,7 @@ private:
     void loadLanguageSettings();
     void persistLanguageSettings() const;
     void loadWindowSettings();
-    void persistWindowSettings() const;
+    void persistWindowSettings(bool force = false) const;
     void loadThemeSettings();
     void persistThemeSettings() const;
     void syncProfileDockForMeasurementMode(bool measurementEnabled);
@@ -613,6 +614,7 @@ private:
     int selectedRouteQaIssueIndex_ = -1;
     bool routeEditingEnabled_ = false;
     bool loadingWindowSettings_ = false;
+    bool closingWindow_ = false;
     bool updatingRouteTables_ = false;
     bool updatingTowerDetails_ = false;
     bool updatingIssueDetails_ = false;

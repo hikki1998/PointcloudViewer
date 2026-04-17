@@ -21,6 +21,8 @@
   - `product-state.md`
 - 准备动手改代码、跑验证、更新翻译或发布：
   - `workflows.md`
+- 想继续接 `MainWindow` 拆分后的回归收口、防复发规则：
+  - `refactor-regression-report.md` + `workflows.md`
 
 ### 第 3 层：按专题深挖
 - 航线模块规划与后续优化：
@@ -29,6 +31,8 @@
 - 近期设计/实现过程：
   - `docs/superpowers/specs/`
   - `docs/superpowers/plans/`
+- `MainWindow` 重构回归收口：
+  - `refactor-regression-report.md`
 - 最近一轮会话接手摘要：
   - `session-handoff.md`
 - 发布说明：
@@ -39,6 +43,7 @@
 | 任务 | 先读 |
 |---|---|
 | UI / Ribbon / dock / 交互 | `architecture.md` + `workflows.md` |
+| MainWindow 重构 / 回归防复发 | `refactor-regression-report.md` + `workflows.md` |
 | OSG 渲染 / 显示参数 / 点云表现 | `architecture.md` + `workflows.md` |
 | 航线编辑 / 巡检业务 / 导出 | `product-state.md` + `planning/ROUTE_MODULE_ROADMAP.md` |
 | 构建 / 依赖 / smoke test / 发布 | `workflows.md` |
@@ -56,6 +61,8 @@
   - 5 分钟内建立仓库上下文。
 - `docs/agent/session-handoff.md`
   - 最近一轮工程整理、代码热区和直接可执行的接手入口。
+- `docs/agent/refactor-regression-report.md`
+  - `MainWindow` 拆分后的回归家族、修复结论、验证范围和防复发规则。
 - `docs/history/codex-collaboration-retrospective.md`
   - 项目演进复盘，不作为日常 onboarding 主入口。
 
@@ -65,4 +72,5 @@
 - 新增常改路径、验证方法、翻译/发布流程时，优先更新 `workflows.md`。
 - 模块边界、核心数据流变化时，优先更新 `architecture.md`。
 - 会话级接手信息和近期高频改动入口，优先更新 `session-handoff.md`。
+- `MainWindow` 重构回归结论、防复发清单和验证陷阱，优先更新 `refactor-regression-report.md`。
 - 只有当首读顺序变化时，才更新本文件和根目录 `AGENTS.md` / `CLAUDE.md`。

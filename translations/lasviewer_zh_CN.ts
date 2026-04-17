@@ -1859,7 +1859,7 @@ Current project CRS: %2</source>
     <message>
         <location filename="../src/gui/MainWindow.Route.cpp" line="620"/>
         <source>%1 -&gt; %2 | DJI profile: %3 | Safety %4 m | Speed %5 m/s | Spacing %6 m | Smoothing %7%% | Height offset %8 m</source>
-        <translation>%1 -&gt; %2</translation>
+        <translation>%1 -&gt; %2 | DJI 机型：%3 | 安全高度 %4 米 | 速度 %5 米/秒 | 航点间距 %6 米 | 平滑 %7%% | 高程偏移 %8 米</translation>
     </message>
     <message>
         <source>Project</source>
@@ -3721,7 +3721,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     <message>
         <location filename="../src/gui/MainWindow.Helpers.cpp" line="108"/>
         <source>%1 -&gt; %2</source>
-        <translation>工程坐标系已更新。</translation>
+        <translation>%1 -&gt; %2</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="298"/>

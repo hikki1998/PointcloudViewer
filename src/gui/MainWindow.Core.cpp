@@ -227,8 +227,20 @@ void MainWindow::closeEvent(QCloseEvent* event)
     persistMeasurementSettings();
     persistLanguageSettings();
     persistThemeSettings();
-    persistWindowSettings();
+    persistWindowSettings(true);
     Qtitan::RibbonMainWindow::closeEvent(event);
+    if (event != nullptr && !event->isAccepted()) {
+        closingWindow_ = false;
+    }
+}
+
+bool MainWindow::event(QEvent* event)
+{
+    if (event != nullptr && event->type() == QEvent::Close) {
+        closingWindow_ = true;
+    }
+
+    return Qtitan::RibbonMainWindow::event(event);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)

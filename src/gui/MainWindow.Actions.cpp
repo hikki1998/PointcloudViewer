@@ -114,6 +114,7 @@ void MainWindow::createActions()
     clearMeasurementAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Measure"), this);
     exportClearanceCsvAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Export Clearance CSV"), this);
     showProfileDockAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Profile View"), this);
+    showProfileDockAction_->setObjectName(QStringLiteral("showProfileDockAction"));
     showProfileDockAction_->setCheckable(true);
     showProfileDockAction_->setChecked(false);
     analyzeVegetationRisksAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Analyze Risks"), this);

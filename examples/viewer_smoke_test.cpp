@@ -3,6 +3,7 @@
 #include <QCommandLineParser>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QColorDialog>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -20,9 +21,11 @@
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSettings>
 #include <QSet>
 #include <QSlider>
 #include <QMouseEvent>
+#include <QMenu>
 #include <QSpinBox>
 #include <QScreen>
 #include <QSurfaceFormat>
@@ -34,6 +37,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QTranslator>
+#include <QTimer>
 #include <QLineEdit>
 
 #ifdef Q_OS_WIN
@@ -50,16 +54,21 @@
 #include "domain/TowerFileInterop.h"
 #include "gui/ApplicationLogDock.h"
 #include "gui/IssueController.h"
+#define private public
 #include "gui/MainWindow.h"
-#include "gui/MeasurementAnalysisController.h"
 #include "gui/PointCloudViewer.h"
+#undef private
+#include "gui/MeasurementAnalysisController.h"
+#include "gui/NavigationSettingsWidget.h"
 #include "gui/ProfileClassificationController.h"
+#include "gui/ProfileClassificationDock.h"
 #include "gui/ProfileClassificationWidget.h"
 #include "gui/ProjectExplorerController.h"
 #include "gui/ProjectExplorerDock.h"
 #include "gui/RouteDetailsDock.h"
 #include "gui/RouteController.h"
 #include "gui/SceneInspectorDock.h"
+#include "gui/SpanProfileDock.h"
 #include "gui/TowerController.h"
 #include "gui/VisualizationPanelController.h"
 #include "logging/ApplicationLogger.h"
@@ -82,6 +91,8 @@ struct SmokeCase
     bool requiresLas = false;
     std::function<bool(const QStringList&)> run;
 };
+
+PowerlineRouteDocument buildSyntheticRoute();
 
 void pumpEvents(int durationMs)
 {
@@ -110,6 +121,265 @@ bool verifyClose(double left, double right, double tolerance, const std::string&
         return false;
     }
     return true;
+}
+
+bool invokeTableContextMenuAndClose(QTableWidget* table, const QPoint& position, const std::string& message)
+{
+    if (table == nullptr) {
+        std::cerr << "[FAIL] " << message << " table is null" << std::endl;
+        return false;
+    }
+
+    bool popupClosed = false;
+    const auto closePopup = [&popupClosed]() {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            popupClosed = true;
+            menu->close();
+        }
+    };
+    QTimer::singleShot(0, closePopup);
+    QTimer::singleShot(25, closePopup);
+    QTimer::singleShot(80, closePopup);
+
+    const bool invoked = QMetaObject::invokeMethod(
+        table,
+        "customContextMenuRequested",
+        Qt::DirectConnection,
+        Q_ARG(QPoint, position));
+    if (!invoked) {
+        std::cerr << "[FAIL] " << message << " invokeMethod failed" << std::endl;
+        return false;
+    }
+
+    pumpEvents(120);
+    if (!popupClosed) {
+        std::cerr << "[FAIL] " << message << " popup menu did not close" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool invokeTreeContextMenuAndClose(QTreeWidget* tree, const QPoint& position, const std::string& message)
+{
+    if (tree == nullptr) {
+        std::cerr << "[FAIL] " << message << " tree is null" << std::endl;
+        return false;
+    }
+
+    bool popupClosed = false;
+    const auto closePopup = [&popupClosed]() {
+        if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget())) {
+            popupClosed = true;
+            menu->close();
+        }
+    };
+    QTimer::singleShot(0, closePopup);
+    QTimer::singleShot(25, closePopup);
+    QTimer::singleShot(80, closePopup);
+
+    const bool invoked = QMetaObject::invokeMethod(
+        tree,
+        "customContextMenuRequested",
+        Qt::DirectConnection,
+        Q_ARG(QPoint, position));
+    if (!invoked) {
+        std::cerr << "[FAIL] " << message << " invokeMethod failed" << std::endl;
+        return false;
+    }
+
+    pumpEvents(120);
+    if (!popupClosed) {
+        std::cerr << "[FAIL] " << message << " popup menu did not close" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool emitTableDoubleClick(QTableWidget* table, int row, int column, const std::string& message)
+{
+    if (table == nullptr) {
+        std::cerr << "[FAIL] " << message << " table is null" << std::endl;
+        return false;
+    }
+
+    const bool invoked = QMetaObject::invokeMethod(
+        table,
+        "cellDoubleClicked",
+        Qt::DirectConnection,
+        Q_ARG(int, row),
+        Q_ARG(int, column));
+    if (!invoked) {
+        std::cerr << "[FAIL] " << message << " invokeMethod failed" << std::endl;
+        return false;
+    }
+
+    pumpEvents(40);
+    return true;
+}
+
+bool emitTreeItemDoubleClick(QTreeWidget* tree, QTreeWidgetItem* item, int column, const std::string& message)
+{
+    if (tree == nullptr) {
+        std::cerr << "[FAIL] " << message << " tree is null" << std::endl;
+        return false;
+    }
+    if (item == nullptr) {
+        std::cerr << "[FAIL] " << message << " item is null" << std::endl;
+        return false;
+    }
+
+    const bool invoked = QMetaObject::invokeMethod(
+        tree,
+        "itemDoubleClicked",
+        Qt::DirectConnection,
+        Q_ARG(QTreeWidgetItem*, item),
+        Q_ARG(int, column));
+    if (!invoked) {
+        std::cerr << "[FAIL] " << message << " invokeMethod failed" << std::endl;
+        return false;
+    }
+
+    pumpEvents(40);
+    return true;
+}
+
+bool clickColorButtonAndAccept(QPushButton* button, const QColor& color, const std::string& message)
+{
+    if (button == nullptr) {
+        std::cerr << "[FAIL] " << message << " button is null" << std::endl;
+        return false;
+    }
+
+    bool dialogAccepted = false;
+    QTimer::singleShot(0, [color, &dialogAccepted]() {
+        auto* dialog = qobject_cast<QColorDialog*>(QApplication::activeModalWidget());
+        if (dialog != nullptr) {
+            dialog->setCurrentColor(color);
+            dialogAccepted = true;
+            dialog->accept();
+        }
+    });
+
+    button->click();
+    pumpEvents(160);
+    if (!dialogAccepted) {
+        std::cerr << "[FAIL] " << message << " color dialog was not accepted" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+QTreeWidgetItem* findProjectTreeItem(
+    QTreeWidget* tree,
+    const std::function<bool(QTreeWidgetItem*)>& predicate)
+{
+    if (tree == nullptr) {
+        return nullptr;
+    }
+
+    const auto findInBranch = [&](auto&& self, QTreeWidgetItem* item) -> QTreeWidgetItem* {
+        if (item == nullptr) {
+            return nullptr;
+        }
+        if (predicate(item)) {
+            return item;
+        }
+        for (int childIndex = 0; childIndex < item->childCount(); ++childIndex) {
+            if (QTreeWidgetItem* matchedItem = self(self, item->child(childIndex))) {
+                return matchedItem;
+            }
+        }
+        return nullptr;
+    };
+
+    for (int rootIndex = 0; rootIndex < tree->topLevelItemCount(); ++rootIndex) {
+        if (QTreeWidgetItem* matchedItem = findInBranch(findInBranch, tree->topLevelItem(rootIndex))) {
+            return matchedItem;
+        }
+    }
+
+    return nullptr;
+}
+
+InspectionRouteDisplayData buildSmokeRouteDisplayData(const PowerlineRouteDocument& route)
+{
+    InspectionRouteDisplayData displayData;
+    QHash<int, RoutePartPoint> partPointByIndex;
+    for (const RoutePartPoint& partPoint : route.partPoints) {
+        displayData.partPoints.append(partPoint.localPoint);
+        displayData.partLabels.append(partPoint.partName);
+        displayData.partPointIndices.append(partPoint.partIndex);
+        if (partPoint.partIndex > 0) {
+            partPointByIndex.insert(partPoint.partIndex, partPoint);
+        }
+    }
+
+    for (int waypointIndex = 0; waypointIndex < route.waypoints.size(); ++waypointIndex) {
+        const RouteWaypoint& waypoint = route.waypoints.at(waypointIndex);
+        displayData.waypoints.append(waypoint.localPoint);
+        displayData.labels.append(QString::number(waypointIndex + 1));
+        displayData.waypointAircraftYawDegs.append(waypoint.aircraftYawDeg);
+        displayData.waypointGimbalPitchDegs.append(waypoint.gimbalPitchDeg);
+
+        QList<PointRecord> allTargetPoints;
+        QList<int> allTargetPartIndices;
+        QList<double> allCameraYawDegs;
+        QList<double> allCameraPitchDegs;
+        QList<double> allFocalLengthRatios;
+        QStringList allTargetLabels;
+        for (const RouteCaptureTarget& captureTarget : waypoint.captureTargets) {
+            PointRecord resolvedTargetPoint = captureTarget.targetLocalPoint;
+            if (captureTarget.partIndex > 0
+                && partPointByIndex.contains(captureTarget.partIndex)
+                && resolvedTargetPoint.x == 0.0f
+                && resolvedTargetPoint.y == 0.0f
+                && resolvedTargetPoint.z == 0.0f) {
+                resolvedTargetPoint = partPointByIndex.value(captureTarget.partIndex).localPoint;
+            }
+
+            allTargetPoints.append(resolvedTargetPoint);
+            allTargetPartIndices.append(captureTarget.partIndex);
+            allCameraYawDegs.append(captureTarget.cameraYawDeg);
+            allCameraPitchDegs.append(captureTarget.cameraPitchDeg);
+            allFocalLengthRatios.append(captureTarget.focalLengthRatio);
+            allTargetLabels.append(captureTarget.partName);
+        }
+
+        if (!waypoint.captureTargets.isEmpty()) {
+            const RouteCaptureTarget& firstTarget = waypoint.captureTargets.first();
+            PointRecord firstTargetPoint = firstTarget.targetLocalPoint;
+            if (firstTarget.partIndex > 0
+                && partPointByIndex.contains(firstTarget.partIndex)
+                && firstTargetPoint.x == 0.0f
+                && firstTargetPoint.y == 0.0f
+                && firstTargetPoint.z == 0.0f) {
+                firstTargetPoint = partPointByIndex.value(firstTarget.partIndex).localPoint;
+            }
+
+            displayData.waypointHasTargetPoints.append(true);
+            displayData.waypointTargetPoints.append(firstTargetPoint);
+            displayData.waypointCameraYawDegs.append(firstTarget.cameraYawDeg);
+            displayData.waypointCameraPitchDegs.append(firstTarget.cameraPitchDeg);
+            displayData.waypointFocalLengthRatios.append(firstTarget.focalLengthRatio);
+            displayData.waypointTargetLabels.append(firstTarget.partName);
+        } else {
+            displayData.waypointHasTargetPoints.append(false);
+            displayData.waypointTargetPoints.append(PointRecord());
+            displayData.waypointCameraYawDegs.append(0.0);
+            displayData.waypointCameraPitchDegs.append(0.0);
+            displayData.waypointFocalLengthRatios.append(1.0);
+            displayData.waypointTargetLabels.append(QString());
+        }
+
+        displayData.waypointAllTargetPoints.append(allTargetPoints);
+        displayData.waypointAllTargetPartIndices.append(allTargetPartIndices);
+        displayData.waypointAllCameraYawDegs.append(allCameraYawDegs);
+        displayData.waypointAllCameraPitchDegs.append(allCameraPitchDegs);
+        displayData.waypointAllFocalLengthRatios.append(allFocalLengthRatios);
+        displayData.waypointAllTargetLabels.append(allTargetLabels);
+    }
+
+    return displayData;
 }
 
 #ifdef Q_OS_WIN
@@ -399,7 +669,7 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
     return allPassed;
 }
 
-bool runMainBackstageSmoke(const QStringList&)
+bool runMainBackstageSmoke(const QStringList& filePaths)
 {
     QTranslator appTranslator;
     QTranslator qtTranslator;
@@ -429,6 +699,944 @@ bool runMainBackstageSmoke(const QStringList&)
         return false;
     }
 
+    SpanProfileDock* profileDock = window.findChild<SpanProfileDock*>();
+    if (!verify(profileDock != nullptr, "MainWindow should create the span profile dock")) {
+        return false;
+    }
+
+    QAction* showProfileDockAction = window.findChild<QAction*>(QStringLiteral("showProfileDockAction"));
+    if (!verify(showProfileDockAction != nullptr, "MainWindow should expose the profile dock toggle action")) {
+        return false;
+    }
+    if (!verify(!profileDock->isVisible(), "Span profile dock should be hidden by default")) {
+        return false;
+    }
+
+    showProfileDockAction->setChecked(true);
+    pumpEvents(200);
+    if (!verify(profileDock->isVisible(), "Profile dock toggle action should show the span profile dock")) {
+        return false;
+    }
+
+    showProfileDockAction->setChecked(false);
+    pumpEvents(200);
+    if (!verify(!profileDock->isVisible(), "Profile dock toggle action should hide the span profile dock")) {
+        return false;
+    }
+
+    ProjectExplorerDock* projectDock = window.findChild<ProjectExplorerDock*>();
+    if (!verify(projectDock != nullptr, "MainWindow should create the project explorer dock")) {
+        return false;
+    }
+
+    PointCloudViewer* viewer = window.findChild<PointCloudViewer*>();
+    if (!verify(viewer != nullptr, "MainWindow should create the embedded point cloud viewer")) {
+        return false;
+    }
+
+    QTreeWidget* projectTree = projectDock->treeWidget();
+    if (!verify(projectTree != nullptr, "Project explorer dock should expose the project tree")) {
+        return false;
+    }
+
+    RouteDetailsDock* routeDetailsDock = window.findChild<RouteDetailsDock*>();
+    if (!verify(routeDetailsDock != nullptr, "MainWindow should create the route details dock")) {
+        return false;
+    }
+
+    const QString lasFilePath = filePaths.isEmpty() ? QString() : QFileInfo(filePaths.constFirst()).absoluteFilePath();
+      if (!lasFilePath.isEmpty() && QFileInfo::exists(lasFilePath)) {
+          QString errorMessage;
+          if (!viewer->loadPointCloud(lasFilePath, &errorMessage)) {
+            std::cerr << "[FAIL] MainWindow viewer failed to load point cloud: "
+                      << errorMessage.toStdString() << std::endl;
+            return false;
+        }
+
+        pumpEvents(1200);
+        if (!verify(projectTree->topLevelItemCount() >= 4, "Loading a point cloud should rebuild the project tree")) {
+            return false;
+        }
+
+        QTreeWidgetItem* pointCloudGroupItem = projectTree->topLevelItem(1);
+        if (!verify(pointCloudGroupItem != nullptr, "Project tree should expose the point cloud group")) {
+            return false;
+        }
+          if (!verify(pointCloudGroupItem->childCount() >= 1, "Project tree should list the loaded point cloud dataset")) {
+              return false;
+          }
+
+          NavigationSettingsWidget* navigationSettingsWidget = window.findChild<NavigationSettingsWidget*>();
+          if (!verify(navigationSettingsWidget != nullptr, "MainWindow should create the navigation settings widget")) {
+              return false;
+          }
+          if (!verify(navigationSettingsWidget->wheelZoomSensitivitySlider() != nullptr, "Navigation settings widget should expose the wheel sensitivity slider")) {
+              return false;
+          }
+
+          const bool initialInvertOrbit = viewer->interactionOptions().invertOrbitDrag;
+          navigationSettingsWidget->invertOrbitCheckBox()->setChecked(!initialInvertOrbit);
+          pumpEvents(60);
+          if (!verify(
+                  viewer->interactionOptions().invertOrbitDrag == !initialInvertOrbit,
+                  "Invert orbit checkbox should sync into viewer interaction options")) {
+              return false;
+          }
+
+          const bool initialInvertPan = viewer->interactionOptions().invertPanDrag;
+          navigationSettingsWidget->invertPanCheckBox()->setChecked(!initialInvertPan);
+          pumpEvents(60);
+          if (!verify(
+                  viewer->interactionOptions().invertPanDrag == !initialInvertPan,
+                  "Invert pan checkbox should sync into viewer interaction options")) {
+              return false;
+          }
+
+          const bool initialInvertWheel = viewer->interactionOptions().invertWheelZoom;
+          navigationSettingsWidget->invertWheelCheckBox()->setChecked(!initialInvertWheel);
+          pumpEvents(60);
+          if (!verify(
+                  viewer->interactionOptions().invertWheelZoom == !initialInvertWheel,
+                  "Invert wheel checkbox should sync into viewer interaction options")) {
+              return false;
+          }
+
+          const int updatedWheelSensitivity = std::clamp(
+              viewer->interactionOptions().wheelZoomSensitivityPercent + 15,
+              navigationSettingsWidget->wheelZoomSensitivitySlider()->minimum(),
+              navigationSettingsWidget->wheelZoomSensitivitySlider()->maximum());
+          navigationSettingsWidget->wheelZoomSensitivitySlider()->setValue(updatedWheelSensitivity);
+          pumpEvents(60);
+          if (!verify(
+                  viewer->interactionOptions().wheelZoomSensitivityPercent == updatedWheelSensitivity,
+                  "Wheel zoom sensitivity slider should sync into viewer interaction options")) {
+              return false;
+          }
+          if (!verify(
+                  navigationSettingsWidget->wheelZoomSensitivityValueLabel()->text().contains(QString::number(updatedWheelSensitivity)),
+                  "Wheel zoom sensitivity slider should update its value label")) {
+              return false;
+          }
+
+          QTableWidget* classificationTable = nullptr;
+          for (QTableWidget* table : window.findChildren<QTableWidget*>()) {
+              if (table != nullptr && table->columnCount() == 4 && table->rowCount() > 0) {
+                  classificationTable = table;
+                  break;
+              }
+          }
+          if (!verify(classificationTable != nullptr, "MainWindow should populate the classification mapping table after loading point cloud")) {
+              return false;
+          }
+          if (!verify(classificationTable->item(0, 0) != nullptr, "Classification mapping table should populate visibility cells")) {
+              return false;
+          }
+          if (!verify(classificationTable->item(0, 2) != nullptr, "Classification mapping table should populate class name cells")) {
+              return false;
+          }
+
+          const int classificationCode = classificationTable->item(0, 0)->data(Qt::UserRole).toInt();
+          const Qt::CheckState toggledVisibility =
+              classificationTable->item(0, 0)->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked;
+          classificationTable->item(0, 0)->setCheckState(toggledVisibility);
+          pumpEvents(80);
+          const bool expectedVisibility = toggledVisibility == Qt::Checked;
+          if (!verify(
+                  viewer->visualizationOptions().classificationVisibility.value(classificationCode, true) == expectedVisibility,
+                  "Classification visibility checkbox should sync into viewer visualization options")) {
+              return false;
+          }
+
+          const QString originalClassificationName = classificationTable->item(0, 2)->text();
+          const QString customClassificationName = originalClassificationName + QStringLiteral(" Smoke");
+          classificationTable->item(0, 2)->setText(customClassificationName);
+          pumpEvents(80);
+          if (!verify(
+                  classificationTable->item(0, 2) != nullptr && classificationTable->item(0, 2)->text() == customClassificationName,
+                  "Classification name edits should round-trip through the MainWindow mapping table")) {
+              return false;
+          }
+
+          QPushButton* resetClassificationButton = classificationTable->parentWidget() != nullptr
+              ? classificationTable->parentWidget()->findChild<QPushButton*>()
+              : nullptr;
+          if (!verify(resetClassificationButton != nullptr, "Classification mapping group should expose the reset button")) {
+              return false;
+          }
+          resetClassificationButton->click();
+          pumpEvents(80);
+          if (!verify(
+                  classificationTable->item(0, 2) != nullptr && classificationTable->item(0, 2)->text() == originalClassificationName,
+                  "Reset classification button should restore default class names")) {
+              return false;
+          }
+
+          if (!verify(window.measurementAnalysisController_ != nullptr, "MainWindow should create the measurement analysis controller")) {
+              return false;
+          }
+          if (!verify(window.routeController_ != nullptr, "MainWindow should create the route controller")) {
+              return false;
+          }
+          if (!verify(window.vegetationRisksTableWidget_ != nullptr, "MainWindow should keep the vegetation risks table wired")) {
+              return false;
+          }
+          if (!verify(window.clearanceSegmentsTableWidget_ != nullptr, "MainWindow should keep the clearance segments table wired")) {
+              return false;
+          }
+          if (!verify(window.measureAction_ != nullptr, "MainWindow should keep the measurement action wired")) {
+              return false;
+          }
+          if (!verify(window.generateInspectionRouteAction_ != nullptr, "MainWindow should keep the route generation action wired")) {
+              return false;
+          }
+
+          MeasurementResult measurementResult;
+          PointRecord measurementStart;
+          measurementStart.x = 0.0f;
+          measurementStart.y = 0.0f;
+          measurementStart.z = 10.0f;
+          measurementResult.points.append(measurementStart);
+          PointRecord measurementEnd;
+          measurementEnd.x = 80.0f;
+          measurementEnd.y = 20.0f;
+          measurementEnd.z = 12.0f;
+          measurementResult.points.append(measurementEnd);
+          measurementResult.hasStartPoint = true;
+          measurementResult.hasEndPoint = true;
+          measurementResult.startPoint = measurementStart;
+          measurementResult.endPoint = measurementEnd;
+          measurementResult.distance3d = 82.4864f;
+          measurementResult.deltaZ = 2.0f;
+          viewer->measurementResult_ = measurementResult;
+
+          window.measureAction_->setChecked(true);
+          pumpEvents(80);
+          if (!verify(viewer->measurementEnabled(), "Measurement action should enable viewer measurement mode through MainWindow")) {
+              return false;
+          }
+          if (!verify(profileDock->isVisible(), "Measurement action should surface the profile dock through MainWindow")) {
+              return false;
+          }
+
+          window.clearMeasurementAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->measurementResult().points.isEmpty(), "Clear measurement action should clear viewer measurement points")) {
+              return false;
+          }
+
+          viewer->measurementResult_ = measurementResult;
+          window.measureAction_->setChecked(false);
+          pumpEvents(80);
+          if (!verify(!viewer->measurementEnabled(), "Measurement action should disable viewer measurement mode through MainWindow")) {
+              return false;
+          }
+
+          const double updatedThreshold = window.clearanceWarningThresholdMeters_ + 3.0;
+          window.clearanceThresholdSpinBox_->setValue(updatedThreshold);
+          pumpEvents(80);
+          if (!verifyClose(window.clearanceWarningThresholdMeters_, updatedThreshold, 0.001, "Clearance threshold spin box should sync into MainWindow state")) {
+              return false;
+          }
+
+          if (window.clearanceRulePresetComboBox_->count() > 1) {
+              const int presetIndex = (window.clearanceRulePresetComboBox_->currentIndex() + 1) % window.clearanceRulePresetComboBox_->count();
+              const ClearanceRulePreset expectedPreset = static_cast<ClearanceRulePreset>(
+                  window.clearanceRulePresetComboBox_->itemData(presetIndex).toInt());
+              window.clearanceRulePresetComboBox_->setCurrentIndex(presetIndex);
+              pumpEvents(80);
+              if (!verify(window.clearanceRulePreset_ == expectedPreset, "Clearance preset combo box should sync into MainWindow state")) {
+                  return false;
+              }
+          }
+
+          QList<VegetationRiskRecord> smokeRisks;
+          VegetationRiskRecord firstRisk;
+          firstRisk.id = QStringLiteral("risk-main-001");
+          firstRisk.title = QStringLiteral("Vegetation Risk A");
+          firstRisk.severity = AnalysisSeverity::Warning;
+          firstRisk.point.x = 40.0f;
+          firstRisk.point.y = 50.0f;
+          firstRisk.point.z = 18.0f;
+          firstRisk.minimumDistance = 4.5f;
+          firstRisk.chainageStart = 10.0f;
+          firstRisk.chainageEnd = 20.0f;
+          firstRisk.sourceRule = QStringLiteral("Rule-A");
+          firstRisk.notes = QStringLiteral("Near conductor");
+          smokeRisks.append(firstRisk);
+
+          VegetationRiskRecord secondRisk = firstRisk;
+          secondRisk.id = QStringLiteral("risk-main-002");
+          secondRisk.title = QStringLiteral("Vegetation Risk B");
+          secondRisk.severity = AnalysisSeverity::Critical;
+          secondRisk.point.x = 110.0f;
+          secondRisk.point.y = 75.0f;
+          secondRisk.point.z = 22.0f;
+          secondRisk.minimumDistance = 2.5f;
+          secondRisk.chainageStart = 60.0f;
+          secondRisk.chainageEnd = 72.0f;
+          secondRisk.sourceRule = QStringLiteral("Rule-B");
+          secondRisk.notes = QStringLiteral("Critical gap");
+          smokeRisks.append(secondRisk);
+
+          viewer->clearInspectionIssues();
+          pumpEvents(60);
+          window.vegetationRiskResults_ = smokeRisks;
+          window.selectedVegetationRiskIndex_ = 0;
+          window.vegetationRisksTableWidget_->setRowCount(smokeRisks.size());
+          for (int riskRow = 0; riskRow < smokeRisks.size(); ++riskRow) {
+              if (window.vegetationRisksTableWidget_->item(riskRow, 0) == nullptr) {
+                  window.vegetationRisksTableWidget_->setItem(
+                      riskRow,
+                      0,
+                      new QTableWidgetItem(smokeRisks.at(riskRow).title));
+              } else {
+                  window.vegetationRisksTableWidget_->item(riskRow, 0)->setText(smokeRisks.at(riskRow).title);
+              }
+          }
+          if (!verify(window.vegetationRisksTableWidget_->rowCount() == smokeRisks.size(), "Vegetation risks should populate the MainWindow risk table")) {
+              return false;
+          }
+
+          window.vegetationRisksTableWidget_->setCurrentCell(1, 0);
+          pumpEvents(80);
+          if (!verify(window.selectedVegetationRiskIndex_ == 1, "Vegetation risk table selection should sync into MainWindow state")) {
+              return false;
+          }
+
+          window.createIssueFromRiskAction_->trigger();
+          pumpEvents(120);
+          if (!verify(viewer->inspectionIssues().size() == 1, "Create issue from risk action should add an inspection issue through MainWindow")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().first().title == secondRisk.title, "Issue created from vegetation risk should keep the selected risk title")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().first().severity == IssueSeverity::Critical, "Issue created from vegetation risk should map the risk severity")) {
+              return false;
+          }
+
+          window.clearVegetationRisksAction_->trigger();
+          pumpEvents(80);
+          if (!verify(window.vegetationRiskResults_.isEmpty(), "Clear vegetation risks action should clear MainWindow vegetation results")) {
+              return false;
+          }
+          if (!verify(window.vegetationRisksTableWidget_->rowCount() == 0, "Clear vegetation risks action should clear the vegetation risks table")) {
+              return false;
+          }
+
+          QList<TowerRecord> routePlanningTowers;
+          TowerRecord routePlanningTower;
+          routePlanningTower.index = 0;
+          routePlanningTower.name = QStringLiteral("Route Tower");
+          routePlanningTower.point.x = 15.0f;
+          routePlanningTower.point.y = 20.0f;
+          routePlanningTower.point.z = 25.0f;
+          routePlanningTowers.append(routePlanningTower);
+          viewer->setTowerMarkers(routePlanningTowers);
+          pumpEvents(80);
+
+          window.vegetationRiskResults_ = smokeRisks;
+          window.selectedVegetationRiskIndex_ = 0;
+          window.generateInspectionRouteAction_->setEnabled(true);
+          window.generateInspectionRouteAction_->trigger();
+          pumpEvents(160);
+          if (!verify(!window.currentPowerlineRoute_.waypoints.isEmpty(), "Generate route action should create route waypoints through MainWindow")) {
+              return false;
+          }
+          if (!verify(!viewer->inspectionRouteWaypoints().isEmpty(), "Generate route action should sync preview waypoints into the viewer")) {
+              return false;
+          }
+
+          window.toggleRouteEditingAction_->setChecked(true);
+          pumpEvents(80);
+          if (!verify(window.routeEditingEnabled_, "Toggle route editing action should enable MainWindow route editing")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRouteEditingEnabled(), "Toggle route editing action should enable viewer route editing")) {
+              return false;
+          }
+
+          const double updatedRoamSpeed = std::max(1.0, window.routeRoamSpeedSpinBox_->value() + 1.5);
+          window.routeRoamSpeedSpinBox_->setValue(updatedRoamSpeed);
+          pumpEvents(80);
+          if (!verifyClose(viewer->inspectionRouteRoamSpeedMetersPerSecond(), updatedRoamSpeed, 0.001, "Route roam speed spin box should sync into the viewer")) {
+              return false;
+          }
+
+          if (window.routeRoamViewModeComboBox_->count() > 1) {
+              const int roamModeIndex = (window.routeRoamViewModeComboBox_->currentIndex() + 1) % window.routeRoamViewModeComboBox_->count();
+              const int expectedRoamMode = window.routeRoamViewModeComboBox_->itemData(roamModeIndex).toInt();
+              window.routeRoamViewModeComboBox_->setCurrentIndex(roamModeIndex);
+              pumpEvents(80);
+              if (!verify(
+                      static_cast<int>(viewer->inspectionRouteRoamViewMode()) == expectedRoamMode,
+                      "Route roam view mode combo box should sync into the viewer")) {
+                  return false;
+              }
+          }
+
+          viewer->setInspectionRouteVisible(true);
+          pumpEvents(80);
+          window.startInspectionRouteRoamAction_->trigger();
+          pumpEvents(180);
+          if (!verify(viewer->inspectionRouteRoamActive(), "Start route roam action should start viewer route roam")) {
+              return false;
+          }
+
+          window.pauseInspectionRouteRoamAction_->trigger();
+          pumpEvents(120);
+          if (!verify(viewer->inspectionRouteRoamPaused(), "Pause route roam action should pause viewer route roam")) {
+              return false;
+          }
+
+          window.pauseInspectionRouteRoamAction_->trigger();
+          pumpEvents(120);
+          if (!verify(!viewer->inspectionRouteRoamPaused(), "Pause route roam action should resume viewer route roam on second trigger")) {
+              return false;
+          }
+
+          window.stopInspectionRouteRoamAction_->trigger();
+          pumpEvents(120);
+          if (!verify(!viewer->inspectionRouteRoamActive(), "Stop route roam action should stop viewer route roam")) {
+              return false;
+          }
+
+          window.clearInspectionRouteAction_->trigger();
+          pumpEvents(120);
+          if (!verify(window.currentPowerlineRoute_.waypoints.isEmpty(), "Clear route action should clear MainWindow route data")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRouteWaypoints().isEmpty(), "Clear route action should clear viewer route preview data")) {
+              return false;
+          }
+
+          QTableWidget* routeWaypointsTable = nullptr;
+          QTableWidget* routePartPointsTable = nullptr;
+          for (QTableWidget* table : routeDetailsDock->findChildren<QTableWidget*>()) {
+              if (table == nullptr) {
+                  continue;
+              }
+              if (table->columnCount() == 9) {
+                  routeWaypointsTable = table;
+              } else if (table->columnCount() == 8) {
+                  routePartPointsTable = table;
+              }
+          }
+          if (!verify(routeWaypointsTable != nullptr, "Route details dock should expose the waypoint table")) {
+              return false;
+          }
+          if (!verify(routePartPointsTable != nullptr, "Route details dock should expose the part point table")) {
+              return false;
+          }
+
+          const QList<QCheckBox*> routeDisplayCheckBoxes = routeDetailsDock->findChildren<QCheckBox*>();
+          if (!verify(routeDisplayCheckBoxes.size() >= 4, "Route details dock should expose the display toggle checkboxes")) {
+              return false;
+          }
+
+          QSet<int> matchedRouteToggleIndexes;
+          const auto hideColumnsByEffect = [&](QTableWidget* table, const QList<int>& columns, const char* failureMessage) {
+              for (int checkBoxIndex = 0; checkBoxIndex < routeDisplayCheckBoxes.size(); ++checkBoxIndex) {
+                  if (matchedRouteToggleIndexes.contains(checkBoxIndex) || routeDisplayCheckBoxes.at(checkBoxIndex) == nullptr) {
+                      continue;
+                  }
+
+                  routeDisplayCheckBoxes.at(checkBoxIndex)->setChecked(false);
+                  pumpEvents(60);
+
+                  bool allHidden = true;
+                  for (int column : columns) {
+                      allHidden = allHidden && table->isColumnHidden(column);
+                  }
+                  if (allHidden) {
+                      matchedRouteToggleIndexes.insert(checkBoxIndex);
+                      return true;
+                  }
+
+                  routeDisplayCheckBoxes.at(checkBoxIndex)->setChecked(true);
+                  pumpEvents(60);
+              }
+
+              return verify(false, failureMessage);
+          };
+
+          if (!hideColumnsByEffect(routeWaypointsTable, { 2, 3, 4 }, "Waypoint coordinates checkbox should hide waypoint coordinate columns")) {
+              return false;
+          }
+          if (!hideColumnsByEffect(routeWaypointsTable, { 5, 6, 7, 8 }, "Waypoint capture angles checkbox should hide waypoint angle columns")) {
+              return false;
+          }
+          if (!hideColumnsByEffect(routePartPointsTable, { 5, 6, 7 }, "Part coordinates checkbox should hide route part coordinate columns")) {
+              return false;
+          }
+          if (!hideColumnsByEffect(routePartPointsTable, { 4 }, "Part capture angles checkbox should hide the route part angle column")) {
+              return false;
+          }
+
+          QTemporaryDir routeTempDir;
+          if (!verify(routeTempDir.isValid(), "MainWindow route smoke should create a temporary directory")) {
+              return false;
+          }
+
+          const PowerlineRouteDocument syntheticRoute = buildSyntheticRoute();
+          QString routeErrorMessage;
+          const QString routeFilePath = QDir(routeTempDir.path()).filePath(QStringLiteral("main_backstage_route.json"));
+          if (!exportPowerlineRouteJson(routeFilePath, syntheticRoute, &routeErrorMessage)) {
+              std::cerr << "[FAIL] exportPowerlineRouteJson(main-backstage): "
+                        << routeErrorMessage.toStdString() << std::endl;
+              return false;
+          }
+
+          PowerlineRouteDocument importedRoute;
+          if (!importPowerlineRouteJson(routeFilePath, &importedRoute, &routeErrorMessage)) {
+              std::cerr << "[FAIL] importPowerlineRouteJson(main-backstage): "
+                        << routeErrorMessage.toStdString() << std::endl;
+              return false;
+          }
+
+          window.currentPowerlineRoute_ = importedRoute;
+          window.linkedRouteFilePath_ = routeFilePath;
+          window.selectedRoutePartIndex_ = -1;
+          window.selectedRouteWaypointIndex_ = importedRoute.waypoints.isEmpty() ? -1 : 0;
+          window.selectedRouteWaypointTargetIndex_ = -1;
+          routeDetailsDock->show();
+          routeDetailsDock->raise();
+          viewer->setInspectionRouteDisplayData(buildSmokeRouteDisplayData(importedRoute));
+          viewer->setSelectedInspectionRouteWaypointTargetIndex(-1);
+          viewer->setSelectedInspectionRouteWaypointIndex(window.selectedRouteWaypointIndex_);
+
+          pumpEvents(250);
+          if (!verify(!window.currentPowerlineRoute_.waypoints.isEmpty(), "MainWindow route smoke should keep imported route data")) {
+              return false;
+          }
+          if (!verify(routeDetailsDock->isVisible(), "Route smoke should show the route details dock")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointsTableWidget_ != nullptr, "MainWindow should keep the waypoint table wired after route import")) {
+              return false;
+          }
+          if (!verify(window.routePartPointsTableWidget_ != nullptr, "MainWindow should keep the part point table wired after route import")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointTargetsTableWidget_ != nullptr, "MainWindow should keep the waypoint target table wired after route import")) {
+              return false;
+          }
+          if (!verify(window.routeQaIssuesTableWidget_ != nullptr, "MainWindow should keep the route QA table wired after route import")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointColorButton_ != nullptr, "MainWindow should keep the waypoint color button wired")) {
+              return false;
+          }
+          if (!verify(window.routePartPointColorButton_ != nullptr, "MainWindow should keep the part point color button wired")) {
+              return false;
+          }
+          if (!verify(window.routeTrajectoryColorButton_ != nullptr, "MainWindow should keep the trajectory color button wired")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointsTableWidget_->rowCount() == syntheticRoute.waypoints.size(), "Imported route should populate the waypoint table")) {
+              return false;
+          }
+          if (!verify(window.routePartPointsTableWidget_->rowCount() == syntheticRoute.partPoints.size(), "Imported route should populate the part point table")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointTargetsTableWidget_->rowCount() == syntheticRoute.waypoints.first().captureTargets.size(), "Imported route should populate the waypoint target table for the selected waypoint")) {
+              return false;
+          }
+          if (!verify(window.routeQaIssuesTableWidget_->rowCount() > 0, "Imported route should populate at least one QA issue row")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRouteWaypoints().size() == syntheticRoute.waypoints.size(), "Imported route should sync waypoint preview data into the viewer")) {
+              return false;
+          }
+          if (!verify(window.selectedRouteWaypointIndex_ == 0, "Imported route should select the first waypoint by default")) {
+              return false;
+          }
+          if (!verify(window.selectedRoutePartIndex_ == syntheticRoute.partPoints.first().partIndex, "Imported route should select the primary part point for the first waypoint")) {
+              return false;
+          }
+
+          const int kRouteWaypointPartColumn = 1;
+          const int kRoutePartNameColumn = 1;
+          const int kRouteWaypointTargetPartColumn = 1;
+          const int kRouteQaSeverityColumn = 0;
+
+          window.routeWaypointsTableWidget_->setCurrentCell(1, kRouteWaypointPartColumn);
+          pumpEvents(80);
+          if (!verify(window.selectedRouteWaypointIndex_ == 1, "Waypoint table currentCellChanged should update the selected waypoint index")) {
+              return false;
+          }
+          if (!verify(viewer->selectedInspectionRouteWaypointIndex() == 1, "Waypoint table currentCellChanged should sync the selected waypoint into the viewer")) {
+              return false;
+          }
+          if (!verify(window.selectedRoutePartIndex_ == -1, "Selecting the helper waypoint should clear the linked part selection")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointTargetsTableWidget_->rowCount() == 0, "Selecting the helper waypoint should clear the waypoint target table")) {
+              return false;
+          }
+
+          window.routeWaypointsTableWidget_->setCurrentCell(0, kRouteWaypointPartColumn);
+          pumpEvents(80);
+          if (!verify(window.selectedRouteWaypointIndex_ == 0, "Waypoint table should allow returning to the first waypoint")) {
+              return false;
+          }
+          if (!verify(window.selectedRoutePartIndex_ == syntheticRoute.partPoints.first().partIndex, "Selecting the first waypoint should restore the linked part selection")) {
+              return false;
+          }
+          if (!verify(window.routeWaypointTargetsTableWidget_->rowCount() == syntheticRoute.waypoints.first().captureTargets.size(), "Selecting the first waypoint should repopulate the waypoint target table")) {
+              return false;
+          }
+
+          window.routeWaypointTargetsTableWidget_->setCurrentCell(1, kRouteWaypointTargetPartColumn);
+          pumpEvents(80);
+          if (!verify(window.selectedRouteWaypointTargetIndex_ == 1, "Waypoint target table currentCellChanged should update the selected target index")) {
+              return false;
+          }
+          if (!verify(viewer->selectedInspectionRouteWaypointTargetIndex() == 1, "Waypoint target table currentCellChanged should sync the selected target into the viewer")) {
+              return false;
+          }
+
+          window.routePartPointsTableWidget_->setCurrentCell(1, kRoutePartNameColumn);
+          pumpEvents(80);
+          if (!verify(window.selectedRoutePartIndex_ == syntheticRoute.partPoints.at(1).partIndex, "Part table currentCellChanged should update the selected part index")) {
+              return false;
+          }
+
+          window.routeQaIssuesTableWidget_->setCurrentCell(0, kRouteQaSeverityColumn);
+          pumpEvents(80);
+          if (!verify(window.selectedRouteQaIssueIndex_ == 0, "Route QA table currentCellChanged should update the selected QA issue index")) {
+              return false;
+          }
+
+          if (!emitTableDoubleClick(window.routeWaypointsTableWidget_, 1, kRouteWaypointPartColumn, "Waypoint table double click should stay invokable")) {
+              return false;
+          }
+          if (!emitTableDoubleClick(window.routePartPointsTableWidget_, 0, kRoutePartNameColumn, "Part table double click should stay invokable")) {
+              return false;
+          }
+          if (!emitTableDoubleClick(window.routeQaIssuesTableWidget_, 0, kRouteQaSeverityColumn, "Route QA table double click should stay invokable")) {
+              return false;
+          }
+
+          window.routeWaypointsTableWidget_->setCurrentCell(0, kRouteWaypointPartColumn);
+          pumpEvents(60);
+          const QPoint waypointContextPosition =
+              window.routeWaypointsTableWidget_->visualRect(window.routeWaypointsTableWidget_->model()->index(1, kRouteWaypointPartColumn)).center();
+          if (!invokeTableContextMenuAndClose(window.routeWaypointsTableWidget_, waypointContextPosition, "Waypoint table context menu should stay invokable")) {
+              return false;
+          }
+          if (!verify(window.selectedRouteWaypointIndex_ == 1, "Waypoint table context menu should update the current waypoint row before opening")) {
+              return false;
+          }
+
+          window.routePartPointsTableWidget_->setCurrentCell(1, kRoutePartNameColumn);
+          pumpEvents(60);
+          const QPoint partContextPosition =
+              window.routePartPointsTableWidget_->visualRect(window.routePartPointsTableWidget_->model()->index(0, kRoutePartNameColumn)).center();
+          if (!invokeTableContextMenuAndClose(window.routePartPointsTableWidget_, partContextPosition, "Part table context menu should stay invokable")) {
+              return false;
+          }
+          if (!verify(window.selectedRoutePartIndex_ == syntheticRoute.partPoints.first().partIndex, "Part table context menu should update the current part row before opening")) {
+              return false;
+          }
+
+          const QColor waypointSmokeColor(12, 160, 210);
+          const QColor partSmokeColor(228, 92, 29);
+          const QColor trajectorySmokeColor(32, 178, 120);
+          if (!clickColorButtonAndAccept(window.routeWaypointColorButton_, waypointSmokeColor, "Waypoint color button should open an accept-able color dialog")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRouteWaypointColor() == waypointSmokeColor, "Waypoint color button should sync the chosen color into the viewer")) {
+              return false;
+          }
+          if (!clickColorButtonAndAccept(window.routePartPointColorButton_, partSmokeColor, "Part point color button should open an accept-able color dialog")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRoutePartPointColor() == partSmokeColor, "Part point color button should sync the chosen color into the viewer")) {
+              return false;
+          }
+          if (!clickColorButtonAndAccept(window.routeTrajectoryColorButton_, trajectorySmokeColor, "Trajectory color button should open an accept-able color dialog")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionRouteTrajectoryColor() == trajectorySmokeColor, "Trajectory color button should sync the chosen color into the viewer")) {
+              return false;
+          }
+
+          if (!verify(window.towerController_ != nullptr, "MainWindow should create the tower controller")) {
+              return false;
+          }
+          if (!verify(window.issueController_ != nullptr, "MainWindow should create the issue controller")) {
+              return false;
+          }
+          if (!verify(window.towerTableWidget_ != nullptr, "MainWindow should keep the tower table wired")) {
+              return false;
+          }
+          if (!verify(window.issueTableWidget_ != nullptr, "MainWindow should keep the issue table wired")) {
+              return false;
+          }
+
+          QList<TowerRecord> smokeTowers;
+          TowerRecord firstTower;
+          firstTower.index = 0;
+          firstTower.name = QStringLiteral("Smoke Tower A");
+          firstTower.point.x = 10.0f;
+          firstTower.point.y = 15.0f;
+          firstTower.point.z = 20.0f;
+          smokeTowers.append(firstTower);
+
+          TowerRecord secondTower;
+          secondTower.index = 1;
+          secondTower.name = QStringLiteral("Smoke Tower B");
+          secondTower.point.x = 25.0f;
+          secondTower.point.y = 30.0f;
+          secondTower.point.z = 35.0f;
+          smokeTowers.append(secondTower);
+
+          viewer->setTowerMarkers(smokeTowers);
+          viewer->setSelectedTowerIndex(0);
+          pumpEvents(150);
+          if (!verify(window.towerTableWidget_->rowCount() == smokeTowers.size(), "Tower markers should populate the tower table through MainWindow")) {
+              return false;
+          }
+
+          window.startTowerEditAction_->trigger();
+          pumpEvents(80);
+          if (!verify(window.towerEditingEnabled_, "Start tower editing action should enable tower editing")) {
+              return false;
+          }
+
+          window.towerTableWidget_->setCurrentCell(1, 1);
+          pumpEvents(80);
+          if (!verify(viewer->selectedTowerIndex() == 1, "Tower table selection should sync into the viewer")) {
+              return false;
+          }
+
+          viewer->setSelectedTowerIndex(0);
+          pumpEvents(80);
+          if (!verify(window.towerTableWidget_->currentRow() == 0, "Viewer tower selection should sync back into the tower table")) {
+              return false;
+          }
+
+          if (window.towerTableWidget_->item(0, 1) == nullptr) {
+              std::cerr << "[FAIL] Tower table should populate editable name cells" << std::endl;
+              return false;
+          }
+          window.towerTableWidget_->item(0, 1)->setText(QStringLiteral("Smoke Tower Alpha"));
+          pumpEvents(80);
+          if (!verify(viewer->towerMarkers().at(0).name == QStringLiteral("Smoke Tower Alpha"), "Tower name edits should sync into viewer tower markers")) {
+              return false;
+          }
+
+          window.towerCodeEdit_->setText(QStringLiteral("T-ALPHA"));
+          window.towerCodeEdit_->editingFinished();
+          window.towerLineNameEdit_->setText(QStringLiteral("Line-A"));
+          window.towerLineNameEdit_->editingFinished();
+          if (window.towerTypeComboBox_->count() > 1) {
+              window.towerTypeComboBox_->setCurrentIndex(1);
+          }
+          window.towerNotesEdit_->setPlainText(QStringLiteral("tower smoke note"));
+          pumpEvents(120);
+          if (!verify(viewer->towerMarkers().at(0).code == QStringLiteral("T-ALPHA"), "Tower detail edits should sync code into viewer tower markers")) {
+              return false;
+          }
+          if (!verify(viewer->towerMarkers().at(0).lineName == QStringLiteral("Line-A"), "Tower detail edits should sync line name into viewer tower markers")) {
+              return false;
+          }
+          if (!verify(viewer->towerMarkers().at(0).notes == QStringLiteral("tower smoke note"), "Tower detail edits should sync notes into viewer tower markers")) {
+              return false;
+          }
+
+          window.showTowerXAction_->setChecked(false);
+          window.showTowerYAction_->setChecked(false);
+          window.showTowerZAction_->setChecked(false);
+          pumpEvents(80);
+          if (!verify(window.towerTableWidget_->isColumnHidden(2), "Tower X visibility action should hide the X column")) {
+              return false;
+          }
+          if (!verify(window.towerTableWidget_->isColumnHidden(3), "Tower Y visibility action should hide the Y column")) {
+              return false;
+          }
+          if (!verify(window.towerTableWidget_->isColumnHidden(4), "Tower Z visibility action should hide the Z column")) {
+              return false;
+          }
+          window.showTowerXAction_->setChecked(true);
+          window.showTowerYAction_->setChecked(true);
+          window.showTowerZAction_->setChecked(true);
+          pumpEvents(80);
+
+          window.addTowerAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->towerEditMode() == TowerEditMode::AddAfterLast, "Add tower action should enter add mode")) {
+              return false;
+          }
+          window.cancelTowerToolAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->towerEditMode() == TowerEditMode::None, "Cancel tower tool action should leave tower edit mode")) {
+              return false;
+          }
+
+          viewer->setSelectedTowerIndex(0);
+          pumpEvents(60);
+          window.insertTowerAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->towerEditMode() == TowerEditMode::InsertBeforeSelected, "Insert tower action should enter insert mode")) {
+              return false;
+          }
+          window.cancelTowerToolAction_->trigger();
+          pumpEvents(80);
+
+          viewer->setSelectedTowerIndex(0);
+          pumpEvents(60);
+          window.moveTowerAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->towerEditMode() == TowerEditMode::MoveSelected, "Move tower action should enter move mode")) {
+              return false;
+          }
+          window.cancelTowerToolAction_->trigger();
+          pumpEvents(80);
+
+          window.towerTableWidget_->setCurrentCell(1, 1);
+          pumpEvents(80);
+          window.removeTowerAction_->trigger();
+          pumpEvents(120);
+          if (!verify(window.towerTableWidget_->rowCount() == 1, "Remove tower action should remove the selected tower")) {
+              return false;
+          }
+          window.clearTowersAction_->trigger();
+          pumpEvents(120);
+          if (!verify(window.towerTableWidget_->rowCount() == 0, "Clear towers action should clear the tower table")) {
+              return false;
+          }
+
+          QList<TowerRecord> issueRelatedTowers;
+          TowerRecord relatedTower;
+          relatedTower.index = 0;
+          relatedTower.name = QStringLiteral("Issue Tower");
+          relatedTower.point.x = 40.0f;
+          relatedTower.point.y = 45.0f;
+          relatedTower.point.z = 50.0f;
+          issueRelatedTowers.append(relatedTower);
+          viewer->setTowerMarkers(issueRelatedTowers);
+          viewer->setSelectedTowerIndex(0);
+          pumpEvents(120);
+
+          QList<InspectionIssue> smokeIssues;
+          InspectionIssue firstIssue;
+          firstIssue.id = QStringLiteral("ISSUE-001");
+          firstIssue.title = QStringLiteral("Smoke Issue A");
+          firstIssue.category = QStringLiteral("Vegetation");
+          firstIssue.severity = IssueSeverity::Major;
+          firstIssue.status = IssueStatus::Open;
+          firstIssue.point.x = 12.0f;
+          firstIssue.point.y = 18.0f;
+          firstIssue.point.z = 22.0f;
+          firstIssue.relatedTowerIndex = 0;
+          firstIssue.relatedTowerName = QStringLiteral("Issue Tower");
+          firstIssue.createdAt = QStringLiteral("2026-04-17T09:00:00");
+          smokeIssues.append(firstIssue);
+
+          InspectionIssue secondIssue = firstIssue;
+          secondIssue.id = QStringLiteral("ISSUE-002");
+          secondIssue.title = QStringLiteral("Smoke Issue B");
+          secondIssue.category = QStringLiteral("Other");
+          secondIssue.point.x = 30.0f;
+          secondIssue.point.y = 35.0f;
+          secondIssue.point.z = 40.0f;
+          secondIssue.createdAt = QStringLiteral("2026-04-17T09:05:00");
+          smokeIssues.append(secondIssue);
+
+          viewer->setInspectionIssues(smokeIssues);
+          viewer->setSelectedIssueIndex(0);
+          pumpEvents(150);
+          if (!verify(window.issueTableWidget_->rowCount() == smokeIssues.size(), "Inspection issues should populate the issue table through MainWindow")) {
+              return false;
+          }
+
+          window.issueTableWidget_->setCurrentCell(1, 1);
+          pumpEvents(80);
+          if (!verify(viewer->selectedIssueIndex() == 1, "Issue table selection should sync into the viewer")) {
+              return false;
+          }
+
+          viewer->setSelectedIssueIndex(0);
+          pumpEvents(80);
+          if (!verify(window.issueTableWidget_->currentRow() == 0, "Viewer issue selection should sync back into the issue table")) {
+              return false;
+          }
+
+          window.startIssueMarkAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->issueEditMode() == IssueEditMode::Add, "Start issue action should enter issue add mode")) {
+              return false;
+          }
+          window.cancelIssueToolAction_->trigger();
+          pumpEvents(80);
+          if (!verify(viewer->issueEditMode() == IssueEditMode::None, "Cancel issue action should leave issue add mode")) {
+              return false;
+          }
+
+          window.issueTitleEdit_->setText(QStringLiteral("Smoke Issue Alpha"));
+          window.issueTitleEdit_->editingFinished();
+          window.issueCategoryComboBox_->setEditText(QStringLiteral("Channel Risk"));
+          if (window.issueSeverityComboBox_->count() > 3) {
+              window.issueSeverityComboBox_->setCurrentIndex(3);
+          }
+          if (window.issueStatusComboBox_->count() > 1) {
+              window.issueStatusComboBox_->setCurrentIndex(1);
+          }
+          if (window.issueRelatedTowerComboBox_->count() > 1) {
+              window.issueRelatedTowerComboBox_->setCurrentIndex(1);
+          }
+          window.issueImagePathEdit_->setText(QStringLiteral("images/smoke-issue.jpg"));
+          window.issueImagePathEdit_->editingFinished();
+          window.issueDescriptionEdit_->setPlainText(QStringLiteral("issue smoke note"));
+          pumpEvents(120);
+          if (!verify(viewer->inspectionIssues().at(0).title == QStringLiteral("Smoke Issue Alpha"), "Issue detail edits should sync title into viewer issues")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().at(0).category == QStringLiteral("Channel Risk"), "Issue detail edits should sync category into viewer issues")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().at(0).severity == IssueSeverity::Critical, "Issue detail edits should sync severity into viewer issues")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().at(0).status == IssueStatus::Monitoring, "Issue detail edits should sync status into viewer issues")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().at(0).imagePath == QStringLiteral("images/smoke-issue.jpg"), "Issue detail edits should sync image path into viewer issues")) {
+              return false;
+          }
+          if (!verify(viewer->inspectionIssues().at(0).description == QStringLiteral("issue smoke note"), "Issue detail edits should sync description into viewer issues")) {
+              return false;
+          }
+
+          window.issueTableWidget_->setCurrentCell(1, 1);
+          pumpEvents(80);
+          window.removeIssueAction_->trigger();
+          pumpEvents(120);
+          if (!verify(window.issueTableWidget_->rowCount() == 1, "Remove issue action should remove the selected issue")) {
+              return false;
+          }
+          window.clearIssuesAction_->trigger();
+          pumpEvents(120);
+          if (!verify(window.issueTableWidget_->rowCount() == 0, "Clear issues action should clear the issue table")) {
+              return false;
+          }
+
+          viewer->clearPointCloud();
+          pumpEvents(300);
+          if (!verify(projectTree->topLevelItemCount() >= 4, "Clearing the point cloud should keep the project tree structure")) {
+            return false;
+        }
+        pointCloudGroupItem = projectTree->topLevelItem(1);
+        if (!verify(pointCloudGroupItem != nullptr, "Project tree should keep the point cloud group after clearing")) {
+            return false;
+        }
+        if (!verify(pointCloudGroupItem->childCount() == 0, "Clearing the point cloud should remove dataset entries from the project tree")) {
+            return false;
+        }
+    }
+
     const int inspectorWidthCap = std::min(
         400,
         static_cast<int>(std::lround(static_cast<double>(targetScreen->availableGeometry().width()) * 0.22)));
@@ -438,10 +1646,6 @@ bool runMainBackstageSmoke(const QStringList&)
         return false;
     }
 
-    RouteDetailsDock* routeDetailsDock = window.findChild<RouteDetailsDock*>();
-    if (!verify(routeDetailsDock != nullptr, "MainWindow should create the route details dock")) {
-        return false;
-    }
     routeDetailsDock->show();
     routeDetailsDock->raise();
     pumpEvents(250);
@@ -593,6 +1797,315 @@ bool runMainBackstageSmoke(const QStringList&)
     window.close();
     pumpEvents(200);
     std::cout << "[PASS] Main backstage smoke test completed." << std::endl;
+    return true;
+}
+
+bool runMainWindowSettingsRestoreSmoke(const QStringList&)
+{
+    QTemporaryDir settingsDir;
+    if (!verify(settingsDir.isValid(), "Settings restore smoke should create a temporary settings directory")) {
+        return false;
+    }
+
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.path());
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QCoreApplication::setOrganizationName(QStringLiteral("LASViewerSmokeTest"));
+    QCoreApplication::setApplicationName(QStringLiteral("MainWindowSettingsRestoreSmoke"));
+
+    {
+        QSettings settings;
+        settings.clear();
+        settings.sync();
+    }
+
+    QTranslator appTranslator;
+    QTranslator qtTranslator;
+
+    int expectedInspectorTabIndex = 0;
+    int expectedRouteDetailsTabIndex = 0;
+    int expectedWaypointLabelMode = static_cast<int>(RouteLabelDisplayMode::Name);
+    int expectedPartLabelMode = static_cast<int>(RouteLabelDisplayMode::Name);
+    const int expectedLogFilterLevel = 1;
+    const QString expectedLogKeyword = QStringLiteral("restore smoke");
+    const bool expectedLogAutoScroll = false;
+    const bool expectedWaypointShowCoordinates = false;
+    const bool expectedWaypointShowCaptureAngles = false;
+    const bool expectedPartShowCoordinates = false;
+    const bool expectedPartShowCaptureAngles = false;
+    const double expectedRoamSpeed = 4.5;
+    const int expectedRoamViewMode = static_cast<int>(RouteRoamViewMode::FirstPerson);
+    bool savedShowLog = false;
+    bool savedShowProfileClassification = false;
+    bool savedShowRouteDetails = false;
+    bool savedStatePresent = false;
+    bool savedGeometryPresent = false;
+
+    {
+        MainWindow window(&appTranslator, &qtTranslator);
+        window.resize(1400, 900);
+        window.show();
+        pumpEvents(300);
+
+        if (!verify(window.logDock_ != nullptr, "Settings restore smoke should create the log dock")) {
+            return false;
+        }
+        if (!verify(window.profileClassificationDock_ != nullptr, "Settings restore smoke should create the profile classification dock")) {
+            return false;
+        }
+        if (!verify(window.routeDetailsDock_ != nullptr, "Settings restore smoke should create the route details dock")) {
+            return false;
+        }
+        if (!verify(window.inspectorTabWidget_ != nullptr, "Settings restore smoke should create the inspector tab widget")) {
+            return false;
+        }
+        if (!verify(window.routeDetailsTabWidget_ != nullptr, "Settings restore smoke should create the route details tab widget")) {
+            return false;
+        }
+        if (!verify(window.routeWaypointLabelModeComboBox_ != nullptr, "Settings restore smoke should create the waypoint label mode combo box")) {
+            return false;
+        }
+        if (!verify(window.routePartLabelModeComboBox_ != nullptr, "Settings restore smoke should create the part label mode combo box")) {
+            return false;
+        }
+        if (!verify(window.routeWaypointShowCoordinatesCheckBox_ != nullptr, "Settings restore smoke should create the waypoint coordinate checkbox")) {
+            return false;
+        }
+        if (!verify(window.routeWaypointShowCaptureAnglesCheckBox_ != nullptr, "Settings restore smoke should create the waypoint angle checkbox")) {
+            return false;
+        }
+        if (!verify(window.routePartShowCoordinatesCheckBox_ != nullptr, "Settings restore smoke should create the part coordinate checkbox")) {
+            return false;
+        }
+        if (!verify(window.routePartShowCaptureAnglesCheckBox_ != nullptr, "Settings restore smoke should create the part angle checkbox")) {
+            return false;
+        }
+        if (!verify(window.routeRoamSpeedSpinBox_ != nullptr, "Settings restore smoke should create the route roam speed spin box")) {
+            return false;
+        }
+        if (!verify(window.routeRoamViewModeComboBox_ != nullptr, "Settings restore smoke should create the route roam view mode combo box")) {
+            return false;
+        }
+
+        window.showLogAction_->setChecked(true);
+        window.showProfileClassificationDockAction_->setChecked(true);
+        window.routeDetailsDock_->show();
+        window.routeDetailsDock_->raise();
+        pumpEvents(120);
+
+        expectedInspectorTabIndex = window.inspectorTabWidget_->count() > 1 ? 1 : 0;
+        expectedRouteDetailsTabIndex = window.routeDetailsTabWidget_->count() > 1 ? 1 : 0;
+        window.inspectorTabWidget_->setCurrentIndex(expectedInspectorTabIndex);
+        window.routeDetailsTabWidget_->setCurrentIndex(expectedRouteDetailsTabIndex);
+
+        if (window.routeWaypointLabelModeComboBox_->count() > 1) {
+            window.routeWaypointLabelModeComboBox_->setCurrentIndex(1);
+        }
+        if (window.routePartLabelModeComboBox_->count() > 1) {
+            window.routePartLabelModeComboBox_->setCurrentIndex(1);
+        }
+        expectedWaypointLabelMode = window.routeWaypointLabelModeComboBox_->currentData().toInt();
+        expectedPartLabelMode = window.routePartLabelModeComboBox_->currentData().toInt();
+
+        window.routeWaypointShowCoordinatesCheckBox_->setChecked(expectedWaypointShowCoordinates);
+        window.routeWaypointShowCaptureAnglesCheckBox_->setChecked(expectedWaypointShowCaptureAngles);
+        window.routePartShowCoordinatesCheckBox_->setChecked(expectedPartShowCoordinates);
+        window.routePartShowCaptureAnglesCheckBox_->setChecked(expectedPartShowCaptureAngles);
+        window.logDock_->setSelectedFilterLevel(expectedLogFilterLevel);
+        window.logDock_->setSearchKeyword(expectedLogKeyword);
+        window.logDock_->setAutoScrollEnabled(expectedLogAutoScroll);
+        window.routeRoamSpeedSpinBox_->setValue(expectedRoamSpeed);
+        const int roamViewModeIndex =
+            window.routeRoamViewModeComboBox_->findData(expectedRoamViewMode);
+        if (!verify(roamViewModeIndex >= 0, "Settings restore smoke should expose the first-person roam view mode")) {
+            return false;
+        }
+        window.routeRoamViewModeComboBox_->setCurrentIndex(roamViewModeIndex);
+        pumpEvents(120);
+
+        if (!verify(window.showLogAction_ != nullptr && window.showLogAction_->isChecked(),
+                "Settings restore smoke should keep the first window log action checked")) {
+            return false;
+        }
+        if (!verify(window.logDock_->isVisible(),
+                "Settings restore smoke should keep the first window log dock visible before close")) {
+            return false;
+        }
+        if (!verify(
+                window.showProfileClassificationDockAction_ != nullptr
+                    && window.showProfileClassificationDockAction_->isChecked(),
+                "Settings restore smoke should keep the first window profile classification action checked")) {
+            return false;
+        }
+        if (!verify(window.profileClassificationDock_->isVisible(),
+                "Settings restore smoke should keep the first window profile classification dock visible before close")) {
+            return false;
+        }
+        {
+            QSettings settings;
+            if (!verify(settings.value(QStringLiteral("window/showLog"), false).toBool(),
+                    "Settings restore smoke should persist window/showLog before close")) {
+                return false;
+            }
+            if (!verify(settings.value(QStringLiteral("window/showProfileClassification"), false).toBool(),
+                    "Settings restore smoke should persist window/showProfileClassification before close")) {
+                return false;
+            }
+        }
+
+        window.close();
+        pumpEvents(120);
+        QSettings().sync();
+
+        QSettings settings;
+        savedShowLog = settings.value(QStringLiteral("window/showLog"), false).toBool();
+        savedShowProfileClassification = settings.value(
+            QStringLiteral("window/showProfileClassification"), false).toBool();
+        savedShowRouteDetails = settings.value(QStringLiteral("window/showRouteDetails"), false).toBool();
+        savedStatePresent = !settings.value(QStringLiteral("window/state")).toByteArray().isEmpty();
+        savedGeometryPresent = !settings.value(QStringLiteral("window/geometry")).toByteArray().isEmpty();
+    }
+
+    if (!verify(savedShowLog, "Settings restore smoke should persist window/showLog as true")) {
+        return false;
+    }
+    if (!verify(savedShowProfileClassification, "Settings restore smoke should persist window/showProfileClassification as true")) {
+        return false;
+    }
+    if (!verify(savedShowRouteDetails, "Settings restore smoke should persist window/showRouteDetails as true")) {
+        return false;
+    }
+    if (!verify(savedStatePresent, "Settings restore smoke should persist window/state")) {
+        return false;
+    }
+    if (!verify(savedGeometryPresent, "Settings restore smoke should persist window/geometry")) {
+        return false;
+    }
+
+    {
+        MainWindow restoredWindow(&appTranslator, &qtTranslator);
+        restoredWindow.resize(1400, 900);
+        restoredWindow.show();
+        pumpEvents(350);
+
+        if (!verify(restoredWindow.logDock_ != nullptr, "Restored window should keep the log dock")) {
+            return false;
+        }
+        if (!verify(restoredWindow.profileClassificationDock_ != nullptr, "Restored window should keep the profile classification dock")) {
+            return false;
+        }
+        if (!verify(restoredWindow.routeDetailsDock_ != nullptr, "Restored window should keep the route details dock")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.showLogAction_ != nullptr && restoredWindow.showLogAction_->isChecked(),
+                "Window settings restore should keep the log action checked")) {
+            return false;
+        }
+        if (!verify(restoredWindow.logDock_->isVisible(), "Window settings restore should keep the log dock visible")) {
+            return false;
+        }
+        if (!verify(restoredWindow.profileClassificationDock_->isVisible(), "Window settings restore should keep the profile classification dock visible")) {
+            return false;
+        }
+        if (!verify(restoredWindow.routeDetailsDock_->isVisible(), "Window settings restore should keep the route details dock visible")) {
+            return false;
+        }
+        if (!verify(restoredWindow.profileDock_ != nullptr && !restoredWindow.profileDock_->isVisible(), "Profile dock should still follow measurement mode after restore")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.inspectorTabWidget_ != nullptr
+                    && restoredWindow.inspectorTabWidget_->currentIndex() == expectedInspectorTabIndex,
+                "Window settings restore should recover the inspector tab index")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeDetailsTabWidget_ != nullptr
+                    && restoredWindow.routeDetailsTabWidget_->currentIndex() == expectedRouteDetailsTabIndex,
+                "Window settings restore should recover the route details tab index")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.logDock_->selectedFilterLevel() == expectedLogFilterLevel,
+                "Window settings restore should recover the log filter level")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.logDock_->searchKeyword() == expectedLogKeyword,
+                "Window settings restore should recover the log search keyword")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.logDock_->autoScrollEnabled() == expectedLogAutoScroll,
+                "Window settings restore should recover the log auto-scroll state")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeWaypointLabelModeComboBox_ != nullptr
+                    && restoredWindow.routeWaypointLabelModeComboBox_->currentData().toInt() == expectedWaypointLabelMode,
+                "Window settings restore should recover the waypoint label mode")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routePartLabelModeComboBox_ != nullptr
+                    && restoredWindow.routePartLabelModeComboBox_->currentData().toInt() == expectedPartLabelMode,
+                "Window settings restore should recover the part label mode")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeWaypointShowCoordinatesCheckBox_ != nullptr
+                    && restoredWindow.routeWaypointShowCoordinatesCheckBox_->isChecked() == expectedWaypointShowCoordinates,
+                "Window settings restore should recover the waypoint coordinate toggle")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeWaypointShowCaptureAnglesCheckBox_ != nullptr
+                    && restoredWindow.routeWaypointShowCaptureAnglesCheckBox_->isChecked() == expectedWaypointShowCaptureAngles,
+                "Window settings restore should recover the waypoint angle toggle")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routePartShowCoordinatesCheckBox_ != nullptr
+                    && restoredWindow.routePartShowCoordinatesCheckBox_->isChecked() == expectedPartShowCoordinates,
+                "Window settings restore should recover the part coordinate toggle")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routePartShowCaptureAnglesCheckBox_ != nullptr
+                    && restoredWindow.routePartShowCaptureAnglesCheckBox_->isChecked() == expectedPartShowCaptureAngles,
+                "Window settings restore should recover the part angle toggle")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeRoamSpeedSpinBox_ != nullptr
+                    && std::abs(restoredWindow.routeRoamSpeedSpinBox_->value() - expectedRoamSpeed) < 0.001,
+                "Window settings restore should recover the route roam speed")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.routeRoamViewModeComboBox_ != nullptr
+                    && restoredWindow.routeRoamViewModeComboBox_->currentData().toInt() == expectedRoamViewMode,
+                "Window settings restore should recover the route roam view mode")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && std::abs(restoredWindow.viewer_->inspectionRouteRoamSpeedMetersPerSecond() - expectedRoamSpeed) < 0.001,
+                "Window settings restore should sync the route roam speed back into the viewer")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && static_cast<int>(restoredWindow.viewer_->inspectionRouteRoamViewMode()) == expectedRoamViewMode,
+                "Window settings restore should sync the route roam view mode back into the viewer")) {
+            return false;
+        }
+
+        restoredWindow.close();
+        pumpEvents(120);
+    }
+
+    std::cout << "[PASS] Main window settings restore smoke test completed." << std::endl;
     return true;
 }
 
@@ -769,6 +2282,253 @@ bool runProjectExplorerControllerSmoke(const QStringList&)
     }
 
     std::cout << "[PASS] Project explorer controller smoke test completed." << std::endl;
+    return true;
+}
+
+bool runProjectExplorerMainWindowSmoke(const QStringList& filePaths)
+{
+    QTranslator appTranslator;
+    QTranslator qtTranslator;
+    MainWindow window(&appTranslator, &qtTranslator);
+    window.resize(1400, 900);
+    window.show();
+    pumpEvents(300);
+
+    ProjectExplorerDock* projectDock = window.findChild<ProjectExplorerDock*>();
+    if (!verify(projectDock != nullptr, "MainWindow project explorer smoke should create the project explorer dock")) {
+        return false;
+    }
+
+    PointCloudViewer* viewer = window.findChild<PointCloudViewer*>();
+    if (!verify(viewer != nullptr, "MainWindow project explorer smoke should create the embedded point cloud viewer")) {
+        return false;
+    }
+
+    QTreeWidget* projectTree = projectDock->treeWidget();
+    QLineEdit* searchEdit = projectDock->searchEdit();
+    if (!verify(projectTree != nullptr, "Project explorer dock should expose the tree widget")) {
+        return false;
+    }
+    if (!verify(searchEdit != nullptr, "Project explorer dock should expose the search edit")) {
+        return false;
+    }
+
+    const QString lasFilePath = filePaths.isEmpty() ? QString() : QFileInfo(filePaths.constFirst()).absoluteFilePath();
+    if (!verify(!lasFilePath.isEmpty() && QFileInfo::exists(lasFilePath), "Project explorer MainWindow smoke requires an existing LAS file")) {
+        return false;
+    }
+
+    QString pointCloudErrorMessage;
+    if (!viewer->loadPointCloud(lasFilePath, &pointCloudErrorMessage)) {
+        std::cerr << "[FAIL] Project explorer MainWindow smoke failed to load point cloud: "
+                  << pointCloudErrorMessage.toStdString() << std::endl;
+        return false;
+    }
+
+    pumpEvents(1200);
+    if (!verify(!viewer->pointCloudDatasets().isEmpty(), "Loaded point cloud dataset should be available in viewer state")) {
+        return false;
+    }
+
+    QTemporaryDir tempDir;
+    if (!verify(tempDir.isValid(), "Project explorer MainWindow smoke should create a temporary directory")) {
+        return false;
+    }
+
+    const QString smokeImagePath = QDir(tempDir.path()).filePath(QStringLiteral("project_explorer_smoke.png"));
+    QImage smokeImage(64, 48, QImage::Format_ARGB32_Premultiplied);
+    smokeImage.fill(QColor(248, 250, 252));
+    if (!verify(smokeImage.save(smokeImagePath), "Project explorer MainWindow smoke should create a temporary image attachment")) {
+        return false;
+    }
+
+    InspectionIssue smokeIssue;
+    smokeIssue.id = QStringLiteral("project-explorer-issue-001");
+    smokeIssue.title = QStringLiteral("Project Explorer Smoke Issue");
+    smokeIssue.description = QStringLiteral("MainWindow integration smoke");
+    smokeIssue.severity = IssueSeverity::Major;
+    smokeIssue.imagePath = smokeImagePath;
+    smokeIssue.point = PointRecord { 18.0f, 22.0f, 12.0f };
+    viewer->setInspectionIssues({ smokeIssue });
+    viewer->setSelectedIssueIndex(-1);
+
+    QList<TowerRecord> routePlanningTowers;
+    TowerRecord routePlanningTower;
+    routePlanningTower.index = 0;
+    routePlanningTower.name = QStringLiteral("Project Explorer Tower");
+    routePlanningTower.point = PointRecord { 15.0f, 20.0f, 25.0f };
+    routePlanningTowers.append(routePlanningTower);
+    viewer->setTowerMarkers(routePlanningTowers);
+    pumpEvents(80);
+
+    VegetationRiskRecord routeRisk;
+    routeRisk.id = QStringLiteral("project-explorer-risk-001");
+    routeRisk.title = QStringLiteral("Project Explorer Risk");
+    routeRisk.severity = AnalysisSeverity::Warning;
+    routeRisk.point = PointRecord { 40.0f, 50.0f, 18.0f };
+    routeRisk.minimumDistance = 4.5f;
+    routeRisk.chainageStart = 10.0f;
+    routeRisk.chainageEnd = 20.0f;
+    routeRisk.sourceRule = QStringLiteral("Smoke-Rule");
+    routeRisk.notes = QStringLiteral("Project Explorer route generation smoke");
+    window.vegetationRiskResults_ = { routeRisk };
+    window.selectedVegetationRiskIndex_ = 0;
+
+    if (!verify(window.generateInspectionRouteAction_ != nullptr, "MainWindow project explorer smoke should expose the generate route action")) {
+        return false;
+    }
+    window.generateInspectionRouteAction_->setEnabled(true);
+    window.generateInspectionRouteAction_->trigger();
+    pumpEvents(200);
+    if (!verify(!window.currentPowerlineRoute_.waypoints.isEmpty(), "Project explorer MainWindow smoke should generate a route through MainWindow")) {
+        return false;
+    }
+    if (!verify(!viewer->inspectionRouteWaypoints().isEmpty(), "Generated route should sync preview waypoints into the viewer")) {
+        return false;
+    }
+
+    pumpEvents(250);
+
+    QTreeWidgetItem* coordinateSystemsItem = findProjectTreeItem(projectTree, [](QTreeWidgetItem* item) {
+        return item != nullptr && item->data(0, Qt::UserRole).toString() == QStringLiteral("coordinateSystemsItem");
+    });
+    QTreeWidgetItem* pointCloudItem = findProjectTreeItem(projectTree, [&](QTreeWidgetItem* item) {
+        return item != nullptr
+            && item->data(0, Qt::UserRole).toString() == QStringLiteral("pointCloudItem")
+            && item->data(0, Qt::UserRole + 1).toString().compare(lasFilePath, Qt::CaseInsensitive) == 0;
+    });
+    QTreeWidgetItem* imageItem = findProjectTreeItem(projectTree, [&](QTreeWidgetItem* item) {
+        return item != nullptr
+            && item->data(0, Qt::UserRole).toString() == QStringLiteral("imageItem")
+            && item->data(0, Qt::UserRole + 1).toString().compare(smokeImagePath, Qt::CaseInsensitive) == 0;
+    });
+    QTreeWidgetItem* trajectoryItem = findProjectTreeItem(projectTree, [](QTreeWidgetItem* item) {
+        return item != nullptr && item->data(0, Qt::UserRole).toString() == QStringLiteral("trajectoryItem");
+    });
+
+    if (!verify(coordinateSystemsItem != nullptr, "Project tree should keep the project management item")) {
+        return false;
+    }
+    if (!verify(pointCloudItem != nullptr, "Project tree should expose the loaded point cloud item")) {
+        return false;
+    }
+    if (!verify(imageItem != nullptr, "Project tree should expose the inspection image item")) {
+        return false;
+    }
+    if (!verify(trajectoryItem != nullptr, "Project tree should expose the trajectory item")) {
+        return false;
+    }
+
+    projectTree->setCurrentItem(pointCloudItem);
+    pumpEvents(80);
+    searchEdit->setText(QStringLiteral("project_explorer_smoke"));
+    pumpEvents(120);
+    if (!verify(projectTree->currentItem() == nullptr, "Filtering out the current point cloud row should clear current tree selection")) {
+        return false;
+    }
+    if (!verify(!imageItem->isHidden(), "Project tree filter should keep the matching image item visible")) {
+        return false;
+    }
+    if (!verify(pointCloudItem->isHidden(), "Project tree filter should hide the non-matching point cloud item")) {
+        return false;
+    }
+    if (!verify(trajectoryItem->isHidden(), "Project tree filter should hide the non-matching trajectory item")) {
+        return false;
+    }
+
+    searchEdit->clear();
+    pumpEvents(120);
+    if (!verify(!pointCloudItem->isHidden() && !imageItem->isHidden() && !trajectoryItem->isHidden(), "Clearing the project tree filter should restore all project items")) {
+        return false;
+    }
+
+    projectTree->setCurrentItem(imageItem);
+    pumpEvents(80);
+    if (!verify(viewer->selectedIssueIndex() == 0, "Selecting the image item should sync the selected issue into the viewer")) {
+        return false;
+    }
+
+    window.selectedRouteWaypointIndex_ = -1;
+    viewer->setSelectedInspectionRouteWaypointIndex(-1);
+    projectTree->setCurrentItem(trajectoryItem);
+    pumpEvents(80);
+    if (!verify(window.selectedRouteWaypointIndex_ == 0, "Selecting the trajectory item should restore the first route waypoint selection")) {
+        return false;
+    }
+    if (!verify(viewer->selectedInspectionRouteWaypointIndex() == 0, "Selecting the trajectory item should sync the first route waypoint into the viewer")) {
+        return false;
+    }
+
+    projectTree->setCurrentItem(pointCloudItem);
+    pumpEvents(80);
+    if (!verify(viewer->selectedIssueIndex() == -1, "Selecting the point cloud item should clear the selected issue")) {
+        return false;
+    }
+
+    pointCloudItem->setCheckState(0, Qt::Unchecked);
+    pumpEvents(80);
+    if (!verify(!viewer->pointCloudDatasets().constFirst().visible, "Point cloud item check state should sync dataset visibility into viewer state")) {
+        return false;
+    }
+    pointCloudItem->setCheckState(0, Qt::Checked);
+    pumpEvents(80);
+    if (!verify(viewer->pointCloudDatasets().constFirst().visible, "Re-checking point cloud item should restore dataset visibility")) {
+        return false;
+    }
+
+    imageItem->setCheckState(0, Qt::Unchecked);
+    pumpEvents(80);
+    if (!verify(!viewer->isInspectionIssueVisible(0), "Image item check state should sync inspection issue visibility into viewer state")) {
+        return false;
+    }
+    imageItem->setCheckState(0, Qt::Checked);
+    pumpEvents(80);
+    if (!verify(viewer->isInspectionIssueVisible(0), "Re-checking image item should restore inspection issue visibility")) {
+        return false;
+    }
+
+    trajectoryItem->setCheckState(0, Qt::Unchecked);
+    pumpEvents(80);
+    if (!verify(!viewer->inspectionRouteVisible(), "Trajectory item check state should sync route visibility into viewer state")) {
+        return false;
+    }
+    trajectoryItem->setCheckState(0, Qt::Checked);
+    pumpEvents(80);
+    if (!verify(viewer->inspectionRouteVisible(), "Re-checking trajectory item should restore route visibility")) {
+        return false;
+    }
+
+    projectTree->setCurrentItem(pointCloudItem);
+    pumpEvents(60);
+    const QPoint imageContextPosition = projectTree->visualItemRect(imageItem).center();
+    if (!invokeTreeContextMenuAndClose(projectTree, imageContextPosition, "Project tree image context menu should stay invokable")) {
+        return false;
+    }
+    if (!verify(projectTree->currentItem() == imageItem, "Project tree context menu should update the current row before opening the image menu")) {
+        return false;
+    }
+
+    projectTree->setCurrentItem(imageItem);
+    pumpEvents(60);
+    const QPoint trajectoryContextPosition = projectTree->visualItemRect(trajectoryItem).center();
+    if (!invokeTreeContextMenuAndClose(projectTree, trajectoryContextPosition, "Project tree trajectory context menu should stay invokable")) {
+        return false;
+    }
+    if (!verify(projectTree->currentItem() == trajectoryItem, "Project tree context menu should update the current row before opening the trajectory menu")) {
+        return false;
+    }
+
+    viewer->setSelectedIssueIndex(-1);
+    projectTree->setCurrentItem(coordinateSystemsItem);
+    pumpEvents(60);
+    if (!emitTreeItemDoubleClick(projectTree, imageItem, 0, "Project tree image double click should stay invokable")) {
+        return false;
+    }
+    if (!verify(viewer->selectedIssueIndex() == 0, "Project tree image double click should focus the corresponding inspection issue")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Project explorer MainWindow smoke test completed." << std::endl;
     return true;
 }
 
@@ -2016,6 +3776,7 @@ PowerlineRouteDocument buildSyntheticRoute()
     leftTarget.captureCount = 1;
     leftTarget.aircraftYawDeg = 90.0;
     leftTarget.gimbalPitchDeg = -35.0;
+    leftTarget.cameraPitchDeg = 110.0;
     leftTarget.targetLocalPoint = leftInsulator.localPoint;
     captureWaypoint.captureTargets.append(leftTarget);
 
@@ -2026,6 +3787,7 @@ PowerlineRouteDocument buildSyntheticRoute()
     rightTarget.captureCount = 1;
     rightTarget.aircraftYawDeg = 90.0;
     rightTarget.gimbalPitchDeg = -40.0;
+    rightTarget.cameraPitchDeg = -20.0;
     rightTarget.targetLocalPoint = rightInsulator.localPoint;
     captureWaypoint.captureTargets.append(rightTarget);
 
@@ -2541,10 +4303,11 @@ QSet<QString> parseCsvValues(const QStringList& rawValues)
 void printUsageSummary()
 {
     std::cout
-        << "Modes: viewer-render, main-backstage, log-panel, project-explorer-dock, project-explorer-controller, visualization-panel-controller, measurement-analysis-controller, profile-classification-widget, profile-classification-controller, route-controller, tower-controller, issue-controller, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
+        << "Modes: viewer-render, main-backstage, main-settings-restore, log-panel, project-explorer-dock, project-explorer-controller, project-explorer-mainwindow, visualization-panel-controller, measurement-analysis-controller, profile-classification-widget, profile-classification-controller, route-controller, tower-controller, issue-controller, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
         << "Categories: render, ui, route, tower, all" << std::endl
         << "Examples:" << std::endl
         << "  LASViewerSmokeTest --mode main-backstage" << std::endl
+        << "  LASViewerSmokeTest --mode main-settings-restore" << std::endl
         << "  LASViewerSmokeTest --mode visualization-panel-controller" << std::endl
         << "  LASViewerSmokeTest --mode measurement-analysis-controller" << std::endl
         << "  LASViewerSmokeTest --mode profile-classification-widget" << std::endl
@@ -2583,9 +4346,11 @@ bool validateSelections(const QSet<QString>& modeSet, const QSet<QString>& categ
     const QSet<QString> validModes {
         QStringLiteral("viewer-render"),
         QStringLiteral("main-backstage"),
+        QStringLiteral("main-settings-restore"),
         QStringLiteral("log-panel"),
         QStringLiteral("project-explorer-dock"),
         QStringLiteral("project-explorer-controller"),
+        QStringLiteral("project-explorer-mainwindow"),
         QStringLiteral("visualization-panel-controller"),
         QStringLiteral("measurement-analysis-controller"),
         QStringLiteral("profile-classification-widget"),
@@ -2752,6 +4517,12 @@ int main(int argc, char* argv[])
             false,
             runMainBackstageSmoke },
         SmokeCase {
+            QStringLiteral("main-settings-restore"),
+            QStringLiteral("ui"),
+            QStringLiteral("Main Window Settings Restore Smoke"),
+            false,
+            runMainWindowSettingsRestoreSmoke },
+        SmokeCase {
             QStringLiteral("log-panel"),
             QStringLiteral("ui"),
             QStringLiteral("Log Panel Smoke"),
@@ -2769,6 +4540,12 @@ int main(int argc, char* argv[])
             QStringLiteral("Project Explorer Controller Smoke"),
             false,
             runProjectExplorerControllerSmoke },
+        SmokeCase {
+            QStringLiteral("project-explorer-mainwindow"),
+            QStringLiteral("ui"),
+            QStringLiteral("Project Explorer MainWindow Smoke"),
+            true,
+            runProjectExplorerMainWindowSmoke },
         SmokeCase {
             QStringLiteral("visualization-panel-controller"),
             QStringLiteral("ui"),

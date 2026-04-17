@@ -268,6 +268,57 @@ void MainWindow::syncRoutePlanningFromProjectCoordinateSystems()
     routePlanningOptions_.crs.targetEpsg = projectCoordinateSystems_.geographicCrs.code;
 }
 
+void MainWindow::chooseRouteWaypointColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRouteWaypointColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Waypoint Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRouteWaypointColor(chosenColor);
+    setColorButtonAppearance(routeWaypointColorButton_, chosenColor, tr("Waypoint Color"));
+    persistVisualizationSettings();
+}
+
+void MainWindow::chooseRoutePartPointColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRoutePartPointColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Part Point Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRoutePartPointColor(chosenColor);
+    setColorButtonAppearance(routePartPointColorButton_, chosenColor, tr("Part Point Color"));
+    persistVisualizationSettings();
+}
+
+void MainWindow::chooseRouteTrajectoryColor()
+{
+    if (viewer_ == nullptr) {
+        return;
+    }
+
+    const QColor initialColor = viewer_->inspectionRouteTrajectoryColor();
+    const QColor chosenColor = showStyledColorDialog(this, initialColor, tr("Choose Trajectory Color"));
+    if (!chosenColor.isValid()) {
+        return;
+    }
+
+    viewer_->setInspectionRouteTrajectoryColor(chosenColor);
+    setColorButtonAppearance(routeTrajectoryColorButton_, chosenColor, tr("Trajectory Color"));
+    persistVisualizationSettings();
+}
+
 void MainWindow::focusRoutePartPoint(int partIndex)
 {
     if (viewer_ == nullptr || partIndex <= 0) {

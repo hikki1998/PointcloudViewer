@@ -1,6 +1,6 @@
 # Session Handoff
 
-更新时间：2026-04-16
+更新时间：2026-04-17
 
 ## 用途
 
@@ -66,6 +66,13 @@
 - `src/gui/support/RibbonIconFactory.h`
 - `src/gui/support/RibbonIconFactory.cpp`
 - `translations/lasviewer_zh_CN.ts`
+
+最近一轮重构回归收口还补充了两份直接可用的资料：
+
+- `docs/agent/refactor-regression-report.md`
+  - 汇总 `MainWindow` 拆分后已确认的回归家族、修复结果、验证范围和残余风险
+- `docs/agent/workflows.md`
+  - 已新增“MainWindow 重构后对等性检查”清单，可直接按条执行
 
 ## 常见任务从哪里入手
 
@@ -137,4 +144,8 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 改完优先验证：
 cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
+
+如果要继续接 MainWindow 拆分后的回归收口，先读：
+- docs/agent/refactor-regression-report.md
+- docs/agent/workflows.md
 ```

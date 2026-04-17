@@ -437,19 +437,17 @@ void MainWindow::loadWindowSettings()
         logDock_->setAutoScrollEnabled(settings.value(settingskeys::kWindowLogAutoScroll, true).toBool());
     }
 
-    if (!restoredState) {
-        const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
-        const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
-        const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
-        if (logDock_ != nullptr) {
-            logDock_->setVisible(showLog);
-        }
-        if (profileClassificationDock_ != nullptr) {
-            profileClassificationDock_->setVisible(showProfileClassification);
-        }
-        if (routeDetailsDock_ != nullptr) {
-            routeDetailsDock_->setVisible(showRouteDetails);
-        }
+    const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
+    const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
+    const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
+    if (logDock_ != nullptr && logDock_->isVisible() != showLog) {
+        logDock_->setVisible(showLog);
+    }
+    if (profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible() != showProfileClassification) {
+        profileClassificationDock_->setVisible(showProfileClassification);
+    }
+    if (routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible() != showRouteDetails) {
+        routeDetailsDock_->setVisible(showRouteDetails);
     }
 
     syncProfileDockForMeasurementMode(viewer_ != nullptr && viewer_->measurementEnabled());
@@ -477,25 +475,31 @@ void MainWindow::loadWindowSettings()
     scheduleDockPanelSizing();
 }
 
-void MainWindow::persistWindowSettings() const
+void MainWindow::persistWindowSettings(bool force) const
 {
-    if (loadingWindowSettings_) {
+    if (loadingWindowSettings_ || (closingWindow_ && !force)) {
         return;
     }
 
     QSettings settings;
     const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
+    const auto dockVisiblePreference = [](const QDockWidget* dockWidget, const QAction* toggleAction) {
+        if (toggleAction != nullptr) {
+            return toggleAction->isChecked();
+        }
+        return dockWidget != nullptr && !dockWidget->isHidden();
+    };
     settings.setValue(settingskeys::kWindowGeometry, saveGeometry());
     settings.setValue(settingskeys::kWindowState, saveState(kMainWindowStateVersion));
     settings.setValue(settingskeys::kWindowMaximized, isMaximized());
-    settings.setValue(settingskeys::kWindowShowLog, logDock_ != nullptr && logDock_->isVisible());
-    settings.setValue(settingskeys::kWindowShowProfile, profileDock_ != nullptr && profileDock_->isVisible());
+    settings.setValue(settingskeys::kWindowShowLog, dockVisiblePreference(logDock_, showLogAction_));
+    settings.setValue(settingskeys::kWindowShowProfile, dockVisiblePreference(profileDock_, showProfileDockAction_));
     settings.setValue(
         settingskeys::kWindowShowProfileClassification,
-        profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+        dockVisiblePreference(profileClassificationDock_, showProfileClassificationDockAction_));
     settings.setValue(
         settingskeys::kWindowShowRouteDetails,
-        routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible());
+        dockVisiblePreference(routeDetailsDock_, nullptr));
     settings.setValue(
         settingskeys::kWindowInspectorTab,
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);

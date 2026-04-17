@@ -95,6 +95,72 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 - 改航线显示、漫游、预览
 - 改翻译生成或部署逻辑
 
+## MainWindow 重构后对等性检查
+
+适用场景：
+- 拆分 `MainWindow.*`
+- 把逻辑从 `MainWindow.cpp` 挪到 `*Controller.cpp`
+- 新增 dock、表格、QAction、Backstage 页面、viewer 联动
+
+### 连接类检查
+
+- 每个新增或改动的 `QAction`，都确认 `triggered` 最终能到业务处理逻辑，不要只创建不接线。
+- 每个 controller 的 `signals:`，都检查是否在 `src/gui/MainWindow.Connections.cpp` 有接收方。
+- 每个关键 widget 信号都确认主窗口集成路径仍在：
+  - `currentItemChanged`
+  - `itemChanged`
+  - `itemDoubleClicked`
+  - `customContextMenuRequested`
+  - `valueChanged`
+  - `currentIndexChanged`
+  - `toggled`
+- 每个 viewer 发回 MainWindow 的信号都确认还会刷新：
+  - 面板
+  - 表格
+  - 状态栏
+  - `updateActionState()`
+
+### 状态类检查
+
+- 每个 `QDockWidget` 都有稳定 `objectName`，否则 `saveState()` / `restoreState()` 不可信。
+- `loadWindowSettings()` 后确认窗口状态会重新归一：
+  - dock 可见性
+  - tabify 顺序
+  - 宽度钳制
+  - 最大化 / 全屏 / 普通窗口切换
+- 关闭窗口时，确认不会被 `visibilityChanged(false)` 之类的瞬时状态污染持久化结果。
+
+### 交互类检查
+
+- 列表 / 表格选中后，确认场景高亮或焦点同步仍在。
+- viewer 内选择变化后，确认表格当前行、详情面板和动作可用态一起刷新。
+- 右键菜单、双击聚焦、勾选显隐、搜索过滤不能只在 controller 单测里通过，必须走主窗口集成再确认一遍。
+- 标题区拖拽、双击最大化、全屏切换、边缘缩放要一起回归，避免只修一个交互破坏另一个。
+
+### smoke 检查
+
+- 不要只看 controller 单体 smoke；至少补一条走 `MainWindow` 集成路径的 smoke。
+- 如果改动影响 Backstage / Ribbon / dock / 恢复链，优先回归：
+  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage`
+  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
+
+### 翻译与部署检查
+
+- 新增 UI 文案后必须更新 `translations/lasviewer_zh_CN.ts`。
+- 如果使用 `-- /p:PostBuildEventUseInBuild=false` 构建，只生成 `.qm` 还不够；验证中文运行时效果前，要确认运行目录也拿到了最新翻译：
+
+```powershell
+Copy-Item "out/build/translations/lasviewer_zh_CN.qm" "out/build/bin/Release/translations/lasviewer_zh_CN.qm" -Force
+```
+
+### 提交前最小自检
+
+- 改了什么接线
+- 改了哪些 `QAction`
+- 改了哪些 dock / settings / restore 链
+- 有哪些 MainWindow 集成 smoke 覆盖到了
+- 有没有翻译和 runtime 资源漏部署
+
 ### 额外人工检查
 - 涉及 UI 样式时，检查：
   - dock
@@ -135,6 +201,8 @@ cmake --build out/build --config Release --target LASPointCloudViewer
   - 更新 `product-state.md`
 - 模块边界变化：
   - 更新 `architecture.md`
+- 完成一轮较大的重构回归排查后：
+  - 更新 `docs/agent/refactor-regression-report.md`
 - 入口顺序或阅读路径变化：
   - 更新 `docs/agent/README.md`
 - 强约束变化：
