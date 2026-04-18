@@ -7,6 +7,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
+
 RouteDetailsDock::RouteDetailsDock(QWidget* parent)
     : QDockWidget(parent)
 {
@@ -98,6 +100,20 @@ RouteDetailsDock::RouteDetailsDock(QWidget* parent)
 
     setWidget(tabWidget_);
     retranslateUi();
+}
+
+QSize RouteDetailsDock::sizeHint() const
+{
+    QSize hint = QDockWidget::sizeHint();
+    hint.setWidth(std::max(minimumWidth(), 0));
+    return hint;
+}
+
+QSize RouteDetailsDock::minimumSizeHint() const
+{
+    QSize hint = QDockWidget::minimumSizeHint();
+    hint.setWidth(std::max(minimumWidth(), hint.width()));
+    return hint;
 }
 
 void RouteDetailsDock::retranslateUi()

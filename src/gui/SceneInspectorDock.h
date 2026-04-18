@@ -12,6 +12,8 @@ class SceneInspectorDock final : public QDockWidget
 
 public:
     explicit SceneInspectorDock(QWidget* parent = nullptr);
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void retranslateUi();
     QTabWidget* tabWidget() const;

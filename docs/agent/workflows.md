@@ -40,6 +40,16 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 6. `src/*/CMakeLists.txt`
 7. `examples/CMakeLists.txt`
 
+### 共享源码路由规则（当前）
+- `las_viewer_add_shared_sources(...)`
+  - 注入 `LASViewerCoreObj`（OBJECT 共享编译层）。
+- `las_viewer_add_app_sources(...)`
+  - 注入 `LASPointCloudViewer` 专属入口源码（如 `src/main.cpp`）。
+- `las_viewer_add_smoke_sources(...)`
+  - 注入 `LASViewerSmokeTest` 专属入口源码（如 `examples/viewer_smoke_test.cpp`）。
+
+新增源码时，先判断它是“共享实现”还是“入口专属”。避免把共享业务 `.cpp` 误挂到 app/smoke 专属入口，导致重复编译回归。
+
 ### 加一个显示参数
 1. `src/osg/PointCloudVisualization.h`
 2. `src/gui/MainWindow.*`

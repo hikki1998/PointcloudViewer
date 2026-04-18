@@ -1473,6 +1473,29 @@ void MainWindow::createWindowAndViewerConnections()
         });
     }
 
+    if (routeWaypointLabelModeComboBox_ != nullptr) {
+        connect(routeWaypointLabelModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+            if (viewer_ == nullptr || routeWaypointLabelModeComboBox_ == nullptr || index < 0) {
+                return;
+            }
+
+            viewer_->setInspectionRouteWaypointLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routeWaypointLabelModeComboBox_->itemData(index).toInt()));
+            persistWindowSettings();
+        });
+    }
+    if (routePartLabelModeComboBox_ != nullptr) {
+        connect(routePartLabelModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int index) {
+            if (viewer_ == nullptr || routePartLabelModeComboBox_ == nullptr || index < 0) {
+                return;
+            }
+
+            viewer_->setInspectionRoutePartLabelDisplayMode(static_cast<RouteLabelDisplayMode>(
+                routePartLabelModeComboBox_->itemData(index).toInt()));
+            persistWindowSettings();
+        });
+    }
+
     if (routeWaypointShowCoordinatesCheckBox_ != nullptr) {
         connect(routeWaypointShowCoordinatesCheckBox_, &QCheckBox::toggled, this, [this](bool) {
             applyRouteWaypointTableColumnVisibility();
@@ -1878,11 +1901,6 @@ void MainWindow::createWindowAndViewerConnections()
     connect(viewer_, &PointCloudViewer::measurementChanged, this, [this]() {
         vegetationRiskResults_.clear();
         selectedVegetationRiskIndex_ = -1;
-        currentPowerlineRoute_ = PowerlineRouteDocument();
-        linkedRouteFilePath_.clear();
-        selectedRouteWaypointIndex_ = -1;
-        selectedRouteWaypointTargetIndex_ = -1;
-        viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
         updateMeasurementPanel();
     });
@@ -1890,11 +1908,6 @@ void MainWindow::createWindowAndViewerConnections()
         if (!viewer_->measurementEnabled()) {
             vegetationRiskResults_.clear();
             selectedVegetationRiskIndex_ = -1;
-            currentPowerlineRoute_ = PowerlineRouteDocument();
-            linkedRouteFilePath_.clear();
-            selectedRouteWaypointIndex_ = -1;
-            selectedRouteWaypointTargetIndex_ = -1;
-            viewer_->clearInspectionRouteWaypoints();
         }
         syncProfileDockForMeasurementMode(viewer_->measurementEnabled());
         syncUiFromViewer();

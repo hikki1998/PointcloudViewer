@@ -12,6 +12,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
+
 SceneInspectorDock::SceneInspectorDock(QWidget* parent)
     : QDockWidget(parent)
 {
@@ -228,6 +230,20 @@ SceneInspectorDock::SceneInspectorDock(QWidget* parent)
 
     setWidget(tabWidget_);
     retranslateUi();
+}
+
+QSize SceneInspectorDock::sizeHint() const
+{
+    QSize hint = QDockWidget::sizeHint();
+    hint.setWidth(std::max(minimumWidth(), 0));
+    return hint;
+}
+
+QSize SceneInspectorDock::minimumSizeHint() const
+{
+    QSize hint = QDockWidget::minimumSizeHint();
+    hint.setWidth(std::max(minimumWidth(), hint.width()));
+    return hint;
 }
 
 void SceneInspectorDock::retranslateUi()

@@ -18,6 +18,20 @@
 - `examples/`
   - smoke test 与开发验证入口。
 
+## 构建目标分层
+
+- `LASViewerCoreObj`（OBJECT）
+  - 承载 `src/*` 下共享编译单元和 `resources.qrc`。
+  - 由 `las_viewer_add_shared_sources(...)` 注入源码。
+- `LASPointCloudViewer`（EXE）
+  - 只保留主程序入口与可执行目标配置。
+  - 通过链接 `LASViewerCoreObj` 复用共享对象文件。
+- `LASViewerSmokeTest`（EXE）
+  - 只保留 smoke 入口与可执行目标配置。
+  - 通过链接 `LASViewerCoreObj` 复用共享对象文件。
+
+该分层的目的：避免主程序与 smoke 对同一批 `.cpp` 重复编译，同时继续保留双可执行入口与统一 smoke mode 机制。
+
 ## 核心运行链路
 
 ### 点云加载与渲染

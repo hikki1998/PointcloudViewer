@@ -39,14 +39,19 @@ include(LASViewerTranslations)
 include(LASViewerTargetConfig)
 include(LASViewerRuntimeDeploy)
 
+add_library(LASViewerCoreObj OBJECT)
+configure_las_viewer_common_target(LASViewerCoreObj TRUE)
+
 add_executable(${PROJECT_NAME} WIN32)
 configure_las_viewer_target(${PROJECT_NAME} TRUE)
+target_link_libraries(${PROJECT_NAME} PRIVATE LASViewerCoreObj)
 if(TARGET lasviewer_translations)
     add_dependencies(${PROJECT_NAME} lasviewer_translations)
 endif()
 
 add_executable(LASViewerSmokeTest)
 configure_las_viewer_target(LASViewerSmokeTest TRUE)
+target_link_libraries(LASViewerSmokeTest PRIVATE LASViewerCoreObj)
 
 las_viewer_add_shared_sources(resources.qrc)
 

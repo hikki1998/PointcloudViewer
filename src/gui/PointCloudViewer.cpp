@@ -1443,6 +1443,9 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
         lastPanEventPosition_ = adjustedPosition;
     } else if ((event->buttons() & Qt::LeftButton) != 0 && leftButtonPressed_) {
         QPointF delta = event->localPos() - lastOrbitCursorPosition_;
+        // Orbit trackball applies mirrored screen-space deltas internally.
+        // Qt->OSG Y-axis mapping already compensates Y, so only X needs correction.
+        delta.setX(-delta.x());
         if (interactionOptions_.invertOrbitDrag) {
             delta = QPointF(-delta.x(), -delta.y());
         }

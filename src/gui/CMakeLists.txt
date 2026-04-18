@@ -43,6 +43,8 @@ las_viewer_add_shared_sources(
     MainWindow.TowerIssue.cpp
     MeasurementAnalysisController.cpp
     MeasurementAnalysisController.h
+    MeasurementPanelWidget.cpp
+    MeasurementPanelWidget.h
     NavigationSettingsWidget.cpp
     NavigationSettingsWidget.h
     NavigationSettingsWidget.ui

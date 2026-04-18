@@ -13,6 +13,8 @@ class RouteDetailsDock final : public QDockWidget
 
 public:
     explicit RouteDetailsDock(QWidget* parent = nullptr);
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void retranslateUi();
     QTabWidget* tabWidget() const;

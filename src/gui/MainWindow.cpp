@@ -3579,13 +3579,20 @@ void MainWindow::updateActionState()
     measureAction_->setEnabled(hasPointCloud);
     profileClassificationAction_->setEnabled(profileClassificationReady);
     showProfileClassificationDockAction_->setEnabled(true);
-    showProfileClassificationDockAction_->setChecked(profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+    {
+        const QSignalBlocker blocker(showProfileClassificationDockAction_);
+        showProfileClassificationDockAction_->setChecked(
+            profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+    }
     saveProfileClassificationEditsAction_->setEnabled(hasPointCloud && viewer_->classificationEditedPointCount() > 0);
     clearMeasurementAction_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
     analyzeVegetationRisksAction_->setEnabled(hasPointCloud && hasMeasuredCorridor);
     exportClearanceCsvAction_->setEnabled(hasPointCloud && viewer_->measurementResult().isComplete());
     showProfileDockAction_->setEnabled(true);
-    showProfileDockAction_->setChecked(profileDock_ != nullptr && profileDock_->isVisible());
+    {
+        const QSignalBlocker blocker(showProfileDockAction_);
+        showProfileDockAction_->setChecked(profileDock_ != nullptr && profileDock_->isVisible());
+    }
     measurementToggleButton_->setEnabled(hasPointCloud);
     measurementClearButton_->setEnabled(hasPointCloud && viewer_->measurementResult().hasStartPoint);
     clearanceThresholdSpinBox_->setEnabled(hasPointCloud);

@@ -11,11 +11,14 @@
 #include <QSpinBox>
 #include <QTabWidget>
 
+#include <algorithm>
+
 #include "gui/ApplicationLogDock.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfileClassificationDock.h"
 #include "gui/ProjectExplorerDock.h"
+#include "gui/SceneInspectorDock.h"
 #include "gui/RouteDetailsDock.h"
 #include "gui/SpanProfileDock.h"
 #include "gui/UiHistoryStore.h"
@@ -42,27 +45,46 @@ const char kRouteHistoryIdPlanningSmoothingStrengthPercent[] = "route.planning.s
 const char kRouteHistoryIdPlanningHeightOffsetMeters[] = "route.planning.heightOffsetMeters";
 const char kRouteHistoryIdRoamSpeedMps[] = "route.roam.speedMps";
 const char kRouteHistoryIdRoamViewMode[] = "route.roam.viewMode";
+const char kInteractionHistoryIdInvertOrbitDrag[] = "interaction.invertOrbitDrag";
+const char kInteractionHistoryIdInvertPanDrag[] = "interaction.invertPanDrag";
+const char kInteractionHistoryIdInvertWheelZoom[] = "interaction.invertWheelZoom";
+const char kInteractionHistoryIdWheelZoomSensitivityPercent[] = "interaction.wheelZoomSensitivityPercent";
 }
 void MainWindow::loadInteractionSettings()
 {
     QSettings settings;
+    const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
     InteractionOptions options;
-    options.invertOrbitDrag = settings.value(settingskeys::kInteractionInvertOrbitDrag, false).toBool();
-    options.invertPanDrag = settings.value(settingskeys::kInteractionInvertPanDrag, false).toBool();
-    options.invertWheelZoom = settings.value(settingskeys::kInteractionInvertWheelZoom, false).toBool();
-    options.wheelZoomSensitivityPercent =
-        settings.value(settingskeys::kInteractionWheelZoomSensitivityPercent, 100).toInt();
+    options.invertOrbitDrag = uiHistoryStore.loadBool(
+        QString::fromLatin1(kInteractionHistoryIdInvertOrbitDrag),
+        settings.value(settingskeys::kInteractionInvertOrbitDrag, false).toBool());
+    options.invertPanDrag = uiHistoryStore.loadBool(
+        QString::fromLatin1(kInteractionHistoryIdInvertPanDrag),
+        settings.value(settingskeys::kInteractionInvertPanDrag, false).toBool());
+    options.invertWheelZoom = uiHistoryStore.loadBool(
+        QString::fromLatin1(kInteractionHistoryIdInvertWheelZoom),
+        settings.value(settingskeys::kInteractionInvertWheelZoom, false).toBool());
+    options.wheelZoomSensitivityPercent = uiHistoryStore.loadInt(
+        QString::fromLatin1(kInteractionHistoryIdWheelZoomSensitivityPercent),
+        settings.value(settingskeys::kInteractionWheelZoomSensitivityPercent, 100).toInt());
     viewer_->setInteractionOptions(options);
 }
 
 void MainWindow::persistInteractionSettings() const
 {
     QSettings settings;
+    const auto& uiHistoryStore = lasviewer::gui::UiHistoryStore::instance();
     const InteractionOptions& options = viewer_->interactionOptions();
     settings.setValue(settingskeys::kInteractionInvertOrbitDrag, options.invertOrbitDrag);
     settings.setValue(settingskeys::kInteractionInvertPanDrag, options.invertPanDrag);
     settings.setValue(settingskeys::kInteractionInvertWheelZoom, options.invertWheelZoom);
     settings.setValue(settingskeys::kInteractionWheelZoomSensitivityPercent, options.wheelZoomSensitivityPercent);
+    uiHistoryStore.save(QString::fromLatin1(kInteractionHistoryIdInvertOrbitDrag), options.invertOrbitDrag);
+    uiHistoryStore.save(QString::fromLatin1(kInteractionHistoryIdInvertPanDrag), options.invertPanDrag);
+    uiHistoryStore.save(QString::fromLatin1(kInteractionHistoryIdInvertWheelZoom), options.invertWheelZoom);
+    uiHistoryStore.save(
+        QString::fromLatin1(kInteractionHistoryIdWheelZoomSensitivityPercent),
+        options.wheelZoomSensitivityPercent);
 }
 
 void MainWindow::loadMeasurementSettings()
@@ -437,17 +459,41 @@ void MainWindow::loadWindowSettings()
         logDock_->setAutoScrollEnabled(settings.value(settingskeys::kWindowLogAutoScroll, true).toBool());
     }
 
-    const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
-    const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
-    const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
-    if (logDock_ != nullptr && logDock_->isVisible() != showLog) {
-        logDock_->setVisible(showLog);
+    if (!restoredState) {
+        const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
+        const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
+        const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
+        if (logDock_ != nullptr && logDock_->isVisible() != showLog) {
+            logDock_->setVisible(showLog);
+        }
+        if (profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible() != showProfileClassification) {
+            profileClassificationDock_->setVisible(showProfileClassification);
+        }
+        if (routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible() != showRouteDetails) {
+            routeDetailsDock_->setVisible(showRouteDetails);
+        }
     }
-    if (profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible() != showProfileClassification) {
-        profileClassificationDock_->setVisible(showProfileClassification);
+
+    const int projectMinimumWidth = adaptiveDockWidth(this, 0.14, 220, 280);
+    const int projectMaximumWidth = adaptiveDockWidth(this, 0.18, projectMinimumWidth, 320);
+    const int rightDockMinimumWidth = adaptiveDockWidth(this, 0.14, 240, 300);
+    const int savedProjectDockWidth = settings.value(settingskeys::kWindowProjectDockWidth, projectMinimumWidth).toInt();
+    const int savedRightDockWidth = settings.value(
+        settingskeys::kWindowRightDockWidth,
+        adaptiveDockWidth(this, 0.15, rightDockMinimumWidth, 340)).toInt();
+
+    if (projectDock_ != nullptr && !projectDock_->isFloating()) {
+        resizeDocks(
+            { projectDock_ },
+            { qBound(projectMinimumWidth, savedProjectDockWidth, projectMaximumWidth) },
+            Qt::Horizontal);
     }
-    if (routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible() != showRouteDetails) {
-        routeDetailsDock_->setVisible(showRouteDetails);
+    if (inspectorDock_ != nullptr && !inspectorDock_->isFloating()) {
+        const int clampedRightDockWidth = std::max(rightDockMinimumWidth, savedRightDockWidth);
+        resizeDocks({ inspectorDock_ }, { clampedRightDockWidth }, Qt::Horizontal);
+        if (routeDetailsDock_ != nullptr && !routeDetailsDock_->isFloating()) {
+            resizeDocks({ routeDetailsDock_ }, { clampedRightDockWidth }, Qt::Horizontal);
+        }
     }
 
     syncProfileDockForMeasurementMode(viewer_ != nullptr && viewer_->measurementEnabled());
@@ -492,6 +538,19 @@ void MainWindow::persistWindowSettings(bool force) const
     settings.setValue(settingskeys::kWindowGeometry, saveGeometry());
     settings.setValue(settingskeys::kWindowState, saveState(kMainWindowStateVersion));
     settings.setValue(settingskeys::kWindowMaximized, isMaximized());
+    if (projectDock_ != nullptr && !projectDock_->isFloating() && projectDock_->width() > 0) {
+        settings.setValue(settingskeys::kWindowProjectDockWidth, projectDock_->width());
+    }
+    int rightDockWidth = 0;
+    if (inspectorDock_ != nullptr && !inspectorDock_->isFloating()) {
+        rightDockWidth = inspectorDock_->width();
+    }
+    if (routeDetailsDock_ != nullptr && !routeDetailsDock_->isFloating()) {
+        rightDockWidth = std::max(rightDockWidth, routeDetailsDock_->width());
+    }
+    if (rightDockWidth > 0) {
+        settings.setValue(settingskeys::kWindowRightDockWidth, rightDockWidth);
+    }
     settings.setValue(settingskeys::kWindowShowLog, dockVisiblePreference(logDock_, showLogAction_));
     settings.setValue(settingskeys::kWindowShowProfile, dockVisiblePreference(profileDock_, showProfileDockAction_));
     settings.setValue(

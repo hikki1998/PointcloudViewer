@@ -520,9 +520,7 @@ void MainWindow::normalizeDockPanelSizing()
     const int projectMinimumWidth = adaptiveDockWidth(this, 0.14, 220, 280);
     const int projectMaximumWidth = adaptiveDockWidth(this, 0.18, projectMinimumWidth, 320);
     const int inspectorMinimumWidth = adaptiveDockWidth(this, 0.14, 240, 300);
-    const int inspectorMaximumWidth = adaptiveDockWidth(this, 0.18, inspectorMinimumWidth, 340);
     const int routeDetailsMinimumWidth = adaptiveDockWidth(this, 0.14, 240, 300);
-    const int routeDetailsMaximumWidth = adaptiveDockWidth(this, 0.18, routeDetailsMinimumWidth, 340);
     const int profileClassificationMinimumWidth = adaptiveDockWidth(this, 0.16, 240, 300);
     const int profileClassificationMaximumWidth = adaptiveDockWidth(this, 0.19, profileClassificationMinimumWidth, 340);
 
@@ -551,8 +549,6 @@ void MainWindow::normalizeDockPanelSizing()
     };
 
     shrinkDockWidth(projectDock_, projectMaximumWidth);
-    shrinkDockWidth(inspectorDock_, inspectorMaximumWidth);
-    shrinkDockWidth(routeDetailsDock_, routeDetailsMaximumWidth);
     shrinkDockWidth(profileClassificationDock_, profileClassificationMaximumWidth);
 }
 

@@ -581,6 +581,42 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
 {
     bool allPassed = true;
 
+    auto runOrbitDragAndCaptureEventPosition = [](OsgWidget* widget, const QPointF& startPoint, const QPointF& dragDelta) {
+        if (widget == nullptr) {
+            return QPointF();
+        }
+
+        const QPointF endPoint = startPoint + dragDelta;
+
+        QMouseEvent pressEvent(
+            QEvent::MouseButtonPress,
+            startPoint,
+            Qt::LeftButton,
+            Qt::LeftButton,
+            Qt::NoModifier);
+        QApplication::sendEvent(widget, &pressEvent);
+
+        QMouseEvent moveEvent(
+            QEvent::MouseMove,
+            endPoint,
+            Qt::NoButton,
+            Qt::LeftButton,
+            Qt::NoModifier);
+        QApplication::sendEvent(widget, &moveEvent);
+
+        const QPointF adjustedPosition = widget->lastOrbitEventPosition_;
+
+        QMouseEvent releaseEvent(
+            QEvent::MouseButtonRelease,
+            endPoint,
+            Qt::LeftButton,
+            Qt::NoButton,
+            Qt::NoModifier);
+        QApplication::sendEvent(widget, &releaseEvent);
+
+        return adjustedPosition;
+    };
+
     for (const QString& filePath : filePaths) {
         PointCloudViewer viewer;
         viewer.resize(1024, 768);
@@ -627,14 +663,21 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             continue;
         }
 
-        const QPoint clickPoint = glWidget->rect().center();
+        OsgWidget* osgWidget = qobject_cast<OsgWidget*>(glWidget);
+        if (osgWidget == nullptr) {
+            std::cerr << "No OsgWidget found for " << filePath.toStdString() << std::endl;
+            allPassed = false;
+            continue;
+        }
+
+        const QPoint clickPoint = osgWidget->rect().center();
         QMouseEvent pressEvent(
             QEvent::MouseButtonPress,
             QPointF(clickPoint),
             Qt::LeftButton,
             Qt::LeftButton,
             Qt::NoModifier);
-        QApplication::sendEvent(glWidget, &pressEvent);
+        QApplication::sendEvent(osgWidget, &pressEvent);
 
         QMouseEvent releaseEvent(
             QEvent::MouseButtonRelease,
@@ -642,7 +685,7 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             Qt::LeftButton,
             Qt::NoButton,
             Qt::NoModifier);
-        QApplication::sendEvent(glWidget, &releaseEvent);
+        QApplication::sendEvent(osgWidget, &releaseEvent);
         pumpEvents(200);
 
         const QImage clickedFrame = glWidget->grabFramebuffer();
@@ -662,6 +705,39 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
         if (!visiblePixelsAfterClick) {
             std::cerr << "Rendered framebuffer appears empty after click for "
                       << filePath.toStdString() << std::endl;
+            allPassed = false;
+            continue;
+        }
+
+        const QPointF orbitDragStart = QPointF(clickPoint);
+        const QPointF orbitDragDelta(48.0, 24.0);
+
+        InteractionOptions interactionOptions = viewer.interactionOptions();
+        interactionOptions.invertOrbitDrag = false;
+        viewer.setInteractionOptions(interactionOptions);
+        pumpEvents(50);
+
+        const QPointF defaultOrbitAdjustedPosition =
+            runOrbitDragAndCaptureEventPosition(osgWidget, orbitDragStart, orbitDragDelta);
+        const bool defaultXMirrored = defaultOrbitAdjustedPosition.x() < orbitDragStart.x() - 1.0;
+        const bool defaultYPreserved = defaultOrbitAdjustedPosition.y() > orbitDragStart.y() + 1.0;
+        if (!verify(
+                defaultXMirrored && defaultYPreserved,
+                "Viewer render smoke should apply default orbit mapping (X mirrored, Y preserved)")) {
+            allPassed = false;
+        }
+
+        interactionOptions.invertOrbitDrag = true;
+        viewer.setInteractionOptions(interactionOptions);
+        pumpEvents(50);
+
+        const QPointF invertedOrbitAdjustedPosition =
+            runOrbitDragAndCaptureEventPosition(osgWidget, orbitDragStart, orbitDragDelta);
+        const bool invertedXForward = invertedOrbitAdjustedPosition.x() > orbitDragStart.x() + 1.0;
+        const bool invertedYMirrored = invertedOrbitAdjustedPosition.y() < orbitDragStart.y() - 1.0;
+        if (!verify(
+                invertedXForward && invertedYMirrored,
+                "Viewer render smoke should invert both orbit axes when invert option is enabled")) {
             allPassed = false;
         }
     }
@@ -1255,6 +1331,31 @@ bool runMainBackstageSmoke(const QStringList& filePaths)
               return false;
           }
 
+          const int routeWaypointCountBeforeMeasurementToggle = viewer->inspectionRouteWaypoints().size();
+          window.measureAction_->setChecked(true);
+          pumpEvents(80);
+          if (!verify(viewer->measurementEnabled(), "Route smoke should allow entering measurement mode")) {
+              return false;
+          }
+          if (!verify(
+                  viewer->inspectionRouteVisible()
+                      && viewer->inspectionRouteWaypoints().size() == routeWaypointCountBeforeMeasurementToggle,
+                  "Entering measurement mode should not hide or clear route waypoints")) {
+              return false;
+          }
+
+          window.measureAction_->setChecked(false);
+          pumpEvents(80);
+          if (!verify(!viewer->measurementEnabled(), "Route smoke should allow leaving measurement mode")) {
+              return false;
+          }
+          if (!verify(
+                  viewer->inspectionRouteVisible()
+                      && viewer->inspectionRouteWaypoints().size() == routeWaypointCountBeforeMeasurementToggle,
+                  "Leaving measurement mode should keep route visibility and waypoint data")) {
+              return false;
+          }
+
           const int kRouteWaypointPartColumn = 1;
           const int kRoutePartNameColumn = 1;
           const int kRouteWaypointTargetPartColumn = 1;
@@ -1649,7 +1750,6 @@ bool runMainBackstageSmoke(const QStringList& filePaths)
     routeDetailsDock->show();
     routeDetailsDock->raise();
     pumpEvents(250);
-
     const int routeDockWidthCap = std::min(
         340,
         static_cast<int>(std::lround(static_cast<double>(targetScreen->availableGeometry().width()) * 0.18)));
@@ -1834,11 +1934,22 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
     const bool expectedPartShowCaptureAngles = false;
     const double expectedRoamSpeed = 4.5;
     const int expectedRoamViewMode = static_cast<int>(RouteRoamViewMode::FirstPerson);
+    const bool expectedInvertOrbit = true;
+    const bool expectedInvertPan = true;
+    const bool expectedInvertWheel = true;
+    const int expectedWheelZoomSensitivity = 145;
+    const int expectedManualRightDockWidth = 460;
     bool savedShowLog = false;
     bool savedShowProfileClassification = false;
     bool savedShowRouteDetails = false;
     bool savedStatePresent = false;
     bool savedGeometryPresent = false;
+    bool savedInvertOrbit = false;
+    bool savedInvertPan = false;
+    bool savedInvertWheel = false;
+    int savedWheelZoomSensitivity = 0;
+    int savedRightDockWidth = 0;
+    int expectedRightDockWidth = 0;
 
     {
         MainWindow window(&appTranslator, &qtTranslator);
@@ -1885,6 +1996,18 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         if (!verify(window.routeRoamViewModeComboBox_ != nullptr, "Settings restore smoke should create the route roam view mode combo box")) {
             return false;
         }
+        if (!verify(window.invertOrbitCheckBox_ != nullptr, "Settings restore smoke should create the invert orbit checkbox")) {
+            return false;
+        }
+        if (!verify(window.invertPanCheckBox_ != nullptr, "Settings restore smoke should create the invert pan checkbox")) {
+            return false;
+        }
+        if (!verify(window.invertWheelCheckBox_ != nullptr, "Settings restore smoke should create the invert wheel checkbox")) {
+            return false;
+        }
+        if (!verify(window.wheelZoomSensitivitySlider_ != nullptr, "Settings restore smoke should create the wheel sensitivity slider")) {
+            return false;
+        }
 
         window.showLogAction_->setChecked(true);
         window.showProfileClassificationDockAction_->setChecked(true);
@@ -1905,6 +2028,18 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         }
         expectedWaypointLabelMode = window.routeWaypointLabelModeComboBox_->currentData().toInt();
         expectedPartLabelMode = window.routePartLabelModeComboBox_->currentData().toInt();
+        if (!verify(
+                window.viewer_ != nullptr
+                    && static_cast<int>(window.viewer_->inspectionRouteWaypointLabelDisplayMode()) == expectedWaypointLabelMode,
+                "Waypoint label mode combo box should sync into viewer route label mode")) {
+            return false;
+        }
+        if (!verify(
+                window.viewer_ != nullptr
+                    && static_cast<int>(window.viewer_->inspectionRoutePartLabelDisplayMode()) == expectedPartLabelMode,
+                "Part label mode combo box should sync into viewer route label mode")) {
+            return false;
+        }
 
         window.routeWaypointShowCoordinatesCheckBox_->setChecked(expectedWaypointShowCoordinates);
         window.routeWaypointShowCaptureAnglesCheckBox_->setChecked(expectedWaypointShowCaptureAngles);
@@ -1920,7 +2055,34 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
             return false;
         }
         window.routeRoamViewModeComboBox_->setCurrentIndex(roamViewModeIndex);
+        window.invertOrbitCheckBox_->setChecked(expectedInvertOrbit);
+        window.invertPanCheckBox_->setChecked(expectedInvertPan);
+        window.invertWheelCheckBox_->setChecked(expectedInvertWheel);
+        window.wheelZoomSensitivitySlider_->setValue(expectedWheelZoomSensitivity);
+        window.routeDetailsDock_->raise();
+        pumpEvents(80);
+        window.resizeDocks(
+            { window.inspectorDock_, window.routeDetailsDock_ },
+            { expectedManualRightDockWidth, expectedManualRightDockWidth },
+            Qt::Horizontal);
         pumpEvents(120);
+        expectedRightDockWidth = window.routeDetailsDock_->width();
+        window.inspectorDock_->raise();
+        pumpEvents(120);
+        const int firstWindowInspectorWidth = window.inspectorDock_->width();
+        if (!verify(
+                std::abs(firstWindowInspectorWidth - expectedRightDockWidth) <= 8,
+                "Switching to inspector should not rewrite the manually widened right dock width")) {
+            return false;
+        }
+        window.routeDetailsDock_->raise();
+        pumpEvents(120);
+        const int firstWindowRouteWidthAfterSwitch = window.routeDetailsDock_->width();
+        if (!verify(
+                std::abs(firstWindowRouteWidthAfterSwitch - expectedRightDockWidth) <= 8,
+                "Switching back to route details should keep the widened right dock width stable")) {
+            return false;
+        }
 
         if (!verify(window.showLogAction_ != nullptr && window.showLogAction_->isChecked(),
                 "Settings restore smoke should keep the first window log action checked")) {
@@ -1963,6 +2125,11 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         savedShowRouteDetails = settings.value(QStringLiteral("window/showRouteDetails"), false).toBool();
         savedStatePresent = !settings.value(QStringLiteral("window/state")).toByteArray().isEmpty();
         savedGeometryPresent = !settings.value(QStringLiteral("window/geometry")).toByteArray().isEmpty();
+        savedInvertOrbit = settings.value(QStringLiteral("interaction/invertOrbitDrag"), false).toBool();
+        savedInvertPan = settings.value(QStringLiteral("interaction/invertPanDrag"), false).toBool();
+        savedInvertWheel = settings.value(QStringLiteral("interaction/invertWheelZoom"), false).toBool();
+        savedWheelZoomSensitivity = settings.value(QStringLiteral("interaction/wheelZoomSensitivityPercent"), 0).toInt();
+        savedRightDockWidth = settings.value(QStringLiteral("window/rightDockWidth"), 0).toInt();
     }
 
     if (!verify(savedShowLog, "Settings restore smoke should persist window/showLog as true")) {
@@ -1978,6 +2145,21 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         return false;
     }
     if (!verify(savedGeometryPresent, "Settings restore smoke should persist window/geometry")) {
+        return false;
+    }
+    if (!verify(savedInvertOrbit == expectedInvertOrbit, "Settings restore smoke should persist interaction/invertOrbitDrag")) {
+        return false;
+    }
+    if (!verify(savedInvertPan == expectedInvertPan, "Settings restore smoke should persist interaction/invertPanDrag")) {
+        return false;
+    }
+    if (!verify(savedInvertWheel == expectedInvertWheel, "Settings restore smoke should persist interaction/invertWheelZoom")) {
+        return false;
+    }
+    if (!verify(savedWheelZoomSensitivity == expectedWheelZoomSensitivity, "Settings restore smoke should persist interaction/wheelZoomSensitivityPercent")) {
+        return false;
+    }
+    if (!verify(savedRightDockWidth > 0, "Settings restore smoke should persist window/rightDockWidth")) {
         return false;
     }
 
@@ -2053,6 +2235,18 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
             return false;
         }
         if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && static_cast<int>(restoredWindow.viewer_->inspectionRouteWaypointLabelDisplayMode()) == expectedWaypointLabelMode,
+                "Window settings restore should sync waypoint label mode back into the viewer")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && static_cast<int>(restoredWindow.viewer_->inspectionRoutePartLabelDisplayMode()) == expectedPartLabelMode,
+                "Window settings restore should sync part label mode back into the viewer")) {
+            return false;
+        }
+        if (!verify(
                 restoredWindow.routeWaypointShowCoordinatesCheckBox_ != nullptr
                     && restoredWindow.routeWaypointShowCoordinatesCheckBox_->isChecked() == expectedWaypointShowCoordinates,
                 "Window settings restore should recover the waypoint coordinate toggle")) {
@@ -2098,6 +2292,59 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
                 restoredWindow.viewer_ != nullptr
                     && static_cast<int>(restoredWindow.viewer_->inspectionRouteRoamViewMode()) == expectedRoamViewMode,
                 "Window settings restore should sync the route roam view mode back into the viewer")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && restoredWindow.viewer_->interactionOptions().invertOrbitDrag == expectedInvertOrbit,
+                "Window settings restore should recover invert orbit drag")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && restoredWindow.viewer_->interactionOptions().invertPanDrag == expectedInvertPan,
+                "Window settings restore should recover invert pan drag")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && restoredWindow.viewer_->interactionOptions().invertWheelZoom == expectedInvertWheel,
+                "Window settings restore should recover invert wheel zoom")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.viewer_ != nullptr
+                    && restoredWindow.viewer_->interactionOptions().wheelZoomSensitivityPercent == expectedWheelZoomSensitivity,
+                "Window settings restore should recover wheel zoom sensitivity")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.invertOrbitCheckBox_ != nullptr
+                    && restoredWindow.invertOrbitCheckBox_->isChecked() == expectedInvertOrbit,
+                "Window settings restore should sync invert orbit checkbox")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.wheelZoomSensitivitySlider_ != nullptr
+                    && restoredWindow.wheelZoomSensitivitySlider_->value() == expectedWheelZoomSensitivity,
+                "Window settings restore should sync wheel sensitivity slider")) {
+            return false;
+        }
+
+        restoredWindow.routeDetailsDock_->raise();
+        pumpEvents(120);
+        const int restoredRouteDetailsWidth = restoredWindow.routeDetailsDock_->width();
+        if (!verify(
+                std::abs(restoredRouteDetailsWidth - expectedRightDockWidth) <= 24,
+                "Window settings restore should keep the route details dock width near the saved value")) {
+            return false;
+        }
+        restoredWindow.inspectorDock_->raise();
+        pumpEvents(120);
+        const int restoredInspectorWidth = restoredWindow.inspectorDock_->width();
+        if (!verify(
+                std::abs(restoredInspectorWidth - restoredRouteDetailsWidth) <= 8,
+                "Switching right dock tabs should keep inspector and route details widths aligned")) {
             return false;
         }
 
@@ -2813,6 +3060,28 @@ bool runMeasurementAnalysisControllerSmoke(const QStringList& filePaths)
     }
     pumpEvents(900);
 
+    InspectionRouteDisplayData measurementSmokeRoute;
+    PointRecord measurementRouteWaypointA;
+    measurementRouteWaypointA.x = 0.0f;
+    measurementRouteWaypointA.y = 0.0f;
+    measurementRouteWaypointA.z = 20.0f;
+    PointRecord measurementRouteWaypointB;
+    measurementRouteWaypointB.x = 40.0f;
+    measurementRouteWaypointB.y = 25.0f;
+    measurementRouteWaypointB.z = 24.0f;
+    measurementSmokeRoute.waypoints.append(measurementRouteWaypointA);
+    measurementSmokeRoute.waypoints.append(measurementRouteWaypointB);
+    measurementSmokeRoute.labels.append(QStringLiteral("1"));
+    measurementSmokeRoute.labels.append(QStringLiteral("2"));
+    viewer.setInspectionRouteDisplayData(measurementSmokeRoute);
+    const int initialRouteWaypointCount = viewer.inspectionRouteWaypoints().size();
+    if (!verify(initialRouteWaypointCount == 2, "Measurement controller smoke should initialize route waypoints")) {
+        return false;
+    }
+    if (!verify(viewer.inspectionRouteVisible(), "Measurement controller smoke should keep route visible before measurement toggle")) {
+        return false;
+    }
+
     QAction measureAction(QStringLiteral("Measure"), &viewer);
     measureAction.setCheckable(true);
     QAction clearMeasurementAction(QStringLiteral("Clear"), &viewer);
@@ -2897,6 +3166,12 @@ bool runMeasurementAnalysisControllerSmoke(const QStringList& filePaths)
             "Measurement controller should sync measure action to viewer")) {
         return false;
     }
+    if (!verify(
+            viewer.inspectionRouteVisible()
+                && viewer.inspectionRouteWaypoints().size() == initialRouteWaypointCount,
+            "Measurement controller should not hide or clear route when enabling measurement")) {
+        return false;
+    }
     if (!verify(syncProfileDockCallCount == 1, "Measurement controller should trigger profile dock sync callback")) {
         return false;
     }
@@ -2906,6 +3181,12 @@ bool runMeasurementAnalysisControllerSmoke(const QStringList& filePaths)
     if (!verify(
             viewer.measurementEnabled() == !initialMeasurementEnabled,
             "Measurement controller should toggle measurement mode from button")) {
+        return false;
+    }
+    if (!verify(
+            viewer.inspectionRouteVisible()
+                && viewer.inspectionRouteWaypoints().size() == initialRouteWaypointCount,
+            "Measurement controller should keep route visibility and data when disabling measurement")) {
         return false;
     }
 
