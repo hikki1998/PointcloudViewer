@@ -33,6 +33,7 @@ class QListWidget;
 class QObject;
 class QPlainTextEdit;
 class QProgressBar;
+class QProcess;
 class QPushButton;
 class QSlider;
 class QSpinBox;
@@ -254,6 +255,15 @@ private:
     void syncProjectCoordinateSystemsFromRoutePlanning();
     void syncRoutePlanningFromProjectCoordinateSystems();
     void applyLanguage(UiLanguage language);
+    void captureMainWindowScreenshot();
+    void toggleScreenRecording();
+    void stopScreenRecording(bool notifyUser);
+    QString defaultCaptureSaveDirectory() const;
+    QString resolveCaptureOutputPath(
+        const QString& dialogTitle,
+        const QString& defaultFileName,
+        const QString& filter,
+        const QString& requiredSuffix);
 
     PointCloudViewer* viewer_ = nullptr;
     Qtitan::RibbonBar* ribbonBar_ = nullptr;
@@ -298,6 +308,7 @@ private:
     Qtitan::RibbonGroup* datasetRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* cameraRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* sceneRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* captureRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* measureRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* classificationRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* vegetationRiskRibbonGroup_ = nullptr;
@@ -443,6 +454,10 @@ private:
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
     QCheckBox* backstageShowLogCheckBox_ = nullptr;
+    QLineEdit* backstageCaptureSaveDirectoryLineEdit_ = nullptr;
+    QPushButton* backstageCaptureBrowseButton_ = nullptr;
+    QCheckBox* backstageCaptureAutoSaveCheckBox_ = nullptr;
+    QLabel* backstageCaptureShortcutHintLabel_ = nullptr;
     QCheckBox* routeWaypointShowCoordinatesCheckBox_ = nullptr;
     QCheckBox* routeWaypointShowCaptureAnglesCheckBox_ = nullptr;
     QCheckBox* routePartShowCoordinatesCheckBox_ = nullptr;
@@ -518,6 +533,8 @@ private:
     QAction* rightViewAction_ = nullptr;
     QAction* showAxesAction_ = nullptr;
     QAction* showBoundingBoxAction_ = nullptr;
+    QAction* captureScreenshotAction_ = nullptr;
+    QAction* toggleScreenRecordingAction_ = nullptr;
     QAction* darkBackgroundAction_ = nullptr;
     QAction* lightBackgroundAction_ = nullptr;
     QAction* rgbColorAction_ = nullptr;
@@ -622,8 +639,14 @@ private:
     bool dockPanelSizingPending_ = false;
     bool dockScreenTrackingConnected_ = false;
     bool pendingRibbonWindowMove_ = false;
+    bool captureSkipSaveDialog_ = false;
     QString routeRoamLastCaptureSummary_;
+    QString captureSaveDirectory_;
+    QString recordingOutputFilePath_;
     QPoint pendingRibbonWindowMoveGlobalPos_;
+    QProcess* recordingProcess_ = nullptr;
+    bool recordingStopRequested_ = false;
+    bool suppressRecordingStopMessage_ = false;
     bool classificationEditsDirty_ = false;
     bool handlingProfileClassificationExitPrompt_ = false;
     bool savingProfileClassificationEdits_ = false;

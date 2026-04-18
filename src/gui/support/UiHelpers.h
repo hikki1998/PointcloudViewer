@@ -32,6 +32,11 @@ QString showStyledSaveFileNameDialog(
     const QString& initialPath,
     const QString& filter);
 
+QString showStyledExistingDirectoryDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& initialPath);
+
 QMessageBox::StandardButton showLightStyledMessageBox(
     QWidget* parent,
     QMessageBox::Icon icon,

@@ -56,6 +56,7 @@ void MainWindow::createRibbon()
     ribbonBar_->quickAccessBar()->addAction(fitSceneAction_);
     ribbonBar_->quickAccessBar()->addAction(showAxesAction_);
     ribbonBar_->quickAccessBar()->addAction(measureAction_);
+    ribbonBar_->quickAccessBar()->addAction(captureScreenshotAction_);
 
     homePage_ = ribbonBar_->addPage(tr("Home"));
     datasetRibbonGroup_ = homePage_->addGroup(tr("Dataset"));
@@ -75,6 +76,10 @@ void MainWindow::createRibbon()
     sceneRibbonGroup_->addAction(showBoundingBoxAction_, Qt::ToolButtonTextUnderIcon);
     sceneRibbonGroup_->addAction(darkBackgroundAction_, Qt::ToolButtonTextUnderIcon);
     sceneRibbonGroup_->addAction(lightBackgroundAction_, Qt::ToolButtonTextUnderIcon);
+
+    captureRibbonGroup_ = homePage_->addGroup(tr("Capture"));
+    captureRibbonGroup_->addAction(captureScreenshotAction_, Qt::ToolButtonTextUnderIcon);
+    captureRibbonGroup_->addAction(toggleScreenRecordingAction_, Qt::ToolButtonTextUnderIcon);
 
     measureRibbonGroup_ = homePage_->addGroup(tr("Measure"));
     measureRibbonGroup_->addAction(measureAction_, Qt::ToolButtonTextUnderIcon);

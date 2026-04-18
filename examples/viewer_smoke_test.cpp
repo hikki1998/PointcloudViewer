@@ -1881,6 +1881,22 @@ bool runMainBackstageSmoke(const QStringList& filePaths)
         return false;
     }
 
+    if (!verify(window.backstageCaptureSaveDirectoryLineEdit_ != nullptr, "Application Settings should expose capture save directory input")) {
+        return false;
+    }
+    if (!verify(window.backstageCaptureBrowseButton_ != nullptr, "Application Settings should expose capture folder browse button")) {
+        return false;
+    }
+    if (!verify(window.backstageCaptureAutoSaveCheckBox_ != nullptr, "Application Settings should expose capture auto-save checkbox")) {
+        return false;
+    }
+    if (!verify(window.backstageCaptureShortcutHintLabel_ != nullptr, "Application Settings should expose capture shortcut hint label")) {
+        return false;
+    }
+    if (!verify(!window.backstageCaptureShortcutHintLabel_->text().trimmed().isEmpty(), "Capture shortcut hint label should not be empty")) {
+        return false;
+    }
+
     backstageView->setActivePage(aboutPage);
     if (!verify(
             backstageView->getActivePage() == aboutPage,
@@ -1939,6 +1955,9 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
     const bool expectedInvertWheel = true;
     const int expectedWheelZoomSensitivity = 145;
     const int expectedManualRightDockWidth = 460;
+    const QString expectedCaptureDirectory = QDir::toNativeSeparators(
+        QDir(settingsDir.path()).filePath(QStringLiteral("captures")));
+    const bool expectedCaptureAutoSave = true;
     bool savedShowLog = false;
     bool savedShowProfileClassification = false;
     bool savedShowRouteDetails = false;
@@ -1949,6 +1968,8 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
     bool savedInvertWheel = false;
     int savedWheelZoomSensitivity = 0;
     int savedRightDockWidth = 0;
+    QString savedCaptureDirectory;
+    bool savedCaptureAutoSave = false;
     int expectedRightDockWidth = 0;
 
     {
@@ -2008,6 +2029,12 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         if (!verify(window.wheelZoomSensitivitySlider_ != nullptr, "Settings restore smoke should create the wheel sensitivity slider")) {
             return false;
         }
+        if (!verify(window.backstageCaptureSaveDirectoryLineEdit_ != nullptr, "Settings restore smoke should create the capture save directory input")) {
+            return false;
+        }
+        if (!verify(window.backstageCaptureAutoSaveCheckBox_ != nullptr, "Settings restore smoke should create the capture auto-save checkbox")) {
+            return false;
+        }
 
         window.showLogAction_->setChecked(true);
         window.showProfileClassificationDockAction_->setChecked(true);
@@ -2059,6 +2086,12 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         window.invertPanCheckBox_->setChecked(expectedInvertPan);
         window.invertWheelCheckBox_->setChecked(expectedInvertWheel);
         window.wheelZoomSensitivitySlider_->setValue(expectedWheelZoomSensitivity);
+        window.backstageCaptureSaveDirectoryLineEdit_->setText(expectedCaptureDirectory);
+        QMetaObject::invokeMethod(
+            window.backstageCaptureSaveDirectoryLineEdit_,
+            "editingFinished",
+            Qt::DirectConnection);
+        window.backstageCaptureAutoSaveCheckBox_->setChecked(expectedCaptureAutoSave);
         window.routeDetailsDock_->raise();
         pumpEvents(80);
         window.resizeDocks(
@@ -2130,6 +2163,8 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         savedInvertWheel = settings.value(QStringLiteral("interaction/invertWheelZoom"), false).toBool();
         savedWheelZoomSensitivity = settings.value(QStringLiteral("interaction/wheelZoomSensitivityPercent"), 0).toInt();
         savedRightDockWidth = settings.value(QStringLiteral("window/rightDockWidth"), 0).toInt();
+        savedCaptureDirectory = settings.value(QStringLiteral("capture/saveDirectory")).toString();
+        savedCaptureAutoSave = settings.value(QStringLiteral("capture/skipSaveDialog"), false).toBool();
     }
 
     if (!verify(savedShowLog, "Settings restore smoke should persist window/showLog as true")) {
@@ -2160,6 +2195,12 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
         return false;
     }
     if (!verify(savedRightDockWidth > 0, "Settings restore smoke should persist window/rightDockWidth")) {
+        return false;
+    }
+    if (!verify(savedCaptureDirectory == expectedCaptureDirectory, "Settings restore smoke should persist capture/saveDirectory")) {
+        return false;
+    }
+    if (!verify(savedCaptureAutoSave == expectedCaptureAutoSave, "Settings restore smoke should persist capture/skipSaveDialog")) {
         return false;
     }
 
@@ -2280,6 +2321,18 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
                 restoredWindow.routeRoamViewModeComboBox_ != nullptr
                     && restoredWindow.routeRoamViewModeComboBox_->currentData().toInt() == expectedRoamViewMode,
                 "Window settings restore should recover the route roam view mode")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.backstageCaptureSaveDirectoryLineEdit_ != nullptr
+                    && restoredWindow.backstageCaptureSaveDirectoryLineEdit_->text() == expectedCaptureDirectory,
+                "Window settings restore should recover the capture save directory")) {
+            return false;
+        }
+        if (!verify(
+                restoredWindow.backstageCaptureAutoSaveCheckBox_ != nullptr
+                    && restoredWindow.backstageCaptureAutoSaveCheckBox_->isChecked() == expectedCaptureAutoSave,
+                "Window settings restore should recover capture auto-save state")) {
             return false;
         }
         if (!verify(

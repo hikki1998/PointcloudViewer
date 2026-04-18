@@ -75,4 +75,7 @@ inline constexpr char kRouteDisplayWaypointShowCoordinates[] = "route/display/wa
 inline constexpr char kRouteDisplayWaypointShowCaptureAngles[] = "route/display/waypointShowCaptureAngles";
 inline constexpr char kRouteDisplayPartShowCoordinates[] = "route/display/partShowCoordinates";
 inline constexpr char kRouteDisplayPartShowCaptureAngles[] = "route/display/partShowCaptureAngles";
+
+inline constexpr char kCaptureSaveDirectory[] = "capture/saveDirectory";
+inline constexpr char kCaptureSkipSaveDialog[] = "capture/skipSaveDialog";
 }

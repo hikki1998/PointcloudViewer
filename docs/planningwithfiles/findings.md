@@ -518,6 +518,73 @@
 验证结果：
 - 已重新编译主程序与 smoke：
   - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
+
+---
+
+## 2026-04-18 竞品核心能力调研（面向新功能规划）
+
+### 样本来源（可访问页面）
+
+- DJI Terra（大疆智图）
+- Trimble RealWorks
+- TerraSolid TerraScan
+- Bentley iTwin Capture Modeler
+- Pix4Dmatic
+- CloudCompare（开源基线）
+
+说明：部分站点存在 404/提取失败，已通过替代样本保证能力维度覆盖。
+
+### 竞品共性能力（归一化）
+
+1) 大规模多源数据处理
+- 支持影像 + LiDAR 融合建模。
+- 面向大场景的数据分块/集群/批处理。
+
+2) 自动化点云处理流水线
+- 自动配准（有标靶与无标靶）。
+- 自动分类（地面/非地面、对象级）。
+- 批处理宏与可重复执行流程。
+
+3) 巡检与专业分析工具
+- 3D 检查、体积/表面/正射/DSM/DTM/TIN 输出。
+- 走廊与电力场景专项（线路向量化、危险点分析）。
+
+4) 交付与生态集成
+- 强调 CAD/GIS 就绪成果（LAS/LAZ、GeoTIFF、DXF、LandXML、3D Tiles 等）。
+- 与云端协同、数字孪生平台、下游系统联动。
+
+5) 开放与可扩展
+- 自动化与定制（脚本、批处理、工具链衔接）。
+- 版本分层（基础版/高级版/行业版）。
+
+### 与本项目的差距（可迁移优先）
+
+已具备：
+- 点云浏览、渲染参数、量测、净空分析、航线规划与漫游、杆塔与隐患业务、工程持久化。
+
+主要缺口：
+- 批处理/流程编排能力不足（当前偏单项目交互式）。
+- 自动分类与变化检测能力不足（尤其多期对比）。
+- 报告模板化与可追溯证据链不足。
+- 开放接口与插件化能力不足（算法或业务扩展门槛高）。
+- 协作与任务分工能力不足（单机本地为主）。
+
+### 高可迁移机会点（结论）
+
+1) “工作流引擎 + 批处理任务”
+- 对任何行业都适用，不绑定单一算法。
+
+2) “多期数据变化检测”
+- 可复用到电力、交通、园区、矿山、应急等场景。
+
+3) “报告模板与证据链导出”
+- 对业务闭环价值高，且可复用现有杆塔/隐患/净空数据模型。
+
+4) “插件化分析接口”
+- 长期可迁移能力最强，可把专项能力外置，降低主程序耦合。
+
+5) “开放数据交换层”
+- 用开放格式和统一元数据桥接 GIS/CAD/数字孪生生态。
 - 已完成验证：
   - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode project-explorer-mainwindow --las .\test_data\ezhou_powerline_sample.las`
   - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`

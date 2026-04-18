@@ -115,6 +115,75 @@
      </layout>
     </widget>
    </item>
+     <item>
+        <widget class="QGroupBox" name="captureGroup">
+         <property name="title">
+            <string>Capture</string>
+         </property>
+         <layout class="QVBoxLayout" name="captureLayout">
+            <property name="leftMargin">
+             <number>14</number>
+            </property>
+            <property name="topMargin">
+             <number>22</number>
+            </property>
+            <property name="rightMargin">
+             <number>14</number>
+            </property>
+            <property name="bottomMargin">
+             <number>14</number>
+            </property>
+            <property name="spacing">
+             <number>8</number>
+            </property>
+            <item>
+             <layout class="QHBoxLayout" name="capturePathLayout">
+                <property name="spacing">
+                 <number>8</number>
+                </property>
+                <item>
+                 <widget class="QLabel" name="capturePathLabel">
+                    <property name="text">
+                     <string>Default save folder</string>
+                    </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="captureSaveDirectoryLineEdit">
+                    <property name="placeholderText">
+                     <string>Choose a folder for screenshots and recordings</string>
+                    </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="captureBrowseButton">
+                    <property name="text">
+                     <string>Browse...</string>
+                    </property>
+                 </widget>
+                </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="captureAutoSaveCheckBox">
+                <property name="text">
+                 <string>Use default path and save automatically (no save dialog)</string>
+                </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="captureShortcutHintLabel">
+                <property name="text">
+                 <string>Screenshot: Ctrl+Shift+S | Recording: Ctrl+Shift+R</string>
+                </property>
+                <property name="wordWrap">
+                 <bool>true</bool>
+                </property>
+             </widget>
+            </item>
+         </layout>
+        </widget>
+     </item>
   </layout>
  </widget>
  <resources/>

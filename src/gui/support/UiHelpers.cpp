@@ -268,6 +268,24 @@ QString showStyledSaveFileNameDialog(
     return dialog.selectedFiles().constFirst();
 }
 
+QString showStyledExistingDirectoryDialog(
+    QWidget* parent,
+    const QString& title,
+    const QString& initialPath)
+{
+    QFileDialog dialog(parent, title, initialPath);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setOption(QFileDialog::ShowDirsOnly, true);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    applyStyledDialogPalette(&dialog);
+
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty()) {
+        return QString();
+    }
+    return dialog.selectedFiles().constFirst();
+}
+
 QMessageBox::StandardButton showLightStyledMessageBox(
     QWidget* parent,
     QMessageBox::Icon icon,

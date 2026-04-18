@@ -146,6 +146,8 @@ void MainWindow::createControllerConnections()
     connect(projectCoordinateSystemsAction_, &QAction::triggered, this, [this]() { openBackstagePage(backstageProjectPropertiesPage_); });
     connect(clearAction_, &QAction::triggered, this, [this]() { clearPointCloud(); });
     connect(exitAction_, &QAction::triggered, this, &QWidget::close);
+    connect(captureScreenshotAction_, &QAction::triggered, this, [this]() { captureMainWindowScreenshot(); });
+    connect(toggleScreenRecordingAction_, &QAction::triggered, this, [this]() { toggleScreenRecording(); });
 
     connect(fitSceneAction_, &QAction::triggered, viewer_, &PointCloudViewer::resetView);
     connect(topViewAction_, &QAction::triggered, this, [this]() { viewer_->setViewPreset(PointCloudViewPreset::Top); });

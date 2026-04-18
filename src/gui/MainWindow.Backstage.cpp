@@ -7,6 +7,7 @@
 #include <QFont>
 #include <QLabel>
 #include <QLineEdit>
+#include <QKeySequence>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPushButton>
@@ -33,6 +34,7 @@ using namespace mainwindow_internal;
 using lasviewer::gui::RibbonGlyph;
 using lasviewer::gui::createRibbonIcon;
 using lasviewer::gui::showLightStyledMessageBox;
+using lasviewer::gui::showStyledExistingDirectoryDialog;
 using lasviewer::gui::showStyledOpenFileNameDialog;
 namespace settingskeys = lasviewer::gui::settingskeys;
 
@@ -223,6 +225,10 @@ void MainWindow::createBackstageView()
             languageLayout->addStretch(1);
         }
         backstageShowLogCheckBox_ = backstageApplicationSettingsWidget_->showLogCheckBox();
+        backstageCaptureSaveDirectoryLineEdit_ = backstageApplicationSettingsWidget_->captureSaveDirectoryLineEdit();
+        backstageCaptureBrowseButton_ = backstageApplicationSettingsWidget_->captureBrowseButton();
+        backstageCaptureAutoSaveCheckBox_ = backstageApplicationSettingsWidget_->captureAutoSaveCheckBox();
+        backstageCaptureShortcutHintLabel_ = backstageApplicationSettingsWidget_->captureShortcutHintLabel();
         layout->addWidget(backstageApplicationSettingsWidget_);
         layout->addStretch(1);
     }
@@ -305,6 +311,41 @@ void MainWindow::createBackstageView()
         if (showLogAction_ != nullptr && showLogAction_->isChecked() != checked) {
             showLogAction_->setChecked(checked);
         }
+    });
+    connect(backstageCaptureBrowseButton_, &QPushButton::clicked, this, [this]() {
+        const QString selectedDirectory = showStyledExistingDirectoryDialog(
+            this,
+            tr("Select Capture Save Folder"),
+            backstageCaptureSaveDirectoryLineEdit_ != nullptr
+                ? backstageCaptureSaveDirectoryLineEdit_->text().trimmed()
+                : captureSaveDirectory_);
+        if (selectedDirectory.isEmpty()) {
+            return;
+        }
+
+        captureSaveDirectory_ = QDir::toNativeSeparators(QDir::cleanPath(selectedDirectory));
+        if (backstageCaptureSaveDirectoryLineEdit_ != nullptr) {
+            const QSignalBlocker blocker(backstageCaptureSaveDirectoryLineEdit_);
+            backstageCaptureSaveDirectoryLineEdit_->setText(captureSaveDirectory_);
+        }
+        persistWindowSettings();
+    });
+    connect(backstageCaptureSaveDirectoryLineEdit_, &QLineEdit::editingFinished, this, [this]() {
+        if (backstageCaptureSaveDirectoryLineEdit_ == nullptr) {
+            return;
+        }
+
+        const QString trimmedPath = backstageCaptureSaveDirectoryLineEdit_->text().trimmed();
+        captureSaveDirectory_ = trimmedPath.isEmpty()
+            ? defaultCaptureSaveDirectory()
+            : QDir::toNativeSeparators(QDir::cleanPath(trimmedPath));
+        const QSignalBlocker blocker(backstageCaptureSaveDirectoryLineEdit_);
+        backstageCaptureSaveDirectoryLineEdit_->setText(captureSaveDirectory_);
+        persistWindowSettings();
+    });
+    connect(backstageCaptureAutoSaveCheckBox_, &QCheckBox::toggled, this, [this](bool checked) {
+        captureSkipSaveDialog_ = checked;
+        persistWindowSettings();
     });
     connect(showLogAction_, &QAction::toggled, this, [this](bool checked) {
         if (backstageShowLogCheckBox_ != nullptr && backstageShowLogCheckBox_->isChecked() != checked) {
@@ -425,6 +466,29 @@ void MainWindow::refreshBackstageApplicationSettingsPage()
     if (backstageShowLogCheckBox_ != nullptr && showLogAction_ != nullptr) {
         const QSignalBlocker blocker(backstageShowLogCheckBox_);
         backstageShowLogCheckBox_->setChecked(showLogAction_->isChecked());
+    }
+    if (backstageCaptureSaveDirectoryLineEdit_ != nullptr) {
+        const QSignalBlocker blocker(backstageCaptureSaveDirectoryLineEdit_);
+        backstageCaptureSaveDirectoryLineEdit_->setText(
+            captureSaveDirectory_.trimmed().isEmpty()
+                ? defaultCaptureSaveDirectory()
+                : captureSaveDirectory_);
+    }
+    if (backstageCaptureAutoSaveCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(backstageCaptureAutoSaveCheckBox_);
+        backstageCaptureAutoSaveCheckBox_->setChecked(captureSkipSaveDialog_);
+    }
+    if (backstageCaptureShortcutHintLabel_ != nullptr) {
+        const QString screenshotShortcut = captureScreenshotAction_ != nullptr
+            ? captureScreenshotAction_->shortcut().toString(QKeySequence::NativeText)
+            : QString();
+        const QString recordingShortcut = toggleScreenRecordingAction_ != nullptr
+            ? toggleScreenRecordingAction_->shortcut().toString(QKeySequence::NativeText)
+            : QString();
+        backstageCaptureShortcutHintLabel_->setText(
+            tr("Screenshot: %1 | Recording: %2")
+                .arg(screenshotShortcut.isEmpty() ? tr("None") : screenshotShortcut)
+                .arg(recordingShortcut.isEmpty() ? tr("None") : recordingShortcut));
     }
 }
 

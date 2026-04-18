@@ -4,8 +4,10 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QJsonDocument>
+#include <QLineEdit>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -277,6 +279,24 @@ void MainWindow::loadWindowSettings()
     }
     if (routeDetailsTabWidget_ != nullptr) {
         routeDetailsTabWidget_->setCurrentIndex(settings.value(settingskeys::kWindowRouteDetailsTab, 0).toInt());
+    }
+
+    captureSaveDirectory_ = settings.value(
+        settingskeys::kCaptureSaveDirectory,
+        defaultCaptureSaveDirectory()).toString().trimmed();
+    if (captureSaveDirectory_.isEmpty()) {
+        captureSaveDirectory_ = defaultCaptureSaveDirectory();
+    } else {
+        captureSaveDirectory_ = QDir::toNativeSeparators(QDir::cleanPath(captureSaveDirectory_));
+    }
+    captureSkipSaveDialog_ = settings.value(settingskeys::kCaptureSkipSaveDialog, false).toBool();
+    if (backstageCaptureSaveDirectoryLineEdit_ != nullptr) {
+        const QSignalBlocker blocker(backstageCaptureSaveDirectoryLineEdit_);
+        backstageCaptureSaveDirectoryLineEdit_->setText(captureSaveDirectory_);
+    }
+    if (backstageCaptureAutoSaveCheckBox_ != nullptr) {
+        const QSignalBlocker blocker(backstageCaptureAutoSaveCheckBox_);
+        backstageCaptureAutoSaveCheckBox_->setChecked(captureSkipSaveDialog_);
     }
 
     const QList<DjiAircraftProfile> supportedProfiles = supportedDjiAircraftProfiles();
@@ -652,6 +672,10 @@ void MainWindow::persistWindowSettings(bool force) const
     settings.setValue(
         settingskeys::kWindowLogAutoScroll,
         logDock_ == nullptr || logDock_->autoScrollEnabled());
+    settings.setValue(
+        settingskeys::kCaptureSaveDirectory,
+        captureSaveDirectory_.trimmed().isEmpty() ? defaultCaptureSaveDirectory() : captureSaveDirectory_);
+    settings.setValue(settingskeys::kCaptureSkipSaveDialog, captureSkipSaveDialog_);
 }
 
 void MainWindow::loadThemeSettings()

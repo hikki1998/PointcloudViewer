@@ -47,6 +47,7 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QProgressBar>
+#include <QProcess>
 #include <QPushButton>
 #include <QDropEvent>
 #include <QFile>
@@ -1137,6 +1138,13 @@ void MainWindow::retranslateActionsAndBackstage()
     showAxesAction_->setToolTip(tr("Show or hide XYZ axes"));
     showBoundingBoxAction_->setText(tr("Bounds"));
     showBoundingBoxAction_->setToolTip(tr("Show or hide point cloud bounds"));
+    captureScreenshotAction_->setText(tr("Screenshot"));
+    captureScreenshotAction_->setToolTip(tr("Capture the current application window as a PNG image"));
+    toggleScreenRecordingAction_->setText(recordingProcess_ == nullptr ? tr("Start Recording") : tr("Stop Recording"));
+    toggleScreenRecordingAction_->setToolTip(
+        recordingProcess_ == nullptr
+            ? tr("Start MP4 screen recording for the current application window")
+            : tr("Stop the active MP4 screen recording"));
     darkBackgroundAction_->setText(tr("Dark"));
     darkBackgroundAction_->setToolTip(tr("Switch to dark background"));
     lightBackgroundAction_->setText(tr("Light"));
@@ -1297,7 +1305,7 @@ void MainWindow::retranslateActionsAndBackstage()
         backstageApplicationSettingsTitleLabel_->setText(tr("Application Settings"));
     }
     if (backstageApplicationSettingsSubtitleLabel_ != nullptr) {
-        backstageApplicationSettingsSubtitleLabel_->setText(tr("Adjust the office theme, interface language, and workspace panels."));
+        backstageApplicationSettingsSubtitleLabel_->setText(tr("Adjust the office theme, interface language, workspace panels, and capture behavior."));
     }
     if (backstageApplicationSettingsWidget_ != nullptr) {
         backstageApplicationSettingsWidget_->retranslateUi();
@@ -1323,12 +1331,26 @@ void MainWindow::retranslateActionsAndBackstage()
     if (backstageShowLogCheckBox_ != nullptr) {
         backstageShowLogCheckBox_->setText(tr("Show log panel"));
     }
+    if (backstageCaptureBrowseButton_ != nullptr) {
+        backstageCaptureBrowseButton_->setText(tr("Browse..."));
+    }
+    if (backstageCaptureSaveDirectoryLineEdit_ != nullptr) {
+        backstageCaptureSaveDirectoryLineEdit_->setPlaceholderText(tr("Choose a folder for screenshots and recordings"));
+    }
+    if (backstageCaptureAutoSaveCheckBox_ != nullptr) {
+        backstageCaptureAutoSaveCheckBox_->setText(tr("Use default path and save automatically (no save dialog)"));
+    }
     if (backstageOpenProjectWidget_ != nullptr) {
         if (QGroupBox* recentProjectsGroup = backstageOpenProjectWidget_->recentProjectsGroup()) {
             recentProjectsGroup->setTitle(tr("Recent Projects"));
         }
         if (QGroupBox* projectFileGroup = backstageOpenProjectWidget_->projectFileGroup()) {
             projectFileGroup->setTitle(tr("Project File"));
+        }
+    }
+    if (backstageApplicationSettingsWidget_ != nullptr) {
+        if (QGroupBox* captureGroup = backstageApplicationSettingsWidget_->captureGroup()) {
+            captureGroup->setTitle(tr("Capture"));
         }
     }
 }
@@ -1361,6 +1383,9 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     }
     if (sceneRibbonGroup_ != nullptr) {
         sceneRibbonGroup_->setTitle(tr("Scene"));
+    }
+    if (captureRibbonGroup_ != nullptr) {
+        captureRibbonGroup_->setTitle(tr("Capture"));
     }
     if (measureRibbonGroup_ != nullptr) {
         measureRibbonGroup_->setTitle(tr("Measure"));
@@ -3576,6 +3601,14 @@ void MainWindow::updateActionState()
     topViewAction_->setEnabled(hasPointCloud);
     frontViewAction_->setEnabled(hasPointCloud);
     rightViewAction_->setEnabled(hasPointCloud);
+    captureScreenshotAction_->setEnabled(true);
+    toggleScreenRecordingAction_->setEnabled(true);
+    const bool recordingActive = recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning;
+    toggleScreenRecordingAction_->setText(recordingActive ? tr("Stop Recording") : tr("Start Recording"));
+    toggleScreenRecordingAction_->setToolTip(
+        recordingActive
+            ? tr("Stop the active MP4 screen recording")
+            : tr("Start MP4 screen recording for the current application window"));
     measureAction_->setEnabled(hasPointCloud);
     profileClassificationAction_->setEnabled(profileClassificationReady);
     showProfileClassificationDockAction_->setEnabled(true);

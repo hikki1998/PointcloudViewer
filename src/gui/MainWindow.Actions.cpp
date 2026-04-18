@@ -62,6 +62,16 @@ void MainWindow::createActions()
     showBoundingBoxAction_->setCheckable(true);
     showBoundingBoxAction_->setToolTip(tr("Show or hide point cloud bounds"));
 
+    captureScreenshotAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Screenshot"), this);
+    captureScreenshotAction_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+S")));
+    captureScreenshotAction_->setShortcutContext(Qt::WindowShortcut);
+    captureScreenshotAction_->setToolTip(tr("Capture the current application window as a PNG image"));
+
+    toggleScreenRecordingAction_ = new QAction(createRibbonIcon(RibbonGlyph::Log), tr("Start Recording"), this);
+    toggleScreenRecordingAction_->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+R")));
+    toggleScreenRecordingAction_->setShortcutContext(Qt::WindowShortcut);
+    toggleScreenRecordingAction_->setToolTip(tr("Start or stop MP4 screen recording for the current application window"));
+
     darkBackgroundAction_ = new QAction(createRibbonIcon(RibbonGlyph::DarkBackground), tr("Dark"), this);
     darkBackgroundAction_->setToolTip(tr("Switch to dark background"));
     lightBackgroundAction_ = new QAction(createRibbonIcon(RibbonGlyph::LightBackground), tr("Light"), this);

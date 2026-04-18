@@ -3,6 +3,9 @@
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
 
 #include "ui_BackstageApplicationSettingsWidget.h"
 
@@ -20,6 +23,9 @@ BackstageApplicationSettingsWidget::BackstageApplicationSettingsWidget(QWidget* 
     }
     if (ui_->workspaceGroup != nullptr) {
         ui_->workspaceGroup->setObjectName(QStringLiteral("backstageWorkspaceGroup"));
+    }
+    if (ui_->captureGroup != nullptr) {
+        ui_->captureGroup->setObjectName(QStringLiteral("backstageCaptureGroup"));
     }
 }
 
@@ -50,6 +56,11 @@ QGroupBox* BackstageApplicationSettingsWidget::workspaceGroup() const
     return ui_ != nullptr ? ui_->workspaceGroup : nullptr;
 }
 
+QGroupBox* BackstageApplicationSettingsWidget::captureGroup() const
+{
+    return ui_ != nullptr ? ui_->captureGroup : nullptr;
+}
+
 QHBoxLayout* BackstageApplicationSettingsWidget::themeButtonLayout() const
 {
     return ui_ != nullptr ? ui_->themeButtonLayout : nullptr;
@@ -63,4 +74,24 @@ QHBoxLayout* BackstageApplicationSettingsWidget::languageButtonLayout() const
 QCheckBox* BackstageApplicationSettingsWidget::showLogCheckBox() const
 {
     return ui_ != nullptr ? ui_->showLogCheckBox : nullptr;
+}
+
+QLineEdit* BackstageApplicationSettingsWidget::captureSaveDirectoryLineEdit() const
+{
+    return ui_ != nullptr ? ui_->captureSaveDirectoryLineEdit : nullptr;
+}
+
+QPushButton* BackstageApplicationSettingsWidget::captureBrowseButton() const
+{
+    return ui_ != nullptr ? ui_->captureBrowseButton : nullptr;
+}
+
+QCheckBox* BackstageApplicationSettingsWidget::captureAutoSaveCheckBox() const
+{
+    return ui_ != nullptr ? ui_->captureAutoSaveCheckBox : nullptr;
+}
+
+QLabel* BackstageApplicationSettingsWidget::captureShortcutHintLabel() const
+{
+    return ui_ != nullptr ? ui_->captureShortcutHintLabel : nullptr;
 }
