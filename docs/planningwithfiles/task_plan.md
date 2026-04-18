@@ -1,267 +1,301 @@
-# 重构回归深度排查与修复计划
+# 内嵌录屏替代 `ffmpeg.exe` 计划
 
 ## 目标
 
-针对 `MainWindow` 拆分重构后可能出现的“功能仍在、接线/状态/交互丢失”类问题，建立一套系统性的排查与修复流程，避免继续靠用户逐个触发隐蔽回归。
+- 移除当前对外部 `ffmpeg.exe` 的依赖。
+- 用软件内嵌实现替换现有录屏后端。
+- 保留当前 Ribbon、Backstage、保存路径和自动保存设置体验。
 
 ## 当前背景
 
-- 2026-04-15 的 `b9a8e3b` 进行了大规模 `MainWindow` 边界重构。
-- 重构后已出现并修复/定位的回归包括：
-  - 主窗口标题区双击/拖拽/最大化交互异常
-  - 全屏状态点击导致闪屏
-  - 右侧 dock 在 1080P 下过宽且不可继续缩小
-  - `Project Explorer` 右键菜单失效
-- 最近一次新增证据表明：`ProjectExplorerController` 的信号仍然发出，但 `MainWindow.Connections.cpp` 漏接了 `customContextMenuRequested`、`itemChanged`、`currentItemChanged`、`itemDoubleClicked`、`searchTextChanged` 这组项目树相关接线。
+- 当前录屏入口已经接入：
+  - `src/gui/MainWindow.Actions.cpp`
+  - `src/gui/MainWindow.Core.cpp`
+  - `src/gui/MainWindow.Backstage.cpp`
+  - `src/gui/MainWindow.SettingsStore.cpp`
+- 当前实现本质是：
+  - Qt 负责 UI、设置、状态提示
+  - `QProcess` 启动外部 `ffmpeg.exe` 执行录屏
+- 当前仓库没有现成的：
+  - `Windows.Graphics.Capture`
+  - `D3D11`
+  - `DXGI`
+  - `Media Foundation`
+  接入基础
 
-## 风险假设
+## 当前推荐方案
 
-这类回归不是单点 bug，而是重构后的典型风险模式：
+- 平台范围：仅 Windows
+- 采集：`Windows.Graphics.Capture`
+- 帧承载：`D3D11`
+- 编码与封装：`Media Foundation Sink Writer`
+- MVP 输出：`MP4(H.264)`，仅视频，不录音频
 
-1. 原先在 `MainWindow.cpp` 中直接连接的 widget 信号，拆分后漏迁移到 `MainWindow.Connections.cpp`
-2. 直接 widget 逻辑改成 controller 转发后，controller -> MainWindow 的二段接线缺失
-3. `QSettings` / `saveState()` / `restoreState()` 相关恢复链条断裂
-4. dock / tab / objectName / minimumSize / screenChanged 等窗口状态约束在拆分后分散，导致交互退化
-5. 旧 smoke 覆盖 controller 单体行为，但没有覆盖“controller 已接到 MainWindow 后是否仍工作”
-6. `retranslateUi()`、`updateActionState()`、selection 同步、显示状态同步等跨模块副作用漏迁移
+## 非目标
 
-## 本轮排查范围
-
-- `src/gui/MainWindow.*`
-- `src/gui/PointCloudViewer.*`
-- `src/gui/*Controller.*`
-- `src/gui/*Dock.*`
-- `examples/viewer_smoke_test.cpp`
-- 必要时补充 `docs/agent/*.md` 中的验证与接手规则
-
-## 不在本轮首批范围
-
-- 点云渲染算法正确性
-- 巡检业务计算结果正确性
-- 大规模 UI 样式重做
+- 跨平台录屏
+- 音频采集
+- 暂停/继续
+- 任意区域裁剪
+- 多编码器切换
+- 一次性补齐所有高级录屏能力
 
 ## 阶段计划
 
-### Phase 1 - 建立回归基线
+### Phase R1 - 现状梳理与目标收口
 状态：`complete`
-
-目标：
-- 把当前已知回归、近期修复点、重构边界和未覆盖区域整理成统一台账。
 
 动作：
-- 汇总 `b9a8e3b` 之后已经发现的回归模式
-- 标出高风险拆分文件：`MainWindow.Connections.cpp`、`MainWindow.Core.cpp`、`MainWindow.Docks.cpp`、`MainWindow.SettingsStore.cpp`
-- 盘点现有 smoke 模式与空白区
+- 确认当前录屏链路、设置入口、保存路径、状态提示和生命周期管理。
+- 确认哪些代码可复用，哪些只是 `ffmpeg` 适配层。
+- 明确 MVP 范围与非目标。
 
 产出：
-- `findings.md` 的风险地图
-- 回归家族清单
+- 现状结构说明
+- MVP 功能边界
 
-### Phase 2 - 静态对等性审计
+### Phase R2 - 技术选型与模块边界设计
 状态：`complete`
-
-目标：
-- 以“重构前 `MainWindow.cpp` 对等功能是否全部迁移”为主线做静态审计。
 
 动作：
-- 对比重构前后以下维度：
-  - widget / controller / viewer 信号槽接线
-  - QAction 创建后是否仍有 trigger 接收方
-  - dock 创建后是否仍有 visibility / tabify / state 恢复处理
-  - `objectName` 是否满足 `saveState()` / `restoreState()`
-  - `retranslateUi()` 及 `updateActionState()` 是否仍覆盖所有入口
-- 优先审计这些功能面：
-  - `Project Explorer`
-  - Backstage / Ribbon
-  - Route 相关 dock、表格和场景联动
-  - Tower / Issue 列表与详情联动
-  - Profile / Measurement / Classification 面板
+- 确定采集、编码、封装的推荐技术路线。
+- 设计新的录屏模块边界，避免平台代码继续堆入 `MainWindow`。
+- 明确 `MainWindow` 保留的职责与新模块承担的职责。
 
 产出：
-- 一份“旧实现 -> 新落点”的对照表
-- 一份“已迁移 / 疑似漏迁移 / 已确认回归”的问题清单
+- 推荐方案：`Windows.Graphics.Capture + D3D11 + Media Foundation`
+- 目标模块拆分草案
 
-### Phase 3 - 动态交互审计
+### Phase R3 - 构建与依赖接入计划
 状态：`complete`
-
-目标：
-- 覆盖“代码存在但操作链路断开”的交互类回归。
 
 动作：
-- 为每个高风险面设计最小人工/半自动检查清单：
-  - 左侧项目树：搜索、勾选、双击、右键、选中同步
-  - Ribbon / Backstage：按钮跳转、页面切换、窗口控制
-  - dock：显示/隐藏、tabify、宽度恢复、拖拽、浮动
-  - route：表格选中、场景高亮、dock 显示、QA
-  - tower / issue：列表选中、聚焦、详情编辑、导入导出入口
-  - viewer：拾取、量测、状态栏、标题区交互
-- 将人工步骤转成 smoke 候选
+- 确认需要增加的系统头文件、WinRT/Win32 互操作头和系统库。
+- 规划 `CMakeLists.txt` 与 `cmake/*.cmake` 的最小改动面。
+- 定义“最小可编译”目标。
 
 产出：
-- 模块化交互检查表
-- smoke 补点优先级列表
+- 构建接入清单
+- 依赖与风险清单
 
-### Phase 4 - 补齐自动化回归验证
-状态：`complete`
-
-目标：
-- 把本次重构最容易漏的“接线型回归”尽量沉淀到 `LASViewerSmokeTest`。
-
-动作：
-- 新增或扩展 smoke：
-  - `Project Explorer` 主窗口级交互 smoke
-  - dock 状态恢复 / 宽度钳制 smoke
-  - 标题区空白交互 smoke
-  - route / issue / tower 关键表格-场景联动 smoke
-- 明确哪些 smoke 是 controller 单体，哪些 smoke 必须走 MainWindow 集成路径
-
-产出：
-- 新 smoke mode / 断言清单
-
-### Phase 5 - 按问题家族分批修复
-状态：`complete`
-
-目标：
-- 避免按用户报障顺序零散修，转为“同类问题一次修一批”。
-
-批次建议：
-- 批次 A：连接缺失类
-  - controller -> MainWindow
-  - widget -> MainWindow
-  - action -> handler
-- 批次 B：窗口 / dock / state 恢复类
-  - `objectName`
-  - `saveState()` / `restoreState()`
-  - screen / fullscreen / maximize / tabify / min size
-- 批次 C：选择 / 展示同步类
-  - 列表选中 -> viewer
-  - viewer -> 面板
-  - `updateActionState()` / `retranslateUi()`
-- 批次 D：验证与文档类
-  - smoke
-  - `docs/agent/*`
-
-产出：
-- 每批修复后单独构建与 smoke 记录
-
-完成情况：
-- 已完成 `Project Explorer`、Backstage / Ribbon、tower / issue / measurement / route、dock / settings 恢复等主窗口级与控制器级审查
-- 审查 `Phase 2-5` 后，唯一仍有必要补的自动化缺口是 `Project Explorer` 主窗口级集成 smoke
-- 已在 `examples/viewer_smoke_test.cpp` 新增 `project-explorer-mainwindow` mode，覆盖：
-  - 搜索过滤
-  - `currentItemChanged`
-  - `itemChanged`
-  - `itemDoubleClicked`
-  - `customContextMenuRequested`
-- 已完成验证：
+已完成（R3-1）：
+- 顶层目标分层梳理并显式化源码注入路由：
+  - 在 `cmake/LASViewerTargetConfig.cmake` 新增 `las_viewer_set_source_routes()`。
+  - `las_viewer_add_app_sources()` / `las_viewer_add_shared_sources()` / `las_viewer_add_smoke_sources()` 改为走路由解析，不再硬编码目标名。
+- 在 `CMakeLists.txt` 注册三类路由映射：
+  - `APP -> LASPointCloudViewer`
+  - `SHARED -> LASViewerCoreObj`
+  - `SMOKE -> LASViewerSmokeTest`
+- 修复源码清单漂移：
+  - `src/CMakeLists.txt` 中 `app_icon.rc` 从 shared 清单迁移到 app 清单，避免 smoke 目标误注入应用图标资源。
+- 完成关键回归验证：
   - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode project-explorer-mainwindow --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
-- 结论：当前 `Phase 2-5` 已无新的高优先级 actionable gap，后续工作可转为常规功能开发或新增需求
+  - `LASViewerSmokeTest --mode main-backstage --las .\\test_data\\ezhou_powerline_sample.las`
+  - `LASViewerSmokeTest --mode main-settings-restore`
 
-### Phase 6 - 回归收口与防复发
+已完成（R3-2）：
+- 在 `CMakeLists.txt` 新增开关：
+  - `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE`（默认 `OFF`）。
+- 在 `cmake/LASViewerDependencies.cmake` 增加最小接入清单与门槛检查：
+  - 头文件检查：`d3d11.h`、`dxgi1_2.h`、`mfapi.h`、`mfidl.h`、`mfreadwrite.h`、`windows.graphics.capture.interop.h`、`winrt/Windows.Graphics.Capture.h`。
+  - 平台门槛：非 Windows 下启用该开关会直接报错。
+  - 系统库清单：`d3d11`、`dxgi`、`windowsapp`、`mfplat`、`mfreadwrite`、`mfuuid`。
+- 在 `cmake/LASViewerTargetConfig.cmake` 打通编译定义与链接注入：
+  - 编译定义：`LAS_VIEWER_ENABLE_WINDOWS_CAPTURE=1`（仅开关启用时）。
+  - 可执行目标自动链接上述系统库（仅开关启用时）。
+- 完成回归验证：
+  - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
+  - `LASViewerSmokeTest --mode main-backstage --las .\\test_data\\ezhou_powerline_sample.las`
+  - `LASViewerSmokeTest --mode main-settings-restore`
+
+### Phase R4 - MVP 实现计划
 状态：`complete`
 
-目标：
-- 让后续继续拆分或重构时，优先暴露“漏接线”而不是靠用户反馈。
-
 动作：
-- 给 `MainWindow.Connections.cpp` 建立排查规则
-- 总结“拆分后必须核对”的检查清单
-- 如有必要，在文档中新增“重构后对等性检查”章节
+- 规划 `ScreenRecorder` 抽象接口。
+- 规划 Windows 实现类、窗口采集、帧接收、编码、文件落盘主链路。
+- 规划与 `MainWindow` 的替换点。
 
 产出：
-- 最终回归报告
-- 重构检查清单
+- 代码落点清单
+- 核心调用时序
 
-完成情况：
-- 已新增 `docs/agent/refactor-regression-report.md`
-- 已在 `docs/agent/workflows.md` 补充“MainWindow 重构后对等性检查”
-- 已在 `docs/agent/README.md` / `docs/agent/session-handoff.md` 增加入口，便于后续会话直接接手
+已完成（R4-1）：
+- 新增 `src/capture` 模块骨架并接入构建：
+  - `src/capture/CMakeLists.txt`
+  - `src/capture/ScreenRecordingTypes.h`
+  - `src/capture/ScreenRecorder.h`
+  - `src/capture/ScreenRecorderFactory.h/.cpp`
+  - `src/capture/WindowsGraphicsCaptureRecorder.h/.cpp`
+- 在 `src/CMakeLists.txt` 中接入 `add_subdirectory(capture)`。
+- 当前实现策略：
+  - 提供 `ScreenRecorder` 抽象接口与工厂。
+  - Windows 实现先以占位类存在，不改变现有 ffmpeg 录屏主路径。
+  - `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE` 开关启用时，工厂返回 Windows 实现；否则返回不支持实现并带明确原因。
+- 验证：
+  - 构建通过：`LASPointCloudViewer`、`LASViewerSmokeTest`
+  - smoke 通过：`main-backstage`、`main-settings-restore`
 
-## 核心检查清单
+已完成（R4-2）：
+- `MainWindow` 已接入录屏后端选择层：
+  - 构造阶段初始化 `screenRecorder_ = capture::createScreenRecorder()`。
+  - `toggleScreenRecording()` 先尝试 embedded backend（仅当 `screenRecorder_->isAvailable()`），否则回落到既有 ffmpeg 流程。
+  - `stopScreenRecording()` 已统一处理 embedded backend 与 ffmpeg process 两条路径。
+- `updateActionState()` 与重翻译动作文本已统一按“任一后端正在录制”判断 Start/Stop 状态。
+- 行为保持：默认配置下仍走原 ffmpeg 路径，不影响现有功能与 smoke。
 
-### 连接类
-- 每个 controller 的 `signals:` 是否都在 `MainWindow.Connections.cpp` 有接收方
-- 每个关键 widget 信号是否有主窗口集成路径
-- 每个 QAction 是否仍然可达业务处理逻辑
+待完成（R4-3）：
+- 在 `WindowsGraphicsCaptureRecorder` 中替换占位实现，落地 WGC + D3D11 + Media Foundation 的最小可用录制主链路。
 
-### 状态类
-- 每个 `QDockWidget` 是否有稳定 `objectName`
-- 影响 `saveState()` 的 dock / tab / toolbar 是否全具名
-- `loadWindowSettings()` 后是否重新归一化窗口 / dock 状态
+当前进展（R4-3）:
+- 已替换占位逻辑为可运行后端实现（当前采用 Media Foundation + GDI 窗口帧采集路径，保留 Windows capture 目标接口）。
+- `ScreenRecordingStartOptions` 已补充 `nativeWindowHandle`，`MainWindow` 已向 recorder 传入 `winId()`。
+- `WindowsGraphicsCaptureRecorder` 已支持：
+  - 后台线程采集与写入
+  - start/stop 生命周期
+  - Media Foundation H.264 Sink Writer 编码落盘
+  - 运行期错误回传
 
-### 交互类
-- 选中、双击、右键、勾选、过滤是否都触发 UI 与场景同步
-- 标题区、全屏、最大化、窗口拖拽、边缘缩放是否互不干扰
+补充验证（已完成）：
+- capture-on 配置已通过：`-DLAS_VIEWER_ENABLE_WINDOWS_CAPTURE=ON`。
+- capture-on 构建已通过：`LASPointCloudViewer`、`LASViewerSmokeTest`。
+- capture-on 关键 smoke 已通过：`main-backstage`、`main-settings-restore`。
 
-### 验证类
-- 是否只有 controller 单体 smoke，没有 MainWindow 集成 smoke
-- 是否有“能编译但实际链路断开”的交互空白区
+后续转入 R5 的手工验证项：
+- 手工录制 10 秒并验证 MP4 可播放。
+- 重复 start/stop 稳定性与关窗收尾验证。
 
-## 当前优先级排序
-
-1. `MainWindow.Connections.cpp` 对等性审计
-2. `MainWindow.SettingsStore.cpp` / dock 状态恢复审计
-3. `MainWindow.Core.cpp` 窗口事件与标题区交互审计
-4. `MainWindow.Docks.cpp` / `*Dock.cpp` 尺寸与 objectName 审计
-5. smoke 覆盖补齐
-
-## 验证基线
-
-```powershell
-cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
-```
-
-后续扩展验证优先加入：
-
-```powershell
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode project-explorer-controller
-```
-
-## 当前已知限制
-
-- 用户工作区存在未提交的 `AGENTS.md` 和 `.gitignore`，后续修复提交时必须排除。
-- 使用 `/p:PostBuildEventUseInBuild=false` 构建时，翻译 `.qm` 不会自动部署到 `out/build/bin/Release/translations/`；若要验证最新中文翻译，需要额外同步运行目录资源或改用带 post-build 的标准部署流程。
-
----
-
-## 2026-04-18 新任务：竞品能力对标与可迁移功能规划
-
-### 目标
-
-- 调研行业常见点云巡检/处理软件的核心能力。
-- 基于本项目现状提出可迁移性强、可分期落地的新功能路线图。
-
-### 阶段计划
-
-#### Phase A - 竞品公开能力采样
+### Phase R5 - 验证与回归计划
 状态：`complete`
 
 动作：
-- 抓取可访问的产品页，提取核心能力关键词。
-- 对反爬/404页面进行替代采样，优先保证能力覆盖面。
+- 定义编译、启动录制、停止录制、文件存在性、重复录制、关闭窗口收尾的验证顺序。
+- 评估对 `main-backstage`、`main-settings-restore` 的影响。
+- 规划是否新增录屏专项 smoke 或最小自动化断言。
 
-#### Phase B - 能力归一化与差距映射
+产出：
+- 验证矩阵
+- 回归风险清单
+
+已完成（R5-1）验证矩阵基线：
+- 构建验证：
+  - `LASPointCloudViewer`（Release）
+  - `LASViewerSmokeTest`（Release）
+- 主窗口回归 smoke：
+  - `main-backstage`
+  - `main-settings-restore`
+- capture-on 构建与 smoke：
+  - `cmake -S . -B out/build_capture_on ... -DLAS_VIEWER_ENABLE_WINDOWS_CAPTURE=ON`
+  - `cmake --build out/build_capture_on --config Release --target LASPointCloudViewer LASViewerSmokeTest`
+  - `LASViewerSmokeTest --mode main-backstage`
+  - `LASViewerSmokeTest --mode main-settings-restore`
+- 录屏链路验证项（待环境解锁后执行）：
+  - 启动录制（embedded）
+  - 停止录制（embedded）
+  - 录制文件存在性与可播放性（MP4/H.264）
+  - 重复 start/stop 稳定性
+  - 关闭窗口时录制收尾
+
+已完成（R5-2）录屏专项 smoke（capture-on）：
+- 新增 `screen-recording` 模式到 `LASViewerSmokeTest`。
+- 验证内容：
+  - 启动录制 -> 停止录制。
+  - 输出文件存在且非空。
+  - 第二次启动录制后直接关闭主窗口，验证录制收尾与无崩溃。
+- 双构建验证：
+  - 默认构建：该模式按设计跳过（`LAS_VIEWER_ENABLE_WINDOWS_CAPTURE=OFF`）。
+  - capture-on 构建：该模式通过。
+
+补充说明（非阻塞）：
+- 当前自动化已覆盖“可生成且非空”的 MP4 落盘，但“外部播放器可播放性”仍建议保留一次人工抽检。
+
+补充说明（用户侧可用性）：
+- 已处理“仍提示 ffmpeg 不存在”问题：
+  - Windows 下默认构建改为启用 `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE`。
+  - 对 capture-off 或 embedded 不可用场景增加明确原因提示，避免误判为代码未生效。
+
+风险清单（R5）：
+- 录制线程退出与 UI 关闭时序冲突。
+- Media Foundation Finalize 失败导致空文件或损坏文件。
+- 窗口最小化/遮挡时采集帧为空或抖动。
+- 缺失 SDK 组件导致 capture-on 构建不可用。
+
+### Phase R6 - 二期扩展预留
 状态：`complete`
 
 动作：
-- 将竞品能力归一为统一能力域：数据接入、自动化处理、巡检闭环、协同与开放。
-- 对照本项目已具备能力，识别“缺失但可迁移”的机会点。
+- 记录音频、暂停/继续、区域选择、码率/帧率配置、硬件编码偏好等后续能力。
+- 明确哪些接口现在就要预留，哪些可以后置。
 
-#### Phase C - 新功能路线图（强调可迁移性）
+产出：
+- 二期 backlog
+- 接口预留建议
+
+已完成（R6）二期 backlog：
+- 音频录制（系统音 + 麦克风）与音视频同步。
+- 暂停/继续录制。
+- 区域录制与多窗口选择。
+- 可配置参数：码率、帧率、关键帧间隔、编码质量。
+- 编码策略：硬件优先（D3D11 VA / MFT）与软件回退。
+- 文件分段与长录制稳定性策略。
+
+已完成（R6）接口预留建议：
+- 在 `ScreenRecordingStartOptions` 持续扩展而非破坏签名，确保向后兼容。
+- 在 `ScreenRecordingResult` 统一传递后端错误域与可读诊断。
+- `ScreenRecorder` 接口未来追加 `pause()` / `resume()` 时保持默认实现可选。
+
+### Phase R7 - 录屏交互与体验修复（用户追加需求）
 状态：`complete`
 
 动作：
-- 形成分阶段（近期/中期/远期）功能路线。
-- 每个候选功能标注：迁移价值、工程复杂度、依赖风险、对现有架构落点。
+- 把录屏保存路径选择从“开始录制前”调整为“停止录制后”。
+- 修复 MP4 画面上下颠倒。
+- 增加醒目的录屏状态提示。
+- 完成构建与关键 smoke 验证后交付。
 
-#### Phase D - 输出决策版建议
-状态：`complete`
+产出：
+- 录屏起停流程改造（临时文件录制 + 停止后落盘）。
+- 编码写入方向修复。
+- 状态栏红色 `● REC` 徽标提示。
 
-动作：
-- 给出推荐优先级与最小可行里程碑。
-- 给出兼容当前 Qt/OSG/C++ 架构的实施原则，避免耦合到单一硬件/平台。
+已完成（R7）实现与验证：
+- `MainWindow` 录屏逻辑改为：
+  - 启动时仅创建临时录制文件并开始录制。
+  - 停止时弹保存路径（或按“自动保存”配置直接落盘）。
+  - 关窗停止时静默落盘，不弹保存框。
+- `WindowsGraphicsCaptureRecorder` 写样本时执行逐行垂直翻转，修复输出上下颠倒。
+- UI 增加状态栏红色 `● REC` 徽标，录制中常亮。
+- 验证通过：
+  - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest`
+  - `LASViewerSmokeTest --mode screen-recording`
+  - `LASViewerSmokeTest --mode main-backstage`
+  - `LASViewerSmokeTest --mode main-settings-restore`
+
+## 模块拆分建议
+
+- `src/capture/ScreenRecordingTypes.*`
+- `src/capture/ScreenRecorder.h`
+- `src/capture/WindowsGraphicsCaptureRecorder.*`
+- `src/capture/MediaFoundationWriter.*`
+- `src/capture/D3D11Helpers.*`
+
+`MainWindow` 仅保留：
+- 动作入口
+- 保存路径 / 自动保存设置
+- 状态提示
+- start / stop 生命周期控制
+
+## 风险记录
+
+| 风险 | 说明 | 应对 |
+|------|------|------|
+| 平台接入成本被低估 | 当前仓库没有 D3D11/MF/WGC 基础 | 先做 `R3` 最小接入 |
+| 线程与生命周期复杂 | 停止录制、关窗、文件收尾容易踩时序坑 | 保持 `MainWindow` 只持有抽象接口 |
+| 验证不足 | 当前自动化未覆盖真实录制链路 | 在 `R5` 中单独规划录屏验证 |
+
+## 下一步
+
+进入收尾阶段：
+- 维护 `screen-recording` smoke 作为录屏回归基线。
+- 在后续迭代按 `R6` backlog 推进（音频、暂停/继续、参数化编码、硬件优先策略）。
+- 执行一次外部播放器可播放性人工抽检，完成录屏 MVP 最后一项体验确认。

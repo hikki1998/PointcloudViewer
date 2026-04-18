@@ -1,15 +1,62 @@
 include_guard(GLOBAL)
 
+function(las_viewer_set_source_routes)
+    set(options)
+    set(one_value_args APP SHARED SMOKE)
+    set(multi_value_args)
+    cmake_parse_arguments(LAS_VIEWER "${options}" "${one_value_args}" "${multi_value_args}" ${ARGN})
+
+    if(LAS_VIEWER_APP)
+        set_property(GLOBAL PROPERTY LAS_VIEWER_SOURCE_ROUTE_APP "${LAS_VIEWER_APP}")
+    endif()
+
+    if(LAS_VIEWER_SHARED)
+        set_property(GLOBAL PROPERTY LAS_VIEWER_SOURCE_ROUTE_SHARED "${LAS_VIEWER_SHARED}")
+    endif()
+
+    if(LAS_VIEWER_SMOKE)
+        set_property(GLOBAL PROPERTY LAS_VIEWER_SOURCE_ROUTE_SMOKE "${LAS_VIEWER_SMOKE}")
+    endif()
+endfunction()
+
+function(las_viewer_resolve_source_route scope out_target)
+    string(TOUPPER "${scope}" scope_upper)
+    get_property(configured_target GLOBAL PROPERTY "LAS_VIEWER_SOURCE_ROUTE_${scope_upper}")
+
+    if(NOT configured_target)
+        if(scope_upper STREQUAL "APP")
+            set(configured_target "${PROJECT_NAME}")
+        elseif(scope_upper STREQUAL "SHARED")
+            set(configured_target "LASViewerCoreObj")
+        elseif(scope_upper STREQUAL "SMOKE")
+            set(configured_target "LASViewerSmokeTest")
+        else()
+            message(FATAL_ERROR "Unknown source route scope: ${scope}")
+        endif()
+    endif()
+
+    if(NOT TARGET ${configured_target})
+        message(FATAL_ERROR
+            "Source route '${scope}' points to target '${configured_target}', but that target does not exist yet."
+        )
+    endif()
+
+    set(${out_target} "${configured_target}" PARENT_SCOPE)
+endfunction()
+
 function(las_viewer_add_app_sources)
-    target_sources(${PROJECT_NAME} PRIVATE ${ARGN})
+    las_viewer_resolve_source_route(APP app_target)
+    target_sources(${app_target} PRIVATE ${ARGN})
 endfunction()
 
 function(las_viewer_add_smoke_sources)
-    target_sources(LASViewerSmokeTest PRIVATE ${ARGN})
+    las_viewer_resolve_source_route(SMOKE smoke_target)
+    target_sources(${smoke_target} PRIVATE ${ARGN})
 endfunction()
 
 function(las_viewer_add_shared_sources)
-    target_sources(LASViewerCoreObj PRIVATE ${ARGN})
+    las_viewer_resolve_source_route(SHARED shared_target)
+    target_sources(${shared_target} PRIVATE ${ARGN})
 endfunction()
 
 function(configure_las_viewer_common_target target_name use_qtitan)
@@ -47,6 +94,10 @@ function(configure_las_viewer_common_target target_name use_qtitan)
     if(LAS_VIEWER_HAS_PROJ)
         target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_PROJ=1 LASVIEWERCRS_HAS_PROJ=1)
         target_include_directories(${target_name} PRIVATE "${PROJ_INCLUDE_DIR}")
+    endif()
+
+    if(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_ENABLE_WINDOWS_CAPTURE=1)
     endif()
 
     if(MSVC)
@@ -88,6 +139,10 @@ function(configure_las_viewer_executable_target target_name use_qtitan)
 
     if(WIN32)
         target_link_libraries(${target_name} PRIVATE opengl32 glu32 ws2_32 winmm)
+
+        if(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE)
+            target_link_libraries(${target_name} PRIVATE ${LAS_VIEWER_WINDOWS_CAPTURE_LIBRARIES})
+        endif()
 
         if(use_qtitan)
             if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)

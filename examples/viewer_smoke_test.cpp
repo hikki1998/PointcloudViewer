@@ -2409,6 +2409,122 @@ bool runMainWindowSettingsRestoreSmoke(const QStringList&)
     return true;
 }
 
+bool runScreenRecordingSmoke(const QStringList& filePaths)
+{
+#ifdef LAS_VIEWER_ENABLE_WINDOWS_CAPTURE
+    QTranslator appTranslator;
+    QTranslator qtTranslator;
+    MainWindow window(&appTranslator, &qtTranslator);
+    window.resize(1400, 900);
+    window.show();
+    pumpEvents(320);
+
+    if (!verify(window.screenRecorder_ != nullptr, "Screen recording smoke should create a recorder backend")) {
+        return false;
+    }
+    if (!verify(window.toggleScreenRecordingAction_ != nullptr, "Screen recording smoke should expose the toggle recording action")) {
+        return false;
+    }
+    if (!verify(window.screenRecorder_->isAvailable(), "Embedded recorder should be available in capture-on build")) {
+        std::cerr << "[FAIL] Recorder unavailable reason: "
+                  << window.screenRecorder_->unavailableReason().toStdString() << std::endl;
+        return false;
+    }
+
+    PointCloudViewer* viewer = window.findChild<PointCloudViewer*>();
+    if (!verify(viewer != nullptr, "Screen recording smoke should create an embedded viewer")) {
+        return false;
+    }
+
+    const QString lasFilePath = filePaths.isEmpty() ? QString() : QFileInfo(filePaths.constFirst()).absoluteFilePath();
+    if (!lasFilePath.isEmpty() && QFileInfo::exists(lasFilePath)) {
+        QString errorMessage;
+        if (!viewer->loadPointCloud(lasFilePath, &errorMessage)) {
+            std::cerr << "[FAIL] Screen recording smoke failed to load point cloud: "
+                      << errorMessage.toStdString() << std::endl;
+            return false;
+        }
+        pumpEvents(900);
+    }
+
+    QTemporaryDir captureDir;
+    if (!verify(captureDir.isValid(), "Screen recording smoke should create a temporary capture directory")) {
+        return false;
+    }
+
+    window.captureSkipSaveDialog_ = true;
+    window.captureSaveDirectory_ = captureDir.path();
+
+    window.toggleScreenRecordingAction_->trigger();
+    pumpEvents(1100);
+    if (!verify(window.screenRecorder_->isRecording(), "Screen recording smoke should start recording")) {
+        return false;
+    }
+
+    const QString firstTemporaryOutputPath = window.recordingOutputFilePath_;
+    if (!verify(!firstTemporaryOutputPath.isEmpty(), "Screen recording smoke should produce a temporary output path")) {
+        return false;
+    }
+
+    window.toggleScreenRecordingAction_->trigger();
+    pumpEvents(900);
+    if (!verify(!window.screenRecorder_->isRecording(), "Screen recording smoke should stop recording")) {
+        return false;
+    }
+
+    const QString firstSavedOutputPath = window.recordingOutputFilePath_;
+    if (!verify(!firstSavedOutputPath.isEmpty(), "Screen recording smoke should finalize to a saved output path")) {
+        return false;
+    }
+    const QFileInfo firstOutputInfo(firstSavedOutputPath);
+    if (!verify(firstOutputInfo.exists(), "Screen recording smoke should write a recording file")) {
+        return false;
+    }
+    if (!verify(firstOutputInfo.size() > 0, "Screen recording smoke output file should be non-empty")) {
+        return false;
+    }
+    if (!verify(!QFileInfo::exists(firstTemporaryOutputPath), "Temporary recording file should be moved after stop")) {
+        return false;
+    }
+
+    window.toggleScreenRecordingAction_->trigger();
+    pumpEvents(1000);
+    if (!verify(window.screenRecorder_->isRecording(), "Screen recording smoke second run should start recording")) {
+        return false;
+    }
+
+    const QString closeWhileRecordingTemporaryPath = window.recordingOutputFilePath_;
+    if (!verify(!closeWhileRecordingTemporaryPath.isEmpty(), "Second recording run should produce a temporary output path")) {
+        return false;
+    }
+
+    window.close();
+    pumpEvents(1000);
+    if (!verify(!window.screenRecorder_->isRecording(), "Closing MainWindow should stop active recording")) {
+        return false;
+    }
+
+    const QString closeWhileRecordingSavedPath = window.recordingOutputFilePath_;
+    const QFileInfo closeWhileRecordingInfo(closeWhileRecordingSavedPath);
+    if (!verify(closeWhileRecordingInfo.exists(), "Closing MainWindow during recording should still finalize output file")) {
+        return false;
+    }
+    if (!verify(closeWhileRecordingInfo.size() > 0, "Output file after close should be non-empty")) {
+        return false;
+    }
+    if (!verify(!QFileInfo::exists(closeWhileRecordingTemporaryPath), "Temporary recording file should be moved when closing MainWindow")) {
+        return false;
+    }
+
+    std::cout << "[PASS] Screen recording smoke test completed." << std::endl;
+    return true;
+#else
+    (void)filePaths;
+    std::cout << "[PASS] Screen recording smoke skipped because LAS_VIEWER_ENABLE_WINDOWS_CAPTURE is OFF." << std::endl;
+    return true;
+#endif
+}
+
 bool runLogPanelSmoke(const QStringList&)
 {
     lasviewer::logging::ApplicationLogger::instance().clear();
@@ -4637,11 +4753,12 @@ QSet<QString> parseCsvValues(const QStringList& rawValues)
 void printUsageSummary()
 {
     std::cout
-        << "Modes: viewer-render, main-backstage, main-settings-restore, log-panel, project-explorer-dock, project-explorer-controller, project-explorer-mainwindow, visualization-panel-controller, measurement-analysis-controller, profile-classification-widget, profile-classification-controller, route-controller, tower-controller, issue-controller, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
+        << "Modes: viewer-render, main-backstage, main-settings-restore, screen-recording, log-panel, project-explorer-dock, project-explorer-controller, project-explorer-mainwindow, visualization-panel-controller, measurement-analysis-controller, profile-classification-widget, profile-classification-controller, route-controller, tower-controller, issue-controller, route-json, route-interop, route-roam, tower-file, tower-project-link, all" << std::endl
         << "Categories: render, ui, route, tower, all" << std::endl
         << "Examples:" << std::endl
         << "  LASViewerSmokeTest --mode main-backstage" << std::endl
         << "  LASViewerSmokeTest --mode main-settings-restore" << std::endl
+        << "  LASViewerSmokeTest --mode screen-recording --las .\\test_data\\ezhou_powerline_sample.las" << std::endl
         << "  LASViewerSmokeTest --mode visualization-panel-controller" << std::endl
         << "  LASViewerSmokeTest --mode measurement-analysis-controller" << std::endl
         << "  LASViewerSmokeTest --mode profile-classification-widget" << std::endl
@@ -4681,6 +4798,7 @@ bool validateSelections(const QSet<QString>& modeSet, const QSet<QString>& categ
         QStringLiteral("viewer-render"),
         QStringLiteral("main-backstage"),
         QStringLiteral("main-settings-restore"),
+        QStringLiteral("screen-recording"),
         QStringLiteral("log-panel"),
         QStringLiteral("project-explorer-dock"),
         QStringLiteral("project-explorer-controller"),
@@ -4856,6 +4974,12 @@ int main(int argc, char* argv[])
             QStringLiteral("Main Window Settings Restore Smoke"),
             false,
             runMainWindowSettingsRestoreSmoke },
+        SmokeCase {
+            QStringLiteral("screen-recording"),
+            QStringLiteral("ui"),
+            QStringLiteral("Screen Recording Smoke"),
+            false,
+            runScreenRecordingSmoke },
         SmokeCase {
             QStringLiteral("log-panel"),
             QStringLiteral("ui"),

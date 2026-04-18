@@ -852,6 +852,26 @@
         <translation>截图已保存：%1</translation>
     </message>
     <message>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="742"/>
+        <source>No recording file was produced.</source>
+        <translation>未生成录屏文件。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="798"/>
+        <source>Failed to save recording: %1</source>
+        <translation>保存录屏失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="904"/>
+        <source>Unable to create temporary recording file.</source>
+        <translation>无法创建临时录屏文件。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="940"/>
+        <source>Embedded recording is unavailable: %1. Recording requires ffmpeg. Add ffmpeg to PATH, or enable LAS_VIEWER_ENABLE_WINDOWS_CAPTURE in your build.</source>
+        <translation>内嵌录屏不可用：%1。当前录屏需要 ffmpeg。请将 ffmpeg 添加到 PATH，或在构建中启用 LAS_VIEWER_ENABLE_WINDOWS_CAPTURE。</translation>
+    </message>
+    <message>
         <location filename="../src/gui/MainWindow.Core.cpp" line="753"/>
         <source>Recording requires ffmpeg. Add ffmpeg to PATH or place ffmpeg.exe beside the application.</source>
         <translation>录屏需要 ffmpeg。请将 ffmpeg 添加到 PATH，或将 ffmpeg.exe 放在应用程序旁边。</translation>

@@ -20,6 +20,16 @@ endif()
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
 option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
 option(LAS_VIEWER_ENABLE_PROJ "Enable PROJ-based CRS transformation" ON)
+if(WIN32)
+    set(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE_DEFAULT ON)
+else()
+    set(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE_DEFAULT OFF)
+endif()
+option(
+    LAS_VIEWER_ENABLE_WINDOWS_CAPTURE
+    "Enable Windows.Graphics.Capture recorder backend"
+    ${LAS_VIEWER_ENABLE_WINDOWS_CAPTURE_DEFAULT}
+)
 
 set(THIRDPARTY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/3rd" CACHE PATH "Root directory containing project third-party dependencies")
 set(QT_ROOT "E:/env/qt/5.15.2" CACHE PATH "Qt installation root")
@@ -52,6 +62,12 @@ endif()
 add_executable(LASViewerSmokeTest)
 configure_las_viewer_target(LASViewerSmokeTest TRUE)
 target_link_libraries(LASViewerSmokeTest PRIVATE LASViewerCoreObj)
+
+las_viewer_set_source_routes(
+    APP ${PROJECT_NAME}
+    SHARED LASViewerCoreObj
+    SMOKE LASViewerSmokeTest
+)
 
 las_viewer_add_shared_sources(resources.qrc)
 

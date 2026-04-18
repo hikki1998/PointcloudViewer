@@ -905,6 +905,22 @@ void MainWindow::createStatusBar()
         "border-top: 1px solid #d6dde8;"
         "}"));
 
+    recordingStatusBadgeLabel_ = new QLabel(QStringLiteral("● REC"), this);
+    recordingStatusBadgeLabel_->setObjectName(QStringLiteral("recordingStatusBadgeLabel"));
+    recordingStatusBadgeLabel_->setStyleSheet(QStringLiteral(
+        "QLabel#recordingStatusBadgeLabel {"
+        "background: #c1121f;"
+        "color: #ffffff;"
+        "border: 1px solid #9b0f18;"
+        "border-radius: 10px;"
+        "padding: 2px 10px;"
+        "font-size: 11px;"
+        "font-weight: 700;"
+        "}"
+    ));
+    recordingStatusBadgeLabel_->setVisible(false);
+    statusBar()->addPermanentWidget(recordingStatusBadgeLabel_);
+
     globalProgressBar_ = new QProgressBar(this);
     globalProgressBar_->setObjectName(QStringLiteral("globalOperationProgress"));
     globalProgressBar_->setRange(0, 1000);

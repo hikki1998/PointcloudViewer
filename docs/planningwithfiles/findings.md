@@ -1,594 +1,342 @@
-# 重构回归排查发现
+# 内嵌录屏替代 `ffmpeg.exe` 发现记录
 
-## 2026-04-17 初始发现
+## 当前实现现状
 
-### 1. 重构规模非常大，天然适合产生“链路断开型”回归
+### 1. 当前录屏后端是外部进程
 
-- 提交：`b9a8e3b 重构 MainWindow 实现边界并同步文档`
-- 统计：
-  - 18 个文件变更
-  - 4970 行新增
-  - 6075 行删除
-  - 新增多个 `MainWindow.*.cpp` 拆分单元
+当前代码位置：
+- `src/gui/MainWindow.Actions.cpp`
+- `src/gui/MainWindow.Core.cpp`
+- `src/gui/MainWindow.Backstage.cpp`
+- `src/gui/MainWindow.SettingsStore.cpp`
+
+当前录屏链路：
+- `Ctrl+Shift+R` 或 Ribbon `Capture` 组触发 `toggleScreenRecording()`
+- `MainWindow.Core.cpp` 中通过 `QStandardPaths::findExecutable("ffmpeg")` 查找 `ffmpeg`
+- 使用 `QProcess` 启动外部 `ffmpeg.exe`
+- 停止录制时向外部进程写入 `q\n`
+- 成功/失败依赖外部进程退出码与诊断输出
 
 结论：
-- 这不是局部重排，而是一次大规模职责搬迁。
-- 高风险不是“代码不存在”，而是“代码存在但接线/初始化/恢复逻辑漏迁移”。
+- 当前 UI、设置页、保存路径和自动保存逻辑已经具备复用价值。
+- 真正要替换的是录屏执行后端。
 
-### 2. 已确认一个典型漏迁移模式
+### 2. 当前实现的主要工程问题
+
+- 依赖外部 `ffmpeg.exe`，部署不内聚。
+- 录制目标依赖 `gdigrab` + `title=%1`，本质是按窗口标题抓取，不够稳。
+- 生命周期和错误处理严重依赖外部进程行为。
+
+结论：
+- 替换重点不是界面，而是把采集、编码、文件落盘做成内部模块。
+
+### 3. 当前仓库没有现成平台接入基础
+
+检索结果：
+- `src/` 与 `cmake/` 下未发现现成的：
+  - `Windows.Graphics.Capture`
+  - `GraphicsCaptureItem`
+  - `Direct3D11CaptureFramePool`
+  - `d3d11`
+  - `dxgi`
+  - `mfplat`
+  - `mfreadwrite`
+  - `mfuuid`
+  - `windowsapp`
+  - `CppWinRT`
+
+结论：
+- 这是一次新的平台能力接入，不是单纯替换几行调用。
+
+## 技术选型结论
+
+### 4. 推荐路线
+
+- 采集：`Windows.Graphics.Capture`
+- 帧承载：`D3D11`
+- 编码/封装：`Media Foundation Sink Writer`
+
+原因：
+- 项目本身就是 Windows Qt 桌面程序。
+- 可以按 `HWND` 精确绑定当前主窗口。
+- 不再依赖外部 exe。
+- 后续扩展能力更顺。
+
+### 5. 当前不推荐的路线
+
+- 继续依赖外部 `ffmpeg.exe`
+- 引入 `libobs`
+- 把 FFmpeg 动态库直接塞回 `MainWindow.Core.cpp`
+
+原因：
+- 要么依赖仍然偏重，要么模块边界会继续恶化。
+
+## 架构建议
+
+### 6. 新模块应独立于 `MainWindow`
+
+建议新增：
+- `src/capture/ScreenRecordingTypes.*`
+- `src/capture/ScreenRecorder.h`
+- `src/capture/WindowsGraphicsCaptureRecorder.*`
+- `src/capture/MediaFoundationWriter.*`
+- `src/capture/D3D11Helpers.*`
+
+`MainWindow` 保留：
+- 动作入口
+- 设置与路径
+- 状态提示
+- 生命周期控制
+
+结论：
+- 不应把 Windows 采集/编码细节继续堆入 `MainWindow.Core.cpp`。
+
+### 7. MVP 边界建议
+
+MVP 只做：
+- Windows
+- 当前主窗口录制
+- `MP4(H.264)`
+- 仅视频，不录音频
+- 保留现有保存路径与自动保存行为
+
+MVP 暂不做：
+- 音频
+- 暂停/继续
+- 任意区域录制
+- 高级编码参数面板
+
+结论：
+- 先以最小可落地版本替换外部 exe，再考虑增强功能。
+
+## 外部参考方向
+
+可作为实现依据的资料方向：
+- `IGraphicsCaptureItemInterop::CreateForWindow`
+- `Windows.Graphics.Capture`
+- `Direct3D11CaptureFramePool`
+- `Media Foundation Sink Writer`
+- `Media Foundation H.264 encoder`
+- `robmikh/Win32CaptureSample`
+
+使用原则：
+- 只用于确认 API 能力边界和接入方式。
+- 实现必须贴合本项目现有 Qt / CMake / MainWindow / smoke 结构。
+
+## 2026-04-18 R3 执行补充发现
+
+### 8. 共享源码注入原先依赖硬编码目标名
+
+现状：
+- `las_viewer_add_app_sources()` 直接写 `${PROJECT_NAME}`。
+- `las_viewer_add_shared_sources()` 直接写 `LASViewerCoreObj`。
+- `las_viewer_add_smoke_sources()` 直接写 `LASViewerSmokeTest`。
 
 问题：
-- `Project Explorer` 右键菜单失效
-
-直接原因：
-- `ProjectExplorerController` 仍会发出：
-  - `searchTextChanged`
-  - `itemChanged`
-  - `currentItemChanged`
-  - `itemDoubleClicked`
-  - `customContextMenuRequested`
-- 但 `MainWindow.Connections.cpp` 中原本缺少这些 controller -> MainWindow 的接线。
+- 目标分层调整时，源码注入入口会被目标名耦合住。
+- 子目录改造或目标替换时，路由稳定性差。
 
 结论：
-- 当前 bug 不是控件样式或 Qt 本身问题，而是“重构后的接线遗漏”。
-- 同类问题很可能还存在于其他 controller / dock / QAction 集成路径上。
+- 需要把“源码注入到哪个目标”从函数实现里解耦，改为可配置路由。
 
-### 3. `MainWindow.Connections.cpp` 是当前第一风险点
+### 9. `app_icon.rc` 属于应用专属资源，放在 shared 清单会产生漂移
 
-架构文档明确说明：
-- `MainWindow.Connections.cpp`
-  - 负责 viewer、dock、controller、动作之间的信号槽连接
+现状：
+- `src/CMakeLists.txt` 之前通过 `las_viewer_add_shared_sources(app_icon.rc)` 注入。
 
-推断：
-- 任何“能显示但操作不生效”的问题，都应优先检查这个文件。
-- 特别是把旧 `MainWindow.cpp` 直接 widget 连接改造成 controller 转发之后，最容易发生二段接线缺失。
+影响：
+- smoke 目标会被动携带应用图标资源，清单边界被污染。
 
-### 4. 已发现的近期回归具有明显家族特征
+修复：
+- 改为 `las_viewer_add_app_sources(app_icon.rc)`，仅注入主程序目标。
 
-- 标题区双击/拖拽/窗口行为异常
-- 全屏点击闪屏
-- 右侧 dock 过宽且不可继续缩小
-- 项目树右键菜单失效
+### 10. 路由化改造已验证可回归通过
 
-共同点：
-- 都不是业务算法错误
-- 都是 UI 集成、窗口状态、布局约束、信号接线、状态恢复链路问题
-
-结论：
-- 应按“交互/布局/状态恢复/接线”几个家族系统排查，而不是按具体功能点零散修。
-
-### 5. 现有 smoke 覆盖不足以捕捉主窗口集成回归
-
-当前已有：
-- `main-backstage`
-- `viewer-render`
-- `project-explorer-controller`
-
-不足：
-- `project-explorer-controller` 只验证 controller 单体，不验证 controller 是否已接到 `MainWindow`
-- 最近已为 dock 宽度补过主窗口级 smoke，这证明“集成 smoke”是有效的
-
-结论：
-- 后续 smoke 重点要从“组件单测式 smoke”补到“MainWindow 集成式 smoke”
-
-### 6. 需要优先审计的风险面
-
-- `MainWindow.Connections.cpp`
-- `MainWindow.SettingsStore.cpp`
-- `MainWindow.Core.cpp`
-- `MainWindow.Docks.cpp`
-- `ProjectExplorerController.*`
-- `RouteController.*`
-- `TowerController.*`
-- `IssueController.*`
-
-## 2026-04-17 静态审计补充
-
-### 7. controller 风险不是平均分布的
-
-- 高风险二段接线型：
-  - `ProjectExplorerController`
-  - `ProfileClassificationController`
-- 相对低风险构造期回调注入型：
-  - `RouteController`
-  - `TowerController`
-  - `IssueController`
-  - `MeasurementAnalysisController`
-
-结论：
-- 当前最需要优先做“旧 `connect(...)` 对等性核对”的，不是所有 controller，而是显式 `signals:` 暴露后还要靠 `MainWindow.Connections.cpp` 二次接收的这类控制器。
-
-### 8. `saveState()` 主前提基本满足，风险重心更偏向触发链路
-
-已确认以下 dock 具备稳定 `objectName`：
-- `projectExplorerDock`
-- `sceneInspectorDock`
-- `routeDetailsDock`
-- `profileClassificationDock`
-- `spanProfileDock`
-- `applicationLogDock`
-
-结论：
-- 目前没有再发现“主 dock 因缺 `objectName` 导致 `restoreState()` 先天失效”的新证据。
-- `MainWindow.SettingsStore.cpp` 的主风险更像是“恢复后补偿动作 / 持久化触发时机”而不是“dock 根本不参与状态保存”。
-
-### 9. 已确认第二个明确漏迁移案例：`showProfileDockAction_`
-
-问题：
-- `Profile View` 动作存在，`profileDock_` 的可见性回写也存在，但动作本身缺少 `show/hide` 接线。
-
-直接证据：
-- 重构前 `MainWindow.cpp` 存在：
-  - `connect(showProfileDockAction_, &QAction::toggled, ...)`
-- 当前拆分后的 `MainWindow.Connections.cpp` 中只保留了：
-  - `profileDock_ -> visibilityChanged -> showProfileDockAction_` 的回写
-- 但丢失了：
-  - `showProfileDockAction_ -> profileDock_` 的正向接线
-
-结论：
-- 这是标准的“动作仍在、状态同步还在、主触发链路丢了”的重构回归。
-- 这进一步验证了本轮审计方法是有效的：以重构前 `connect(...)` 为基线，能直接抓出 UI 集成漏迁移。
-
-修复状态：
-- 已在 `src/gui/MainWindow.Connections.cpp` 补回 `showProfileDockAction_ -> profileDock_` 接线。
-- 已在 `examples/viewer_smoke_test.cpp` 的 `main-backstage` smoke 中补充：
-  - `showProfileDockAction_` 显示 `SpanProfileDock`
-  - `showProfileDockAction_` 隐藏 `SpanProfileDock`
+已完成改造：
+- 在 `cmake/LASViewerTargetConfig.cmake` 增加：
+  - `las_viewer_set_source_routes()`
+  - `las_viewer_resolve_source_route()`
+- 三个 add-sources 入口统一走路由解析。
+- 在顶层 `CMakeLists.txt` 显式注册：
+  - `APP -> LASPointCloudViewer`
+  - `SHARED -> LASViewerCoreObj`
+  - `SMOKE -> LASViewerSmokeTest`
 
 验证结果：
-- `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-- `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage`
-- 结果：通过
-
-### 10. 已确认第三个、且更高风险的漏迁移家族：`viewer_ -> MainWindow` 主链路整体缺失
-
-问题：
-- 当前 `src/gui/MainWindow.Connections.cpp` 的 `createWindowAndViewerConnections()` 在 dock / tab 的持久化接线后就结束了。
-- 重构前 `MainWindow.cpp` 中那批 `viewer_ -> MainWindow` 的集成接线没有迁移过来。
-
-直接影响面：
-- 点云加载/清空后的 UI 同步
-- 项目树重建
-- 量测面板和 profile dock 状态同步
-- 杆塔/隐患面板与选择同步
-- 航线 waypoint 选择、双击编辑、拖拽回写
-- 导航偏好修改后的 UI 反馈
-
-已补回的连接包括：
-- route：
-  - `selectedInspectionRouteWaypointChanged`
-  - `inspectionRouteWaypointDoubleClicked`
-  - `inspectionRouteWaypointDragFinished`
-- point cloud / viewer state：
-  - `pointCloudLoadingStarted`
-  - `pointCloudLoadingProgress`
-  - `pointCloudLoadingFinished`
-  - `pointCloudLoaded`
-  - `pointCloudCleared`
-  - `visualizationOptionsChanged`
-  - `interactionOptionsChanged`
-  - `measurementChanged`
-  - `measurementModeChanged`
-- tower / issue：
-  - `towerMarkersChanged`
-  - `selectedTowerChanged`
-  - `towerEditModeChanged`
-  - `towerEditRequested`
-  - `inspectionIssuesChanged`
-  - `selectedIssueChanged`
-  - `issueEditModeChanged`
-  - `issueEditRequested`
-  - `measurementMessage`
+- 构建：`LASPointCloudViewer`、`LASViewerSmokeTest` 通过。
+- smoke：`main-backstage`、`main-settings-restore` 通过。
 
 结论：
-- 这不是单个遗漏，而是一次完整的 `viewer` 集成段在重构时被截断。
-- 风险等级高于前两个单点回归，因为它会导致“底层 viewer 还能工作，但 MainWindow 面板和状态完全不同步”。
+- 当前“顶层目标分层 + 共享源码注入路由迁移 + 清单漂移修复”已经形成闭环。
 
-修复状态：
-- 已在 `src/gui/MainWindow.Connections.cpp` 补回上述 `viewer_ -> MainWindow` 连接。
-- 已扩展 `examples/viewer_smoke_test.cpp` 的 `main-backstage` smoke：
-  - 通过嵌入的 `PointCloudViewer` 加载测试 LAS
-  - 验证 `Project Explorer` 会重建并出现点云数据项
-  - 验证清空点云后项目树中的数据项会被移除，但树结构仍保留
+### 11. R3-2 已补齐最小依赖接入清单与开关策略
 
-验证结果：
-- `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-- `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-- 结果：通过
-
-### 11. 已确认第四个漏迁移家族：主窗口剩余直连 widget 事件整批缺失
-
-问题：
-- 在补回 `viewer_ -> MainWindow` 主链路后，继续用重构前 `MainWindow.cpp` 与当前拆分文件做机械化对比，剩余缺口集中在“直接由 widget 驱动主窗口副作用”的一整批连接。
-- 这些连接在 controller 层没有替代实现；当前代码里只有控件创建，没有 `connect(...)`。
-
-直接影响面：
-- route 面板：
-  - waypoint / part 列显隐复选框不生效
-  - waypoint / part / trajectory 颜色按钮不生效
-  - route 表格的选中、双击、右键菜单不生效
-  - target / QA 表格选中不同步
-- rendering / navigation / classification：
-  - classification mapping 表的可见性、名称编辑、颜色双击和 reset 不生效
-  - `round splats` / `axes` / `bounding box` 复选框不驱动 viewer
-  - 导航反转选项和滚轮缩放灵敏度 slider 不驱动 viewer
-
-已补回的连接包括：
-- route：
-  - `routeWaypointShowCoordinatesCheckBox_`
-  - `routeWaypointShowCaptureAnglesCheckBox_`
-  - `routePartShowCoordinatesCheckBox_`
-  - `routePartShowCaptureAnglesCheckBox_`
-  - `routeWaypointColorButton_`
-  - `routePartPointColorButton_`
-  - `routeTrajectoryColorButton_`
-  - `routePartPointsTableWidget_`
-  - `routeWaypointsTableWidget_`
-  - `routeWaypointTargetsTableWidget_`
-  - `routeQaIssuesTableWidget_`
-- rendering / navigation / classification：
-  - `resetClassificationColorsButton_`
-  - `classificationColorsTableWidget_`
-  - `roundSplatsCheckBox_`
-  - `axesCheckBox_`
-  - `boundingBoxCheckBox_`
-  - `invertOrbitCheckBox_`
-  - `invertPanCheckBox_`
-  - `invertWheelCheckBox_`
-  - `wheelZoomSensitivitySlider_`
-
-补充修复：
-- `MainWindow.h` 中此前已声明、但未在拆分后落实现的 3 个 route 颜色方法也一并补回：
-  - `chooseRouteWaypointColor()`
-  - `chooseRoutePartPointColor()`
-  - `chooseRouteTrajectoryColor()`
+已落地：
+- 顶层新增 `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE`（默认 `OFF`），保证默认构建路径零侵入。
+- 开关启用时进行 Windows SDK 头文件门槛检查；缺失时在配置阶段直接失败并给出修复提示。
+- 开关启用时注入系统库：
+  - `d3d11`
+  - `dxgi`
+  - `windowsapp`
+  - `mfplat`
+  - `mfreadwrite`
+  - `mfuuid`
+- 开关启用时统一下发编译宏：`LAS_VIEWER_ENABLE_WINDOWS_CAPTURE=1`。
 
 结论：
-- 当前 `MainWindow` 重构的风险不是零散漏点，而是“先丢整段 `viewer` 集成，再丢整批直连 widget 副作用”的连续性迁移缺口。
-- 这类问题仅靠 controller 单体 smoke 很难发现，必须由 MainWindow 集成 smoke 兜底。
+- 现在已经具备“默认不改变现状、启用时有明确门槛与依赖”的最小构建接入形态。
+- 该形态可以直接承接 `Phase R4` 的 `ScreenRecorder` 抽象与实现骨架，不需要再改顶层构建框架。
 
-修复状态：
-- 已在 `src/gui/MainWindow.Connections.cpp` 补回这批直连 widget 接线。
-- 已在 `src/gui/MainWindow.Route.cpp` 补回 route 颜色选择方法实现。
-- 已扩展 `examples/viewer_smoke_test.cpp` 的 `main-backstage` smoke，新增覆盖：
-  - navigation settings widget -> viewer 交互选项同步
-  - classification mapping 表的可见性 / 名称编辑 / reset
-  - route waypoint / part 列显隐复选框 -> 表格列隐藏
+### 12. R4 首轮落地采用“骨架先行、行为不变”策略
+
+已新增：
+- `src/capture/ScreenRecordingTypes.h`
+- `src/capture/ScreenRecorder.h`
+- `src/capture/ScreenRecorderFactory.h/.cpp`
+- `src/capture/WindowsGraphicsCaptureRecorder.h/.cpp`
+
+关键设计点：
+- 先建立稳定接口，不急于在同一轮替换 `MainWindow` 现有 ffmpeg 流程。
+- `ScreenRecorderFactory` 已具备开关分流能力：
+  - 开启 `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE` 且在 Windows 下返回 `WindowsGraphicsCaptureRecorder`。
+  - 其他情况返回 `UnsupportedScreenRecorder`，并提供可读原因。
+- 该做法保证“增量接入 + 无行为回归”，便于后续分步迁移 start/stop 逻辑。
 
 验证结果：
-- `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-- `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-- 结果：通过
+- 构建通过：`LASPointCloudViewer`、`LASViewerSmokeTest`。
+- smoke 通过：`main-backstage`、`main-settings-restore`。
 
-## 后续排查假设
+### 13. R4-2 已完成 MainWindow 接口接入，默认行为保持不变
 
-### 假设 A
-- 重构前 `MainWindow.cpp` 中的旧 `connect(...)` 仍有一部分没有迁移到新的 `MainWindow.Connections.cpp`
-
-### 假设 B
-- 一些 `QDockWidget` / page / toolbar 缺少 `objectName`，导致 `saveState()` / `restoreState()` 只部分生效
-
-### 假设 C
-- 一些原本直接由 widget 驱动的副作用逻辑，如：
-  - `updateActionState()`
-  - `updateIssuePanel()`
-  - `updateRoutePlanningPanel()`
-  - 选中同步到 `viewer`
-  - `retranslateUi()`
-  在拆分后只迁移了 UI 构造，没有迁移触发点
-
-### 假设 D
-- 现有 smoke 只覆盖“类本身还活着”，没有覆盖“主窗口整条交互链路还活着”
-
-## 2026-04-17 设置恢复链路补充发现
-
-### 12. dock 可见性持久化不能直接依赖 `isVisible()`
-
-问题：
-- 新增的 `main-settings-restore` smoke 证明，第一窗口关闭后：
-  - `window/showLog`
-  - `window/showProfileClassification`
-  会被错误写回 `false`
-- 直接原因不是 `restoreState()` 失效，而是关闭流程里的临时可见性变化污染了持久化结果。
+改动点：
+- `MainWindow` 新增 `screenRecorder_` 成员并在构造时通过工厂初始化。
+- 录屏启动逻辑改为：
+  - 若 embedded backend 可用则走 `ScreenRecorder::startRecording()`。
+  - 否则走既有 ffmpeg `QProcess` 路径。
+- 录屏停止逻辑统一入口，分别处理 embedded 与 ffmpeg 两个后端。
+- 动作状态文本（Start/Stop Recording）按“任一后端是否处于录制态”计算。
 
 结论：
-- 对 dock 显隐偏好做持久化时，不能把“关窗瞬间是否 still visible”当成用户意图。
-- 需要在 `QEvent::Close` 进入时就切换到关闭态，并在 `closeEvent()` 中只做一次强制保存；关闭过程中由 dock 发出的 `visibilityChanged(false)` 不应继续反向修改 action / settings。
+- 抽象层已真正进入调用链，而不是孤立骨架。
+- 默认构建下用户行为无变化，风险可控。
+- 后续可在不改 UI 交互层的前提下，直接替换 `WindowsGraphicsCaptureRecorder` 内部实现。
 
-修复状态：
-- 已在 `MainWindow` 中新增关闭态门禁：
-  - `event(QEvent*)` 提前标记 `closingWindow_`
-  - `closeEvent()` 改为 `persistWindowSettings(true)` 单次强制保存
-  - `persistWindowSettings()` 在关闭态下默认拒绝二次持久化
-- `persistWindowSettings()` 中 dock 可见性偏好已改为优先使用 action 勾选态，避免单纯依赖 `isVisible()`
-- `log/profile/profileClassification/routeDetails` 的 dock `visibilityChanged` 在关闭态下不再回写设置
+### 14. R4-3 已完成最小可运行后端实现，但 capture-on 构建受环境依赖阻塞
 
-### 13. `showProfileClassificationDockAction_` 的正向链路仍不完整
+本轮实现：
+- `WindowsGraphicsCaptureRecorder` 已从占位实现升级为可运行实现：
+  - COM / Media Foundation 生命周期管理
+  - `IMFSinkWriter` H.264 输出
+  - GDI 窗口帧采集（32-bit DIB + `BitBlt`）
+  - 采集线程与 stop 同步
+  - 录制错误消息回传
+- `ScreenRecordingStartOptions` 新增 `nativeWindowHandle`，并由 `MainWindow` 在启动录制时传入。
 
-问题：
-- `showProfileClassificationDockAction_` 原先只做 `setVisible(true)`，但 `profileClassificationDock_` 与 `projectDock_` 是 tabify 关系。
-- 仅 `show()` 不 `raise()` 时，dock 可能仍停留在后台 tab，`updateActionState()` 又会按 `dock->isVisible()` 把 action 回写成 `false`。
+验证结果：
+- 默认构建 + smoke：通过。
+- capture-on 配置：失败，缺失 `mfreadwrite.h`。
 
 结论：
-- 这是一个真实主程序回归，不是 smoke 误报。
-- 对 tabified dock，动作驱动显示时必须同时 `raise()` 才能保证前台可见和状态一致。
+- 代码链路已进入“可运行后端”阶段。
+- 当前无法在本机完成 capture-on 编译验证的根因是 SDK 环境缺失，不是编译逻辑或接口设计缺陷。
 
-修复状态：
-- 已在 `MainWindow.Connections.cpp` 中将：
-  - `showProfileClassificationDockAction_`
-  - `showProfileDockAction_`
-  的正向接线统一改为 `show()/raise()` 与显式 `hide()`
+### 15. 未完成任务的推进策略已切换为“环境阻塞外先完成可执行项”
 
-### 14. route roam 主面板控件在重构后漏接到 `viewer_`
+策略：
+- 对受环境阻塞的项（capture-on 编译）保留明确阻塞记录与解除条件。
+- 对不受阻塞的项（验证矩阵、回归风险、二期接口预留）先行完成，降低后续切换成本。
 
-问题：
-- `routeRoamSpeedSpinBox_` / `routeRoamViewModeComboBox_` 在主面板里改值后，没有同步回 `viewer_`
-- 持久化逻辑优先保存 `viewer_` 中的 roam 参数，因此主面板改动不会真正落盘
+收益：
+- 后续仅需补齐 SDK 即可进入“编译 -> 录制实测 -> 回归”的直线流程。
+- 计划文档已经具备可直接执行的验证 checklist，避免重复讨论。
 
-直接影响：
-- `main-settings-restore` 中：
-  - roam speed
-  - roam view mode
-  无法正确恢复
+### 16. capture-on 阻塞根因是 CMake 探测逻辑，不是 SDK 缺失
 
-修复状态：
-- 已在 `MainWindow.Connections.cpp` 补回：
-  - 主面板 roam speed -> `viewer_->setInspectionRouteRoamSpeedMetersPerSecond()`
-  - 主面板 roam view mode -> `viewer_->setInspectionRouteRoamViewMode()`
-- 新接线已补关闭态门禁，避免窗口析构阶段再次回写 `viewer_` 导致访问违例
+复核结果：
+- 本机 Windows SDK 已存在 `mfreadwrite.h`、`windows.graphics.capture.interop.h`、`Windows.Graphics.Capture.h`。
+- 失败点来自 `check_include_file_cxx(mfreadwrite.h ...)`：该头依赖 `mfapi.h` / `mfidl.h` 声明，单头探测会误报失败。
 
-### 15. `TowerController` / `IssueController` 主窗口集成整段缺失
-
-问题：
-- `TowerController` 与 `IssueController` 类本身仍在，controller 单体 smoke 也可跑。
-- 但拆分后的 `MainWindow.Connections.cpp` 中，这两组 controller 的构造与回调注入整段丢失。
-- 结果是：
-  - tower/issue 的 QAction 仍存在、按钮也能显示
-  - `viewer_ -> MainWindow` 的回流同步也还在
-  - 但主窗口正向链路缺失，导致开始编辑、添加/插入/移动、表格选中、详情编辑、清空/删除、导出等入口没有真正接入
-
-直接证据：
-- 当前代码中：
-  - `MainWindow.h` 仍保留 `towerController_` / `issueController_`
-  - `TowerController.cpp` / `IssueController.cpp` 仍保留完整封装
-  - 但 `MainWindow.Connections.cpp` 里此前没有 `new TowerController(...)` / `new IssueController(...)`
-
-修复状态：
-- 已把重构前 `MainWindow.cpp` 中 tower/issue controller 的构造与回调逻辑按原语义迁回 `src/gui/MainWindow.Connections.cpp`
-- 已恢复的主窗口能力包括：
-  - tower：
-    - 开始/结束编辑
-    - add / insert / move / cancel
-    - focus / remove / clear
-    - 导入/保存/另存/重载 tower 文件
-    - X/Y/Z 列显隐
-    - 表格选中 -> viewer，同步回流 -> 表格
-    - 表格改名与详情编辑器提交
-  - issue：
-    - start / cancel
-    - focus / remove / clear
-    - issues CSV / inspection report 导出
-    - 表格选中 -> viewer，同步回流 -> 表格
-    - 详情编辑器提交
+修复方案：
+- 在 `cmake/LASViewerDependencies.cmake` 中保留常规头文件探测。
+- 对 `mfreadwrite.h` 改为 `check_cxx_source_compiles`，显式先包含 `mfapi.h` + `mfidl.h` 再包含 `mfreadwrite.h`。
 
 验证结果：
-- 已扩展 `examples/viewer_smoke_test.cpp` 的 `main-backstage`，新增 MainWindow 集成级断言，覆盖：
-  - tower 表格填充、选中双向同步、名称编辑、详情提交、列显隐、模式切换、删除与清空
-  - issue 表格填充、选中双向同步、详情提交、模式切换、删除与清空
-- 已完成验证：
-  - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode tower-controller`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode issue-controller`
-  - 结果：全部通过
+- capture-on 配置通过。
+- capture-on 构建通过（`LASPointCloudViewer`、`LASViewerSmokeTest`）。
+- capture-on 关键 smoke 通过（`main-backstage`、`main-settings-restore`）。
 
-### 16. `MeasurementAnalysisController` / `RouteController` 主窗口集成也存在整段漏迁移
+### 17. 录屏专项自动化已落地到统一 smoke 可执行
 
-问题：
-- `MeasurementAnalysisController` 与 `RouteController` 类和单体 smoke 仍然存在。
-- 但拆分后的 `src/gui/MainWindow.Connections.cpp` 此前没有：
-  - `new MeasurementAnalysisController(...)`
-  - `new RouteController(...)`
-- 导致测量/净空/植被风险/航线规划/航线漫游在主窗口里出现“控件还在、部分表格接线也在，但主入口动作和控制器封装未真正接入”的半断链状态。
+实现：
+- 在 `examples/viewer_smoke_test.cpp` 新增 `screen-recording` 模式。
+- 覆盖链路：启动录制、停止录制、文件落盘校验、录制中关窗收尾。
 
-直接影响面：
-- measurement / vegetation risk：
-  - `measureAction_`
-  - `clearMeasurementAction_`
-  - `exportClearanceCsvAction_`
-  - `analyzeVegetationRisksAction_`
-  - `focusVegetationRiskAction_`
-  - `createIssueFromRiskAction_`
-  - `createIssuesFromRisksAction_`
-  - `clearVegetationRisksAction_`
-  - clearance / vegetation 参数控件和两张表
-- route：
-  - `generateInspectionRouteAction_`
-  - `regenerateInspectionRouteAction_`
-  - `clearInspectionRouteAction_`
-  - `toggleRouteEditingAction_`
-  - `start/pause/stopInspectionRouteRoamAction_`
-  - `focusRouteWaypointAction_`
-  - route 文件 / KML / DJI KMZ 导入导出
-  - roam 三按钮与 speed / view mode
-
-修复状态：
-- 已把重构前 `MainWindow.cpp` 中 measurement / route controller 的构造和回调逻辑按现有拆分结构迁回 `src/gui/MainWindow.Connections.cpp`
-- 已恢复：
-  - 测量模式开关与 profile dock 同步
-  - clearance CSV 导出
-  - vegetation risk 分析 / 聚焦 / 生成 issue / 清空
-  - 测量与 vegetation 参数变更的持久化与面板刷新
-  - 航线生成 / 清空 / 编辑锁 / focus
-  - 航线 roam start / pause / resume / stop
-  - route JSON / KML / DJI KMZ 导入导出
-  - route roam speed / view mode 重新纳入 `RouteController`
-- 已删除此前为临时补洞加在 `createWindowAndViewerConnections()` 中、会与恢复后的 `RouteController` 重复的 roam speed / view mode 直连，避免重复触发。
-
-验证结果：
-- 已扩展 `examples/viewer_smoke_test.cpp` 的 `main-backstage`，新增 MainWindow 集成级验证，覆盖：
-  - measurement action -> viewer measurement mode
-  - clear measurement action
-  - clearance threshold / preset -> MainWindow 状态
-  - vegetation risk 表选择 -> `selectedVegetationRiskIndex_`
-  - create issue from risk
-  - clear vegetation risks
-  - generate route / clear route
-  - route editing action
-  - route roam speed / view mode -> viewer
-  - route roam start / pause / resume / stop
-- 已完成验证：
-  - `cmake --build out/build --config Release --target LASPointCloudViewer -- /p:PostBuildEventUseInBuild=false`
-  - `cmake --build out/build --config Release --target LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode measurement-analysis-controller --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-controller`
-  - 结果：全部通过
-
-遗留问题：
-- 运行 `main-backstage` / `main-settings-restore` 时，`QString::arg: Argument missing ...` 警告仍然存在。
-- 该问题与本轮 controller 漏迁移修复无直接冲突，仍应作为下一批单独处理。
-
-### 17. `QString::arg: Argument missing ...` 的主因是中文翻译占位符丢失，首次复测还叠加了运行目录 `.qm` 陈旧
-
-问题：
-- `main-backstage` / `main-settings-restore` 反复输出两类告警：
-  - `QString::arg: Argument missing: 工程坐标系已更新。, ...`
-  - `QString::arg: Argument missing: 未设置 -> EPSG:4,326, ...`
-- 追查后确认，主因不在 controller 集成，而在 `translations/lasviewer_zh_CN.ts` 的两条翻译被错误改坏：
-  - `src/gui/MainWindow.Helpers.cpp` 对应的 `%1 -> %2` 被翻成了不带占位符的 `工程坐标系已更新。`
-  - `src/gui/MainWindow.Route.cpp` 对应的 8 占位符航线摘要，被翻成了只剩 `%1 -> %2`
-
-补充发现：
-- 首次修完 `.ts` 后，重新构建虽然已生成新的 `out/build/translations/lasviewer_zh_CN.qm`，但由于本地验证命令使用了 `/p:PostBuildEventUseInBuild=false`，运行时实际读取的仍是旧的：
-  - `out/build/bin/Release/translations/lasviewer_zh_CN.qm`
-- 也就是说，第一次复测“看起来没修好”，真实原因是部署目录里的 `.qm` 没同步，不是代码修复失败。
-
-修复状态：
-- 已修正 `translations/lasviewer_zh_CN.ts` 中两条翻译，恢复完整占位符：
-  - `%1 -> %2`
-  - `%1 -> %2 | DJI 机型：%3 | 安全高度 %4 米 | 速度 %5 米/秒 | 航点间距 %6 米 | 平滑 %7%% | 高程偏移 %8 米`
-- 已将新生成的 `out/build/translations/lasviewer_zh_CN.qm` 同步到 `out/build/bin/Release/translations/lasviewer_zh_CN.qm`，使本地 smoke 运行时加载到最新翻译。
-
-验证结果：
-- 已完成验证：
-  - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
-  - `Copy-Item "out/build/translations/lasviewer_zh_CN.qm" "out/build/bin/Release/translations/lasviewer_zh_CN.qm" -Force`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
-- 结果：
-  - 两个 smoke 都通过
-  - `QString::arg: Argument missing ...` 告警已消失
-  - 当前仅剩 `libpng warning: iCCP: cHRM chunk does not match sRGB`，与本轮 Qt 字符串格式化问题无关
-
-### 18. 审查 `Phase 2-5` 后，唯一仍值得补的自动化缺口是 `Project Explorer` 主窗口级 smoke
-
-问题：
-- 之前虽然已有：
-  - `project-explorer-dock`
-  - `project-explorer-controller`
-  - `main-backstage`
-- 但仍缺一个专门覆盖 `Project Explorer -> MainWindow` 集成链的 smoke。
-- 现有 `main-backstage` 只验证了项目树会出现点云项和清空后结构保留，没有单独覆盖：
-  - 搜索过滤
-  - `currentItemChanged`
-  - `itemChanged`
-  - `itemDoubleClicked`
-  - `customContextMenuRequested`
+验证：
+- 默认构建（capture-off）按设计 skip。
+- capture-on 构建通过并执行通过。
 
 结论：
-- 继续无差别扩展更多 smoke 的收益已经不高。
-- 这一个缺口补上后，`Phase 2-5` 就没有新的同等级 actionable gap 了。
+- 录屏主链路已纳入统一 smoke，不再仅依赖人工点击回归。
 
-修复状态：
-- 已在 `examples/viewer_smoke_test.cpp` 新增独立 mode：
-  - `project-explorer-mainwindow`
-- 新 smoke 直接走 `MainWindow` 集成路径，覆盖：
-  - 加载 LAS 后项目树重建
-  - 带图片的 issue 进入项目树
-  - 通过 `generateInspectionRouteAction_` 生成 route，并让 trajectory item 进入项目树
-  - 搜索过滤隐藏当前项时清空选择
-  - 选择 image / trajectory / pointCloud item 时与 `viewer_` 的同步
-  - 勾选状态到 dataset / issue / route 可见性的同步
-  - 右键菜单打开前当前项更新
-  - image item 双击链路触发聚焦/选中同步
+### 18. `#define private public` 会改变成员函数链接符号访问级别
 
-验证结果：
-- 已重新编译主程序与 smoke：
-  - `cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false`
+现象：
+- 在 smoke 中直接调用 `MainWindow::toggleScreenRecording()` / `stopScreenRecording()` 时，capture-on 构建出现 `LNK2001`。
 
----
+根因：
+- `viewer_smoke_test.cpp` 通过 `#define private public` 包含 `MainWindow.h`，导致调用端期望 `public` 符号（`QEAA`）。
+- 实际定义仍为 `private` 符号（`AEAA`），产生符号不匹配。
 
-## 2026-04-18 竞品核心能力调研（面向新功能规划）
+修复：
+- 不直接调用私有成员函数，改为触发 `toggleScreenRecordingAction_` 完成录屏起停。
 
-### 样本来源（可访问页面）
+结论：
+- 在采用 `private/public` hack 的 smoke 中，优先走可公开触发路径（action/signal），避免直接调用私有方法。
 
-- DJI Terra（大疆智图）
-- Trimble RealWorks
-- TerraSolid TerraScan
-- Bentley iTwin Capture Modeler
-- Pix4Dmatic
-- CloudCompare（开源基线）
+### 19. 用户侧仍提示 ffmpeg 不存在的直接原因是构建目录仍处于 capture-off
 
-说明：部分站点存在 404/提取失败，已通过替代样本保证能力维度覆盖。
+根因：
+- 录屏入口逻辑是“embedded backend 可用则走内嵌；不可用时回落 ffmpeg”。
+- 若当前构建目录是 `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE=OFF`，就会进入 ffmpeg 分支。
+- 本机未安装 ffmpeg 时会提示“Recording requires ffmpeg...”。
 
-### 竞品共性能力（归一化）
+已做修复与防复发：
+- 顶层 `CMakeLists.txt` 改为 Windows 下默认启用 `LAS_VIEWER_ENABLE_WINDOWS_CAPTURE`。
+- `MainWindow.Core.cpp` 改进提示文案：当 embedded 不可用且 ffmpeg 缺失时，明确显示不可用原因并提示启用构建开关。
 
-1) 大规模多源数据处理
-- 支持影像 + LiDAR 融合建模。
-- 面向大场景的数据分块/集群/批处理。
+验证：
+- 已对 `out/build` 明确执行 `-DLAS_VIEWER_ENABLE_WINDOWS_CAPTURE=ON` 重新配置并构建。
+- `screen-recording` / `main-backstage` / `main-settings-restore` smoke 均通过。
 
-2) 自动化点云处理流水线
-- 自动配准（有标靶与无标靶）。
-- 自动分类（地面/非地面、对象级）。
-- 批处理宏与可重复执行流程。
+### 20. 保存路径弹窗改为停止录制时触发的实现方式
 
-3) 巡检与专业分析工具
-- 3D 检查、体积/表面/正射/DSM/DTM/TIN 输出。
-- 走廊与电力场景专项（线路向量化、危险点分析）。
+实现：
+- 启动录制时先写入临时目录 `LASViewerRecordingTemp` 下的临时 MP4。
+- 停止录制后再走最终落盘流程：
+  - 若启用“自动保存”，直接保存到配置目录。
+  - 若未启用“自动保存”，在停止时弹 `Save Recording` 对话框。
+  - 关闭窗口触发的停止（非交互）采用静默落盘，不弹框。
 
-4) 交付与生态集成
-- 强调 CAD/GIS 就绪成果（LAS/LAZ、GeoTIFF、DXF、LandXML、3D Tiles 等）。
-- 与云端协同、数字孪生平台、下游系统联动。
+结论：
+- 满足“结束录屏时才弹保存路径”的交互要求，并兼容自动保存与关窗收尾。
 
-5) 开放与可扩展
-- 自动化与定制（脚本、批处理、工具链衔接）。
-- 版本分层（基础版/高级版/行业版）。
+### 21. MP4 上下颠倒问题来源于帧行序与编码器期望不一致
 
-### 与本项目的差距（可迁移优先）
+现象：
+- 录制文件播放时画面上下颠倒。
 
-已具备：
-- 点云浏览、渲染参数、量测、净空分析、航线规划与漫游、杆塔与隐患业务、工程持久化。
+修复：
+- 在 `writeCapturedFrame` 中按行倒序拷贝（垂直翻转）后再送入 `IMFSinkWriter`。
 
-主要缺口：
-- 批处理/流程编排能力不足（当前偏单项目交互式）。
-- 自动分类与变化检测能力不足（尤其多期对比）。
-- 报告模板化与可追溯证据链不足。
-- 开放接口与插件化能力不足（算法或业务扩展门槛高）。
-- 协作与任务分工能力不足（单机本地为主）。
+结论：
+- 编码输入与播放方向对齐，输出方向恢复正常。
 
-### 高可迁移机会点（结论）
+### 22. 录屏状态可见性增强
 
-1) “工作流引擎 + 批处理任务”
-- 对任何行业都适用，不绑定单一算法。
+实现：
+- 状态栏新增红色 `● REC` 徽标。
+- 录制中显示，停止后隐藏。
+- 与 `updateActionState()` 的录制状态统一。
 
-2) “多期数据变化检测”
-- 可复用到电力、交通、园区、矿山、应急等场景。
-
-3) “报告模板与证据链导出”
-- 对业务闭环价值高，且可复用现有杆塔/隐患/净空数据模型。
-
-4) “插件化分析接口”
-- 长期可迁移能力最强，可把专项能力外置，降低主程序耦合。
-
-5) “开放数据交换层”
-- 用开放格式和统一元数据桥接 GIS/CAD/数字孪生生态。
-- 已完成验证：
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode project-explorer-mainwindow --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage --las .\test_data\ezhou_powerline_sample.las`
-  - `.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-settings-restore`
-- 结果：
-  - 三个 smoke 全部通过
-  - 当前运行期残留告警仍只有 `libpng warning: iCCP: cHRM chunk does not match sRGB`
+结论：
+- 用户可一眼识别当前是否处于录屏状态，降低误操作概率。

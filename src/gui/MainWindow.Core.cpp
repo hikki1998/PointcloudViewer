@@ -10,6 +10,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QFile>
 #include <QFileInfo>
 #include <QMenu>
 #include <QMimeData>
@@ -20,6 +21,7 @@
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QTimer>
+#include <QUuid>
 #include <QUrl>
 #include <QWindow>
 
@@ -32,6 +34,7 @@
 #include "QtnRibbonBar.h"
 #include "QtnRibbonQuickAccessBar.h"
 #include "QtnRibbonSystemPopupBar.h"
+#include "capture/ScreenRecorderFactory.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/ProfileClassificationDock.h"
@@ -182,6 +185,39 @@ QPoint pointFromNativeLParam(LPARAM lParam)
 }
 #endif
 
+namespace
+{
+
+QString makeUniqueOutputPath(const QString& candidatePath)
+{
+    if (!QFileInfo::exists(candidatePath)) {
+        return candidatePath;
+    }
+
+    const QFileInfo candidateInfo(candidatePath);
+    const QString extension = candidateInfo.suffix();
+    const QString extensionPart = extension.isEmpty() ? QString() : QStringLiteral(".") + extension;
+    const QString baseName = candidateInfo.completeBaseName().isEmpty()
+        ? QStringLiteral("recording")
+        : candidateInfo.completeBaseName();
+    const QDir parentDir = candidateInfo.absoluteDir();
+
+    int suffixIndex = 1;
+    QString uniquePath;
+    do {
+        uniquePath = parentDir.filePath(
+            QStringLiteral("%1_%2%3")
+                .arg(baseName)
+                .arg(suffixIndex)
+                .arg(extensionPart));
+        ++suffixIndex;
+    } while (QFileInfo::exists(uniquePath));
+
+    return uniquePath;
+}
+
+}
+
 MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QWidget* parent)
     : Qtitan::RibbonMainWindow(parent)
     , appTranslator_(appTranslator)
@@ -199,6 +235,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     viewer_ = new PointCloudViewer(this);
     setCentralWidget(viewer_);
     viewer_->setInspectionRouteEditingEnabled(routeEditingEnabled_);
+    screenRecorder_ = capture::createScreenRecorder();
 
     createActions();
     createRibbon();
@@ -667,6 +704,111 @@ QString MainWindow::defaultCaptureSaveDirectory() const
     return QDir::toNativeSeparators(QDir(baseDirectory).filePath(QStringLiteral("LASViewerCaptures")));
 }
 
+QString MainWindow::createTemporaryRecordingOutputPath(const QString& preferredFileName) const
+{
+    QString tempRoot = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (tempRoot.trimmed().isEmpty()) {
+        tempRoot = QDir::tempPath();
+    }
+
+    QDir tempDir(QDir::fromNativeSeparators(tempRoot));
+    if (!tempDir.mkpath(QStringLiteral("."))) {
+        return QString();
+    }
+
+    if (!tempDir.cd(QStringLiteral("LASViewerRecordingTemp"))) {
+        if (!tempDir.mkdir(QStringLiteral("LASViewerRecordingTemp"))) {
+            return QString();
+        }
+        if (!tempDir.cd(QStringLiteral("LASViewerRecordingTemp"))) {
+            return QString();
+        }
+    }
+
+    QString baseName = QFileInfo(preferredFileName).completeBaseName().trimmed();
+    if (baseName.isEmpty()) {
+        baseName = QStringLiteral("recording");
+    }
+
+    const QString tempFileName = QStringLiteral("%1_%2.mp4")
+        .arg(baseName)
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    return tempDir.filePath(tempFileName);
+}
+
+capture::ScreenRecordingResult MainWindow::finalizeRecordingOutputFile(const QString& temporaryFilePath, bool interactiveStop)
+{
+    const QFileInfo temporaryInfo(temporaryFilePath);
+    if (temporaryFilePath.trimmed().isEmpty() || !temporaryInfo.exists()) {
+        return capture::ScreenRecordingResult::fail(
+            tr("No recording file was produced."));
+    }
+
+    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
+    const QString defaultFileName = temporaryInfo.fileName().trimmed().isEmpty()
+        ? QStringLiteral("recording_%1.mp4").arg(timestamp)
+        : temporaryInfo.fileName();
+
+    QString finalOutputPath;
+    if (interactiveStop && !captureSkipSaveDialog_) {
+        finalOutputPath = resolveCaptureOutputPath(
+            tr("Save Recording"),
+            defaultFileName,
+            tr("MP4 Video (*.mp4)"),
+            QStringLiteral("mp4"));
+        if (finalOutputPath.isEmpty()) {
+            QFile::remove(temporaryFilePath);
+            return capture::ScreenRecordingResult::fail(QString());
+        }
+    } else {
+        QString outputDirectoryPath = captureSaveDirectory_.trimmed();
+        if (outputDirectoryPath.isEmpty()) {
+            outputDirectoryPath = defaultCaptureSaveDirectory();
+        }
+
+        QDir outputDirectory(QDir::fromNativeSeparators(outputDirectoryPath));
+        if (!outputDirectory.mkpath(QStringLiteral("."))) {
+            return capture::ScreenRecordingResult::fail(
+                tr("Unable to create the recording output folder."));
+        }
+
+        finalOutputPath = makeUniqueOutputPath(outputDirectory.filePath(defaultFileName));
+    }
+
+    finalOutputPath = QDir::toNativeSeparators(finalOutputPath);
+    const QFileInfo finalInfo(finalOutputPath);
+    if (!QDir(finalInfo.absolutePath()).mkpath(QStringLiteral("."))) {
+        return capture::ScreenRecordingResult::fail(
+            tr("Unable to create the recording output folder."));
+    }
+
+    bool moved = false;
+    if (QDir::toNativeSeparators(temporaryFilePath) == finalOutputPath) {
+        moved = true;
+    } else {
+        if (QFileInfo::exists(finalOutputPath)) {
+            QFile::remove(finalOutputPath);
+        }
+        moved = QFile::rename(temporaryFilePath, finalOutputPath);
+        if (!moved) {
+            moved = QFile::copy(temporaryFilePath, finalOutputPath);
+            if (moved) {
+                QFile::remove(temporaryFilePath);
+            }
+        }
+    }
+
+    if (!moved) {
+        return capture::ScreenRecordingResult::fail(
+            tr("Failed to save recording: %1").arg(finalOutputPath));
+    }
+
+    captureSaveDirectory_ = QDir::toNativeSeparators(finalInfo.absolutePath());
+    persistWindowSettings();
+    recordingOutputFilePath_ = finalOutputPath;
+    return capture::ScreenRecordingResult::ok(finalOutputPath);
+}
+
 QString MainWindow::resolveCaptureOutputPath(
     const QString& dialogTitle,
     const QString& defaultFileName,
@@ -741,40 +883,71 @@ void MainWindow::captureMainWindowScreenshot()
 
 void MainWindow::toggleScreenRecording()
 {
-    if (recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning) {
+    const bool processRecordingActive =
+        recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning;
+    const bool embeddedRecordingActive =
+        screenRecorder_ != nullptr && screenRecorder_->isRecording();
+    if (processRecordingActive || embeddedRecordingActive) {
         stopScreenRecording(true);
-        return;
-    }
-
-    const QString ffmpegExecutable = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
-    if (ffmpegExecutable.isEmpty()) {
-        showUserMessage(
-            LogLevel::Error,
-            tr("Recording requires ffmpeg. Add ffmpeg to PATH or place ffmpeg.exe beside the application."),
-            5500);
         return;
     }
 
     const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
     const QString defaultFileName = QStringLiteral("recording_%1.mp4").arg(timestamp);
-    const QString outputPath = resolveCaptureOutputPath(
-        tr("Save Recording"),
-        defaultFileName,
-        tr("MP4 Video (*.mp4)"),
-        QStringLiteral("mp4"));
-    if (outputPath.isEmpty()) {
+    const QString temporaryOutputPath = createTemporaryRecordingOutputPath(defaultFileName);
+    if (temporaryOutputPath.isEmpty()) {
+        showUserMessage(LogLevel::Error, tr("Unable to create temporary recording file."), 4500);
         return;
     }
 
-    const QFileInfo outputInfo(outputPath);
-    if (!QDir(outputInfo.absolutePath()).mkpath(QStringLiteral("."))) {
-        showUserMessage(LogLevel::Error, tr("Unable to create the recording output folder."), 4500);
+    if (screenRecorder_ != nullptr && screenRecorder_->isAvailable()) {
+        capture::ScreenRecordingStartOptions options;
+        options.outputFilePath = temporaryOutputPath;
+        options.frameRate = 30;
+        options.nativeWindowHandle = static_cast<quintptr>(winId());
+
+        const capture::ScreenRecordingResult result = screenRecorder_->startRecording(options);
+        if (!result.success) {
+            const QString diagnostic = result.message.trimmed().isEmpty()
+                ? tr("No ffmpeg diagnostic output was captured.")
+                : result.message;
+            showUserMessage(
+                LogLevel::Error,
+                tr("Recording failed. %1").arg(diagnostic),
+                6500);
+            return;
+        }
+
+        recordingOutputFilePath_ = temporaryOutputPath;
+        showUserMessage(
+            LogLevel::Info,
+            tr("Recording started. Use %1 or the ribbon button to stop.")
+                .arg(toggleScreenRecordingAction_ != nullptr
+                    ? toggleScreenRecordingAction_->shortcut().toString(QKeySequence::NativeText)
+                    : tr("Stop Recording")),
+            4200);
+        updateActionState();
+        return;
+    }
+
+    const QString recorderUnavailableReason =
+        screenRecorder_ != nullptr ? screenRecorder_->unavailableReason().trimmed() : QString();
+    const QString ffmpegExecutable = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (ffmpegExecutable.isEmpty()) {
+        const QString message = recorderUnavailableReason.isEmpty()
+            ? tr("Recording requires ffmpeg. Add ffmpeg to PATH or place ffmpeg.exe beside the application.")
+            : tr("Embedded recording is unavailable: %1. Recording requires ffmpeg. Add ffmpeg to PATH, or enable LAS_VIEWER_ENABLE_WINDOWS_CAPTURE in your build.")
+                .arg(recorderUnavailableReason);
+        showUserMessage(
+            LogLevel::Error,
+            message,
+            5500);
         return;
     }
 
     recordingStopRequested_ = false;
     suppressRecordingStopMessage_ = false;
-    recordingOutputFilePath_ = outputPath;
+    recordingOutputFilePath_ = temporaryOutputPath;
     recordingProcess_ = new QProcess(this);
     recordingProcess_->setProgram(ffmpegExecutable);
     recordingProcess_->setProcessChannelMode(QProcess::MergedChannels);
@@ -792,7 +965,7 @@ void MainWindow::toggleScreenRecording()
         QStringLiteral("veryfast"),
         QStringLiteral("-pix_fmt"),
         QStringLiteral("yuv420p"),
-        outputPath
+        temporaryOutputPath
     });
 
     connect(
@@ -810,25 +983,35 @@ void MainWindow::toggleScreenRecording()
             recordingProcess_ = nullptr;
             const bool stoppedByUser = recordingStopRequested_;
             recordingStopRequested_ = false;
+            const bool interactiveStop = !suppressRecordingStopMessage_;
 
-            if (!suppressRecordingStopMessage_) {
-                const bool success = exitStatus == QProcess::NormalExit
-                    && (exitCode == 0 || stoppedByUser)
-                    && QFileInfo::exists(recordingOutputFilePath_);
-                if (success) {
-                    showUserMessage(
-                        LogLevel::Info,
-                        tr("Recording saved: %1").arg(QFileInfo(recordingOutputFilePath_).fileName()),
-                        3800);
-                } else {
-                    const QString diagnostic = processOutput.isEmpty()
-                        ? tr("No ffmpeg diagnostic output was captured.")
-                        : processOutput;
-                    showUserMessage(
-                        LogLevel::Error,
-                        tr("Recording failed. %1").arg(diagnostic),
-                        6500);
+            const bool success = exitStatus == QProcess::NormalExit
+                && (exitCode == 0 || stoppedByUser)
+                && QFileInfo::exists(recordingOutputFilePath_);
+            if (success) {
+                const capture::ScreenRecordingResult saveResult =
+                    finalizeRecordingOutputFile(recordingOutputFilePath_, interactiveStop);
+                if (interactiveStop) {
+                    if (saveResult.success) {
+                        showUserMessage(
+                            LogLevel::Info,
+                            tr("Recording saved: %1").arg(QFileInfo(recordingOutputFilePath_).fileName()),
+                            3800);
+                    } else if (!saveResult.message.trimmed().isEmpty()) {
+                        showUserMessage(
+                            LogLevel::Error,
+                            tr("Recording failed. %1").arg(saveResult.message),
+                            6500);
+                    }
                 }
+            } else if (interactiveStop) {
+                const QString diagnostic = processOutput.isEmpty()
+                    ? tr("No ffmpeg diagnostic output was captured.")
+                    : processOutput;
+                showUserMessage(
+                    LogLevel::Error,
+                    tr("Recording failed. %1").arg(diagnostic),
+                    6500);
             }
 
             suppressRecordingStopMessage_ = false;
@@ -840,6 +1023,7 @@ void MainWindow::toggleScreenRecording()
         const QString diagnostic = QString::fromLocal8Bit(recordingProcess_->readAllStandardOutput()).trimmed();
         recordingProcess_->deleteLater();
         recordingProcess_ = nullptr;
+        QFile::remove(temporaryOutputPath);
         showUserMessage(
             LogLevel::Error,
             diagnostic.isEmpty()
@@ -861,6 +1045,37 @@ void MainWindow::toggleScreenRecording()
 
 void MainWindow::stopScreenRecording(bool notifyUser)
 {
+    if (screenRecorder_ != nullptr && screenRecorder_->isRecording()) {
+        const capture::ScreenRecordingResult result = screenRecorder_->stopRecording();
+        if (result.success) {
+            const capture::ScreenRecordingResult saveResult =
+                finalizeRecordingOutputFile(recordingOutputFilePath_, notifyUser);
+            if (notifyUser) {
+                if (saveResult.success) {
+                    showUserMessage(
+                        LogLevel::Info,
+                        tr("Recording saved: %1").arg(QFileInfo(recordingOutputFilePath_).fileName()),
+                        3800);
+                } else if (!saveResult.message.trimmed().isEmpty()) {
+                    showUserMessage(
+                        LogLevel::Error,
+                        tr("Recording failed. %1").arg(saveResult.message),
+                        6500);
+                }
+            }
+        } else if (notifyUser) {
+            const QString diagnostic = result.message.trimmed().isEmpty()
+                ? tr("No ffmpeg diagnostic output was captured.")
+                : result.message;
+                showUserMessage(
+                    LogLevel::Error,
+                    tr("Recording failed. %1").arg(diagnostic),
+                    6500);
+        }
+        updateActionState();
+        return;
+    }
+
     if (recordingProcess_ == nullptr || recordingProcess_->state() == QProcess::NotRunning) {
         return;
     }

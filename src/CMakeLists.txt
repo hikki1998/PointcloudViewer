@@ -1,10 +1,11 @@
 las_viewer_add_app_sources(main.cpp)
 
 if(WIN32)
-    las_viewer_add_shared_sources(app_icon.rc)
+    las_viewer_add_app_sources(app_icon.rc)
 endif()
 
 add_subdirectory(crs)
+add_subdirectory(capture)
 add_subdirectory(domain)
 add_subdirectory(gui)
 add_subdirectory(logging)

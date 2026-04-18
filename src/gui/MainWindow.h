@@ -4,9 +4,12 @@
 #include <QMap>
 #include <QStringList>
 
+#include <memory>
+
 #include "QtnRibbonMainWindow.h"
 #include "QtnRibbonStyle.h"
 
+#include "capture/ScreenRecorder.h"
 #include "crs/CrsTypes.h"
 #include "domain/AnalysisData.h"
 #include "domain/RuleBasedClearanceEngine.h"
@@ -258,6 +261,8 @@ private:
     void captureMainWindowScreenshot();
     void toggleScreenRecording();
     void stopScreenRecording(bool notifyUser);
+    QString createTemporaryRecordingOutputPath(const QString& preferredFileName) const;
+    capture::ScreenRecordingResult finalizeRecordingOutputFile(const QString& temporaryFilePath, bool interactiveStop);
     QString defaultCaptureSaveDirectory() const;
     QString resolveCaptureOutputPath(
         const QString& dialogTitle,
@@ -512,6 +517,7 @@ private:
     QToolButton* minimizeButton_ = nullptr;
     QToolButton* maximizeButton_ = nullptr;
     QToolButton* closeButton_ = nullptr;
+    QLabel* recordingStatusBadgeLabel_ = nullptr;
     QProgressBar* globalProgressBar_ = nullptr;
 
     QAction* openAction_ = nullptr;
@@ -644,6 +650,7 @@ private:
     QString captureSaveDirectory_;
     QString recordingOutputFilePath_;
     QPoint pendingRibbonWindowMoveGlobalPos_;
+    std::unique_ptr<capture::ScreenRecorder> screenRecorder_;
     QProcess* recordingProcess_ = nullptr;
     bool recordingStopRequested_ = false;
     bool suppressRecordingStopMessage_ = false;

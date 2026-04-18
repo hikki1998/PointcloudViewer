@@ -1140,11 +1140,17 @@ void MainWindow::retranslateActionsAndBackstage()
     showBoundingBoxAction_->setToolTip(tr("Show or hide point cloud bounds"));
     captureScreenshotAction_->setText(tr("Screenshot"));
     captureScreenshotAction_->setToolTip(tr("Capture the current application window as a PNG image"));
-    toggleScreenRecordingAction_->setText(recordingProcess_ == nullptr ? tr("Start Recording") : tr("Stop Recording"));
+    const bool recordingActive =
+        (recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning)
+        || (screenRecorder_ != nullptr && screenRecorder_->isRecording());
+    if (recordingStatusBadgeLabel_ != nullptr) {
+        recordingStatusBadgeLabel_->setVisible(recordingActive);
+    }
+    toggleScreenRecordingAction_->setText(recordingActive ? tr("Stop Recording") : tr("Start Recording"));
     toggleScreenRecordingAction_->setToolTip(
-        recordingProcess_ == nullptr
-            ? tr("Start MP4 screen recording for the current application window")
-            : tr("Stop the active MP4 screen recording"));
+        recordingActive
+            ? tr("Stop the active MP4 screen recording")
+            : tr("Start MP4 screen recording for the current application window"));
     darkBackgroundAction_->setText(tr("Dark"));
     darkBackgroundAction_->setToolTip(tr("Switch to dark background"));
     lightBackgroundAction_->setText(tr("Light"));
@@ -3603,7 +3609,9 @@ void MainWindow::updateActionState()
     rightViewAction_->setEnabled(hasPointCloud);
     captureScreenshotAction_->setEnabled(true);
     toggleScreenRecordingAction_->setEnabled(true);
-    const bool recordingActive = recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning;
+    const bool recordingActive =
+        (recordingProcess_ != nullptr && recordingProcess_->state() != QProcess::NotRunning)
+        || (screenRecorder_ != nullptr && screenRecorder_->isRecording());
     toggleScreenRecordingAction_->setText(recordingActive ? tr("Stop Recording") : tr("Start Recording"));
     toggleScreenRecordingAction_->setToolTip(
         recordingActive

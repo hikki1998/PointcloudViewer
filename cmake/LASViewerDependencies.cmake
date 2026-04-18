@@ -241,6 +241,67 @@ if(LAS_VIEWER_ENABLE_PCL)
     find_package(PCL 1.8 QUIET COMPONENTS common io)
 endif()
 
+set(LAS_VIEWER_WINDOWS_CAPTURE_LIBRARIES "")
+if(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE)
+    if(NOT WIN32)
+        message(FATAL_ERROR
+            "LAS_VIEWER_ENABLE_WINDOWS_CAPTURE requires a Windows host toolchain."
+        )
+    endif()
+
+    include(CheckIncludeFileCXX)
+    include(CheckCXXSourceCompiles)
+
+    set(_las_viewer_windows_capture_headers
+        d3d11.h
+        dxgi1_2.h
+        mfapi.h
+        mfidl.h
+        windows.graphics.capture.interop.h
+        winrt/Windows.Graphics.Capture.h
+    )
+
+    set(_las_viewer_windows_capture_missing_headers)
+    foreach(_header_name IN LISTS _las_viewer_windows_capture_headers)
+        string(MAKE_C_IDENTIFIER "${_header_name}" _header_identifier)
+        set(_header_var "LAS_VIEWER_HAS_${_header_identifier}")
+        check_include_file_cxx("${_header_name}" ${_header_var})
+        if(NOT ${_header_var})
+            list(APPEND _las_viewer_windows_capture_missing_headers ${_header_name})
+        endif()
+    endforeach()
+
+    # mfreadwrite.h depends on mfapi.h/mfidl.h declarations.
+    check_cxx_source_compiles(
+        "#include <mfapi.h>\n#include <mfidl.h>\n#include <mfreadwrite.h>\nint main() { return 0; }"
+        LAS_VIEWER_HAS_MEDIAFOUNDATION_READWRITE_HEADERS
+    )
+    if(NOT LAS_VIEWER_HAS_MEDIAFOUNDATION_READWRITE_HEADERS)
+        list(APPEND _las_viewer_windows_capture_missing_headers mfreadwrite.h)
+    endif()
+
+    if(_las_viewer_windows_capture_missing_headers)
+        list(JOIN _las_viewer_windows_capture_missing_headers ", " _missing_headers_text)
+        message(FATAL_ERROR
+            "Windows capture backend requires missing headers: ${_missing_headers_text}.\n"
+            "Install Windows 10/11 SDK with Media Foundation and C++/WinRT components, "
+            "or configure with -DLAS_VIEWER_ENABLE_WINDOWS_CAPTURE=OFF."
+        )
+    endif()
+
+    set(LAS_VIEWER_WINDOWS_CAPTURE_LIBRARIES
+        d3d11
+        dxgi
+        windowsapp
+        mfplat
+        mfreadwrite
+        mfuuid
+    )
+    message(STATUS
+        "Windows capture backend enabled. System libraries: ${LAS_VIEWER_WINDOWS_CAPTURE_LIBRARIES}"
+    )
+endif()
+
 if(LAS_VIEWER_ENABLE_LASLIB)
     find_path(LASLIB_INCLUDE_DIR
         NAMES lasreader.hpp
