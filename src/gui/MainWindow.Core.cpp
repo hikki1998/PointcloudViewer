@@ -619,7 +619,7 @@ bool MainWindow::isDraggableRibbonArea(const QPoint& position) const
     }
 
     int captionHeight = ribbonBar_->titleBarHeight();
-    if (captionHeight <= 0) {
+    if (!ribbonBar_->isTitleBarVisible() || captionHeight <= 0) {
         captionHeight = std::min(kDefaultCustomCaptionHeight, ribbonHeight);
     } else {
         captionHeight = std::min(captionHeight, ribbonHeight);
@@ -666,7 +666,8 @@ bool MainWindow::isInteractiveRibbonWidget(const QWidget* widget) const
             || qobject_cast<const QAbstractSpinBox*>(current) != nullptr
             || qobject_cast<const QTabBar*>(current) != nullptr
             || qobject_cast<const QMenu*>(current) != nullptr
-            || className.contains(QStringLiteral("RibbonTab"), Qt::CaseInsensitive)
+            || (className.contains(QStringLiteral("RibbonTab"), Qt::CaseInsensitive)
+                && !className.contains(QStringLiteral("RibbonTabBar"), Qt::CaseInsensitive))
             || className.contains(QStringLiteral("SystemButton"), Qt::CaseInsensitive)) {
             return true;
         }
