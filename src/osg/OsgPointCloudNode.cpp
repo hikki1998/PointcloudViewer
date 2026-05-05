@@ -27,6 +27,8 @@ namespace
 #define GL_POINT_SPRITE 0x8861
 #endif
 
+constexpr unsigned int kDatasetIdAttributeLocation = 6;
+
 osg::Vec4 toOsgColor(const QColor& color)
 {
     return osg::Vec4(color.redF(), color.greenF(), color.blueF(), 1.0f);
@@ -53,6 +55,11 @@ osg::Program* buildPointCloudProgram()
 
         varying vec4 vPointColor;
         varying float vViewDepth;
+        varying vec3 vWorldPos;
+        varying float vClipDatasetId;
+
+        uniform vec3 uSceneOrigin;
+        attribute float aDatasetId;
 
         void main()
         {
@@ -60,6 +67,8 @@ osg::Program* buildPointCloudProgram()
             gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
             vPointColor = gl_Color;
             vViewDepth = max(0.0, -viewPosition.z);
+            vWorldPos = gl_Vertex.xyz + uSceneOrigin;
+            vClipDatasetId = aDatasetId;
         }
     )";
 
@@ -72,11 +81,46 @@ osg::Program* buildPointCloudProgram()
         uniform float uUseRoundSplats;
         uniform vec3 uBackgroundColor;
 
+        uniform float uClipEnabled;
+        uniform int uClipMode;
+        uniform int uClipScope;
+        uniform float uClipActiveDatasetId;
+        uniform int uClipPlaneCount;
+        uniform vec4 uClipPlanes[48];
+
         varying vec4 vPointColor;
         varying float vViewDepth;
+        varying vec3 vWorldPos;
+        varying float vClipDatasetId;
+
+        bool pointInsideClipVolume(vec3 p)
+        {
+            for (int planeIndex = 0; planeIndex < 48; ++planeIndex) {
+                if (planeIndex >= uClipPlaneCount) {
+                    break;
+                }
+
+                vec4 plane = uClipPlanes[planeIndex];
+                if (dot(plane.xyz, p) + plane.w < 0.0) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         void main()
         {
+            bool clipAppliesToPoint = uClipScope != 0 || abs(vClipDatasetId - uClipActiveDatasetId) < 0.5;
+            if (uClipEnabled > 0.5 && clipAppliesToPoint) {
+                bool insideClip = pointInsideClipVolume(vWorldPos);
+                if (uClipMode == 0) {
+                    if (!insideClip) discard;
+                } else {
+                    if (insideClip) discard;
+                }
+            }
+
             vec2 centeredCoord = gl_PointCoord * 2.0 - vec2(1.0, 1.0);
             float radialDistance = length(centeredCoord);
             if (uUseRoundSplats > 0.5 && radialDistance > 1.0) {
@@ -104,12 +148,16 @@ osg::Program* buildPointCloudProgram()
     )";
 
     osg::ref_ptr<osg::Program> program = new osg::Program();
+    program->addBindAttribLocation("aDatasetId", kDatasetIdAttributeLocation);
     program->addShader(new osg::Shader(osg::Shader::VERTEX, kVertexShaderSource));
     program->addShader(new osg::Shader(osg::Shader::FRAGMENT, kFragmentShaderSource));
     return program.release();
 }
 
-void applyPointCloudShaderState(osg::StateSet* stateSet, const PointCloudVisualizationOptions& visualizationOptions)
+void applyPointCloudShaderState(
+    osg::StateSet* stateSet,
+    const PointCloudVisualizationOptions& visualizationOptions,
+    const osg::Vec3d& sceneOrigin)
 {
     if (stateSet == nullptr) {
         return;
@@ -128,6 +176,36 @@ void applyPointCloudShaderState(osg::StateSet* stateSet, const PointCloudVisuali
     stateSet->addUniform(new osg::Uniform(
         "uBackgroundColor",
         osg::Vec3(backgroundColor.r(), backgroundColor.g(), backgroundColor.b())));
+    stateSet->addUniform(new osg::Uniform(
+        "uSceneOrigin",
+        osg::Vec3(
+            static_cast<float>(sceneOrigin.x()),
+            static_cast<float>(sceneOrigin.y()),
+            static_cast<float>(sceneOrigin.z()))));
+
+    const ClipRegion& clip = visualizationOptions.clipRegion;
+    const int clipPlaneCount = clip.isActive()
+        ? std::min(static_cast<int>(clip.planes.size()), kMaxClipPlaneCount)
+        : 0;
+    stateSet->addUniform(new osg::Uniform("uClipEnabled", clipPlaneCount > 0 ? 1.0f : 0.0f));
+    stateSet->addUniform(new osg::Uniform("uClipMode", clip.keepInside ? 0 : 1));
+    stateSet->addUniform(new osg::Uniform("uClipScope", static_cast<int>(clip.scope)));
+    stateSet->addUniform(new osg::Uniform("uClipActiveDatasetId", static_cast<float>(clip.activeDatasetId)));
+    stateSet->addUniform(new osg::Uniform("uClipPlaneCount", clipPlaneCount));
+
+    osg::ref_ptr<osg::Uniform> clipPlanesUniform =
+        new osg::Uniform(osg::Uniform::FLOAT_VEC4, "uClipPlanes", kMaxClipPlaneCount);
+    for (int planeIndex = 0; planeIndex < clipPlaneCount; ++planeIndex) {
+        const ClipPlane& plane = clip.planes.at(static_cast<std::size_t>(planeIndex));
+        clipPlanesUniform->setElement(
+            planeIndex,
+            osg::Vec4(
+            static_cast<float>(plane.normal.x()),
+            static_cast<float>(plane.normal.y()),
+            static_cast<float>(plane.normal.z()),
+            static_cast<float>(plane.distance)));
+    }
+    stateSet->addUniform(clipPlanesUniform.get());
 
     stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
     stateSet->setMode(GL_POINT_SPRITE, osg::StateAttribute::ON);
@@ -245,8 +323,10 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
     const std::size_t pointCount = pointCloudData.size();
     osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4ubArray> colors = new osg::Vec4ubArray();
+    osg::ref_ptr<osg::FloatArray> datasetIds = new osg::FloatArray();
     vertices->reserve(pointCount);
     colors->reserve(pointCount);
+    datasetIds->reserve(pointCount);
 
     const double minZ = minBounds.z;
     const double heightSpan = std::max(0.0, maxBounds.z - minZ);
@@ -263,6 +343,7 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
             static_cast<float>(point.y - sceneOrigin.y()),
             static_cast<float>(point.z - sceneOrigin.z())));
         colors->push_back(pointColor(point, visualizationOptions, minZ, heightSpan));
+        datasetIds->push_back(static_cast<float>(point.sourceDatasetId));
     }
 
     osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry();
@@ -270,6 +351,7 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
     geometry->setUseVertexBufferObjects(true);
     geometry->setVertexArray(vertices.get());
     geometry->setColorArray(colors.get(), osg::Array::BIND_PER_VERTEX);
+    geometry->setVertexAttribArray(kDatasetIdAttributeLocation, datasetIds.get(), osg::Array::BIND_PER_VERTEX);
     geometry->addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, static_cast<GLsizei>(vertices->size())));
 
     osg::ref_ptr<osg::Geode> geode = new osg::Geode();
@@ -279,7 +361,7 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
     osg::ref_ptr<osg::Point> point = new osg::Point(visualizationOptions.pointSize);
     stateSet->setAttributeAndModes(point.get(), osg::StateAttribute::ON);
     stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
-    applyPointCloudShaderState(stateSet, visualizationOptions);
+    applyPointCloudShaderState(stateSet, visualizationOptions, sceneOrigin);
 
     osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
     transform->setMatrix(osg::Matrixd::translate(sceneOrigin));

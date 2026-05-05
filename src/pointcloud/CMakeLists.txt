@@ -1,6 +1,10 @@
 las_viewer_add_shared_sources(
+    ClipFilter.cpp
+    ClipFilter.h
     LasReader.cpp
     LasReader.h
+    LasWriter.cpp
+    LasWriter.h
     PointCloudData.cpp
     PointCloudData.h
     PointCloudTileStore.cpp

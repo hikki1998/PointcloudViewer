@@ -687,6 +687,7 @@ void MainWindow::loadThemeSettings()
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
         const auto theme = static_cast<Qtitan::RibbonStyle::Theme>(storedTheme);
         ribbonStyle->setTheme(theme);
+        ribbonStyle->setActiveTabAccented(false);
         updateWindowChromePalette(theme);
     }
 }

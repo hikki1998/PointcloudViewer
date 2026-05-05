@@ -1,12 +1,61 @@
 #pragma once
 
+#include <array>
 #include <memory>
+#include <vector>
 
 #include <QColor>
 #include <QHash>
 #include <QMap>
 
+#include <osg/Vec3d>
+
 class ClassificationEditStore;
+
+inline constexpr int kMaxClipPlaneCount = 48;
+
+struct ClipPlane
+{
+    osg::Vec3d normal;
+    double distance = 0.0;
+};
+
+struct ClipRegion
+{
+    enum Kind
+    {
+        None = 0,
+        ScreenPolygonPrism = 1,
+        Box = 2
+    };
+
+    enum Scope
+    {
+        ActiveDataset = 0,
+        VisibleDatasets = 1
+    };
+
+    enum BoxAlignment
+    {
+        WorldAligned = 0,
+        ViewAligned = 1
+    };
+
+    Kind kind = None;
+    Scope scope = VisibleDatasets;
+    BoxAlignment boxAlignment = WorldAligned;
+    int activeDatasetId = -1;
+    bool enabled = false;
+    bool keepInside = true;
+    std::vector<ClipPlane> planes;
+    std::vector<osg::Vec3d> overlayVertices;
+    std::vector<std::array<int, 2>> overlayEdges;
+
+    [[nodiscard]] bool isActive() const
+    {
+        return enabled && kind != None && !planes.empty();
+    }
+};
 
 enum class PointCloudColorMode
 {
@@ -94,4 +143,6 @@ struct PointCloudVisualizationOptions
     bool useRoundSplats = true;
     bool showAxes = true;
     bool showBoundingBox = true;
+
+    ClipRegion clipRegion;
 };

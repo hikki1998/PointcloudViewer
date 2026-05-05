@@ -3,6 +3,7 @@
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QApplication>
+#include <QAction>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDockWidget>
@@ -12,6 +13,7 @@
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QHelpEvent>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
@@ -21,6 +23,8 @@
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QTimer>
+#include <QToolButton>
+#include <QToolTip>
 #include <QUuid>
 #include <QUrl>
 #include <QWindow>
@@ -340,8 +344,34 @@ void MainWindow::dropEvent(QDropEvent* event)
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event)
 {
-#ifdef Q_OS_WIN
     QWidget* watchedWidget = qobject_cast<QWidget*>(watched);
+    if (event != nullptr
+        && watchedWidget != nullptr
+        && ribbonBar_ != nullptr
+        && (watchedWidget == ribbonBar_ || ribbonBar_->isAncestorOf(watchedWidget))
+        && event->type() == QEvent::ToolTip) {
+        QString toolTipText = watchedWidget->toolTip().trimmed();
+        if (toolTipText.isEmpty()) {
+            if (auto* button = qobject_cast<QToolButton*>(watchedWidget)) {
+                if (QAction* action = button->defaultAction()) {
+                    toolTipText = action->toolTip().trimmed();
+                    if (toolTipText.isEmpty()) {
+                        toolTipText = action->text().trimmed();
+                    }
+                }
+            }
+        }
+
+        if (!toolTipText.isEmpty()) {
+            applyLightToolTipStyle();
+            const auto* helpEvent = static_cast<const QHelpEvent*>(event);
+            QToolTip::showText(helpEvent->globalPos(), toolTipText, watchedWidget);
+            event->accept();
+            return true;
+        }
+    }
+
+#ifdef Q_OS_WIN
     if (event != nullptr
         && watchedWidget != nullptr
         && ribbonBar_ != nullptr
@@ -450,6 +480,10 @@ void MainWindow::showEvent(QShowEvent* event)
     QTimer::singleShot(400, this, [this]() { normalizeNativeWindowStyle(); });
     QTimer::singleShot(1200, this, [this]() { normalizeNativeWindowStyle(); });
 #endif
+
+    QTimer::singleShot(200, this, [this]() {
+        applyLightToolTipStyle();
+    });
 }
 
 #ifdef Q_OS_WIN

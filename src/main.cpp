@@ -1,19 +1,97 @@
 #include <QApplication>
+#include <QAction>
 #include <QCursor>
 #include <QFont>
 #include <QIcon>
+#include <QPainter>
 #include <QScreen>
 #include <QSplashScreen>
+#include <QStyleOption>
 #include <QSurfaceFormat>
 #include <QTimer>
+#include <QToolButton>
+#include <QToolTip>
 #include <QTranslator>
 
+#include "QtnRibbonToolTip.h"
 #include "QtnRibbonStyle.h"
 
 #include "gui/MainWindow.h"
 
 namespace
 {
+class LasViewerRibbonStyle final : public Qtitan::RibbonStyle
+{
+public:
+    using Qtitan::RibbonStyle::RibbonStyle;
+
+protected:
+    bool showToolTip(const QPoint& pos, QWidget* widget) override
+    {
+        const QString toolTipText = resolveToolTipText(widget);
+        if (toolTipText.isEmpty()) {
+            return Qtitan::RibbonStyle::showToolTip(pos, widget);
+        }
+
+        applyLightToolTipPalette();
+        Qtitan::RibbonToolTip::hideToolTip();
+        QToolTip::showText(pos, toolTipText, widget);
+        return true;
+    }
+
+    bool drawPanelTipLabel(const QStyleOption* option, QPainter* painter, const QWidget* widget) const override
+    {
+        Q_UNUSED(widget);
+        if (option == nullptr || painter == nullptr) {
+            return Qtitan::RibbonStyle::drawPanelTipLabel(option, painter, widget);
+        }
+
+        painter->save();
+        painter->fillRect(option->rect, QColor(248, 250, 252));
+        painter->setPen(QPen(QColor(148, 163, 184)));
+        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
+        painter->restore();
+        return true;
+    }
+
+private:
+    static QString resolveToolTipText(QWidget* widget)
+    {
+        if (widget == nullptr) {
+            return QString();
+        }
+
+        QString toolTipText = widget->toolTip().trimmed();
+        if (!toolTipText.isEmpty()) {
+            return toolTipText;
+        }
+
+        auto* button = qobject_cast<QToolButton*>(widget);
+        if (button == nullptr) {
+            return QString();
+        }
+
+        QAction* action = button->defaultAction();
+        if (action == nullptr) {
+            return QString();
+        }
+
+        toolTipText = action->toolTip().trimmed();
+        if (!toolTipText.isEmpty()) {
+            return toolTipText;
+        }
+        return action->text().trimmed();
+    }
+
+    static void applyLightToolTipPalette()
+    {
+        QPalette palette = QToolTip::palette();
+        palette.setColor(QPalette::ToolTipBase, QColor(248, 250, 252));
+        palette.setColor(QPalette::ToolTipText, QColor(15, 23, 42));
+        QToolTip::setPalette(palette);
+    }
+};
+
 QScreen* resolveSplashTargetScreen()
 {
     if (QScreen* cursorScreen = QGuiApplication::screenAt(QCursor::pos())) {
@@ -63,8 +141,9 @@ int main(int argc, char* argv[])
     QFont appFont(QStringLiteral("Segoe UI"), 9);
     app.setFont(appFont);
 
-    auto* ribbonStyle = new Qtitan::RibbonStyle();
+    auto* ribbonStyle = new LasViewerRibbonStyle();
     ribbonStyle->setTheme(Qtitan::RibbonStyle::Office2016White);
+    ribbonStyle->setActiveTabAccented(false);
     ribbonStyle->setAnimationEnabled(false);
     app.setStyle(ribbonStyle);
 

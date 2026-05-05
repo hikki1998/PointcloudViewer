@@ -244,6 +244,12 @@ public:
     const PointCloudData* fullResolutionPointCloudData(QString* errorMessage = nullptr);
     const QList<PointCloudDatasetInfo>& pointCloudDatasets() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
+    bool hasActiveClipRegion() const;
+    ClipRegion::Kind clipMode() const;
+    bool clipKeepInside() const;
+    ClipRegion::Scope clipScope() const;
+    ClipRegion::BoxAlignment clipBoxAlignment() const;
+    void setClipRegion(const ClipRegion& clipRegion);
     const InteractionOptions& interactionOptions() const;
     bool measurementEnabled() const;
     bool profileClassificationModeEnabled() const;
@@ -309,6 +315,16 @@ public slots:
     void setInvertPanDrag(bool invert);
     void setInvertWheelZoom(bool invert);
     void setWheelZoomSensitivityPercent(int percent);
+    void setClipKeepInside(bool keepInside);
+    void setClipScope(ClipRegion::Scope scope);
+    void setClipBoxAlignment(ClipRegion::BoxAlignment alignment);
+    void setClipActiveDatasetPath(const QString& datasetPath);
+    void beginPolygonClip();
+    void beginBoxClip();
+    void clearClip();
+    std::shared_ptr<PointCloudData> buildClipExportData(
+        const QString& activeDatasetPath,
+        QString* errorMessage = nullptr) const;
     void setMeasurementEnabled(bool enabled);
     void setProfileClassificationModeEnabled(bool enabled);
     void setProfileClassificationSelectionMode(ProfileClassificationSelectionMode mode);
@@ -454,6 +470,26 @@ private:
     void handleSelectionEscapePressed();
     void clearHoveredPoint();
     void updateHoveredPoint(const PointRecord* hoveredPoint);
+    void resetClipEditingState();
+    void clearClipPreview();
+    void updateClipPolygonOverlay();
+    bool captureClipCameraSnapshot(osg::Vec3d* eye, osg::Vec3d* forward, osg::Vec3d* right, osg::Vec3d* up, osg::Matrixd* windowToWorld) const;
+    bool screenPointToWorldRay(
+        const QPointF& localPos,
+        const osg::Vec3d& eye,
+        const osg::Matrixd& windowToWorld,
+        osg::Vec3d* rayDirection) const;
+    bool buildScreenPolygonClipRegion(
+        const QPolygonF& polygon,
+        const osg::Vec3d& eye,
+        const osg::Vec3d& forward,
+        const osg::Matrixd& windowToWorld,
+        ClipRegion* clipRegion) const;
+    bool buildBoxClipRegion(
+        const PointRecord& firstPoint,
+        const PointRecord& secondPoint,
+        ClipRegion::BoxAlignment alignment,
+        ClipRegion* clipRegion) const;
     void syncVisualizationClassificationState();
     void clearSelectionRubberBand();
     void clearProfileClassificationPolygonSelection();
@@ -476,6 +512,8 @@ private:
     osg::ref_ptr<osg::Node> buildInspectionRouteOverlay() const;
     QPointF projectPointToViewport(const PointRecord& point, bool* visible) const;
     void refreshMeasurementOverlay();
+    void refreshClipOverlay();
+    osg::ref_ptr<osg::Node> buildClipOverlay() const;
     void refreshTowerMarkersOverlay();
     void refreshInspectionIssuesOverlay();
     void refreshInspectionRouteOverlay();
@@ -525,6 +563,16 @@ private:
         std::shared_ptr<PointCloudData> pointCloud;
     };
 
+    struct ClipCameraSnapshot
+    {
+        bool valid = false;
+        osg::Vec3d eye;
+        osg::Vec3d forward;
+        osg::Vec3d right;
+        osg::Vec3d up;
+        osg::Matrixd windowToWorld;
+    };
+
     QGridLayout* layout_ = nullptr;
     QLabel* titleLabel_ = nullptr;
     QLabel* detailLabel_ = nullptr;
@@ -538,6 +586,7 @@ private:
     QWidget* axisIndicatorOverlay_ = nullptr;
     QRubberBand* selectionRubberBand_ = nullptr;
     QWidget* profileClassificationPolygonOverlay_ = nullptr;
+    QWidget* clipPolygonOverlay_ = nullptr;
     OsgWidget* osgWidget_ = nullptr;
     QWidget* statusPanel_ = nullptr;
     QWidget* routeCameraPreviewOverlay_ = nullptr;
@@ -556,6 +605,20 @@ private:
     QString pointCloudLoadingTitle_;
     QString pointCloudLoadingDetail_;
     int pointCloudLoadingProgressPercent_ = -1;
+    QString clipActiveDatasetPath_;
+    int clipActiveDatasetId_ = -1;
+    ClipRegion::Scope clipScope_ = ClipRegion::VisibleDatasets;
+    ClipRegion::BoxAlignment clipBoxAlignment_ = ClipRegion::WorldAligned;
+    bool clipKeepInside_ = true;
+    ClipRegion::Kind clipEditMode_ = ClipRegion::None;
+    QPolygonF clipPolygonPoints_;
+    QPointF clipPolygonPreviewPoint_;
+    bool clipPolygonPreviewActive_ = false;
+    bool clipBoxFirstPointValid_ = false;
+    PointRecord clipBoxFirstPoint_;
+    bool clipPreviewActive_ = false;
+    ClipRegion clipPreviewRegion_;
+    ClipCameraSnapshot clipLockedCamera_;
     bool measurementEnabled_ = false;
     bool profileClassificationModeEnabled_ = false;
     ProfileClassificationSelectionMode profileClassificationSelectionMode_ = ProfileClassificationSelectionMode::Rectangle;
@@ -677,5 +740,6 @@ private:
     osg::ref_ptr<osg::Node> inspectionIssuesNode_;
     osg::ref_ptr<osg::Node> inspectionRouteNode_;
     osg::ref_ptr<osg::Node> measurementOverlayNode_;
+    osg::ref_ptr<osg::Node> clipOverlayNode_;
     std::unique_ptr<OsgPointCloudNode> tiledPointCloudNode_;
 };

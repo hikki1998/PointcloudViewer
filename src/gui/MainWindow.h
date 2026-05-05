@@ -169,6 +169,7 @@ private:
     void updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme);
     void updateWindowControlButtons();
     void updateWindowControlAppearance(Qtitan::RibbonStyle::Theme theme);
+    void applyLightToolTipStyle();
 #ifdef Q_OS_WIN
     void normalizeNativeWindowStyle();
 #endif
@@ -302,6 +303,7 @@ private:
     Qtitan::RibbonPage* issuePage_ = nullptr;
     Qtitan::RibbonPage* towerPage_ = nullptr;
     Qtitan::RibbonPage* appearancePage_ = nullptr;
+    Qtitan::RibbonPage* clipPage_ = nullptr;
     QAction* backstageOpenPageAction_ = nullptr;
     QAction* backstageOpenProjectPageAction_ = nullptr;
     QAction* backstageSaveAction_ = nullptr;
@@ -327,6 +329,10 @@ private:
     Qtitan::RibbonGroup* colorRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* themeRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* languageRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* clipModeRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* clipBoxRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* clipScopeRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* clipControlRibbonGroup_ = nullptr;
     QWidget* backstageOpenPage_ = nullptr;
     QWidget* backstageOpenProjectPage_ = nullptr;
     BackstageOpenProjectWidget* backstageOpenProjectWidget_ = nullptr;
@@ -607,10 +613,22 @@ private:
     QAction* showLogAction_ = nullptr;
     QAction* languageEnglishAction_ = nullptr;
     QAction* languageChineseAction_ = nullptr;
+    QAction* clipModeNoneAction_ = nullptr;
+    QAction* clipModeBoxAction_ = nullptr;
+    QAction* clipModePolygonAction_ = nullptr;
+    QAction* clipBoxWorldAlignedAction_ = nullptr;
+    QAction* clipBoxViewAlignedAction_ = nullptr;
+    QAction* clipScopeActiveDatasetAction_ = nullptr;
+    QAction* clipScopeVisibleDatasetsAction_ = nullptr;
+    QAction* clipToggleInsideAction_ = nullptr;
+    QAction* clipApplyExportAction_ = nullptr;
 
     QActionGroup* colorModeActionGroup_ = nullptr;
     QActionGroup* themeActionGroup_ = nullptr;
     QActionGroup* languageActionGroup_ = nullptr;
+    QActionGroup* clipModeActionGroup_ = nullptr;
+    QActionGroup* clipBoxAlignmentActionGroup_ = nullptr;
+    QActionGroup* clipScopeActionGroup_ = nullptr;
     QString currentProjectFilePath_;
     QString linkedTowerFilePath_;
     QString linkedRouteFilePath_;

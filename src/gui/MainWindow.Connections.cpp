@@ -33,6 +33,8 @@
 #include "QtnRibbonStyle.h"
 #include "crs/CrsTransformService.h"
 #include "domain/ClearanceAnalysis.h"
+#include "pointcloud/ClipFilter.h"
+#include "pointcloud/LasWriter.h"
 #include "domain/ClearanceReportExporter.h"
 #include "domain/InspectionReportExporter.h"
 #include "domain/VegetationRiskAnalysis.h"
@@ -83,10 +85,17 @@ void MainWindow::createControllerConnections()
             applyProjectTreeItemCheckState(item);
         });
         connect(projectExplorerController_, &ProjectExplorerController::currentItemChanged, this, [this](QTreeWidgetItem* currentItem, QTreeWidgetItem*) {
-            if (viewer_ == nullptr || currentItem == nullptr) {
+            if (viewer_ == nullptr) {
                 updateActionState();
                 return;
             }
+            if (currentItem == nullptr) {
+                viewer_->setClipActiveDatasetPath(QString());
+                updateActionState();
+                return;
+            }
+
+            viewer_->setClipActiveDatasetPath(selectedDatasetPath());
 
             const QString itemType = projectTreeItemType(currentItem);
             if (itemType == QStringLiteral("imageItem")) {
@@ -2030,5 +2039,96 @@ void MainWindow::createWindowAndViewerConnections()
     });
     connect(viewer_, &PointCloudViewer::measurementMessage, this, [this](const QString& message, bool error) {
         showUserMessage(error ? LogLevel::Error : LogLevel::Info, message, error ? 4000 : 3000);
+    });
+    viewer_->setClipActiveDatasetPath(selectedDatasetPath());
+    viewer_->setClipKeepInside(clipToggleInsideAction_ == nullptr || clipToggleInsideAction_->isChecked());
+
+    connect(clipModeNoneAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->clearClip();
+    });
+    connect(clipModeBoxAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipActiveDatasetPath(selectedDatasetPath());
+        viewer_->beginBoxClip();
+    });
+    connect(clipModePolygonAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipActiveDatasetPath(selectedDatasetPath());
+        viewer_->beginPolygonClip();
+    });
+    connect(clipBoxWorldAlignedAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipBoxAlignment(ClipRegion::WorldAligned);
+    });
+    connect(clipBoxViewAlignedAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipBoxAlignment(ClipRegion::ViewAligned);
+    });
+    connect(clipScopeActiveDatasetAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipActiveDatasetPath(selectedDatasetPath());
+        viewer_->setClipScope(ClipRegion::ActiveDataset);
+    });
+    connect(clipScopeVisibleDatasetsAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipScope(ClipRegion::VisibleDatasets);
+    });
+    connect(clipToggleInsideAction_, &QAction::toggled, this, [this](bool checked) {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipKeepInside(checked);
+    });
+
+    connect(clipApplyExportAction_, &QAction::triggered, this, [this]() {
+        if (viewer_ == nullptr) {
+            return;
+        }
+        viewer_->setClipActiveDatasetPath(selectedDatasetPath());
+        beginOperationProgress(tr("Preparing clipped export..."));
+        QString filterError;
+        auto filteredData = viewer_->buildClipExportData(selectedDatasetPath(), &filterError);
+        endOperationProgress();
+        if (filteredData == nullptr) {
+            showUserMessage(LogLevel::Warning, filterError.isEmpty() ? tr("No active clip region to apply.") : filterError, 3000);
+            return;
+        }
+        if (filteredData->empty()) {
+            showUserMessage(LogLevel::Warning, tr("Clip produced an empty result."), 3000);
+            return;
+        }
+        const QString exportPath = resolveCaptureOutputPath(
+            tr("Save Clipped Point Cloud"),
+            QStringLiteral("clipped.las"),
+            tr("LAS Point Cloud (*.las)"),
+            QStringLiteral("las"));
+        if (exportPath.isEmpty()) {
+            return;
+        }
+
+        QString writeError;
+        if (!LasWriter().write(exportPath, *filteredData, &writeError)) {
+            showUserMessage(LogLevel::Error, tr("Export failed: %1").arg(writeError), 5000);
+            return;
+        }
+
+        appendPointCloudFiles({ exportPath });
+        showUserMessage(LogLevel::Info, tr("Clip export complete. %1 points written to %2")
+            .arg(filteredData->size()).arg(exportPath), 5000);
     });
 }

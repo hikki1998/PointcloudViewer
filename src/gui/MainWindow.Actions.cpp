@@ -196,4 +196,62 @@ void MainWindow::createActions()
 
     languageActionGroup_->addAction(languageEnglishAction_);
     languageActionGroup_->addAction(languageChineseAction_);
+
+    clipModeActionGroup_ = new QActionGroup(this);
+    clipModeActionGroup_->setExclusive(true);
+
+    clipModeNoneAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogCancelButton), tr("No Clip"), this);
+    clipModeNoneAction_->setCheckable(true);
+    clipModeNoneAction_->setChecked(true);
+    clipModeNoneAction_->setToolTip(tr("Disable clipping and show all points"));
+
+    clipModeBoxAction_ = new QAction(createRibbonIcon(RibbonGlyph::Bounds), tr("Box Clip"), this);
+    clipModeBoxAction_->setCheckable(true);
+    clipModeBoxAction_->setToolTip(tr("Pick two point-cloud points to build a clipping box. Preview is shown before the second click."));
+
+    clipModePolygonAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Polygon Clip"), this);
+    clipModePolygonAction_->setCheckable(true);
+    clipModePolygonAction_->setToolTip(tr("Draw a screen-space polygon in the current view. The finished polygon is frozen into a 3D clip volume."));
+
+    clipModeActionGroup_->addAction(clipModeNoneAction_);
+    clipModeActionGroup_->addAction(clipModeBoxAction_);
+    clipModeActionGroup_->addAction(clipModePolygonAction_);
+
+    clipBoxAlignmentActionGroup_ = new QActionGroup(this);
+    clipBoxAlignmentActionGroup_->setExclusive(true);
+
+    clipBoxWorldAlignedAction_ = new QAction(createRibbonIcon(RibbonGlyph::Top), tr("World Aligned"), this);
+    clipBoxWorldAlignedAction_->setCheckable(true);
+    clipBoxWorldAlignedAction_->setChecked(true);
+    clipBoxWorldAlignedAction_->setToolTip(tr("Build the clip box aligned to the world XYZ axes."));
+
+    clipBoxViewAlignedAction_ = new QAction(createRibbonIcon(RibbonGlyph::Front), tr("View Aligned"), this);
+    clipBoxViewAlignedAction_->setCheckable(true);
+    clipBoxViewAlignedAction_->setToolTip(tr("Build the clip box aligned to the camera axes captured at the first click."));
+
+    clipBoxAlignmentActionGroup_->addAction(clipBoxWorldAlignedAction_);
+    clipBoxAlignmentActionGroup_->addAction(clipBoxViewAlignedAction_);
+
+    clipScopeActionGroup_ = new QActionGroup(this);
+    clipScopeActionGroup_->setExclusive(true);
+
+    clipScopeActiveDatasetAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Active Dataset"), this);
+    clipScopeActiveDatasetAction_->setCheckable(true);
+    clipScopeActiveDatasetAction_->setToolTip(tr("Apply clipping only to the currently selected point-cloud dataset."));
+
+    clipScopeVisibleDatasetsAction_ = new QAction(createRibbonIcon(RibbonGlyph::Bounds), tr("Visible Datasets"), this);
+    clipScopeVisibleDatasetsAction_->setCheckable(true);
+    clipScopeVisibleDatasetsAction_->setChecked(true);
+    clipScopeVisibleDatasetsAction_->setToolTip(tr("Apply clipping to all currently visible point-cloud datasets."));
+
+    clipScopeActionGroup_->addAction(clipScopeActiveDatasetAction_);
+    clipScopeActionGroup_->addAction(clipScopeVisibleDatasetsAction_);
+
+    clipToggleInsideAction_ = new QAction(createRibbonIcon(RibbonGlyph::Elevation), tr("Keep Inside"), this);
+    clipToggleInsideAction_->setCheckable(true);
+    clipToggleInsideAction_->setChecked(true);
+    clipToggleInsideAction_->setToolTip(tr("Switch between Keep Inside and Keep Outside for the current clip region."));
+
+    clipApplyExportAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogSaveButton), tr("Apply & Export"), this);
+    clipApplyExportAction_->setToolTip(tr("Export the currently clipped result as a new LAS file. The exported file is added to the project tree."));
 }

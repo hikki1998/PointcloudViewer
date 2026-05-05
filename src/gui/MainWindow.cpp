@@ -100,6 +100,7 @@
 #include "QtnRibbonPage.h"
 #include "QtnRibbonQuickAccessBar.h"
 #include "QtnRibbonSystemPopupBar.h"
+#include "QtnRibbonToolTip.h"
 
 #include "crs/CrsAuthorityService.h"
 #include "crs/CrsTransformService.h"
@@ -1232,6 +1233,25 @@ void MainWindow::retranslateActionsAndBackstage()
     languageEnglishAction_->setText(tr("English"));
     languageChineseAction_->setText(tr("Chinese"));
 
+    clipModeNoneAction_->setText(tr("No Clip"));
+    clipModeNoneAction_->setToolTip(tr("Disable clipping and show all points"));
+    clipModeBoxAction_->setText(tr("Box Clip"));
+    clipModeBoxAction_->setToolTip(tr("Pick two point-cloud points to build a clipping box. Preview is shown before the second click."));
+    clipModePolygonAction_->setText(tr("Polygon Clip"));
+    clipModePolygonAction_->setToolTip(tr("Draw a screen-space polygon in the current view. The finished polygon is frozen into a 3D clip volume."));
+    clipBoxWorldAlignedAction_->setText(tr("World Aligned"));
+    clipBoxWorldAlignedAction_->setToolTip(tr("Build the clip box aligned to the world XYZ axes."));
+    clipBoxViewAlignedAction_->setText(tr("View Aligned"));
+    clipBoxViewAlignedAction_->setToolTip(tr("Build the clip box aligned to the camera axes captured at the first click."));
+    clipScopeActiveDatasetAction_->setText(tr("Active Dataset"));
+    clipScopeActiveDatasetAction_->setToolTip(tr("Apply clipping only to the currently selected point-cloud dataset."));
+    clipScopeVisibleDatasetsAction_->setText(tr("Visible Datasets"));
+    clipScopeVisibleDatasetsAction_->setToolTip(tr("Apply clipping to all currently visible point-cloud datasets."));
+    clipToggleInsideAction_->setText(tr("Keep Inside"));
+    clipToggleInsideAction_->setToolTip(tr("Switch between Keep Inside and Keep Outside for the current clip region."));
+    clipApplyExportAction_->setText(tr("Apply & Export"));
+    clipApplyExportAction_->setToolTip(tr("Export the currently clipped result as a new LAS file. The exported file is added to the project tree."));
+
     if (backstageSystemButton_ != nullptr) {
         backstageSystemButton_->setText(tr("File"));
         backstageSystemButton_->setToolTip(tr("Open the backstage view"));
@@ -1381,6 +1401,9 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     if (appearancePage_ != nullptr) {
         appearancePage_->setTitle(tr("Appearance"));
     }
+    if (clipPage_ != nullptr) {
+        clipPage_->setTitle(tr("Clip"));
+    }
     if (datasetRibbonGroup_ != nullptr) {
         datasetRibbonGroup_->setTitle(tr("Dataset"));
     }
@@ -1398,6 +1421,18 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     }
     if (classificationRibbonGroup_ != nullptr) {
         classificationRibbonGroup_->setTitle(tr("Classification"));
+    }
+    if (clipModeRibbonGroup_ != nullptr) {
+        clipModeRibbonGroup_->setTitle(tr("Clip Mode"));
+    }
+    if (clipBoxRibbonGroup_ != nullptr) {
+        clipBoxRibbonGroup_->setTitle(tr("Box Alignment"));
+    }
+    if (clipScopeRibbonGroup_ != nullptr) {
+        clipScopeRibbonGroup_->setTitle(tr("Clip Scope"));
+    }
+    if (clipControlRibbonGroup_ != nullptr) {
+        clipControlRibbonGroup_->setTitle(tr("Clip Control"));
     }
     if (vegetationRiskRibbonGroup_ != nullptr) {
         vegetationRiskRibbonGroup_->setTitle(tr("Vegetation Risks"));
@@ -3091,6 +3126,7 @@ void MainWindow::applyOfficeTheme(Qtitan::RibbonStyle::Theme theme)
 {
     if (auto* ribbonStyle = qobject_cast<Qtitan::RibbonStyle*>(qApp->style())) {
         ribbonStyle->setTheme(theme);
+        ribbonStyle->setActiveTabAccented(false);
         updateWindowChromePalette(theme);
         persistThemeSettings();
         syncUiFromViewer();
@@ -3247,14 +3283,51 @@ void MainWindow::updateWindowChromePalette(Qtitan::RibbonStyle::Theme theme)
                 dockTabBackground, dockTabText, dockTabSelectedBackground,
                 dockTabSelectedText, dockTabHoverBackground));
 
-    QPalette toolTipPalette = QToolTip::palette();
-    toolTipPalette.setColor(QPalette::ToolTipBase, QColor(248, 250, 252));
-    toolTipPalette.setColor(QPalette::ToolTipText, QColor(15, 23, 42));
-    QToolTip::setPalette(toolTipPalette);
+    applyLightToolTipStyle();
 
     updateWindowControlAppearance(theme);
     updateWindowControlButtons();
     update();
+}
+
+void MainWindow::applyLightToolTipStyle()
+{
+    const QColor toolTipBackground(248, 250, 252);
+    const QColor toolTipText(15, 23, 42);
+
+    QPalette toolTipPalette = QToolTip::palette();
+    toolTipPalette.setColor(QPalette::ToolTipBase, toolTipBackground);
+    toolTipPalette.setColor(QPalette::ToolTipText, toolTipText);
+    QToolTip::setPalette(toolTipPalette);
+
+    Qtitan::RibbonToolTip* ribbonToolTip = Qtitan::RibbonToolTip::instance();
+    if (ribbonToolTip == nullptr) {
+        return;
+    }
+
+    QPalette ribbonToolTipPalette = ribbonToolTip->palette();
+    ribbonToolTipPalette.setColor(QPalette::Window, toolTipBackground);
+    ribbonToolTipPalette.setColor(QPalette::WindowText, toolTipText);
+    ribbonToolTipPalette.setColor(QPalette::Base, toolTipBackground);
+    ribbonToolTipPalette.setColor(QPalette::Text, toolTipText);
+    ribbonToolTipPalette.setColor(QPalette::ToolTipBase, toolTipBackground);
+    ribbonToolTipPalette.setColor(QPalette::ToolTipText, toolTipText);
+    ribbonToolTip->setPalette(ribbonToolTipPalette);
+    ribbonToolTip->setAutoFillBackground(true);
+    ribbonToolTip->setStyleSheet(QStringLiteral(
+        "Qtitan--RibbonToolTip, RibbonToolTip, QFrame {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #94a3b8;"
+        "}"
+        "QLabel {"
+        "color: #0f172a;"
+        "background: transparent;"
+        "}"
+        "QToolButton {"
+        "color: #0f172a;"
+        "background: transparent;"
+        "}"));
 }
 
 void MainWindow::syncUiFromViewer()
@@ -3287,6 +3360,14 @@ void MainWindow::syncUiFromViewer()
         const QSignalBlocker measurementActionBlocker(measureAction_);
         const QSignalBlocker englishLanguageBlocker(languageEnglishAction_);
         const QSignalBlocker chineseLanguageBlocker(languageChineseAction_);
+        const QSignalBlocker clipModeNoneBlocker(clipModeNoneAction_);
+        const QSignalBlocker clipModeBoxBlocker(clipModeBoxAction_);
+        const QSignalBlocker clipModePolygonBlocker(clipModePolygonAction_);
+        const QSignalBlocker clipBoxWorldBlocker(clipBoxWorldAlignedAction_);
+        const QSignalBlocker clipBoxViewBlocker(clipBoxViewAlignedAction_);
+        const QSignalBlocker clipScopeActiveBlocker(clipScopeActiveDatasetAction_);
+        const QSignalBlocker clipScopeVisibleBlocker(clipScopeVisibleDatasetsAction_);
+        const QSignalBlocker clipKeepInsideBlocker(clipToggleInsideAction_);
         const QSignalBlocker clearanceRulePresetBlocker(clearanceRulePresetComboBox_);
         const QSignalBlocker vegetationSearchRadiusBlocker(vegetationSearchRadiusSpinBox_);
         const QSignalBlocker vegetationClusterGapBlocker(vegetationClusterGapSpinBox_);
@@ -3321,6 +3402,14 @@ void MainWindow::syncUiFromViewer()
         measureAction_->setChecked(viewer_->measurementEnabled());
         languageEnglishAction_->setChecked(currentLanguage_ == UiLanguage::English);
         languageChineseAction_->setChecked(currentLanguage_ == UiLanguage::Chinese);
+        clipModeNoneAction_->setChecked(viewer_->clipMode() == ClipRegion::None);
+        clipModeBoxAction_->setChecked(viewer_->clipMode() == ClipRegion::Box);
+        clipModePolygonAction_->setChecked(viewer_->clipMode() == ClipRegion::ScreenPolygonPrism);
+        clipBoxWorldAlignedAction_->setChecked(viewer_->clipBoxAlignment() == ClipRegion::WorldAligned);
+        clipBoxViewAlignedAction_->setChecked(viewer_->clipBoxAlignment() == ClipRegion::ViewAligned);
+        clipScopeActiveDatasetAction_->setChecked(viewer_->clipScope() == ClipRegion::ActiveDataset);
+        clipScopeVisibleDatasetsAction_->setChecked(viewer_->clipScope() == ClipRegion::VisibleDatasets);
+        clipToggleInsideAction_->setChecked(viewer_->clipKeepInside());
         if (clearanceRulePresetComboBox_ != nullptr) {
             const int presetIndex = clearanceRulePresetComboBox_->findData(static_cast<int>(clearanceRulePreset_));
             clearanceRulePresetComboBox_->setCurrentIndex(presetIndex >= 0 ? presetIndex : 0);
@@ -3375,6 +3464,11 @@ void MainWindow::syncUiFromViewer()
     setColorButtonAppearance(routeWaypointColorButton_, viewer_->inspectionRouteWaypointColor(), tr("Waypoint Color"));
     setColorButtonAppearance(routePartPointColorButton_, viewer_->inspectionRoutePartPointColor(), tr("Part Point Color"));
     setColorButtonAppearance(routeTrajectoryColorButton_, viewer_->inspectionRouteTrajectoryColor(), tr("Trajectory Color"));
+    clipToggleInsideAction_->setText(viewer_->clipKeepInside() ? tr("Keep Inside") : tr("Keep Outside"));
+    clipToggleInsideAction_->setToolTip(
+        viewer_->clipKeepInside()
+            ? tr("Keep points inside the current clip region.")
+            : tr("Keep points outside the current clip region."));
     updateClassificationColorTable();
     updateNavigationHelpText();
     updateDatasetPanel();
@@ -3665,6 +3759,15 @@ void MainWindow::updateActionState()
     focusIssueAction_->setEnabled(hasIssueSelection);
     removeIssueAction_->setEnabled(hasIssueSelection);
     clearIssuesAction_->setEnabled(hasIssues);
+    clipModeNoneAction_->setEnabled(hasPointCloud);
+    clipModeBoxAction_->setEnabled(hasPointCloud);
+    clipModePolygonAction_->setEnabled(hasPointCloud);
+    clipBoxWorldAlignedAction_->setEnabled(hasPointCloud);
+    clipBoxViewAlignedAction_->setEnabled(hasPointCloud);
+    clipScopeActiveDatasetAction_->setEnabled(hasPointCloud);
+    clipScopeVisibleDatasetsAction_->setEnabled(hasPointCloud);
+    clipToggleInsideAction_->setEnabled(hasPointCloud);
+    clipApplyExportAction_->setEnabled(hasPointCloud && viewer_ != nullptr && viewer_->hasActiveClipRegion());
     exportIssuesCsvAction_->setEnabled(hasIssues);
     exportInspectionReportAction_->setEnabled(hasPointCloud && (hasTowerMarkers || hasIssues));
     focusVegetationRiskAction_->setEnabled(hasVegetationRiskSelection);
