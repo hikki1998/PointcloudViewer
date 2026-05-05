@@ -1398,12 +1398,6 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     if (towerPage_ != nullptr) {
         towerPage_->setTitle(tr("Tower"));
     }
-    if (appearancePage_ != nullptr) {
-        appearancePage_->setTitle(tr("Appearance"));
-    }
-    if (clipPage_ != nullptr) {
-        clipPage_->setTitle(tr("Clip"));
-    }
     if (datasetRibbonGroup_ != nullptr) {
         datasetRibbonGroup_->setTitle(tr("Dataset"));
     }
@@ -1422,17 +1416,8 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     if (classificationRibbonGroup_ != nullptr) {
         classificationRibbonGroup_->setTitle(tr("Classification"));
     }
-    if (clipModeRibbonGroup_ != nullptr) {
-        clipModeRibbonGroup_->setTitle(tr("Clip Mode"));
-    }
-    if (clipBoxRibbonGroup_ != nullptr) {
-        clipBoxRibbonGroup_->setTitle(tr("Box Alignment"));
-    }
-    if (clipScopeRibbonGroup_ != nullptr) {
-        clipScopeRibbonGroup_->setTitle(tr("Clip Scope"));
-    }
-    if (clipControlRibbonGroup_ != nullptr) {
-        clipControlRibbonGroup_->setTitle(tr("Clip Control"));
+    if (clipRibbonGroup_ != nullptr) {
+        clipRibbonGroup_->setTitle(tr("Clip"));
     }
     if (vegetationRiskRibbonGroup_ != nullptr) {
         vegetationRiskRibbonGroup_->setTitle(tr("Vegetation Risks"));
@@ -1457,9 +1442,6 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     }
     if (towerRibbonGroup_ != nullptr) {
         towerRibbonGroup_->setTitle(tr("Tower Editing"));
-    }
-    if (colorRibbonGroup_ != nullptr) {
-        colorRibbonGroup_->setTitle(tr("Point Colors"));
     }
     if (themeRibbonGroup_ != nullptr) {
         themeRibbonGroup_->setTitle(tr("Office Theme"));

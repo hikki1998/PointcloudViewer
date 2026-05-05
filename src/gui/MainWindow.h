@@ -302,8 +302,6 @@ private:
     Qtitan::RibbonPage* analysisPage_ = nullptr;
     Qtitan::RibbonPage* issuePage_ = nullptr;
     Qtitan::RibbonPage* towerPage_ = nullptr;
-    Qtitan::RibbonPage* appearancePage_ = nullptr;
-    Qtitan::RibbonPage* clipPage_ = nullptr;
     QAction* backstageOpenPageAction_ = nullptr;
     QAction* backstageOpenProjectPageAction_ = nullptr;
     QAction* backstageSaveAction_ = nullptr;
@@ -326,13 +324,9 @@ private:
     Qtitan::RibbonGroup* issueRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* colorRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* clipRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* themeRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* languageRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* clipModeRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* clipBoxRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* clipScopeRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* clipControlRibbonGroup_ = nullptr;
     QWidget* backstageOpenPage_ = nullptr;
     QWidget* backstageOpenProjectPage_ = nullptr;
     BackstageOpenProjectWidget* backstageOpenProjectWidget_ = nullptr;

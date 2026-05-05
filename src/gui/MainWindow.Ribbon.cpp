@@ -142,27 +142,16 @@ void MainWindow::createRibbon()
     towerRibbonGroup_->addAction(startTowerEditAction_, Qt::ToolButtonTextUnderIcon);
     towerRibbonGroup_->addAction(finishTowerEditAction_, Qt::ToolButtonTextUnderIcon);
 
-    appearancePage_ = ribbonBar_->addPage(tr("Appearance"));
-    colorRibbonGroup_ = appearancePage_->addGroup(tr("Point Colors"));
-    colorRibbonGroup_->addAction(rgbColorAction_, Qt::ToolButtonTextUnderIcon);
-    colorRibbonGroup_->addAction(elevationColorAction_, Qt::ToolButtonTextUnderIcon);
-    colorRibbonGroup_->addAction(singleColorAction_, Qt::ToolButtonTextUnderIcon);
-    colorRibbonGroup_->addAction(classificationColorAction_, Qt::ToolButtonTextUnderIcon);
-
-    clipPage_ = ribbonBar_->addPage(tr("Clip"));
-    clipModeRibbonGroup_ = clipPage_->addGroup(tr("Clip Mode"));
-    clipModeRibbonGroup_->addAction(clipModeNoneAction_, Qt::ToolButtonTextUnderIcon);
-    clipModeRibbonGroup_->addAction(clipModeBoxAction_, Qt::ToolButtonTextUnderIcon);
-    clipModeRibbonGroup_->addAction(clipModePolygonAction_, Qt::ToolButtonTextUnderIcon);
-    clipBoxRibbonGroup_ = clipPage_->addGroup(tr("Box Alignment"));
-    clipBoxRibbonGroup_->addAction(clipBoxWorldAlignedAction_, Qt::ToolButtonTextUnderIcon);
-    clipBoxRibbonGroup_->addAction(clipBoxViewAlignedAction_, Qt::ToolButtonTextUnderIcon);
-    clipScopeRibbonGroup_ = clipPage_->addGroup(tr("Clip Scope"));
-    clipScopeRibbonGroup_->addAction(clipScopeActiveDatasetAction_, Qt::ToolButtonTextUnderIcon);
-    clipScopeRibbonGroup_->addAction(clipScopeVisibleDatasetsAction_, Qt::ToolButtonTextUnderIcon);
-    clipControlRibbonGroup_ = clipPage_->addGroup(tr("Clip Control"));
-    clipControlRibbonGroup_->addAction(clipToggleInsideAction_, Qt::ToolButtonTextUnderIcon);
-    clipControlRibbonGroup_->addAction(clipApplyExportAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_ = homePage_->addGroup(tr("Clip"));
+    clipRibbonGroup_->addAction(clipModeNoneAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipModeBoxAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipModePolygonAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipBoxWorldAlignedAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipBoxViewAlignedAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipScopeActiveDatasetAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipScopeVisibleDatasetsAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipToggleInsideAction_, Qt::ToolButtonTextUnderIcon);
+    clipRibbonGroup_->addAction(clipApplyExportAction_, Qt::ToolButtonTextUnderIcon);
 
     const QList<QWidget*> ribbonWidgets = ribbonBar_->findChildren<QWidget*>();
     for (QWidget* ribbonWidget : ribbonWidgets) {
