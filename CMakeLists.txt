@@ -10,11 +10,29 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+option(
+    LAS_VIEWER_MSVC_USE_MULTI_TOOL_TASK
+    "Enable MSBuild MultiToolTask scheduling for MSVC builds. OFF keeps compiler-level /MP parallelism without forcing the Tracker-heavy MTT path."
+    OFF
+)
+
+option(
+    LAS_VIEWER_MSVC_TRACK_FILE_ACCESS
+    "Enable MSBuild Tracker-based file access tracking for MSVC builds. OFF avoids the TRK0002 invalid-handle failure seen on this toolchain while keeping /MP parallel compilation."
+    OFF
+)
+
 if(MSVC)
-    list(APPEND CMAKE_VS_GLOBALS
-        UseMultiToolTask=true
-        EnforceProcessCountAcrossBuilds=true
-    )
+    if(NOT LAS_VIEWER_MSVC_TRACK_FILE_ACCESS)
+        list(APPEND CMAKE_VS_GLOBALS TrackFileAccess=false)
+    endif()
+
+    if(LAS_VIEWER_MSVC_USE_MULTI_TOOL_TASK)
+        list(APPEND CMAKE_VS_GLOBALS
+            UseMultiToolTask=true
+            EnforceProcessCountAcrossBuilds=true
+        )
+    endif()
 endif()
 
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
