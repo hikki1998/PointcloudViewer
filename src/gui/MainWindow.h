@@ -299,9 +299,6 @@ private:
 
     Qtitan::RibbonPage* homePage_ = nullptr;
     Qtitan::RibbonPage* routePage_ = nullptr;
-    Qtitan::RibbonPage* analysisPage_ = nullptr;
-    Qtitan::RibbonPage* issuePage_ = nullptr;
-    Qtitan::RibbonPage* towerPage_ = nullptr;
     QAction* backstageOpenPageAction_ = nullptr;
     QAction* backstageOpenProjectPageAction_ = nullptr;
     QAction* backstageSaveAction_ = nullptr;
@@ -316,12 +313,9 @@ private:
     Qtitan::RibbonGroup* captureRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* measureRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* classificationRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* vegetationRiskRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routePlanningRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* routeRoamRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routeFileRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routeExchangeRibbonGroup_ = nullptr;
-    Qtitan::RibbonGroup* issueRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* clipRibbonGroup_ = nullptr;

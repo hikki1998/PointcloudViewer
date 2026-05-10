@@ -95,18 +95,16 @@ void MainWindow::createRibbon()
     classificationRibbonGroup_->addAction(clearProfileClassificationEditsAction_, Qt::ToolButtonTextUnderIcon);
     classificationRibbonGroup_->addAction(exportClearanceCsvAction_, Qt::ToolButtonTextUnderIcon);
 
+    towerRibbonGroup_ = homePage_->addGroup(tr("Tower Editing"));
+    towerRibbonGroup_->addAction(startTowerEditAction_, Qt::ToolButtonTextUnderIcon);
+    towerRibbonGroup_->addAction(finishTowerEditAction_, Qt::ToolButtonTextUnderIcon);
+
     routePage_ = ribbonBar_->addPage(tr("Route"));
     routePlanningRibbonGroup_ = routePage_->addGroup(tr("Route Planning"));
     routePlanningRibbonGroup_->addAction(generateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routePlanningRibbonGroup_->addAction(regenerateInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routePlanningRibbonGroup_->addAction(clearInspectionRouteAction_, Qt::ToolButtonTextUnderIcon);
     routePlanningRibbonGroup_->addAction(toggleRouteEditingAction_, Qt::ToolButtonTextUnderIcon);
-
-    routeRoamRibbonGroup_ = routePage_->addGroup(tr("Route Roam"));
-    routeRoamRibbonGroup_->addAction(startInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routeRoamRibbonGroup_->addAction(pauseInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routeRoamRibbonGroup_->addAction(stopInspectionRouteRoamAction_, Qt::ToolButtonTextUnderIcon);
-    routeRoamRibbonGroup_->addAction(focusRouteWaypointAction_, Qt::ToolButtonTextUnderIcon);
 
     routeFileRibbonGroup_ = routePage_->addGroup(tr("Route Files"));
     routeFileRibbonGroup_->addAction(importRouteFileAction_, Qt::ToolButtonTextUnderIcon);
@@ -118,29 +116,6 @@ void MainWindow::createRibbon()
     routeExchangeRibbonGroup_->addAction(importRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     routeExchangeRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     routeExchangeRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
-
-    analysisPage_ = ribbonBar_->addPage(tr("Analysis"));
-    vegetationRiskRibbonGroup_ = analysisPage_->addGroup(tr("Vegetation Risks"));
-    vegetationRiskRibbonGroup_->addAction(analyzeVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
-    vegetationRiskRibbonGroup_->addAction(focusVegetationRiskAction_, Qt::ToolButtonTextUnderIcon);
-    vegetationRiskRibbonGroup_->addAction(createIssueFromRiskAction_, Qt::ToolButtonTextUnderIcon);
-    vegetationRiskRibbonGroup_->addAction(createIssuesFromRisksAction_, Qt::ToolButtonTextUnderIcon);
-    vegetationRiskRibbonGroup_->addAction(clearVegetationRisksAction_, Qt::ToolButtonTextUnderIcon);
-
-    issuePage_ = ribbonBar_->addPage(tr("Issue"));
-    issueRibbonGroup_ = issuePage_->addGroup(tr("Inspection Issues"));
-    issueRibbonGroup_->addAction(startIssueMarkAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(cancelIssueToolAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(focusIssueAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(removeIssueAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(clearIssuesAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(exportIssuesCsvAction_, Qt::ToolButtonTextUnderIcon);
-    issueRibbonGroup_->addAction(exportInspectionReportAction_, Qt::ToolButtonTextUnderIcon);
-
-    towerPage_ = ribbonBar_->addPage(tr("Tower"));
-    towerRibbonGroup_ = towerPage_->addGroup(tr("Tower Editing"));
-    towerRibbonGroup_->addAction(startTowerEditAction_, Qt::ToolButtonTextUnderIcon);
-    towerRibbonGroup_->addAction(finishTowerEditAction_, Qt::ToolButtonTextUnderIcon);
 
     clipRibbonGroup_ = homePage_->addGroup(tr("Clip"));
     clipRibbonGroup_->addAction(clipModeNoneAction_, Qt::ToolButtonTextUnderIcon);

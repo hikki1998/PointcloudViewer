@@ -1389,15 +1389,6 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     if (routePage_ != nullptr) {
         routePage_->setTitle(tr("Route"));
     }
-    if (analysisPage_ != nullptr) {
-        analysisPage_->setTitle(tr("Analysis"));
-    }
-    if (issuePage_ != nullptr) {
-        issuePage_->setTitle(tr("Issue"));
-    }
-    if (towerPage_ != nullptr) {
-        towerPage_->setTitle(tr("Tower"));
-    }
     if (datasetRibbonGroup_ != nullptr) {
         datasetRibbonGroup_->setTitle(tr("Dataset"));
     }
@@ -1419,23 +1410,14 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     if (clipRibbonGroup_ != nullptr) {
         clipRibbonGroup_->setTitle(tr("Clip"));
     }
-    if (vegetationRiskRibbonGroup_ != nullptr) {
-        vegetationRiskRibbonGroup_->setTitle(tr("Vegetation Risks"));
-    }
     if (routePlanningRibbonGroup_ != nullptr) {
         routePlanningRibbonGroup_->setTitle(tr("Route Planning"));
-    }
-    if (routeRoamRibbonGroup_ != nullptr) {
-        routeRoamRibbonGroup_->setTitle(tr("Route Roam"));
     }
     if (routeFileRibbonGroup_ != nullptr) {
         routeFileRibbonGroup_->setTitle(tr("Route Files"));
     }
     if (routeExchangeRibbonGroup_ != nullptr) {
         routeExchangeRibbonGroup_->setTitle(tr("Route Exchange"));
-    }
-    if (issueRibbonGroup_ != nullptr) {
-        issueRibbonGroup_->setTitle(tr("Inspection Issues"));
     }
     if (workspaceRibbonGroup_ != nullptr) {
         workspaceRibbonGroup_->setTitle(tr("Workspace"));

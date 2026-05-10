@@ -32,25 +32,29 @@ TowerEditorWidget::TowerEditorWidget(QWidget* parent)
 
     if (ui_->towerToolBar != nullptr) {
         const double towerUiScale = std::clamp(static_cast<double>(logicalDpiX()) / 96.0, 1.0, 2.0);
-        const int towerIconSize = static_cast<int>(std::lround(26.0 * towerUiScale));
-        const int towerButtonSize = static_cast<int>(std::lround(44.0 * towerUiScale));
-        const int towerButtonPadding = static_cast<int>(std::lround(7.0 * towerUiScale));
+        const int towerIconSize = static_cast<int>(std::lround(30.0 * towerUiScale));
+        const int towerButtonMinWidth = static_cast<int>(std::lround(84.0 * towerUiScale));
+        const int towerButtonMinHeight = static_cast<int>(std::lround(72.0 * towerUiScale));
+        const int towerButtonPaddingY = static_cast<int>(std::lround(4.0 * towerUiScale));
+        const int towerButtonPaddingX = static_cast<int>(std::lround(6.0 * towerUiScale));
         const int towerButtonRadius = static_cast<int>(std::lround(9.0 * towerUiScale));
         const int towerToolSpacing = static_cast<int>(std::lround(8.0 * towerUiScale));
 
         ui_->towerToolBar->setIconSize(QSize(towerIconSize, towerIconSize));
-        ui_->towerToolBar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        ui_->towerToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         ui_->towerToolBar->setMovable(false);
         ui_->towerToolBar->setFloatable(false);
         ui_->towerToolBar->setStyleSheet(QStringLiteral(
             "QToolBar { spacing: %1px; }"
             "QToolButton {"
             "min-width: %2px;"
-            "min-height: %2px;"
-            "padding: %3px;"
+            "min-height: %3px;"
+            "padding: %4px %5px;"
             "border: 1px solid #cbd5e1;"
-            "border-radius: %4px;"
+            "border-radius: %6px;"
             "background-color: #ffffff;"
+            "color: #0f172a;"
+            "font-weight: 600;"
             "}"
             "QToolButton:hover {"
             "border-color: #94a3b8;"
@@ -65,8 +69,10 @@ TowerEditorWidget::TowerEditorWidget(QWidget* parent)
             "color: #94a3b8;"
             "}")
                 .arg(towerToolSpacing)
-                .arg(towerButtonSize)
-                .arg(towerButtonPadding)
+                .arg(towerButtonMinWidth)
+                .arg(towerButtonMinHeight)
+                .arg(towerButtonPaddingY)
+                .arg(towerButtonPaddingX)
                 .arg(towerButtonRadius));
     }
 

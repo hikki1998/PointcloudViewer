@@ -8,7 +8,6 @@
 #include "gui/support/RibbonIconFactory.h"
 
 using lasviewer::gui::RibbonGlyph;
-using lasviewer::gui::createResourceIconOrFallback;
 using lasviewer::gui::createRibbonIcon;
 
 void MainWindow::createActions()
@@ -154,12 +153,12 @@ void MainWindow::createActions()
 
     startTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Tower), tr("Start Editing"), this);
     finishTowerEditAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Finish Editing"), this);
-    addTowerAction_ = new QAction(createResourceIconOrFallback(QStringLiteral(":/assets/icon/addTower.png"), RibbonGlyph::TowerAdd), tr("Click To Add Tower"), this);
-    insertTowerAction_ = new QAction(createResourceIconOrFallback(QStringLiteral(":/assets/icon/addTowerPrevious.png"), RibbonGlyph::TowerInsert), tr("Insert Before Current"), this);
+    addTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdd), tr("Click To Add Tower"), this);
+    insertTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerInsert), tr("Insert Before Current"), this);
     moveTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerMove), tr("Move Current Tower"), this);
-    editCurrentTowerAction_ = new QAction(createResourceIconOrFallback(QStringLiteral(":/assets/icon/modifyTower.png"), RibbonGlyph::TowerAdjust), tr("Edit Current Tower"), this);
-    focusTowerAction_ = new QAction(createResourceIconOrFallback(QStringLiteral(":/assets/icon/focusTower.png"), RibbonGlyph::TowerFocus), tr("Focus Current Tower"), this);
-    removeTowerAction_ = new QAction(createResourceIconOrFallback(QStringLiteral(":/assets/icon/deleteTower.png"), RibbonGlyph::TowerRemove), tr("Remove Current Tower"), this);
+    editCurrentTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerAdjust), tr("Edit Current Tower"), this);
+    focusTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerFocus), tr("Focus Current Tower"), this);
+    removeTowerAction_ = new QAction(createRibbonIcon(RibbonGlyph::TowerRemove), tr("Remove Current Tower"), this);
     clearTowersAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Clear Tower Markers"), this);
     cancelTowerToolAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Cancel Tower Tool"), this);
     importTowerFileAction_ = new QAction(style()->standardIcon(QStyle::SP_DialogOpenButton), tr("Import Tower File"), this);
