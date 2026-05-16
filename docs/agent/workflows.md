@@ -205,6 +205,44 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 - 用户说“提交”默认表示 `commit + push`。
 - 提交信息默认中文。
 
+## 本地规划文档工作流
+
+- `docs/planningwithfiles/*.md`、`docs/brainstorming/`、根目录 `findings.md` / `progress.md` / `task_plan.md` 这类文件适合作为“实时工作草稿”，但不适合长期挂在日常 `git status` 里。
+- 推荐分层：
+  - 本地实时草稿：保留在工作区，用于当前会话整理、规划和中间结论。
+  - 正式沉淀文档：确认有长期价值后，再整理提交到 `docs/agent/`、`docs/releases/` 或专题文档。
+- 对未跟踪的本地草稿，优先使用 `.git/info/exclude` 做本地忽略，不修改仓库级 `.gitignore`：
+
+```powershell
+Add-Content .git\info\exclude @"
+/.claude/
+/docs/brainstorming/
+/findings.md
+/progress.md
+/task_plan.md
+"@
+```
+
+- 对已跟踪但只想本地维护的 planning 文件，可使用 `skip-worktree` 隐藏日常改动：
+
+```powershell
+git update-index --skip-worktree docs/planningwithfiles/findings.md docs/planningwithfiles/progress.md docs/planningwithfiles/task_plan.md
+```
+
+- 需要重新纳入 git 跟踪时，恢复为：
+
+```powershell
+git update-index --no-skip-worktree docs/planningwithfiles/findings.md docs/planningwithfiles/progress.md docs/planningwithfiles/task_plan.md
+```
+
+- 如果某次确实要提交被本地忽略的草稿文件，可显式强制加入：
+
+```powershell
+git add -f docs/brainstorming/...
+```
+
+- 使用 `skip-worktree` 后，要注意远端如果也修改了同名文件，本地不一定会第一时间显式提示；这类文件更适合作为个人工作副本，而不是多人同时编辑的正式文档。
+
 ## 文档更新规则
 
 - 功能状态变化：
