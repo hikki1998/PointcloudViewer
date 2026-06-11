@@ -404,7 +404,7 @@ int main(int argc, char* argv[])
     app.setQuitOnLastWindowClosed(false);
 
     QApplication::setApplicationName("LAS Point Cloud Viewer");
-    QApplication::setApplicationVersion("1.2.0");
+    QApplication::setApplicationVersion("1.3.0");
     QApplication::setOrganizationName("VibeCodingProject");
 
     QFont appFont(QStringLiteral("Segoe UI"), 9);
