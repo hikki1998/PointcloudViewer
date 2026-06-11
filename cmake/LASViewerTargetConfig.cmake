@@ -83,12 +83,17 @@ function(configure_las_viewer_common_target target_name use_qtitan)
     endif()
 
     if(LAS_VIEWER_ENABLE_LASLIB)
-        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_LASLIB=1)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_LAS_READER=1 LAS_VIEWER_HAS_LASLIB=1)
         target_include_directories(${target_name} PRIVATE
             "${LASLIB_INCLUDE_DIR}"
             "${LASZIP_INCLUDE_DIR}"
             "${LASZIP_SRC_INCLUDE_DIR}"
         )
+    endif()
+
+    if(LAS_VIEWER_ENABLE_LASZIP_API)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_LAS_READER=1 LAS_VIEWER_HAS_LASZIP_API=1)
+        target_include_directories(${target_name} PRIVATE "${LASZIP_API_INCLUDE_DIR}")
     endif()
 
     if(LAS_VIEWER_HAS_PROJ)
@@ -112,7 +117,9 @@ endfunction()
 
 function(configure_las_viewer_executable_target target_name use_qtitan)
     if(use_qtitan)
-        if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
+        if(LAS_VIEWER_USE_QTITAN_SHIM_TARGET)
+            target_link_libraries(${target_name} PRIVATE qtnribbon4)
+        elseif(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
             target_link_libraries(${target_name} PRIVATE "${QTITAN_RELEASE_LIBRARY}")
         else()
             target_link_libraries(${target_name} PRIVATE
@@ -131,6 +138,10 @@ function(configure_las_viewer_executable_target target_name use_qtitan)
             "${LASLIB_LIBRARY}"
             "${LASZIP_LIBRARY}"
         )
+    endif()
+
+    if(LAS_VIEWER_ENABLE_LASZIP_API)
+        target_link_libraries(${target_name} PRIVATE "${LASZIP_API_LIBRARY}")
     endif()
 
     if(LAS_VIEWER_HAS_PROJ)
@@ -161,6 +172,12 @@ function(configure_las_viewer_executable_target target_name use_qtitan)
     set_target_properties(${target_name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     )
+    if(NOT WIN32)
+        set_target_properties(${target_name} PROPERTIES
+            BUILD_RPATH "$ORIGIN"
+            INSTALL_RPATH "$ORIGIN"
+        )
+    endif()
 endfunction()
 
 function(configure_las_viewer_target target_name use_qtitan)

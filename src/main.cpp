@@ -16,6 +16,8 @@
 #include <QToolTip>
 #include <QTranslator>
 
+#include <cmath>
+
 #include "QtnRibbonBar.h"
 #include "QtnRibbonPage.h"
 #include "QtnRibbonToolTip.h"
@@ -373,8 +375,8 @@ QPixmap buildScaledSplashPixmap(const QPixmap& sourcePixmap, const QRect& availa
     }
 
     const QSize maxSplashSize(
-        std::max(640, static_cast<int>(std::lround(availableGeometry.width() * 0.72))),
-        std::max(360, static_cast<int>(std::lround(availableGeometry.height() * 0.72))));
+        std::min(1280, std::max(640, static_cast<int>(std::lround(availableGeometry.width() * 0.72)))),
+        std::min(720, std::max(360, static_cast<int>(std::lround(availableGeometry.height() * 0.72)))));
     if (sourcePixmap.size().width() <= maxSplashSize.width()
         && sourcePixmap.size().height() <= maxSplashSize.height()) {
         return sourcePixmap;
@@ -399,6 +401,7 @@ int main(int argc, char* argv[])
     QSurfaceFormat::setDefaultFormat(format);
 
     QApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
 
     QApplication::setApplicationName("LAS Point Cloud Viewer");
     QApplication::setApplicationVersion("1.2.0");
@@ -416,7 +419,10 @@ int main(int argc, char* argv[])
     QTranslator appTranslator;
     QTranslator qtTranslator;
 
-    const QIcon appIcon(QStringLiteral(":/assets/icon/software.png"));
+    const QPixmap appIconPixmap(QStringLiteral(":/assets/icon/software.png"));
+    const QIcon appIcon(appIconPixmap.isNull()
+            ? QIcon()
+            : QIcon(appIconPixmap.scaled(128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
     app.setWindowIcon(appIcon);
 
     const QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
@@ -444,6 +450,7 @@ int main(int argc, char* argv[])
     QTimer::singleShot(1500, [&]() {
         mainWindow.show();
         splashScreen.finish(&mainWindow);
+        app.setQuitOnLastWindowClosed(true);
     });
 
     return app.exec();

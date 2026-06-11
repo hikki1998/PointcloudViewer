@@ -36,8 +36,34 @@ if(MSVC)
 endif()
 
 option(LAS_VIEWER_ENABLE_PCL "Enable PCL integration" OFF)
-option(LAS_VIEWER_ENABLE_LASLIB "Enable LASlib-based LAS/LAZ reader" ON)
+if(WIN32)
+    set(LAS_VIEWER_ENABLE_LASLIB_DEFAULT ON)
+    set(LAS_VIEWER_ENABLE_LASZIP_API_DEFAULT OFF)
+else()
+    set(LAS_VIEWER_ENABLE_LASLIB_DEFAULT OFF)
+    set(LAS_VIEWER_ENABLE_LASZIP_API_DEFAULT ON)
+endif()
+option(
+    LAS_VIEWER_ENABLE_LASLIB
+    "Enable LASlib-based LAS/LAZ reader and writer"
+    ${LAS_VIEWER_ENABLE_LASLIB_DEFAULT}
+)
+option(
+    LAS_VIEWER_ENABLE_LASZIP_API
+    "Enable LASzip C API-based LAS/LAZ reader"
+    ${LAS_VIEWER_ENABLE_LASZIP_API_DEFAULT}
+)
 option(LAS_VIEWER_ENABLE_PROJ "Enable PROJ-based CRS transformation" ON)
+if(WIN32)
+    set(LAS_VIEWER_USE_BUNDLED_QTITAN_SHIM_DEFAULT OFF)
+else()
+    set(LAS_VIEWER_USE_BUNDLED_QTITAN_SHIM_DEFAULT ON)
+endif()
+option(
+    LAS_VIEWER_USE_BUNDLED_QTITAN_SHIM
+    "Use the repository QtitanRibbon compatibility shim on non-Windows platforms when QTITAN_ROOT is not set"
+    ${LAS_VIEWER_USE_BUNDLED_QTITAN_SHIM_DEFAULT}
+)
 if(WIN32)
     set(LAS_VIEWER_ENABLE_WINDOWS_CAPTURE_DEFAULT ON)
 else()
@@ -66,6 +92,10 @@ include(LASViewerDependencies)
 include(LASViewerTranslations)
 include(LASViewerTargetConfig)
 include(LASViewerRuntimeDeploy)
+
+if(LAS_VIEWER_USE_QTITAN_SHIM_TARGET)
+    add_subdirectory(tools/linux/qtitan_shim)
+endif()
 
 add_library(LASViewerCoreObj OBJECT)
 configure_las_viewer_common_target(LASViewerCoreObj TRUE)

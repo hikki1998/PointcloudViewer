@@ -24,7 +24,9 @@ CoordinateSystemKind kindFromProjType(PJ_TYPE type, CoordinateSystemKind fallbac
     case PJ_TYPE_GEOCENTRIC_CRS:
         return CoordinateSystemKind::Geographic;
     case PJ_TYPE_PROJECTED_CRS:
+#ifdef PJ_TYPE_DERIVED_PROJECTED_CRS
     case PJ_TYPE_DERIVED_PROJECTED_CRS:
+#endif
         return CoordinateSystemKind::Projected;
     default:
         return fallback;
@@ -325,13 +327,21 @@ QList<CoordinateSystemDefinition> CrsAuthorityService::findByName(
     configureProjSearchPaths(context);
 
     PJ_TYPE geographicTypes[] = { PJ_TYPE_GEOGRAPHIC_2D_CRS, PJ_TYPE_GEOGRAPHIC_3D_CRS, PJ_TYPE_GEODETIC_CRS };
-    PJ_TYPE projectedTypes[] = { PJ_TYPE_PROJECTED_CRS, PJ_TYPE_DERIVED_PROJECTED_CRS };
+    PJ_TYPE projectedTypes[] = {
+        PJ_TYPE_PROJECTED_CRS
+#ifdef PJ_TYPE_DERIVED_PROJECTED_CRS
+        , PJ_TYPE_DERIVED_PROJECTED_CRS
+#endif
+    };
     PJ_TYPE allTypes[] = {
         PJ_TYPE_GEOGRAPHIC_2D_CRS,
         PJ_TYPE_GEOGRAPHIC_3D_CRS,
         PJ_TYPE_GEODETIC_CRS,
-        PJ_TYPE_PROJECTED_CRS,
+        PJ_TYPE_PROJECTED_CRS
+#ifdef PJ_TYPE_DERIVED_PROJECTED_CRS
+        ,
         PJ_TYPE_DERIVED_PROJECTED_CRS
+#endif
     };
 
     const PJ_TYPE* types = nullptr;

@@ -7,6 +7,8 @@
 #include <QToolButton>
 #include <QToolTip>
 
+#include <cmath>
+
 #include "QtnRibbonBar.h"
 #include "QtnRibbonGroup.h"
 #include "QtnRibbonPage.h"

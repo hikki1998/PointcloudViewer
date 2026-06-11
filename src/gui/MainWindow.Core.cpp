@@ -49,11 +49,14 @@
 
 using namespace mainwindow_internal;
 
-#ifdef Q_OS_WIN
 namespace
 {
 constexpr int kDefaultCustomCaptionHeight = 48;
+}
 
+#ifdef Q_OS_WIN
+namespace
+{
 struct TopLevelWindowSearchContext
 {
     DWORD processId = 0;

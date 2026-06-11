@@ -85,7 +85,8 @@ function(las_viewer_resolve_package_root out_var package_label stable_dir)
     )
 endfunction()
 
-if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
+if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5"
+    AND NOT EXISTS "${QT_ROOT}/lib/x86_64-linux-gnu/cmake/Qt5")
     if(EXISTS "${QT_ROOT}/msvc2019_64/lib/cmake/Qt5")
         set(QT_ROOT "${QT_ROOT}/msvc2019_64" CACHE PATH "Qt installation root" FORCE)
     elseif(EXISTS "${QT_ROOT}/msvc2022_64/lib/cmake/Qt5")
@@ -95,10 +96,11 @@ if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
     endif()
 endif()
 
-if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5")
+if(NOT EXISTS "${QT_ROOT}/lib/cmake/Qt5"
+    AND NOT EXISTS "${QT_ROOT}/lib/x86_64-linux-gnu/cmake/Qt5")
     message(FATAL_ERROR
         "Qt5 was not found under QT_ROOT='${QT_ROOT}'. "
-        "Expected '${QT_ROOT}/lib/cmake/Qt5'."
+        "Expected '${QT_ROOT}/lib/cmake/Qt5' or '${QT_ROOT}/lib/x86_64-linux-gnu/cmake/Qt5'."
     )
 endif()
 
@@ -107,20 +109,37 @@ if(LASZIP_ROOT AND NOT LASTOOLS_ROOT)
     set(LASTOOLS_ROOT "${derived_lastools_root}" CACHE PATH "Legacy override for LAStools package root" FORCE)
 endif()
 
-las_viewer_resolve_package_root(RESOLVED_OSG_ROOT "OpenSceneGraph" "osg"
-    LEGACY_ROOT "${OSG_ROOT}"
-    REQUIRED_PATHS "include/osg/Node" "lib" "bin"
-)
-set(OSG_ROOT "${RESOLVED_OSG_ROOT}" CACHE PATH "OpenSceneGraph installation root" FORCE)
+set(LAS_VIEWER_USE_SYSTEM_OSG OFF)
+if(NOT WIN32 AND NOT OSG_ROOT)
+    set(LAS_VIEWER_USE_SYSTEM_OSG ON)
+    message(STATUS "Using system OpenSceneGraph packages")
+else()
+    las_viewer_resolve_package_root(RESOLVED_OSG_ROOT "OpenSceneGraph" "osg"
+        LEGACY_ROOT "${OSG_ROOT}"
+        REQUIRED_PATHS "include/osg/Node" "lib" "bin"
+    )
+    set(OSG_ROOT "${RESOLVED_OSG_ROOT}" CACHE PATH "OpenSceneGraph installation root" FORCE)
+endif()
 
-las_viewer_resolve_package_root(RESOLVED_QTITAN_ROOT "QtitanRibbon" "qtitan"
-    LEGACY_ROOT "${QTITAN_ROOT}"
-    REQUIRED_PATHS "include/QtitanRibbon.h" "bin"
-)
-set(QTITAN_ROOT "${RESOLVED_QTITAN_ROOT}" CACHE PATH "QtitanRibbon package root" FORCE)
+set(LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR "${CMAKE_SOURCE_DIR}/tools/linux/qtitan_shim")
+set(LAS_VIEWER_USE_QTITAN_SHIM_TARGET OFF)
+if(NOT WIN32
+    AND LAS_VIEWER_USE_BUNDLED_QTITAN_SHIM
+    AND NOT QTITAN_ROOT
+    AND EXISTS "${LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR}/QtitanRibbon.h")
+    set(LAS_VIEWER_USE_QTITAN_SHIM_TARGET ON)
+    set(QTITAN_ROOT "${LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR}" CACHE PATH "Bundled QtitanRibbon compatibility shim root" FORCE)
+    message(STATUS "Using bundled QtitanRibbon shim: ${LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR}")
+else()
+    las_viewer_resolve_package_root(RESOLVED_QTITAN_ROOT "QtitanRibbon" "qtitan"
+        LEGACY_ROOT "${QTITAN_ROOT}"
+        REQUIRED_PATHS "include/QtitanRibbon.h" "bin"
+    )
+    set(QTITAN_ROOT "${RESOLVED_QTITAN_ROOT}" CACHE PATH "QtitanRibbon package root" FORCE)
+endif()
 
 set(default_gdal_root "${THIRDPARTY_ROOT}/gdal")
-if(GDAL_ROOT OR EXISTS "${default_gdal_root}")
+if(GDAL_ROOT OR (WIN32 AND EXISTS "${default_gdal_root}"))
     las_viewer_resolve_package_root(RESOLVED_GDAL_ROOT "GDAL SDK" "gdal"
         LEGACY_ROOT "${GDAL_ROOT}"
         REQUIRED_PATHS "include/gdal.h" "lib" "bin"
@@ -178,6 +197,7 @@ endif()
 list(PREPEND CMAKE_PREFIX_PATH
     "${QT_ROOT}"
     "${QT_ROOT}/lib/cmake"
+    "${QT_ROOT}/lib/x86_64-linux-gnu/cmake"
 )
 
 if(LAS_VIEWER_ENABLE_PCL)
@@ -194,8 +214,10 @@ foreach(cached_dependency_var
     LASLIB_INCLUDE_DIR
     LASZIP_INCLUDE_DIR
     LASZIP_SRC_INCLUDE_DIR
+    LASZIP_API_INCLUDE_DIR
     LASLIB_LIBRARY
     LASZIP_LIBRARY
+    LASZIP_API_LIBRARY
     LASLIB_DEBUG_LIBRARY
     LASZIP_DEBUG_LIBRARY
     OSG_INCLUDE_DIR
@@ -219,23 +241,27 @@ endforeach()
 
 find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
 
-find_path(QTITAN_INCLUDE_DIR
-    NAMES QtitanRibbon.h
-    PATHS "${QTITAN_ROOT}/include"
-    NO_DEFAULT_PATH
-)
+if(LAS_VIEWER_USE_QTITAN_SHIM_TARGET)
+    set(QTITAN_INCLUDE_DIR "${LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR}" CACHE PATH "Bundled QtitanRibbon shim include directory" FORCE)
+else()
+    find_path(QTITAN_INCLUDE_DIR
+        NAMES QtitanRibbon.h
+        PATHS "${QTITAN_ROOT}/include"
+        NO_DEFAULT_PATH
+    )
 
-find_library(QTITAN_RELEASE_LIBRARY
-    NAMES qtnribbon4
-    PATHS "${QTITAN_ROOT}/bin"
-    NO_DEFAULT_PATH
-)
+    find_library(QTITAN_RELEASE_LIBRARY
+        NAMES qtnribbon4
+        PATHS "${QTITAN_ROOT}/bin"
+        NO_DEFAULT_PATH
+    )
 
-find_library(QTITAN_DEBUG_LIBRARY
-    NAMES qtnribbond4
-    PATHS "${QTITAN_ROOT}/bin"
-    NO_DEFAULT_PATH
-)
+    find_library(QTITAN_DEBUG_LIBRARY
+        NAMES qtnribbond4
+        PATHS "${QTITAN_ROOT}/bin"
+        NO_DEFAULT_PATH
+    )
+endif()
 
 if(LAS_VIEWER_ENABLE_PCL)
     find_package(PCL 1.8 QUIET COMPONENTS common io)
@@ -348,83 +374,121 @@ if(LAS_VIEWER_ENABLE_LASLIB)
     )
 endif()
 
-find_path(OSG_INCLUDE_DIR
-    NAMES osg/Node
-    PATHS "${OSG_ROOT}/include"
-    NO_DEFAULT_PATH
-)
+if(LAS_VIEWER_ENABLE_LASZIP_API)
+    find_path(LASZIP_API_INCLUDE_DIR
+        NAMES laszip_api.h
+        PATHS
+            "${LASZIP_ROOT}/include/laszip"
+            "${LASZIP_ROOT}/include"
+            "${THIRDPARTY_ROOT}/laszip/include/laszip"
+            "${THIRDPARTY_ROOT}/laszip/include"
+            /usr/include/laszip
+            /usr/local/include/laszip
+    )
 
-find_library(OPENTHREADS_RELEASE_LIBRARY
-    NAMES OpenThreads
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(LASZIP_API_LIBRARY
+        NAMES laszip
+        PATHS
+            "${LASZIP_ROOT}/lib"
+            "${THIRDPARTY_ROOT}/laszip/lib"
+            /usr/lib/x86_64-linux-gnu
+            /usr/local/lib
+    )
+endif()
 
-find_library(OPENTHREADS_DEBUG_LIBRARY
-    NAMES OpenThreadsd
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+if(LAS_VIEWER_USE_SYSTEM_OSG)
+    find_path(OSG_INCLUDE_DIR NAMES osg/Node)
+    find_library(OPENTHREADS_RELEASE_LIBRARY NAMES OpenThreads)
+    find_library(OPENTHREADS_DEBUG_LIBRARY NAMES OpenThreadsd)
+    find_library(OSG_RELEASE_LIBRARY NAMES osg)
+    find_library(OSG_DEBUG_LIBRARY NAMES osgd)
+    find_library(OSGDB_RELEASE_LIBRARY NAMES osgDB)
+    find_library(OSGDB_DEBUG_LIBRARY NAMES osgDBd)
+    find_library(OSGGA_RELEASE_LIBRARY NAMES osgGA)
+    find_library(OSGGA_DEBUG_LIBRARY NAMES osgGAd)
+    find_library(OSGVIEWER_RELEASE_LIBRARY NAMES osgViewer)
+    find_library(OSGVIEWER_DEBUG_LIBRARY NAMES osgViewerd)
+    find_library(OSGUTIL_RELEASE_LIBRARY NAMES osgUtil)
+    find_library(OSGUTIL_DEBUG_LIBRARY NAMES osgUtild)
+else()
+    find_path(OSG_INCLUDE_DIR
+        NAMES osg/Node
+        PATHS "${OSG_ROOT}/include"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSG_RELEASE_LIBRARY
-    NAMES osg
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OPENTHREADS_RELEASE_LIBRARY
+        NAMES OpenThreads
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSG_DEBUG_LIBRARY
-    NAMES osgd
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OPENTHREADS_DEBUG_LIBRARY
+        NAMES OpenThreadsd
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGDB_RELEASE_LIBRARY
-    NAMES osgDB
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSG_RELEASE_LIBRARY
+        NAMES osg
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGDB_DEBUG_LIBRARY
-    NAMES osgDBd
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSG_DEBUG_LIBRARY
+        NAMES osgd
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGGA_RELEASE_LIBRARY
-    NAMES osgGA
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGDB_RELEASE_LIBRARY
+        NAMES osgDB
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGGA_DEBUG_LIBRARY
-    NAMES osgGAd
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGDB_DEBUG_LIBRARY
+        NAMES osgDBd
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGVIEWER_RELEASE_LIBRARY
-    NAMES osgViewer
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGGA_RELEASE_LIBRARY
+        NAMES osgGA
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGVIEWER_DEBUG_LIBRARY
-    NAMES osgViewerd
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGGA_DEBUG_LIBRARY
+        NAMES osgGAd
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGUTIL_RELEASE_LIBRARY
-    NAMES osgUtil
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGVIEWER_RELEASE_LIBRARY
+        NAMES osgViewer
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
 
-find_library(OSGUTIL_DEBUG_LIBRARY
-    NAMES osgUtild
-    PATHS "${OSG_ROOT}/lib"
-    NO_DEFAULT_PATH
-)
+    find_library(OSGVIEWER_DEBUG_LIBRARY
+        NAMES osgViewerd
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
+
+    find_library(OSGUTIL_RELEASE_LIBRARY
+        NAMES osgUtil
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
+
+    find_library(OSGUTIL_DEBUG_LIBRARY
+        NAMES osgUtild
+        PATHS "${OSG_ROOT}/lib"
+        NO_DEFAULT_PATH
+    )
+endif()
 
 set(LAS_VIEWER_HAS_PROJ OFF)
 if(LAS_VIEWER_ENABLE_PROJ)
@@ -469,6 +533,38 @@ if(MSVC AND (
     set(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG ON)
 endif()
 
+if(NOT MSVC)
+    if(NOT QTITAN_DEBUG_LIBRARY AND QTITAN_RELEASE_LIBRARY)
+        set(QTITAN_DEBUG_LIBRARY "${QTITAN_RELEASE_LIBRARY}" CACHE FILEPATH "QtitanRibbon debug library fallback" FORCE)
+    endif()
+    if(NOT OPENTHREADS_DEBUG_LIBRARY AND OPENTHREADS_RELEASE_LIBRARY)
+        set(OPENTHREADS_DEBUG_LIBRARY "${OPENTHREADS_RELEASE_LIBRARY}" CACHE FILEPATH "OpenThreads debug library fallback" FORCE)
+    endif()
+    if(NOT OSG_DEBUG_LIBRARY AND OSG_RELEASE_LIBRARY)
+        set(OSG_DEBUG_LIBRARY "${OSG_RELEASE_LIBRARY}" CACHE FILEPATH "OSG debug library fallback" FORCE)
+    endif()
+    if(NOT OSGDB_DEBUG_LIBRARY AND OSGDB_RELEASE_LIBRARY)
+        set(OSGDB_DEBUG_LIBRARY "${OSGDB_RELEASE_LIBRARY}" CACHE FILEPATH "OSGDB debug library fallback" FORCE)
+    endif()
+    if(NOT OSGGA_DEBUG_LIBRARY AND OSGGA_RELEASE_LIBRARY)
+        set(OSGGA_DEBUG_LIBRARY "${OSGGA_RELEASE_LIBRARY}" CACHE FILEPATH "OSGGA debug library fallback" FORCE)
+    endif()
+    if(NOT OSGVIEWER_DEBUG_LIBRARY AND OSGVIEWER_RELEASE_LIBRARY)
+        set(OSGVIEWER_DEBUG_LIBRARY "${OSGVIEWER_RELEASE_LIBRARY}" CACHE FILEPATH "OSGViewer debug library fallback" FORCE)
+    endif()
+    if(NOT OSGUTIL_DEBUG_LIBRARY AND OSGUTIL_RELEASE_LIBRARY)
+        set(OSGUTIL_DEBUG_LIBRARY "${OSGUTIL_RELEASE_LIBRARY}" CACHE FILEPATH "OSGUtil debug library fallback" FORCE)
+    endif()
+    if(LAS_VIEWER_ENABLE_LASLIB)
+        if(NOT LASLIB_DEBUG_LIBRARY AND LASLIB_LIBRARY)
+            set(LASLIB_DEBUG_LIBRARY "${LASLIB_LIBRARY}" CACHE FILEPATH "LASlib debug library fallback" FORCE)
+        endif()
+        if(NOT LASZIP_DEBUG_LIBRARY AND LASZIP_LIBRARY)
+            set(LASZIP_DEBUG_LIBRARY "${LASZIP_LIBRARY}" CACHE FILEPATH "LASzip debug library fallback" FORCE)
+        endif()
+    endif()
+endif()
+
 if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
     set(OSG_LIBRARIES
         "${OPENTHREADS_RELEASE_LIBRARY}"
@@ -511,12 +607,24 @@ find_package_handle_standard_args(OpenSceneGraph
         OSGUTIL_RELEASE_LIBRARY
 )
 
-find_package_handle_standard_args(QtitanRibbon
-    REQUIRED_VARS QTITAN_INCLUDE_DIR QTITAN_RELEASE_LIBRARY
-)
+if(LAS_VIEWER_USE_QTITAN_SHIM_TARGET)
+    find_package_handle_standard_args(QtitanRibbon
+        REQUIRED_VARS QTITAN_INCLUDE_DIR
+    )
+else()
+    find_package_handle_standard_args(QtitanRibbon
+        REQUIRED_VARS QTITAN_INCLUDE_DIR QTITAN_RELEASE_LIBRARY
+    )
+endif()
 
 if(LAS_VIEWER_ENABLE_LASLIB)
     find_package_handle_standard_args(LASlib
         REQUIRED_VARS LASLIB_INCLUDE_DIR LASZIP_INCLUDE_DIR LASZIP_SRC_INCLUDE_DIR LASLIB_LIBRARY LASZIP_LIBRARY
+    )
+endif()
+
+if(LAS_VIEWER_ENABLE_LASZIP_API)
+    find_package_handle_standard_args(LASzipAPI
+        REQUIRED_VARS LASZIP_API_INCLUDE_DIR LASZIP_API_LIBRARY
     )
 endif()
