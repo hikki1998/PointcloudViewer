@@ -80,6 +80,8 @@ las_viewer_add_shared_sources(
     UiHistoryStore.h
     VisualizationPanelController.cpp
     VisualizationPanelController.h
+    WebPageDock.cpp
+    WebPageDock.h
     support/RibbonIconFactory.cpp
     support/RibbonIconFactory.h
     support/SettingsKeys.h

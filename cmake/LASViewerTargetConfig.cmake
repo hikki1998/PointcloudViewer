@@ -73,6 +73,11 @@ function(configure_las_viewer_common_target target_name use_qtitan)
         ${OSG_LIBRARIES}
     )
 
+    if(LAS_VIEWER_HAS_WEBENGINE_DOCK AND TARGET Qt5::WebEngineWidgets)
+        target_compile_definitions(${target_name} PRIVATE LAS_VIEWER_HAS_WEBENGINE_DOCK=1)
+        target_link_libraries(${target_name} PRIVATE Qt5::WebEngineWidgets)
+    endif()
+
     if(use_qtitan)
         target_include_directories(${target_name} PRIVATE "${QTITAN_INCLUDE_DIR}")
     endif()

@@ -13,6 +13,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "QtnRibbonBackstageView.h"
@@ -26,6 +27,7 @@
 #include "gui/BackstageProjectPropertiesWidget.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/WebPageDock.h"
 #include "gui/support/RibbonIconFactory.h"
 #include "gui/support/SettingsKeys.h"
 #include "gui/support/UiHelpers.h"
@@ -225,6 +227,7 @@ void MainWindow::createBackstageView()
             languageLayout->addStretch(1);
         }
         backstageShowLogCheckBox_ = backstageApplicationSettingsWidget_->showLogCheckBox();
+        backstageWebPanelUrlLineEdit_ = backstageApplicationSettingsWidget_->webPanelUrlLineEdit();
         backstageCaptureSaveDirectoryLineEdit_ = backstageApplicationSettingsWidget_->captureSaveDirectoryLineEdit();
         backstageCaptureBrowseButton_ = backstageApplicationSettingsWidget_->captureBrowseButton();
         backstageCaptureAutoSaveCheckBox_ = backstageApplicationSettingsWidget_->captureAutoSaveCheckBox();
@@ -311,6 +314,21 @@ void MainWindow::createBackstageView()
         if (showLogAction_ != nullptr && showLogAction_->isChecked() != checked) {
             showLogAction_->setChecked(checked);
         }
+    });
+    connect(backstageWebPanelUrlLineEdit_, &QLineEdit::editingFinished, this, [this]() {
+        if (backstageWebPanelUrlLineEdit_ == nullptr) {
+            return;
+        }
+
+        webPanelUrl_ = normalizedWebPanelUrl(backstageWebPanelUrlLineEdit_->text());
+        {
+            const QSignalBlocker blocker(backstageWebPanelUrlLineEdit_);
+            backstageWebPanelUrlLineEdit_->setText(webPanelUrl_);
+        }
+        if (webPageDock_ != nullptr) {
+            webPageDock_->setPageUrl(QUrl(webPanelUrl_));
+        }
+        persistWindowSettings();
     });
     connect(backstageCaptureBrowseButton_, &QPushButton::clicked, this, [this]() {
         const QString selectedDirectory = showStyledExistingDirectoryDialog(
@@ -473,6 +491,13 @@ void MainWindow::refreshBackstageApplicationSettingsPage()
             captureSaveDirectory_.trimmed().isEmpty()
                 ? defaultCaptureSaveDirectory()
                 : captureSaveDirectory_);
+    }
+    if (backstageWebPanelUrlLineEdit_ != nullptr) {
+        const QSignalBlocker blocker(backstageWebPanelUrlLineEdit_);
+        backstageWebPanelUrlLineEdit_->setText(
+            webPanelUrl_.trimmed().isEmpty()
+                ? defaultWebPanelUrl()
+                : webPanelUrl_);
     }
     if (backstageCaptureAutoSaveCheckBox_ != nullptr) {
         const QSignalBlocker blocker(backstageCaptureAutoSaveCheckBox_);

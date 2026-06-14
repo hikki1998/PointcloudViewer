@@ -87,32 +87,42 @@
         <translation>显示日志面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="121"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="110"/>
+        <source>Web panel URL</source>
+        <translation>Web 面板地址</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="117"/>
+        <source>http://127.0.0.1:5176/</source>
+        <translation>http://127.0.0.1:5176/</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="142"/>
         <source>Capture</source>
         <translation>截图录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="147"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="168"/>
         <source>Default save folder</source>
         <translation>默认保存目录</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="154"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="175"/>
         <source>Choose a folder for screenshots and recordings</source>
         <translation>选择截图和录屏的保存目录</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="161"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="182"/>
         <source>Browse...</source>
         <translation>浏览...</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="170"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="191"/>
         <source>Use default path and save automatically (no save dialog)</source>
         <translation>使用默认路径并自动保存（不弹出保存对话框）</translation>
     </message>
     <message>
-        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="177"/>
+        <location filename="../src/gui/BackstageApplicationSettingsWidget.ui" line="198"/>
         <source>Screenshot: Ctrl+Shift+S | Recording: Ctrl+Shift+R</source>
         <translation>截图：Ctrl+Shift+S | 录屏：Ctrl+Shift+R</translation>
     </message>
@@ -184,48 +194,48 @@
 <context>
     <name>CrsAuthorityService</name>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="54"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="56"/>
         <source>PROJ support is not available in this build.</source>
         <translation>当前构建未启用 PROJ 支持。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="146"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="148"/>
         <source>Coordinate system authority code is invalid.</source>
         <translation>坐标系权威代码无效。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="158"/>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="238"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="160"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="240"/>
         <source>Failed to create PROJ context.</source>
         <translation>创建 PROJ 上下文失败。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="180"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="182"/>
         <source>Failed to resolve coordinate system %1:%2.</source>
         <translation>解析坐标系 %1:%2 失败。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="213"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="215"/>
         <source>Authority text must look like EPSG:4326.</source>
         <translation>权威标识文本必须类似 EPSG:4326。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="226"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="228"/>
         <source>Coordinate system WKT is empty.</source>
         <translation>坐标系 WKT 为空。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="260"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="262"/>
         <source>Failed to parse coordinate system WKT.</source>
         <translation>解析坐标系 WKT 失败。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="390"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="400"/>
         <source>Coordinate system output pointer is null.</source>
         <translation>坐标系输出指针为空。</translation>
     </message>
     <message>
-        <location filename="../src/crs/CrsAuthorityService.cpp" line="431"/>
+        <location filename="../src/crs/CrsAuthorityService.cpp" line="441"/>
         <source>Coordinate system does not contain enough information to normalize.</source>
         <translation>坐标系缺少足够信息，无法规范化。</translation>
     </message>
@@ -784,26 +794,26 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="214"/>
+        <location filename="../src/gui/MainWindow.cpp" line="215"/>
         <source>Elevation ramp</source>
         <translation>高程渐变</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="216"/>
+        <location filename="../src/gui/MainWindow.cpp" line="217"/>
         <source>Single color</source>
         <translation>单色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="83"/>
-        <location filename="../src/gui/MainWindow.cpp" line="221"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1159"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1664"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="210"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="82"/>
+        <location filename="../src/gui/MainWindow.cpp" line="222"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1160"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1637"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="212"/>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="229"/>
+        <location filename="../src/gui/MainWindow.cpp" line="230"/>
         <source>Not set</source>
         <translation>未设置</translation>
     </message>
@@ -812,142 +822,142 @@
         <translation type="vanished">就绪。打开或拖入 LAS/LAZ 文件以开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="342"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="347"/>
         <source>Only LAS and LAZ files can be dropped here.</source>
         <translation>此处只能拖入 LAS 或 LAZ 文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="862"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="887"/>
         <source>Unable to create the capture folder.</source>
         <translation>无法创建捕获输出目录。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="892"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="917"/>
         <source>Save Screenshot</source>
         <translation>保存截图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="894"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="919"/>
         <source>PNG Images (*.png)</source>
         <translation>PNG 图像 (*.png)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="902"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="927"/>
         <source>Unable to create the screenshot output folder.</source>
         <translation>无法创建截图输出目录。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="908"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="933"/>
         <source>Screenshot failed. The window image is empty.</source>
         <translation>截图失败，窗口图像为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="912"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="937"/>
         <source>Failed to save screenshot: %1</source>
         <translation>保存截图失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="916"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="941"/>
         <source>Screenshot saved: %1</source>
         <translation>截图已保存：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="779"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="804"/>
         <source>No recording file was produced.</source>
         <translation>未生成录屏文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="838"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="863"/>
         <source>Failed to save recording: %1</source>
         <translation>保存录屏失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="934"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="959"/>
         <source>Unable to create temporary recording file.</source>
         <translation>无法创建临时录屏文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="974"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="999"/>
         <source>Embedded recording is unavailable: %1. Recording requires ffmpeg. Add ffmpeg to PATH, or enable LAS_VIEWER_ENABLE_WINDOWS_CAPTURE in your build.</source>
         <translation>内嵌录屏不可用：%1。当前录屏需要 ffmpeg。请将 ffmpeg 添加到 PATH，或在构建中启用 LAS_VIEWER_ENABLE_WINDOWS_CAPTURE。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="973"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="998"/>
         <source>Recording requires ffmpeg. Add ffmpeg to PATH or place ffmpeg.exe beside the application.</source>
         <translation>录屏需要 ffmpeg。请将 ffmpeg 添加到 PATH，或将 ffmpeg.exe 放在应用程序旁边。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="790"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="815"/>
         <source>Save Recording</source>
         <translation>保存录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="792"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="817"/>
         <source>MP4 Video (*.mp4)</source>
         <translation>MP4 视频 (*.mp4)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="807"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="817"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="832"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="842"/>
         <source>Unable to create the recording output folder.</source>
         <translation>无法创建录屏输出目录。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1033"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1092"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1058"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1117"/>
         <source>Recording saved: %1</source>
         <translation>录屏已保存：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="947"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1044"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1103"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="972"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1069"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1128"/>
         <source>No ffmpeg diagnostic output was captured.</source>
         <translation>未捕获到 ffmpeg 诊断输出。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="951"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1038"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1048"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1097"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1107"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="976"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1063"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1073"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1122"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1132"/>
         <source>Recording failed. %1</source>
         <translation>录屏失败。%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1065"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1090"/>
         <source>Failed to start recording process.</source>
         <translation>启动录屏进程失败。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1066"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1091"/>
         <source>Failed to start recording process. %1</source>
         <translation>启动录屏进程失败。%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="959"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1073"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="984"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1098"/>
         <source>Recording started. Use %1 or the ribbon button to stop.</source>
         <translation>录屏已开始。使用 %1 或功能区按钮停止。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="962"/>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="1076"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1150"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3709"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="987"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="1101"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1151"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3682"/>
         <source>Stop Recording</source>
         <translation>停止录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="16"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="95"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="103"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1108"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1260"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1275"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1307"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1355"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2298"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="15"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="97"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="105"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1109"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1263"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1278"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1310"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1358"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2271"/>
         <source>Open</source>
         <translation>打开</translation>
     </message>
@@ -956,30 +966,30 @@
         <translation type="vanished">打开 LAS 或 LAZ 数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="32"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="130"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="138"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="281"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="520"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="529"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="539"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1122"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1263"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1279"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1313"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="31"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="132"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="140"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="284"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="545"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="554"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="564"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1123"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1266"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1282"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1316"/>
         <source>Open Project</source>
         <translation>打开工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="33"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1123"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2376"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="32"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1124"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2349"/>
         <source>Save Project</source>
         <translation>保存工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="34"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1124"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="33"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1125"/>
         <source>Save Project As</source>
         <translation>工程另存为</translation>
     </message>
@@ -992,119 +1002,119 @@
         <translation type="vanished">打开工程坐标系设置</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="41"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1127"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="40"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1128"/>
         <source>Clear</source>
         <translation>清空</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="42"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1128"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="41"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1129"/>
         <source>Clear the current scene</source>
         <translation>清空当前场景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="44"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1129"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="43"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1130"/>
         <source>Exit</source>
         <translation>退出</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="47"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1130"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="46"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1131"/>
         <source>Fit Scene</source>
         <translation>适配场景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="48"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1131"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="47"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1132"/>
         <source>Reset to a fitted isometric view</source>
         <translation>重置为适配的等轴视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="50"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1132"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="49"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1133"/>
         <source>Top</source>
         <translation>顶视</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="52"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1134"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="51"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1135"/>
         <source>Front</source>
         <translation>前视</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="54"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1136"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="53"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1137"/>
         <source>Right</source>
         <translation>右视</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="57"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1138"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="56"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1139"/>
         <source>Axes</source>
         <translation>坐标轴</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="61"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1140"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1613"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="60"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1141"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1586"/>
         <source>Bounds</source>
         <translation>包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="75"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1155"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="74"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1156"/>
         <source>Dark</source>
         <translation>深色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="77"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1157"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="76"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1158"/>
         <source>Light</source>
         <translation>浅色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="85"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1160"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="84"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1161"/>
         <source>Elevation</source>
         <translation>高程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="87"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1161"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="86"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1162"/>
         <source>Single</source>
         <translation>单色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="100"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1163"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="99"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1164"/>
         <source>Colorful</source>
         <translation>彩色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="102"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1164"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="101"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1165"/>
         <source>White</source>
         <translation>白色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="104"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1165"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="103"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1166"/>
         <source>Dark Gray</source>
         <translation>深灰</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="111"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1166"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1420"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="84"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="110"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1167"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1411"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="86"/>
         <source>Measure</source>
         <translation>量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="113"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1167"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="112"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1168"/>
         <source>Profile Classify</source>
         <translation>剖面分类</translation>
     </message>
@@ -1113,374 +1123,386 @@
         <translation type="vanished">拖拽矩形框重分类点云。工具启用时按住 Alt 并拖动鼠标左键可调整视角</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="116"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1169"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="115"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1170"/>
         <source>Classify Panel</source>
         <translation>分类面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="119"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1171"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="118"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1172"/>
         <source>Save Classify Result</source>
         <translation>保存分类结果</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="120"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1174"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="119"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1175"/>
         <source>Undo Classify</source>
         <translation>撤销分类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="121"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1175"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="120"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1176"/>
         <source>Redo Classify</source>
         <translation>重做分类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="122"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1176"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="121"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1177"/>
         <source>Clear Classify Edits</source>
         <translation>清空分类编辑</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="124"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1173"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="123"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1174"/>
         <source>Clear Measure</source>
         <translation>清除量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="125"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="181"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1177"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="124"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="182"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1178"/>
         <source>Export Clearance CSV</source>
         <translation>导出净空 CSV</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="126"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1178"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="125"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1179"/>
         <source>Profile View</source>
         <translation>剖面视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="130"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1180"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="129"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1181"/>
+        <source>Web Panel</source>
+        <translation>Web 面板</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="133"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1182"/>
+        <source>Show or hide the embedded web panel</source>
+        <translation>显示或隐藏嵌入式 Web 面板</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="134"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1183"/>
         <source>Analyze Risks</source>
         <translation>分析风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="131"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1181"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="135"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1184"/>
         <source>Analyze vegetation risks around the current measured corridor</source>
         <translation>分析当前量测通道周边的植被风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="132"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1182"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="136"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1185"/>
         <source>Focus Current Risk</source>
         <translation>聚焦当前风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="133"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1183"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="137"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1186"/>
         <source>Create Issue</source>
         <translation>创建隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="134"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1184"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="138"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1187"/>
         <source>Create All Issues</source>
         <translation>全部转隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="135"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1185"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="139"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1188"/>
         <source>Clear Risks</source>
         <translation>清空风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="136"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1186"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="140"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1189"/>
         <source>Generate Route</source>
         <translation>生成航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="137"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1187"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="141"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1190"/>
         <source>Regenerate Route</source>
         <translation>重新生成航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="138"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1188"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="142"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1191"/>
         <source>Clear Route</source>
         <translation>清空航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="143"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1191"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1759"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="536"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="147"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1194"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1732"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="538"/>
         <source>Start Roam</source>
         <translation>开始漫游</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="144"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="487"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="498"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1192"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1763"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3783"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3799"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="537"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="148"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="488"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="499"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1195"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1736"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3756"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3772"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="539"/>
         <source>Pause Roam</source>
         <translation>暂停漫游</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="145"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1193"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1766"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="538"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="149"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1196"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1739"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="540"/>
         <source>Stop Roam</source>
         <translation>停止漫游</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="146"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1194"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="150"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1197"/>
         <source>Focus Route Point</source>
         <translation>聚焦航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="151"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="617"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1199"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4779"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="155"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="618"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1202"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4752"/>
         <source>Import Route KML</source>
         <translation>导入航线KML</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="152"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="670"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1200"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="156"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="671"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1203"/>
         <source>Export Route KML</source>
         <translation>导出航线KML</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="153"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="731"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1201"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="157"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="732"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1204"/>
         <source>Export DJI KMZ</source>
         <translation>导出DJI KMZ</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="155"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1202"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="159"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1205"/>
         <source>Start Editing</source>
         <translation>开始编辑</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="156"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1203"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="160"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1206"/>
         <source>Finish Editing</source>
         <translation>结束编辑</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="158"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1205"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="162"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1208"/>
         <source>Insert Before Current</source>
         <translation>在当前项前插入</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="159"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1206"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="163"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1209"/>
         <source>Move Current Tower</source>
         <translation>移动当前杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="160"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1207"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="164"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1210"/>
         <source>Edit Current Tower</source>
         <translation>修改当前杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="161"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1208"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="165"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1211"/>
         <source>Focus Current Tower</source>
         <translation>聚焦当前杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="162"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1209"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="166"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1212"/>
         <source>Remove Current Tower</source>
         <translation>删除当前杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="169"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1220"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="173"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1223"/>
         <source>Show X</source>
         <translation>显示 X</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="170"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1221"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="174"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1224"/>
         <source>Show Y</source>
         <translation>显示 Y</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="171"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1222"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="175"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1225"/>
         <source>Show Z</source>
         <translation>显示 Z</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="175"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1223"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4752"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1226"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4725"/>
         <source>Mark Issue</source>
         <translation>标记隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="176"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1224"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="180"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1227"/>
         <source>Click a point in the view to add an inspection issue</source>
         <translation>在视图中点击一点以添加巡检隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1225"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1228"/>
         <source>Cancel Issue Tool</source>
         <translation>取消隐患工具</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="178"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1226"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="182"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1229"/>
         <source>Focus Current Issue</source>
         <translation>定位当前隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="179"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1227"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="183"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1230"/>
         <source>Remove Current Issue</source>
         <translation>删除当前隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="180"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1228"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="184"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1231"/>
         <source>Clear Issues</source>
         <translation>清空隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="181"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1153"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1229"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="185"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1154"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1232"/>
         <source>Export Issues CSV</source>
         <translation>导出隐患 CSV</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="182"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1174"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1230"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="186"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1175"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1233"/>
         <source>Export Inspection Report</source>
         <translation>导出巡检报告</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="184"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1231"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="188"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1234"/>
         <source>Log</source>
         <translation>日志</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="187"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1232"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="191"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1235"/>
         <source>Show or hide the log panel</source>
         <translation>显示或隐藏日志面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="203"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1236"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="207"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1239"/>
         <source>No Clip</source>
         <translation>无裁切</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="206"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1237"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="210"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1240"/>
         <source>Disable clipping and show all points</source>
         <translation>禁用裁切，显示所有点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="208"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1238"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="212"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1241"/>
         <source>Box Clip</source>
         <translation>包围盒裁切</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="210"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1239"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="214"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1242"/>
         <source>Pick two point-cloud points to build a clipping box. Preview is shown before the second click.</source>
         <translation>在点云中拾取两个点来构建裁切盒。第二次点击前会显示预览。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="214"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1241"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="218"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1244"/>
         <source>Draw a screen-space polygon in the current view. The finished polygon is frozen into a 3D clip volume.</source>
         <translation>在当前视图中绘制屏幕空间多边形。完成后会冻结为一个 3D 裁切体。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="223"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1242"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="227"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1245"/>
         <source>World Aligned</source>
         <translation>世界轴对齐</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="226"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1243"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="230"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1246"/>
         <source>Build the clip box aligned to the world XYZ axes.</source>
         <translation>构建与世界 XYZ 坐标轴对齐的裁切盒。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="228"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1244"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="232"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1247"/>
         <source>View Aligned</source>
         <translation>视角对齐</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="230"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1245"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="234"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1248"/>
         <source>Build the clip box aligned to the camera axes captured at the first click.</source>
         <translation>构建与第一次点击时相机坐标轴对齐的裁切盒。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="238"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1246"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="242"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1249"/>
         <source>Active Dataset</source>
         <translation>当前数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="240"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1247"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="244"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1250"/>
         <source>Apply clipping only to the currently selected point-cloud dataset.</source>
         <translation>仅对当前选中的点云数据集应用裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="242"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1248"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="246"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1251"/>
         <source>Visible Datasets</source>
         <translation>所有可见数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="245"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1249"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="249"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1252"/>
         <source>Apply clipping to all currently visible point-cloud datasets.</source>
         <translation>对当前所有可见的点云数据集应用裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="253"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1251"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="257"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1254"/>
         <source>Switch between Keep Inside and Keep Outside for the current clip region.</source>
         <translation>在当前裁切区域的保留内部和保留外部之间切换。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="256"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1253"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="260"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1256"/>
         <source>Export the currently clipped result as a new LAS file. The exported file is added to the project tree.</source>
         <translation>将当前裁切结果导出为新的 LAS 文件，并将导出文件添加到项目树。</translation>
     </message>
@@ -1497,8 +1519,8 @@
         <translation type="vanished">选择任意平面裁切模式。平面一侧的点将被隐藏。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="212"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1240"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="216"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1243"/>
         <source>Polygon Clip</source>
         <translation>多边形裁切</translation>
     </message>
@@ -1551,9 +1573,9 @@
         <translation type="vanished">启用或禁用当前裁切区域</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="250"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1250"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3467"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="254"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1253"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3440"/>
         <source>Keep Inside</source>
         <translation>保留内部</translation>
     </message>
@@ -1562,8 +1584,8 @@
         <translation type="vanished">切换保留裁切区域内部或外部</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="255"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1252"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="259"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1255"/>
         <source>Apply &amp; Export</source>
         <translation>应用并导出</translation>
     </message>
@@ -1572,20 +1594,20 @@
         <translation type="vanished">应用裁切并导出为新数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1387"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="61"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1393"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="63"/>
         <source>Home</source>
         <translation>主页</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1408"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="62"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1399"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="64"/>
         <source>Dataset</source>
         <translation>数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1411"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="68"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1402"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="70"/>
         <source>Camera</source>
         <translation>视角</translation>
     </message>
@@ -1594,35 +1616,31 @@
         <translation type="vanished">场景辅助</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1456"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1429"/>
         <source>Workspace</source>
         <translation>工作区</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1459"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="141"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1432"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="100"/>
         <source>Tower Editing</source>
         <translation>杆塔编辑</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1402"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="145"/>
         <source>Appearance</source>
-        <translation>外观</translation>
+        <translation type="vanished">外观</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1462"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="146"/>
         <source>Point Colors</source>
-        <translation>点云颜色</translation>
+        <translation type="vanished">点云颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1465"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1435"/>
         <source>Office Theme</source>
         <translation>Office 主题</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1468"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1438"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
@@ -1635,64 +1653,64 @@
         <translation type="vanished">场景检查器</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1535"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1508"/>
         <source>Dataset Summary</source>
         <translation>数据概览</translation>
     </message>
     <message>
+        <location filename="../src/gui/MainWindow.cpp" line="1487"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1499"/>
         <location filename="../src/gui/MainWindow.cpp" line="1514"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1526"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1541"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1610"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="123"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="622"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="750"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1583"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="125"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="624"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="752"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1611"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1584"/>
         <source>Path</source>
         <translation>路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1612"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1807"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="470"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1585"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1780"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="472"/>
         <source>Points</source>
         <translation>点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1614"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4846"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4857"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4887"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4894"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1587"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4819"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4830"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4867"/>
         <source>Extent</source>
         <translation>尺寸</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1615"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1588"/>
         <source>Color Source</source>
         <translation>颜色来源</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1605"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1578"/>
         <source>Selected Tower Details</source>
         <translation>当前杆塔详情</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1616"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1589"/>
         <source>Code</source>
         <translation>编号</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1617"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1590"/>
         <source>Line</source>
         <translation>线路</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1618"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1591"/>
         <source>Voltage</source>
         <translation>电压等级</translation>
     </message>
@@ -1701,175 +1719,175 @@
         <translation type="vanished">杆塔类型</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1621"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1594"/>
         <source>Inspection Date</source>
         <translation>巡检日期</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1622"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1595"/>
         <source>Tower Status</source>
         <translation>杆塔状态</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1623"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1596"/>
         <source>Notes</source>
         <translation>备注</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1629"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1802"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="465"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1775"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="467"/>
         <source>Title</source>
         <translation>标题</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1631"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1803"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1847"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="466"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="833"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1604"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1776"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1820"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="468"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="835"/>
         <source>Severity</source>
         <translation>严重级别</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1691"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1664"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1677"/>
         <location filename="../src/gui/MainWindow.cpp" line="1704"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1731"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1745"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="354"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="379"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="449"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="558"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1718"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="356"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="381"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="451"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="560"/>
         <source>Status</source>
         <translation>状态</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1630"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1603"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
         <source>Category</source>
         <translation>类别</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1608"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1581"/>
         <source>Selected Issue Details</source>
         <translation>当前隐患详情</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="253"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1639"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="254"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1612"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
         <source>Vegetation</source>
         <translation>植被</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1640"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1613"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
         <location filename="../src/gui/MainWindow.Helpers.cpp" line="70"/>
         <source>Insulator</source>
         <translation>绝缘子</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1641"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1614"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
         <location filename="../src/gui/MainWindow.Helpers.cpp" line="72"/>
         <source>Tower Body</source>
         <translation>塔身</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1642"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1615"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
         <source>Channel Risk</source>
         <translation>通道风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2023"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1643"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1970"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="181"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2049"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1616"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1943"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
         <location filename="../src/gui/MainWindow.Helpers.cpp" line="64"/>
         <source>Other</source>
         <translation>其他</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1632"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1605"/>
         <source>Issue Status</source>
         <translation>隐患状态</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1633"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1606"/>
         <source>Related Tower</source>
         <translation>关联杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1634"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1607"/>
         <source>Image Path</source>
         <translation>图片路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1635"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1849"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="835"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1608"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1822"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="837"/>
         <source>Location</source>
         <translation>位置</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1636"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1609"/>
         <source>Created At</source>
         <translation>创建时间</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1637"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1851"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="837"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1610"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1824"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="839"/>
         <source>Description</source>
         <translation>描述</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1553"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="233"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1526"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="235"/>
         <source>Classification Mapping</source>
         <translation>按类别显示</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1556"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="244"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1529"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="246"/>
         <source>Show</source>
         <translation>显示</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1556"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="244"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1529"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="246"/>
         <source>Class ID</source>
         <translation>类ID</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1556"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="244"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1529"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="246"/>
         <source>Class Name</source>
         <translation>类名</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1683"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="315"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1656"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="317"/>
         <source>Horizontal Distance</source>
         <translation>水平距离</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1685"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="317"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1658"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="319"/>
         <source>Path Segments</source>
         <translation>路径分段</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1575"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="319"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1548"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="321"/>
         <source>Clearance Analysis</source>
         <translation>净空分析</translation>
     </message>
@@ -1878,259 +1896,259 @@
         <translation type="vanished">预览已加载，正在继续导入 %1 的全分辨率点云...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4273"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4246"/>
         <source>Point Clouds (%1)</source>
         <translation>点云（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4279"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4252"/>
         <source>Images (%1)</source>
         <translation>图像（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4285"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4258"/>
         <source>Trajectories (%1)</source>
         <translation>轨迹（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4326"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4299"/>
         <source>Image %1</source>
         <translation>图像 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4334"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4307"/>
         <source>%1
 %2</source>
         <translation>%1
 %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4349"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4879"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4909"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4322"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4852"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4882"/>
         <source>Inspection Route</source>
         <translation>巡检航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4352"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4325"/>
         <source>%1 (%2 WP)</source>
         <translation>%1（%2 个航点）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4355"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4328"/>
         <source>%1 waypoint(s)</source>
         <translation>%1 个航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4543"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4516"/>
         <source>All image attachments were removed from the project.</source>
         <translation>项目中的全部图像附件已移除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4554"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4527"/>
         <source>Select an inspection issue before attaching an image.</source>
         <translation>请先选择一个隐患记录，再关联图像。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4562"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4535"/>
         <source>Attach Image</source>
         <translation>关联图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4564"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4537"/>
         <source>Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All Files (*.*)</source>
         <translation>图像文件 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4572"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4545"/>
         <source>Unable to attach the selected image.</source>
         <translation>无法关联所选图像。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4580"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4553"/>
         <source>Image attached to the selected inspection issue.</source>
         <translation>已将图像关联到当前选中的隐患记录。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4626"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4656"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4701"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4599"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4629"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4674"/>
         <source>Focus in View</source>
         <translation>聚焦到视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4704"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4677"/>
         <source>Hide</source>
         <translation>隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4705"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4786"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4678"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4759"/>
         <source>Remove Trajectory</source>
         <translation>移除轨迹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4730"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4703"/>
         <source>Add LAS/LAZ Files</source>
         <translation>添加 LAS/LAZ 文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4732"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4756"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4781"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4705"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4729"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4754"/>
         <source>Show All</source>
         <translation>全部显示</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4733"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4757"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4782"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4706"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4730"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4755"/>
         <source>Hide All</source>
         <translation>全部隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4735"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4708"/>
         <source>Remove All Point Clouds</source>
         <translation>移除全部点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4753"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4726"/>
         <source>Attach Image To Selected Issue</source>
         <translation>为当前隐患关联图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4759"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4732"/>
         <source>Remove All Images</source>
         <translation>移除全部图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4843"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4816"/>
         <source>Review the active dataset metadata, spatial bounds, and attribute availability before further analysis.</source>
         <translation>在继续分析前，请先查看当前数据集的元数据、空间范围以及属性可用性。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4845"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4818"/>
         <source>Point Count</source>
         <translation>点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4847"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4820"/>
         <source>Projection</source>
         <translation>投影</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4848"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
         <source>Native RGB</source>
         <translation>原生 RGB</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4848"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4861"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4862"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4863"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4833"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4834"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4835"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4836"/>
         <source>Available</source>
         <translation>可用</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4848"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4861"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4862"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4863"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4833"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4834"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4835"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4836"/>
         <source>Unavailable</source>
         <translation>不可用</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4851"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4824"/>
         <source>Dataset Name</source>
         <translation>数据集名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4852"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4825"/>
         <source>Full Path</source>
         <translation>完整路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4853"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4826"/>
         <source>File Size</source>
         <translation>文件大小</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4854"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4886"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
         <source>Visibility</source>
         <translation>可见性</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4854"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4886"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
         <source>Visible</source>
         <translation>显示</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1518"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1530"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4854"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4886"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="626"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="754"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1491"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1503"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="628"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="756"/>
         <source>Hidden</source>
         <translation>隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3467"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3440"/>
         <source>Keep Outside</source>
         <translation>保留外部</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3470"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3443"/>
         <source>Keep points inside the current clip region.</source>
         <translation>保留当前裁切区域内部的点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3471"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3444"/>
         <source>Keep points outside the current clip region.</source>
         <translation>保留当前裁切区域外部的点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4855"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4892"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4828"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
         <source>Min Bounds</source>
         <translation>最小包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4856"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4893"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4829"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4866"/>
         <source>Max Bounds</source>
         <translation>最大包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4858"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4831"/>
         <source>Projection Text</source>
         <translation>投影文本</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
         <source>RGB Attribute</source>
         <translation>RGB 属性</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4833"/>
         <source>Intensity</source>
         <translation>强度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="89"/>
-        <location filename="../src/gui/MainWindow.cpp" line="218"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1162"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1423"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1668"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4861"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="213"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="89"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="88"/>
+        <location filename="../src/gui/MainWindow.cpp" line="219"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1163"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1414"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1641"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4834"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="215"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="91"/>
         <source>Classification</source>
         <translation>分类</translation>
     </message>
@@ -2167,46 +2185,46 @@
         <translation>%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4262"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4235"/>
         <source>Unsaved Project</source>
         <translation>未保存工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4269"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4242"/>
         <source>Project: %1
 Current project CRS: %2</source>
         <translation>工程：%1
 当前工程坐标系：%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4862"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4835"/>
         <source>Return Info</source>
         <translation>回波信息</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4863"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4836"/>
         <source>GPS Time</source>
         <translation>GPS 时间</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4885"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4891"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4858"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4864"/>
         <source>Waypoints</source>
         <translation>航点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4890"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4863"/>
         <source>Route Name</source>
         <translation>轨迹名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4899"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4872"/>
         <source>Inspect route bounds, waypoint count, and visibility before exporting or editing.</source>
         <translation>在导出或编辑前，请先查看轨迹范围、航点数量和可见状态。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4625"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4598"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4838"/>
         <source>Point Cloud Details</source>
         <translation>点云详细信息</translation>
     </message>
@@ -2232,33 +2250,33 @@ Current project CRS: %2</source>
         <translation type="vanished">坐标系</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4657"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4630"/>
         <source>Open Image</source>
         <translation>打开图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4658"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4631"/>
         <source>Replace Image</source>
         <translation>替换图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4662"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4635"/>
         <source>Remove Image</source>
         <translation>移除图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4671"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4644"/>
         <source>Unable to open the image file.</source>
         <translation>无法打开图像文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4694"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4667"/>
         <source>Image attachment removed.</source>
         <translation>图像关联已移除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4702"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4898"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4675"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4871"/>
         <source>Trajectory Details</source>
         <translation>轨迹详细信息</translation>
     </message>
@@ -2281,8 +2299,8 @@ Native RGB: %8</source>
 原生 RGB：%8</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4847"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4858"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4820"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4831"/>
         <source>Unknown</source>
         <translation>未知</translation>
     </message>
@@ -2303,8 +2321,8 @@ Extent: %5</source>
         <translation type="vanished">预警阈值</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1689"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="352"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1662"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="354"/>
         <source>Shortest Segment</source>
         <translation>最短分段</translation>
     </message>
@@ -2313,52 +2331,52 @@ Extent: %5</source>
         <translation type="vanished">预警分段</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1578"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="356"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1551"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="358"/>
         <source>Path Segment Details</source>
         <translation>路径分段明细</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1697"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="372"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1670"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="374"/>
         <source>Segment</source>
         <translation>分段</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1698"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="373"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1671"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="375"/>
         <source>From</source>
         <translation>起点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1699"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="374"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1672"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="376"/>
         <source>To</source>
         <translation>终点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1700"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1805"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="375"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="468"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1673"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1778"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="377"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="470"/>
         <source>Chainage</source>
         <translation>里程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1701"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="376"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1674"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="378"/>
         <source>Horizontal</source>
         <translation>水平</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1702"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="377"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1675"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="379"/>
         <source>3D</source>
         <translation>三维</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1703"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="378"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1676"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="380"/>
         <source>dZ</source>
         <translation>高差</translation>
     </message>
@@ -2375,12 +2393,12 @@ Extent: %5</source>
         <translation type="vanished">剖面会根据当前量测路径实时更新，并高亮显示低于阈值的净空分段。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1179"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1180"/>
         <source>Show or hide the span profile dock</source>
         <translation>显示或隐藏档距剖面面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1504"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1477"/>
         <source>Issues</source>
         <translation>隐患</translation>
     </message>
@@ -2389,15 +2407,15 @@ Extent: %5</source>
         <translation type="vanished">筛选数据集或文件夹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1717"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1721"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1724"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1690"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1694"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1697"/>
         <source> m</source>
         <translation> 米</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1718"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4012"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1691"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3985"/>
         <source>Disabled</source>
         <translation>禁用</translation>
     </message>
@@ -2414,18 +2432,18 @@ Extent: %5</source>
         <translation type="vanished">使用杆塔工具前请先开始编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="831"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="832"/>
         <source>Select the current tower before inserting a new one.</source>
         <translation>插入新杆塔前请先选择当前杆塔。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="838"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="839"/>
         <source>Click a point in the view to insert a tower marker before the current one.</source>
         <translation>请在视图中点击一点，在当前杆塔前插入杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="851"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="871"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="852"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="872"/>
         <source>Select the current tower before moving it.</source>
         <translation>移动前请先选择当前杆塔。</translation>
     </message>
@@ -2438,8 +2456,8 @@ Extent: %5</source>
         <translation type="vanished">已进入当前杆塔详情编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="858"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="878"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="859"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="879"/>
         <source>Click a point in the view to move the current tower marker.</source>
         <translation>请在视图中点击一点，移动当前杆塔标注。</translation>
     </message>
@@ -2452,68 +2470,68 @@ Extent: %5</source>
         <translation type="vanished">清空杆塔标注前请先开始编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="977"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="978"/>
         <source>Load a point cloud before editing tower markers.</source>
         <translation>编辑杆塔标注前请先加载点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="985"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="986"/>
         <source>Tower editing started. Use the tools in the right dock to add, insert, move, rename, or remove tower markers.</source>
         <translation>已开始杆塔编辑。请使用右侧停靠栏中的工具添加、插入、移动、重命名或删除杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="989"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="990"/>
         <source>Tower editing finished.</source>
         <translation>杆塔编辑已结束。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1095"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1096"/>
         <source>Load a point cloud before marking issues.</source>
         <translation>请先加载点云，再标记隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1104"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1105"/>
         <source>Issue marking enabled. Click a point in the view to add an issue, or right-click to cancel.</source>
         <translation>隐患标记已启用。点击视图中的点以添加隐患，右键可取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1113"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1114"/>
         <source>Issue tool cancelled.</source>
         <translation>隐患工具已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1134"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1135"/>
         <source>Inspection issue removed.</source>
         <translation>巡检隐患已删除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1144"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1145"/>
         <source>Inspection issues cleared.</source>
         <translation>巡检隐患已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="183"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1155"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="184"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1156"/>
         <source>CSV Files (*.csv)</source>
         <translation>CSV 文件 (*.csv)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1165"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1166"/>
         <source>Issue CSV exported: %1</source>
         <translation>隐患 CSV 已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1176"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1177"/>
         <source>HTML Files (*.html)</source>
         <translation>HTML 文件 (*.html)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1196"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1197"/>
         <source>Inspection report exported: %1</source>
         <translation>巡检报告已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2037"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2063"/>
         <source>Inspection issue added. Continue clicking points to add more, or right-click to cancel.</source>
         <translation>巡检隐患已添加。继续点击点位可连续添加，右键可取消。</translation>
     </message>
@@ -2523,7 +2541,7 @@ Extent: %5</source>
         <translation>工程文件中不包含任何点云路径。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3112"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3085"/>
         <source>Open LAS Point Clouds</source>
         <translation>打开 LAS 点云</translation>
     </message>
@@ -2543,7 +2561,7 @@ Extent: %5</source>
         <translation>已加载 %1 个数据集。%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4003"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3976"/>
         <source>Add at least two measured points to analyze corridor clearance.</source>
         <translation>请至少量测两个点后再分析通道净空。</translation>
     </message>
@@ -2572,8 +2590,8 @@ Extent: %5</source>
         <translation type="vanished">全部 %1 个分段均满足当前 %2 米净空阈值。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4150"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4229"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4123"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4202"/>
         <source>%1 - %2 m</source>
         <translation>%1 - %2 米</translation>
     </message>
@@ -2611,8 +2629,8 @@ Extent: %5</source>
         <translation>选择一条隐患以编辑业务信息、定位场景或导出报告。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="490"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="491"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="515"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="516"/>
         <location filename="../src/gui/MainWindow.TowerIssue.cpp" line="260"/>
         <source>None</source>
         <translation>无</translation>
@@ -2641,17 +2659,17 @@ Extent: %5</source>
         <translation>数据集已从工程中移除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3497"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3470"/>
         <source>Open, add, or drag LAS/LAZ files into the window.</source>
         <translation>可打开、添加或将 LAS/LAZ 文件拖入窗口。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3522"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3495"/>
         <source>%1 datasets</source>
         <translation>%1 个数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1183"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1184"/>
         <source>Current Project</source>
         <translation>当前工程</translation>
     </message>
@@ -2686,78 +2704,78 @@ Extent: %5</source>
         <translation>建筑物点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="611"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="612"/>
         <source>Set the project point cloud CRS before importing route KML.</source>
         <translation>当前工程坐标系：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="656"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="657"/>
         <source>Set the project point cloud CRS before exporting route KML.</source>
         <translation>导入航线 KML 前请先设置工程点云坐标系。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="717"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="718"/>
         <source>Set the project point cloud CRS before exporting DJI KMZ.</source>
         <translation>导出航线 KML 前请先设置工程点云坐标系。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="925"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="926"/>
         <source>Load a point cloud before importing tower files.</source>
         <translation>导入杆塔文件前请先加载点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="932"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="933"/>
         <source>LiTower Files (*.LiTower);;CSV Files (*.csv);;All Files (*.*)</source>
         <translation>LiTower 文件 (*.LiTower);;CSV 文件 (*.csv);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="947"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="966"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="948"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="967"/>
         <source>LiTower Files (*.LiTower);;CSV Files (*.csv)</source>
         <translation>LiTower 文件 (*.LiTower);;CSV 文件 (*.csv)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1365"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1378"/>
         <source>Log entries cleared.</source>
         <translation>日志已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2407"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2380"/>
         <source>Project coordinate systems updated.</source>
         <translation>导出 DJI KMZ 前请先设置工程点云坐标系。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3022"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2995"/>
         <source>Failed to import tower file.</source>
         <translation>导入杆塔文件失败。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3035"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3008"/>
         <source>Imported tower file: %1</source>
         <translation>已导入杆塔文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3058"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3031"/>
         <source>Failed to save tower file.</source>
         <translation>保存杆塔文件失败。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3070"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3043"/>
         <source>Tower file saved: %1</source>
         <translation>杆塔文件已保存：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3082"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3055"/>
         <source>No linked tower file to reload.</source>
         <translation>当前没有可重载的关联杆塔文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3089"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3062"/>
         <source>Linked tower file was not found.</source>
         <translation>未找到关联的杆塔文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3100"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3073"/>
         <source>Reloaded tower file: %1</source>
         <translation>已重载杆塔文件：%1</translation>
     </message>
@@ -2778,124 +2796,124 @@ Extent: %5</source>
         <translation>未知错误</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="557"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2317"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="558"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2290"/>
         <source>Load a point cloud before importing route files.</source>
         <translation>导入航线文件前请先加载点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="564"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="565"/>
         <source>Route JSON Files (*.json);;All Files (*.*)</source>
         <translation>航线 JSON 文件 (*.json);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="579"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="599"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="580"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="600"/>
         <source>Route JSON Files (*.json)</source>
         <translation>航线 JSON 文件 (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1557"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1583"/>
         <source>Focus Part Point</source>
         <translation>定位部件点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1558"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1584"/>
         <source>Delete Part Point</source>
         <translation>删除部件点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1603"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1629"/>
         <source>Edit Waypoint</source>
         <translation>编辑航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1604"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1630"/>
         <source>Focus Waypoint</source>
         <translation>定位航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1605"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1631"/>
         <source>Delete Waypoint</source>
         <translation>删除航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2489"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2462"/>
         <source>Edit Route Waypoint</source>
         <translation>编辑航线航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2576"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2549"/>
         <source>Waypoint #%1</source>
         <translation>航点 #%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2582"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2555"/>
         <source>Linked part: %1</source>
         <translation>关联部件：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2597"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2570"/>
         <source>This waypoint has no linked capture target. Camera yaw and camera pitch are read-only for this edit.</source>
         <translation>当前航点没有关联拍摄目标，本次编辑中 Camera Yaw 和 Camera Pitch 为只读。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1852"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2974"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1878"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2947"/>
         <source>Waypoint local position was updated, but geographic coordinates could not be synchronized.</source>
         <translation>航点本地坐标已更新，但地理坐标未能同步。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1871"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2997"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1897"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2970"/>
         <source>Updated route waypoint #%1.</source>
         <translation>已更新航线航点 #%1。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2589"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2562"/>
         <source>Linked targets: %1</source>
         <translation>关联目标：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2614"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2587"/>
         <source>Capture Targets</source>
         <translation>目标列表</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2626"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2599"/>
         <source>#</source>
         <translation>序号</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1827"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2628"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2732"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="703"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1800"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2601"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2705"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="705"/>
         <source>Focal Ratio</source>
         <translation>焦距倍率</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="510"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="511"/>
         <source>Load a point cloud before starting route roam.</source>
         <translation>请先加载点云，再启动航线漫游。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="514"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="515"/>
         <source>Show the inspection route before starting camera roam.</source>
         <translation>请先显示巡检航线，再启动相机漫游。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="694"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="695"/>
         <source>Route QA found %1 blocking issue(s). Fix them before exporting DJI KMZ.</source>
         <translation>航线 QA 发现 %1 个阻断问题，修复后再导出 DJI KMZ。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="705"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="706"/>
         <source>Route QA Warning</source>
         <translation>航线 QA 告警</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="706"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="707"/>
         <source>Route QA found %1 warning issue(s). Continue exporting DJI KMZ?</source>
         <translation>航线 QA 发现 %1 个告警问题，是否继续导出 DJI KMZ？</translation>
     </message>
@@ -2920,68 +2938,68 @@ Extent: %5</source>
         <translation>导入航线文件失败。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2335"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2308"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="477"/>
         <source>Imported route file: %1</source>
         <translation>已导入航线文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="18"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1109"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="17"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1110"/>
         <source>Open a point cloud, route file, or project</source>
         <translation>打开点云、航线文件或工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="51"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1133"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="50"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1134"/>
         <source>Switch to top view</source>
         <translation>切换到顶视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="53"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1135"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="52"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1136"/>
         <source>Switch to front view</source>
         <translation>切换到前视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="55"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1137"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="54"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1138"/>
         <source>Switch to right view</source>
         <translation>切换到右视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="59"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1139"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="58"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1140"/>
         <source>Show or hide XYZ axes</source>
         <translation>显示或隐藏 XYZ 坐标轴</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="63"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1141"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="62"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1142"/>
         <source>Show or hide point cloud bounds</source>
         <translation>显示或隐藏点云包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="76"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1156"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="75"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1157"/>
         <source>Switch to dark background</source>
         <translation>切换为深色背景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="78"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1158"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="77"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1159"/>
         <source>Switch to light background</source>
         <translation>切换为浅色背景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="115"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1168"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="114"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1169"/>
         <source>Enable profile classification and choose rectangle or polygon selection in the panel</source>
         <translation>启用剖面分类，并在面板中选择矩形或多边形模式</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1496"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="188"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1466"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="157"/>
         <source>View Toolbar</source>
         <translation>视图工具条</translation>
     </message>
@@ -3014,75 +3032,73 @@ Extent: %5</source>
         <translation type="vanished">矩形</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2300"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2273"/>
         <source>Supported Files (*.las *.laz *.lpproj *.json);;LAS Files (*.las *.laz);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)</source>
         <translation>支持的文件 (*.las *.laz *.lpproj *.json);;LAS 文件 (*.las *.laz);;航线 JSON 文件 (*.json);;电力巡检工程 (*.lpproj *.json);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2348"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2321"/>
         <source>Unsupported file type. Choose LAS/LAZ point cloud, route JSON, or project file.</source>
         <translation>不支持的文件类型。请选择 LAS/LAZ 点云、航线 JSON 或工程文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="139"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1316"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="141"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1319"/>
         <source>Select a recent project or browse to a project file.</source>
         <translation>请选择最近工程，或浏览选择工程文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1325"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1328"/>
         <source>Review the active project file, datasets, and coordinate system configuration.</source>
         <translation>查看当前工程文件、数据集和坐标系配置。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="318"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="336"/>
         <source>Select Capture Save Folder</source>
         <translation>选择捕获保存目录</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="421"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="439"/>
         <source>No recent projects</source>
         <translation>暂无最近工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1371"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1377"/>
         <source>Recent Projects</source>
         <translation>最近工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="192"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1233"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="196"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1236"/>
         <source>English</source>
         <translation>英语</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="194"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1234"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="198"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1237"/>
         <source>Chinese</source>
         <translation>中文</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1256"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="50"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1259"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="52"/>
         <source>File</source>
         <translation>文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1444"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="105"/>
         <source>Route Roam</source>
-        <translation>航线漫游</translation>
+        <translation type="vanished">航线漫游</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1450"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1426"/>
         <location filename="../src/gui/MainWindow.Ribbon.cpp" line="117"/>
         <source>Route Exchange</source>
         <translation>航线交换</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="104"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1310"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="106"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1313"/>
         <source>Open point clouds and projects, or continue from a recent engineering file.</source>
         <translation>打开点云和工程，或从最近的工程文件继续工作。</translation>
     </message>
@@ -3091,63 +3107,63 @@ Extent: %5</source>
         <translation type="vanished">查看当前工程文件和坐标系配置。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="201"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="209"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1269"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1295"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1331"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="203"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="211"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1272"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1298"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1334"/>
         <source>Application Settings</source>
         <translation>应用设置</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="210"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="212"/>
         <source>Adjust the office theme, interface language, and workspace panels.</source>
         <translation>调整 Office 主题、界面语言和工作区面板。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="240"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="248"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1272"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1299"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1340"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="243"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="251"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1275"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1302"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1343"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="249"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1343"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="252"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1346"/>
         <source>Build information and the key runtime components used by this application.</source>
         <translation>查看本应用的构建信息和关键运行时组件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1516"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1528"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="624"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="752"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1489"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1501"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="626"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="754"/>
         <source>Compact Name</source>
         <translation>紧凑名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1529"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="625"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="753"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1490"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1502"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="627"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="755"/>
         <source>Compact Index</source>
         <translation>紧凑序号</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1257"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1260"/>
         <source>Open the backstage view</source>
         <translation>打开后台视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1349"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1352"/>
         <source>Project file path</source>
         <translation>工程文件路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1352"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1361"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1355"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1367"/>
         <source>Browse...</source>
         <translation>浏览...</translation>
     </message>
@@ -3156,12 +3172,12 @@ Extent: %5</source>
         <translation type="vanished">编辑坐标系</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1358"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1361"/>
         <source>Show log panel</source>
         <translation>显示日志面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1374"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1380"/>
         <source>Project File</source>
         <translation>工程文件</translation>
     </message>
@@ -3170,17 +3186,17 @@ Extent: %5</source>
         <translation type="vanished">数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="452"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="470"/>
         <source>Unsaved project</source>
         <translation>未保存工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="489"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="514"/>
         <source>Screenshot: %1 | Recording: %2</source>
         <translation>截图：%1 | 录屏：%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="501"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="526"/>
         <source>Version: %1
 Frameworks: Qt %2, OpenSceneGraph, Qtitan Ribbon
 Point cloud stack: LASlib / LASzip, optional PROJ / GDAL support
@@ -3191,17 +3207,17 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
 定位：面向输电线路巡检流程的 LAS 点云查看器。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="521"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="546"/>
         <source>Select an existing project file.</source>
         <translation>请选择一个已存在的工程文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="530"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="555"/>
         <source>Project file does not exist.</source>
         <translation>工程文件不存在。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="540"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="565"/>
         <source>Choose a .json or .lpproj project file.</source>
         <translation>请选择 .json 或 .lpproj 工程文件。</translation>
     </message>
@@ -3246,7 +3262,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation>工程已保存，但航线文件同步失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3506"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3479"/>
         <source>All datasets hidden</source>
         <translation>所有数据集均已隐藏</translation>
     </message>
@@ -3268,118 +3284,118 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">显示 %1 条 / 共 %2 条</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3871"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3844"/>
         <source>Export Application Log</source>
         <translation>导出应用日志</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3873"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3846"/>
         <source>CSV Files (*.csv);;Text Files (*.txt)</source>
         <translation>CSV 文件 (*.csv);;文本文件 (*.txt)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3881"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3854"/>
         <source>Failed to export log: %1</source>
         <translation>导出日志失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3887"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3860"/>
         <source>Log exported to %1</source>
         <translation>日志已导出到 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3964"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3937"/>
         <source>Left drag orbits (%1), middle or right drag pans (%2), and the mouse wheel zooms (%3). Current zoom sensitivity is %4. Use the controls below to match your preferred interaction feel.</source>
         <translation>左键拖拽旋转（%1），中键或右键拖拽平移（%2），鼠标滚轮缩放（%3）。当前缩放灵敏度为 %4。可用下方控件调整到你习惯的交互手感。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4008"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3981"/>
         <source>Advisory %1 m | Warning %2 m | Critical %3 m</source>
         <translation>提醒 %1 米 | 预警 %2 米 | 紧急 %3 米</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4016"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3989"/>
         <source>0 / 0 / 0</source>
         <translation>0 / 0 / 0</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4020"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3993"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="771"/>
         <source>%1 / %2 / %3</source>
         <translation>%1 / %2 / %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4026"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3999"/>
         <source>Clearance threshold is disabled. Set a value above 0 m to enable risk bands.</source>
         <translation>净空阈值已禁用。将数值设为大于 0 米即可启用风险带。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4029"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4002"/>
         <source>%1 critical segment(s), %2 warning segment(s), and %3 advisory segment(s) were detected under %4.</source>
         <translation>在 %4 规则下，检测到 %1 个紧急分段、%2 个预警分段和 %3 个提醒分段。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4036"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4009"/>
         <source>%1 warning segment(s) and %2 advisory segment(s) were detected under %3.</source>
         <translation>在 %3 规则下，检测到 %1 个预警分段和 %2 个提醒分段。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4042"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4015"/>
         <source>All measured segments stay outside the active %1 risk bands.</source>
         <translation>所有量测分段都位于当前 %1 风险带之外。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4088"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4061"/>
         <source>Listed %1 path segment(s). Set a threshold above 0 m to enable electric-scene risk bands.</source>
         <translation>已列出 %1 个路径分段。将阈值设为大于 0 米即可启用电力场景风险带。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4092"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4065"/>
         <source>%1 critical, %2 warning, %3 advisory segment(s) under %4. Select a row to highlight it in the profile or export the full list.</source>
         <translation>在 %4 规则下有 %1 个紧急、%2 个预警、%3 个提醒分段。选择一行可在剖面中高亮或导出完整列表。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4099"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4072"/>
         <source>All %1 segment(s) stay outside the current %2 risk bands.</source>
         <translation>全部 %1 个分段都位于当前 %2 风险带之外。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4192"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4165"/>
         <source>No vegetation risk clusters available.</source>
         <translation>当前没有植被风险聚类结果。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4193"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4166"/>
         <source>%1 vegetation risk cluster(s)</source>
         <translation>%1 个植被风险聚类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4196"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4169"/>
         <source>Measure a corridor path first, then run the analysis.</source>
         <translation>请先量测一条通道路径，再运行分析。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4198"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4171"/>
         <source>Run analysis to scan points near the measured corridor and propose vegetation issues.</source>
         <translation>运行分析以扫描量测通道附近的点，并生成植被隐患建议。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4199"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4172"/>
         <source>Select a cluster to focus it in the scene or convert it into inspection issues.</source>
         <translation>选择一个聚类以在场景中定位，或将其转换为巡检隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4201"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4174"/>
         <source>Search radius %1 m | Cluster gap %2 m | Min cluster points %3 | Classification preference %4</source>
         <translation>搜索半径 %1 米 | 聚类间隔 %2 米 | 最小聚类点数 %3 | 分类优先 %4</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4205"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4178"/>
         <source>on</source>
         <translation>开</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4205"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4178"/>
         <source>off</source>
         <translation>关</translation>
     </message>
@@ -3443,7 +3459,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">%1 | 最小距离 %2 米</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="422"/>
+        <location filename="../src/gui/MainWindow.cpp" line="423"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="126"/>
         <source>WP %1</source>
         <translation>航点 %1</translation>
@@ -3507,14 +3523,14 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">删除所选杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="163"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1210"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="167"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1213"/>
         <source>Clear Tower Markers</source>
         <translation>清空杆塔标注</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1550"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="199"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1523"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="201"/>
         <source>Rendering Controls</source>
         <translation>渲染控制</translation>
     </message>
@@ -3527,215 +3543,215 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished"> %</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1665"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="211"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1638"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="213"/>
         <source>Elevation Ramp</source>
         <translation>高程渐变</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1662"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1666"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="212"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="227"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1635"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1639"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="214"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="229"/>
         <source>Single Color</source>
         <translation>单色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1884"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3462"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="215"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1857"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3435"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="217"/>
         <source>Pick Color</source>
         <translation>选择颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1885"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3463"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="216"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1858"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3436"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="218"/>
         <source>Pick Background</source>
         <translation>选择背景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1670"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="218"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1643"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="220"/>
         <source>Round splats (survey style)</source>
         <translation>圆形 splat（测绘风格）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1671"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="219"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1644"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="221"/>
         <source>Show XYZ axes</source>
         <translation>显示 XYZ 坐标轴</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1672"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="220"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1645"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="222"/>
         <source>Show bounding box</source>
         <translation>显示包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1657"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="222"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1630"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="224"/>
         <source>Point Size</source>
         <translation>点大小</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1658"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="223"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1631"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="225"/>
         <source>Point Opacity</source>
         <translation>点透明度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1659"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="224"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1632"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="226"/>
         <source>Depth Cue</source>
         <translation>深度雾化</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1660"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="225"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1633"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="227"/>
         <source>EDL-style Shading</source>
         <translation>EDL 风格明暗增强</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1661"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="226"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1634"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="228"/>
         <source>Color Mode</source>
         <translation>颜色模式</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1663"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="228"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1636"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="230"/>
         <source>Background</source>
         <translation>背景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1506"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1572"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="283"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1479"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1545"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="285"/>
         <source>Measurement</source>
         <translation>量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1714"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3987"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="288"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1687"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3960"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="290"/>
         <source>Start Measurement</source>
         <translation>开始量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1715"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3988"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="289"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1688"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3961"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="291"/>
         <source>Clear Measurement</source>
         <translation>清除量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1680"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="312"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1653"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="314"/>
         <source>Start Point</source>
         <translation>起点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1681"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="313"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1654"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="315"/>
         <source>End Point</source>
         <translation>终点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1682"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="314"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1655"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="316"/>
         <source>3D Distance</source>
         <translation>3D 距离</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1684"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="316"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1657"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="318"/>
         <source>Height Delta</source>
         <translation>高差</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1686"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="349"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1659"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="351"/>
         <source>Rule Preset</source>
         <translation>规则预设</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1687"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="350"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1660"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="352"/>
         <source>Critical Threshold</source>
         <translation>紧急阈值</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1688"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="351"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1661"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="353"/>
         <source>Risk Bands</source>
         <translation>风险带</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1690"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="353"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1663"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="355"/>
         <source>Risk Segments</source>
         <translation>风险分段</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1581"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="414"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1554"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="416"/>
         <source>Vegetation Risk Analysis</source>
         <translation>植被风险分析</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1797"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="434"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1770"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="436"/>
         <source>Prefer LAS vegetation classifications when available</source>
         <translation>可用时优先使用 LAS 植被分类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1727"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="444"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1700"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="446"/>
         <source>Search Radius</source>
         <translation>搜索半径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1728"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="445"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1701"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="447"/>
         <source>Cluster Gap</source>
         <translation>聚类间隔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1729"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="446"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1702"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="448"/>
         <source>Min Cluster Points</source>
         <translation>最小聚类点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1730"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="448"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1703"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="450"/>
         <source>Risk Count</source>
         <translation>风险数量</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1732"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1746"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="450"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="559"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1705"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1719"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="452"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="561"/>
         <source>Summary</source>
         <translation>摘要</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1584"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="452"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1557"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="454"/>
         <source>Detected Risk Clusters</source>
         <translation>已识别风险聚类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1804"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="467"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1777"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="469"/>
         <source>Min Distance</source>
         <translation>最小距离</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1587"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="484"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1560"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="486"/>
         <source>Inspection Route Planning</source>
         <translation>巡检航线规划</translation>
     </message>
@@ -3750,71 +3766,71 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">源EPSG</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1736"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="549"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1709"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="551"/>
         <source>DJI Profile</source>
         <translation>DJI机型模板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1737"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="550"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1710"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="552"/>
         <source>Safety Height</source>
         <translation>安全高度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1738"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="551"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1711"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="553"/>
         <source>Waypoint Speed</source>
         <translation>航点速度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1739"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="552"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1712"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="554"/>
         <source>Waypoint Spacing</source>
         <translation>航点间距</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1740"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="553"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1713"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="555"/>
         <source>Smoothing</source>
         <translation>平滑强度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1741"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="554"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1714"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="556"/>
         <source>Height Offset</source>
         <translation>高度偏移</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1593"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1566"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="604"/>
         <source>Route Waypoints</source>
         <translation>航线航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1814"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1840"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2727"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="660"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="787"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1787"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1813"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2700"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="662"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="789"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1815"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1841"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2728"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="661"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="788"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1788"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1814"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2701"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="663"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="790"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1816"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1842"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2729"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="662"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="789"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1789"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1815"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2702"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="664"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="791"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
@@ -3823,23 +3839,23 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">速度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1508"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1481"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1575"/>
         <source>Navigation</source>
         <translation>导航</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1868"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1841"/>
         <source>Invert orbit drag</source>
         <translation>反转旋转拖拽</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1869"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1842"/>
         <source>Invert pan drag</source>
         <translation>反转平移拖拽</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1870"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1843"/>
         <source>Invert wheel zoom</source>
         <translation>反转滚轮缩放</translation>
     </message>
@@ -3852,71 +3868,69 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">应用日志</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1065"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1066"/>
         <source>&lt;b&gt;Point Size&lt;/b&gt;&lt;br/&gt;Controls the screen size of each rendered point.</source>
         <translation>&lt;b&gt;点大小&lt;/b&gt;&lt;br/&gt;控制每个点在屏幕上的显示尺寸。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1071"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1072"/>
         <source>&lt;b&gt;Point Opacity&lt;/b&gt;&lt;br/&gt;Controls how solid each point appears.&lt;br/&gt;Lower values reveal deeper layers; higher values make the cloud denser and stronger.</source>
         <translation>&lt;b&gt;点透明度&lt;/b&gt;&lt;br/&gt;控制每个点看起来有多实。&lt;br/&gt;数值越低，越容易看到更深层的点；数值越高，点云会显得更致密、更厚重。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1078"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1079"/>
         <source>&lt;b&gt;Depth Cue&lt;/b&gt;&lt;br/&gt;Adds distance-based fading for better front/back separation.&lt;br/&gt;Higher values make distant points fade more strongly.</source>
         <translation>&lt;b&gt;深度雾化&lt;/b&gt;&lt;br/&gt;增加基于距离的渐隐效果，增强前后层次分离。&lt;br/&gt;数值越高，远处的点衰减越明显。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1085"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1086"/>
         <source>&lt;b&gt;EDL-style Shading&lt;/b&gt;&lt;br/&gt;Enhances point edges and local depth contrast, similar to survey software display enhancement.&lt;br/&gt;Higher values produce stronger contour darkening and a more layered look.</source>
         <translation>&lt;b&gt;EDL 风格明暗增强&lt;/b&gt;&lt;br/&gt;增强点边缘和局部深度对比，效果类似常见测绘软件里的显示增强。&lt;br/&gt;数值越高，轮廓压暗越明显，层次感越强。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1092"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1093"/>
         <source>&lt;b&gt;Round splats&lt;/b&gt;&lt;br/&gt;Draw points as circular splats instead of square pixels for a more natural survey-style point cloud look.</source>
         <translation>&lt;b&gt;圆形 splat&lt;/b&gt;&lt;br/&gt;将点绘制为圆形 splat，而不是方形像素块，让点云外观更接近测绘软件的显示风格。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1106"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1107"/>
         <source>LAS Point Cloud Viewer</source>
         <translation>LAS 点云查看器</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1399"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1503"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1806"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="469"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1476"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1779"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="471"/>
         <location filename="../src/gui/MainWindow.Helpers.cpp" line="60"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="140"/>
         <source>Tower</source>
         <translation>杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1673"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3456"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1646"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3429"/>
         <source>%1 px</source>
         <translation>%1 px</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1800"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1805"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1674"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1675"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1676"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1677"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1872"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3457"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3458"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3459"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3460"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3970"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1826"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1831"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1647"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1648"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1649"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1650"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1845"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3430"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3431"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3432"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3433"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3943"/>
         <source>%1%</source>
         <translation>%1%</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="810"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="811"/>
         <source>Load a point cloud before adding tower markers.</source>
         <translation>请先加载点云再添加杆塔标注。</translation>
     </message>
@@ -3938,18 +3952,18 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">杆塔名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1987"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2013"/>
         <source>Tower marker added.</source>
         <translation>已添加杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="903"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="904"/>
         <source>Tower marker removed.</source>
         <translation>已删除杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="157"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1204"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="161"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1207"/>
         <source>Click To Add Tower</source>
         <translation>点击添加杆塔</translation>
     </message>
@@ -3962,8 +3976,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">移动所选杆塔</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="164"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1211"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="168"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1214"/>
         <source>Cancel Tower Tool</source>
         <translation>取消杆塔工具</translation>
     </message>
@@ -3972,7 +3986,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">请在视图中点击一个点以添加杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="822"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="823"/>
         <source>Load a point cloud before inserting tower markers.</source>
         <translation>请先加载点云再插入杆塔标注。</translation>
     </message>
@@ -3985,8 +3999,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">请在视图中点击一个点，在所选杆塔前插入标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="842"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="862"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="843"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="863"/>
         <source>Load a point cloud before moving tower markers.</source>
         <translation>请先加载点云再移动杆塔标注。</translation>
     </message>
@@ -3999,33 +4013,33 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">请在视图中点击一个点以移动所选杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="912"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="913"/>
         <source>Tower markers cleared.</source>
         <translation>已清空杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="921"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="922"/>
         <source>Tower tool cancelled.</source>
         <translation>杆塔工具已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1902"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1928"/>
         <source>Scene cleared.</source>
         <translation>场景已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1910"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1936"/>
         <source>Navigation preferences updated.</source>
         <translation>导航偏好已更新。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1967"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1993"/>
         <source>Tower marker moved.</source>
         <translation>已移动杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1083"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1978"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1084"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2004"/>
         <source>Tower marker name cannot be empty.</source>
         <translation>杆塔名称不能为空。</translation>
     </message>
@@ -4149,13 +4163,13 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation>%1 -&gt; %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="300"/>
+        <location filename="../src/gui/MainWindow.cpp" line="301"/>
         <source>... and %1 more</source>
         <translation>以及另外 %1 个</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="309"/>
-        <location filename="../src/gui/MainWindow.cpp" line="426"/>
+        <location filename="../src/gui/MainWindow.cpp" line="310"/>
+        <location filename="../src/gui/MainWindow.cpp" line="427"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="39"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="129"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="795"/>
@@ -4163,55 +4177,55 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation>部件 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="335"/>
+        <location filename="../src/gui/MainWindow.cpp" line="336"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="63"/>
         <source>Helper Waypoint</source>
         <translation>辅助航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="336"/>
+        <location filename="../src/gui/MainWindow.cpp" line="337"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="64"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="423"/>
         <source>Unlinked</source>
         <translation>未关联</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="398"/>
+        <location filename="../src/gui/MainWindow.cpp" line="399"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="103"/>
         <source>Target %1</source>
         <translation>目标 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="418"/>
+        <location filename="../src/gui/MainWindow.cpp" line="419"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="122"/>
         <source>WP %1 -&gt; WP %2</source>
         <translation>航点 %1 -&gt; 航点 %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="429"/>
+        <location filename="../src/gui/MainWindow.cpp" line="430"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="131"/>
         <source>Global</source>
         <translation>全局</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="435"/>
+        <location filename="../src/gui/MainWindow.cpp" line="436"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="137"/>
         <source>Route QA passed with no issues.</source>
         <translation>航线 QA 通过，无问题。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="438"/>
+        <location filename="../src/gui/MainWindow.cpp" line="439"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="139"/>
         <source>Blocking: %1 | Warning: %2 | Info: %3</source>
         <translation>阻断：%1 | 告警：%2 | 提示：%3</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="756"/>
+        <location filename="../src/gui/MainWindow.cpp" line="757"/>
         <source>Detailed Information</source>
         <translation>详细信息</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="268"/>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="273"/>
         <source>Ready. Open, add, or drag LAS/LAZ files to begin.</source>
         <translation>准备就绪。请打开、添加或拖入 LAS/LAZ 文件开始。</translation>
     </message>
@@ -4220,243 +4234,239 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">打开一个或多个 LAS 或 LAZ 数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="19"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1110"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="18"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1111"/>
         <source>Add LAS Files</source>
         <translation>添加 LAS 文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="20"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1111"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="19"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1112"/>
         <source>Add one or more LAS or LAZ datasets to the current project</source>
         <translation>将一个或多个 LAS 或 LAZ 数据集添加到当前工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="21"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1112"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4631"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="20"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1113"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4604"/>
         <source>Remove Selected Dataset</source>
         <translation>移除选中数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="22"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1113"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="21"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1114"/>
         <source>Remove the selected LAS or LAZ dataset from the project</source>
         <translation>从工程中移除选中的 LAS 或 LAZ 数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="23"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1114"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4628"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4660"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="22"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1115"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4601"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4633"/>
         <source>Open Folder</source>
         <translation>打开文件夹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="24"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1115"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="23"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1116"/>
         <source>Open the folder that contains the selected dataset</source>
         <translation>打开所选数据集所在的文件夹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="25"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1116"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4629"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4661"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="24"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1117"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4634"/>
         <source>Copy Path</source>
         <translation>复制路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="26"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1117"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="25"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1118"/>
         <source>Copy the full path of the selected dataset</source>
         <translation>复制所选数据集的完整路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="27"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1118"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="26"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1119"/>
         <source>Expand All</source>
         <translation>全部展开</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="28"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1119"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="27"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1120"/>
         <source>Expand the project explorer tree</source>
         <translation>展开项目浏览器树</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="29"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1120"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="28"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1121"/>
         <source>Collapse All</source>
         <translation>全部折叠</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="30"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1121"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="29"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1122"/>
         <source>Collapse the project explorer tree</source>
         <translation>折叠项目浏览器树</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="37"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="168"/>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="176"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1125"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1266"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1291"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1322"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4264"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4811"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="36"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="170"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="178"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1126"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1269"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1294"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1325"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4237"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4784"/>
         <source>Project Management</source>
         <translation>工程管理</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="39"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1126"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="38"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1127"/>
         <source>Open project management in the backstage view</source>
         <translation>在后台视图中打开工程管理</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="65"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1142"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="64"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1143"/>
         <source>Screenshot</source>
         <translation>截图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="68"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1143"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="67"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1144"/>
         <source>Capture the current application window as a PNG image</source>
         <translation>将当前应用窗口截图保存为 PNG 图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="70"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1150"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3709"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="69"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1151"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3682"/>
         <source>Start Recording</source>
         <translation>开始录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="73"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="72"/>
         <source>Start or stop MP4 screen recording for the current application window</source>
         <translation>开始或停止当前应用窗口的 MP4 录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="147"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="562"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1195"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4778"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="151"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="563"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1198"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4751"/>
         <source>Import Route File</source>
         <translation>导入航线文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="148"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="577"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1196"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="152"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="578"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1199"/>
         <source>Save Route File</source>
         <translation>保存航线文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="149"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="597"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1197"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="153"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="598"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1200"/>
         <source>Save Route File As</source>
         <translation>航线文件另存为</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="150"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1198"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="154"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1201"/>
         <source>Reload Route File</source>
         <translation>重新加载航线文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="165"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="930"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1212"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="169"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="931"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1215"/>
         <source>Import Tower File</source>
         <translation>导入杆塔文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="166"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="945"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1213"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="170"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="946"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1216"/>
         <source>Save Tower File</source>
         <translation>保存杆塔文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="167"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="964"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1214"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="171"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="965"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1217"/>
         <source>Save Tower File As</source>
         <translation>杆塔文件另存为</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="168"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1215"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="172"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1218"/>
         <source>Reload Tower File</source>
         <translation>重载杆塔文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1414"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="74"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1405"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="76"/>
         <source>Scene</source>
         <translation>场景</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1390"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="98"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1396"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="104"/>
         <source>Route</source>
         <translation>航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1447"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1423"/>
         <location filename="../src/gui/MainWindow.Ribbon.cpp" line="111"/>
         <source>Route Files</source>
         <translation>航线文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1438"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="123"/>
         <source>Vegetation Risks</source>
-        <translation>植被风险</translation>
+        <translation type="vanished">植被风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1441"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="99"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1420"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="105"/>
         <source>Route Planning</source>
         <translation>航线规划</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1453"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="131"/>
         <source>Inspection Issues</source>
-        <translation>巡检隐患</translation>
+        <translation type="vanished">巡检隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1515"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1527"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1541"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1544"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1801"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1812"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1825"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1835"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="123"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="177"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="464"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="623"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="658"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="701"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="751"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="782"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1488"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1500"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1514"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1517"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1774"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1785"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1798"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1808"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="125"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="179"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="466"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="625"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="660"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="703"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="753"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="784"/>
         <source>Index</source>
         <translation>序号</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1619"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1592"/>
         <source>Tower Category</source>
         <translation>塔类型</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1620"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1593"/>
         <source>Structure Type</source>
         <translation>结构类型</translation>
     </message>
@@ -4501,158 +4511,154 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">目标类别</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1590"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="730"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1563"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="732"/>
         <source>Route Part Points</source>
         <translation>航线部件点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1836"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="783"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1809"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="785"/>
         <source>Part Name</source>
         <translation>部件名</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1837"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="784"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1810"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="786"/>
         <source>Hardware</source>
         <translation>硬件类型</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1838"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="785"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1811"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="787"/>
         <source>Phase</source>
         <translation>相序</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1839"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="786"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1812"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="788"/>
         <source>Camera Angle</source>
         <translation>拍摄角度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1813"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1826"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1850"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2627"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="659"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="702"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="836"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1786"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1799"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1823"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2600"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="661"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="704"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="838"/>
         <source>Part</source>
         <translation>关联部件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1154"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3713"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1155"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3686"/>
         <source>Start MP4 screen recording for the current application window</source>
         <translation>开始对当前应用窗口进行 MP4 录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1153"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3712"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1154"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3685"/>
         <source>Stop the active MP4 screen recording</source>
         <translation>停止当前 MP4 录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1334"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1337"/>
         <source>Adjust the office theme, interface language, workspace panels, and capture behavior.</source>
         <translation>调整 Office 主题、界面语言、工作区面板和截图录屏行为。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1364"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1370"/>
         <source>Choose a folder for screenshots and recordings</source>
         <translation>选择截图和录屏的保存目录</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1367"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1373"/>
         <source>Use default path and save automatically (no save dialog)</source>
         <translation>使用默认路径并自动保存（不弹出保存对话框）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1429"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="157"/>
         <source>Box Alignment</source>
-        <translation>包围盒对齐</translation>
+        <translation type="vanished">包围盒对齐</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1432"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="160"/>
         <source>Clip Scope</source>
-        <translation>裁切范围</translation>
+        <translation type="vanished">裁切范围</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1817"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2730"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="663"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1790"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2703"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="665"/>
         <source>Aircraft Yaw</source>
         <translation>机头偏航</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1818"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2731"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="664"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1791"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2704"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="666"/>
         <source>Gimbal Pitch</source>
         <translation>云台俯仰</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1819"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1828"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2629"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2733"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="665"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="704"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1792"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1801"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2706"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="667"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="706"/>
         <source>Camera Yaw</source>
         <translation>相机偏航</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1820"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1829"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2630"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2734"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="666"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="705"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1793"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1802"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2603"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2707"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="668"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="707"/>
         <source>Camera Pitch</source>
         <translation>相机俯仰</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1856"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1862"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="628"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="756"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1829"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1835"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="630"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="758"/>
         <source>Show Coordinates</source>
         <translation>显示坐标</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1859"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1865"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="629"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="757"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1838"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="631"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="759"/>
         <source>Show Capture Angles</source>
         <translation>显示拍摄角度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1886"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3464"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="633"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="856"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3437"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="635"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="858"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="284"/>
         <source>Waypoint Color</source>
         <translation>航点颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1887"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3465"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="760"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="857"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1860"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3438"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="762"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="859"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="301"/>
         <source>Part Point Color</source>
         <translation>部件点颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1888"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3466"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="632"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="858"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1861"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3439"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="634"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="860"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="318"/>
         <source>Trajectory Color</source>
         <translation>轨迹颜色</translation>
@@ -4686,115 +4692,111 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">导出</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1170"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1171"/>
         <source>Show or hide the profile classification dock</source>
         <translation>显示或隐藏剖面分类面板</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1172"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1173"/>
         <source>Write current profile classification edits back to LAS files</source>
         <translation>将当前剖面分类编辑写回 LAS 文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1216"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1219"/>
         <source>Import towers from a LiTower file</source>
         <translation>从 LiTower 文件导入杆塔。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1217"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1220"/>
         <source>Save towers to the linked LiTower file</source>
         <translation>将杆塔保存到当前关联的 LiTower 文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1218"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1221"/>
         <source>Save towers to a new LiTower file</source>
         <translation>将杆塔保存到新的 LiTower 文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1219"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1222"/>
         <source>Reload towers from the linked LiTower file</source>
         <translation>从当前关联的 LiTower 文件重新加载杆塔。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1393"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1507"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="122"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1480"/>
         <source>Analysis</source>
         <translation>分析</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1396"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1848"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="834"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="130"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1821"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="836"/>
         <source>Issue</source>
         <translation>隐患</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1753"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1775"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3579"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="529"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1726"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1748"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3552"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="531"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="665"/>
         <source>Third Person</source>
         <translation>第三人称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1754"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1776"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3580"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="530"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1727"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1749"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3553"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="532"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="665"/>
         <source>First Person</source>
         <translation>第一人称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1742"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1785"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3587"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="555"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1715"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1758"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3560"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="557"/>
         <source>Roam Speed</source>
         <translation>漫游速度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1743"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1786"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3588"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="556"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1716"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1759"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3561"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="558"/>
         <source>Roam View Mode</source>
         <translation>漫游视角模式</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1744"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="557"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1717"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="559"/>
         <source>Roam Controls</source>
         <translation>漫游控制</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1871"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1844"/>
         <source>Zoom Sensitivity</source>
         <translation>缩放灵敏度</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1596"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="684"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1569"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="686"/>
         <source>Waypoint Targets</source>
         <translation>航点目标</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1830"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="706"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1803"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="708"/>
         <source>Target Point</source>
         <translation>目标点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1599"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="812"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1572"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="814"/>
         <source>Route QA</source>
         <translation>航线 QA</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="818"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="820"/>
         <source>Route QA will run automatically after route updates.</source>
         <translation>航线更新后将自动执行 QA。</translation>
     </message>
@@ -4803,51 +4805,51 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">筛选点云、图像或轨迹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1547"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1520"/>
         <source>Menu</source>
         <translation>菜单</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1693"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4081"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1666"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4054"/>
         <source>Add at least two measured points to list corridor segments and export clearance details.</source>
         <translation>至少添加两个量测点后，才能列出通道分段并导出净空明细。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="487"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="498"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1763"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3783"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3799"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="488"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="499"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1736"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3756"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3772"/>
         <source>Resume Roam</source>
         <translation>继续漫游</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1769"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3548"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1742"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3521"/>
         <source>Route Roam Controls</source>
         <translation>航线漫游控制</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1781"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3585"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3640"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1754"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3558"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3613"/>
         <source>Awaiting photo capture.</source>
         <translation>等待拍照触发。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1379"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1417"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1787"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3589"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="80"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1385"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1408"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1760"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3562"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="82"/>
         <source>Capture</source>
         <translation>截图录屏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1874"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1877"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1880"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1847"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1850"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1853"/>
         <source>Lower values zoom more gently. Higher values zoom faster.</source>
         <translation>数值越低，缩放越柔和；数值越高，缩放越快速。</translation>
     </message>
@@ -4876,75 +4878,75 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">已保存</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2064"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2037"/>
         <source>This build does not support writing LAS/LAZ files.</source>
         <translation>当前构建不支持写入 LAS/LAZ 文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2069"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2123"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2256"/>
-        <location filename="../src/gui/MainWindow.cpp" line="2281"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2042"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2096"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2229"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2254"/>
         <source>Save Classification Results</source>
         <translation>保存分类结果</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2114"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2087"/>
         <source>Saving classification results to LAS files...</source>
         <translation>正在将分类结果保存到 LAS 文件...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2115"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2088"/>
         <source>Preparing LAS write tasks...</source>
         <translation>正在准备 LAS 写入任务...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2138"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2111"/>
         <source>Failed to save classification result: dataset file not found (%1).</source>
         <translation>保存分类结果失败：未找到数据集文件（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2159"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2132"/>
         <source>Failed to open dataset for write-back (%1).</source>
         <translation>打开数据集进行回写失败（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2180"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2153"/>
         <source>Failed to create output LAS file (%1).</source>
         <translation>创建输出 LAS 文件失败（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2197"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2170"/>
         <source>Failed while writing classification result (%1).</source>
         <translation>写入分类结果时失败（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2206"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2179"/>
         <source>Writing %1 (%2/%3 points)</source>
         <translation>正在写入 %1（%2/%3 点）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2220"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2193"/>
         <source>Failed to replace dataset while saving (%1).</source>
         <translation>保存时替换数据集失败（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2227"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2200"/>
         <source>Failed to finalize LAS save (%1).</source>
         <translation>完成 LAS 保存失败（%1）。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2235"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2208"/>
         <source>Saved %1 (%2/%3 files)</source>
         <translation>已保存 %1（%2/%3 个文件）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2250"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2223"/>
         <source>Classification results were written to %1 LAS file(s).</source>
         <translation>分类结果已写入 %1 个 LAS 文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2259"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2232"/>
         <source>%1
 
 Saved files: %2</source>
@@ -4953,56 +4955,56 @@ Saved files: %2</source>
 已保存文件：%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2282"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2255"/>
         <source>Profile classification results are not saved. Write them to LAS files now?</source>
         <translation>剖面分类结果尚未保存。是否现在写入 LAS 文件？</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="136"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4642"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4678"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="137"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4615"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4651"/>
         <source>Unable to open the selected file folder.</source>
         <translation>无法打开所选文件所在文件夹。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="148"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4647"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4683"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="149"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4620"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4656"/>
         <source>Selected path copied.</source>
         <translation>已复制所选路径。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="175"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="176"/>
         <source>Add at least two measured points before exporting clearance details.</source>
         <translation>导出净空明细前，至少需要添加两个量测点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="197"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="198"/>
         <source>Clearance CSV exported: %1</source>
         <translation>净空 CSV 已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="201"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="202"/>
         <source>Load a point cloud before running vegetation risk analysis.</source>
         <translation>请先加载点云，再运行植被风险分析。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="212"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="213"/>
         <source>Add at least two measured points before analyzing corridor risks.</source>
         <translation>分析通道风险前，至少需要添加两个量测点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="239"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="240"/>
         <source>Vegetation risk analysis completed. No clusters were found near the current corridor.</source>
         <translation>植被风险分析完成。当前通道附近未发现风险聚类。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="240"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="241"/>
         <source>Vegetation risk analysis completed. %1 cluster(s) detected.</source>
         <translation>植被风险分析完成。检测到 %1 个聚类。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="273"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="274"/>
         <source>%1
 Rule: %2
 Min distance: %3 m
@@ -5013,62 +5015,62 @@ Chainage: %4 - %5 m</source>
 里程：%4 - %5 米</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="320"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="321"/>
         <source>Created an inspection issue from the selected vegetation risk.</source>
         <translation>已根据所选植被风险创建巡检隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="334"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="335"/>
         <source>No vegetation risks were converted into issues.</source>
         <translation>没有植被风险被转换为隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="335"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="336"/>
         <source>Created %1 inspection issue(s) from vegetation risks.</source>
         <translation>已根据植被风险创建 %1 条巡检隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="344"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="345"/>
         <source>Vegetation risk results cleared.</source>
         <translation>植被风险结果已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="417"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="418"/>
         <source>Load a point cloud before generating an inspection route.</source>
         <translation>生成巡检航线前请先加载点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="421"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="422"/>
         <source>Run vegetation risk analysis before generating an inspection route.</source>
         <translation>生成巡检航线前请先执行树障风险分析。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="433"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="434"/>
         <source>Generated Inspection Route</source>
         <translation>自动生成巡检航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="443"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="444"/>
         <source>No route waypoints were generated.</source>
         <translation>未生成任何航线航点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="444"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="445"/>
         <source>Generated inspection route with %1 waypoint(s).</source>
         <translation>已生成巡检航线，共 %1 个航点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="458"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="459"/>
         <source>Inspection route cleared.</source>
         <translation>已清空巡检航线。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2103"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2129"/>
         <source>Preparing clipped export...</source>
         <translation>正在准备裁切导出...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2108"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2134"/>
         <source>No active clip region to apply.</source>
         <translation>没有可应用的裁切区域。</translation>
     </message>
@@ -5081,27 +5083,27 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">正在应用裁切过滤...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2112"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2138"/>
         <source>Clip produced an empty result.</source>
         <translation>裁切结果为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2116"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2142"/>
         <source>Save Clipped Point Cloud</source>
         <translation>保存裁切后的点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2118"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2144"/>
         <source>LAS Point Cloud (*.las)</source>
         <translation>LAS 点云文件 (*.las)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2126"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2152"/>
         <source>Export failed: %1</source>
         <translation>导出失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2131"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2157"/>
         <source>Clip export complete. %1 points written to %2</source>
         <translation>裁切导出完成。已将 %1 个点写入 %2</translation>
     </message>
@@ -5110,18 +5112,18 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">导入航线KML前请先设置源EPSG。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="619"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="672"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="620"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="673"/>
         <source>KML Files (*.kml)</source>
         <translation>KML 文件 (*.kml)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="646"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="647"/>
         <source>Imported route KML: %1</source>
         <translation>已导入航线KML：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="650"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="651"/>
         <source>Generate a route before exporting KML.</source>
         <translation>导出KML前请先生成航线。</translation>
     </message>
@@ -5130,12 +5132,12 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">导出航线KML前请先设置源EPSG。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="681"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="682"/>
         <source>Route KML exported: %1</source>
         <translation>航线KML已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="685"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="686"/>
         <source>Route needs at least 2 waypoints for DJI KMZ export.</source>
         <translation>导出DJI KMZ至少需要2个航点。</translation>
     </message>
@@ -5144,27 +5146,27 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">导出DJI KMZ前请先设置源EPSG。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="733"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="734"/>
         <source>DJI Wayline KMZ (*.kmz)</source>
         <translation>DJI 航线KMZ (*.kmz)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="742"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="743"/>
         <source>DJI KMZ exported: %1</source>
         <translation>DJI KMZ已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="818"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="819"/>
         <source>Tower add mode enabled. Click points continuously to add tower markers, or cancel the tool when finished.</source>
         <translation>杆塔添加模式已开启。请持续点击点位以添加杆塔标注，完成后请取消工具。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1986"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2012"/>
         <source>Tower marker added. Continue clicking points to add more, or cancel the tool when finished.</source>
         <translation>已添加杆塔标注。可继续点击点位添加更多，或在完成后取消工具。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Backstage.cpp" line="283"/>
+        <location filename="../src/gui/MainWindow.Backstage.cpp" line="286"/>
         <source>LiDAR Power Projects (*.json *.lpproj);;JSON Files (*.json);;All Files (*.*)</source>
         <translation>LiDAR 电力工程 (*.json *.lpproj);;JSON 文件 (*.json);;所有文件 (*.*)</translation>
     </message>
@@ -5173,12 +5175,12 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">已取消打开工程。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2378"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2351"/>
         <source>LiDAR Power Projects (*.lpproj);;JSON Files (*.json)</source>
         <translation>LiDAR 电力工程 (*.lpproj);;JSON 文件 (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2381"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2354"/>
         <source>Save project cancelled.</source>
         <translation>已取消保存工程。</translation>
     </message>
@@ -5221,14 +5223,14 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">打开 LAS 点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3114"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3087"/>
         <location filename="../src/gui/MainWindow.PointCloud.cpp" line="20"/>
         <source>LAS Files (*.las *.laz);;All Files (*.*)</source>
         <translation>LAS 文件 (*.las *.laz);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2303"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3117"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2276"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3090"/>
         <source>Open cancelled.</source>
         <translation>已取消打开。</translation>
     </message>
@@ -5305,50 +5307,51 @@ Chainage: %4 - %5 m</source>
         <translation>选择轨迹颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3133"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3106"/>
         <source>Theme updated.</source>
         <translation>主题已更新。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1405"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="152"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1417"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="125"/>
         <source>Clip</source>
         <translation>裁切</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1426"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="153"/>
         <source>Clip Mode</source>
-        <translation>裁切模式</translation>
+        <translation type="vanished">裁切模式</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1435"/>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="163"/>
         <source>Clip Control</source>
-        <translation>裁切控制</translation>
+        <translation type="vanished">裁切控制</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="321"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="122"/>
+        <source>Web</source>
+        <translation>Web</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="290"/>
         <source>Restore Down</source>
         <translation>向下还原</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="324"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="293"/>
         <source>Maximize</source>
         <translation>最大化</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="327"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="296"/>
         <source>Minimize</source>
         <translation>最小化</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="328"/>
+        <location filename="../src/gui/MainWindow.Ribbon.cpp" line="297"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3496"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3469"/>
         <source>No dataset loaded</source>
         <translation>未加载数据集</translation>
     </message>
@@ -5357,43 +5360,43 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">打开或拖入 LAS/LAZ 文件到此窗口。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3499"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3500"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3509"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3510"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3993"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3995"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3997"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4015"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4232"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4853"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4883"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4892"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4893"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3472"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3473"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3482"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3483"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3966"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3968"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3970"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3988"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4205"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4826"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4856"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4866"/>
         <location filename="../src/gui/MainWindow.TowerIssue.cpp" line="256"/>
         <location filename="../src/gui/MainWindow.TowerIssue.cpp" line="257"/>
         <source>N/A</source>
         <translation>不适用</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3526"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3499"/>
         <source>Min (%1)
 Max (%2)</source>
         <translation>最小值 (%1)
 最大值 (%2)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3534"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3507"/>
         <source>%1 | Native RGB: %2</source>
         <translation>%1 | 原生 RGB：%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3536"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3509"/>
         <source>yes</source>
         <translation>是</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3536"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3509"/>
         <source>no</source>
         <translation>否</translation>
     </message>
@@ -5402,32 +5405,32 @@ Max (%2)</source>
         <translation type="vanished">左键拖拽旋转（%1），中键或右键拖拽平移（%2），鼠标滚轮缩放（%3）。使用下方开关调整为你习惯的交互方向。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3967"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3968"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3969"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3940"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3941"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3942"/>
         <source>inverted</source>
         <translation>反向</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3967"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3968"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3969"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3940"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3941"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3942"/>
         <source>normal</source>
         <translation>正常</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1714"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3987"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1687"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3960"/>
         <source>Stop Measurement</source>
         <translation>停止量测</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1502"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1475"/>
         <source>Overview</source>
         <translation>概览</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1505"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1478"/>
         <source>Rendering</source>
         <translation>渲染</translation>
     </message>
@@ -5444,14 +5447,14 @@ Max (%2)</source>
         <translation type="vanished">类型</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1556"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="244"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1529"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="246"/>
         <source>Color</source>
         <translation>颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1559"/>
-        <location filename="../src/gui/MainWindow.Docks.cpp" line="254"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1532"/>
+        <location filename="../src/gui/MainWindow.Docks.cpp" line="256"/>
         <source>Reset Defaults</source>
         <translation>恢复默认</translation>
     </message>
@@ -5506,24 +5509,24 @@ Max (%2)</source>
         <translation>自定义类别 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="1995"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1968"/>
         <source>Double-click to change this class color.</source>
         <translation>双击可修改该类别颜色。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1761"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1787"/>
         <source>Choose Classification Color</source>
         <translation>选择分类颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="139"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1189"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="143"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1192"/>
         <source>Edit Route</source>
         <translation>编辑航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="142"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1190"/>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="146"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1193"/>
         <source>Enable waypoint edit, delete, and drag operations for the current route</source>
         <translation>启用后可编辑、删除并拖拽当前航线航点</translation>
     </message>
@@ -5543,7 +5546,7 @@ Max (%2)</source>
         <translation>航线编辑已锁定。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2872"/>
+        <location filename="../src/gui/MainWindow.cpp" line="2845"/>
         <source>Reset</source>
         <translation>复位</translation>
     </message>
@@ -7076,6 +7079,62 @@ Max (%2)</source>
         <location filename="../src/gui/TowerEditorWidget.ui" line="146"/>
         <source>Notes</source>
         <translation>备注</translation>
+    </message>
+</context>
+<context>
+    <name>WebPageDock</name>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="57"/>
+        <location filename="../src/gui/WebPageDock.cpp" line="146"/>
+        <source>Loading %1</source>
+        <translation>正在加载 %1</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="61"/>
+        <location filename="../src/gui/WebPageDock.cpp" line="85"/>
+        <source>Qt WebEngineWidgets is not available in this Qt build.</source>
+        <translation>当前 Qt 构建中没有可用的 Qt WebEngineWidgets 模块。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="75"/>
+        <source>Web Panel</source>
+        <translation>Web 面板</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="77"/>
+        <source>Reload</source>
+        <translation>刷新</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="78"/>
+        <source>Reload the embedded web page</source>
+        <translation>重新加载嵌入式 Web 页面</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="81"/>
+        <source>Open</source>
+        <translation>打开</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="82"/>
+        <source>Open the web page in the system browser</source>
+        <translation>在系统浏览器中打开该 Web 页面</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="152"/>
+        <source>Loaded %1</source>
+        <translation>已加载 %1</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="152"/>
+        <source>Failed to load %1</source>
+        <translation>加载 %1 失败</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/WebPageDock.cpp" line="88"/>
+        <location filename="../src/gui/WebPageDock.cpp" line="160"/>
+        <source>Embedded browser support requires the Qt WebEngineWidgets module. Install a Qt build that includes Qt WebEngine, then rebuild this application.</source>
+        <translation>嵌入式浏览器支持需要 Qt WebEngineWidgets 模块。请安装包含 Qt WebEngine 的 Qt 构建，然后重新构建本应用。</translation>
     </message>
 </context>
 <context>

@@ -126,6 +126,11 @@ void MainWindow::createActions()
     showProfileDockAction_->setObjectName(QStringLiteral("showProfileDockAction"));
     showProfileDockAction_->setCheckable(true);
     showProfileDockAction_->setChecked(false);
+    showWebPanelAction_ = new QAction(createRibbonIcon(RibbonGlyph::Settings), tr("Web Panel"), this);
+    showWebPanelAction_->setObjectName(QStringLiteral("showWebPanelAction"));
+    showWebPanelAction_->setCheckable(true);
+    showWebPanelAction_->setChecked(false);
+    showWebPanelAction_->setToolTip(tr("Show or hide the embedded web panel"));
     analyzeVegetationRisksAction_ = new QAction(createRibbonIcon(RibbonGlyph::Measure), tr("Analyze Risks"), this);
     analyzeVegetationRisksAction_->setToolTip(tr("Analyze vegetation risks around the current measured corridor"));
     focusVegetationRiskAction_ = new QAction(createRibbonIcon(RibbonGlyph::Fit), tr("Focus Current Risk"), this);

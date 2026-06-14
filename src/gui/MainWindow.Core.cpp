@@ -243,6 +243,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     setCentralWidget(viewer_);
     viewer_->setInspectionRouteEditingEnabled(routeEditingEnabled_);
     screenRecorder_ = capture::createScreenRecorder();
+    webPanelUrl_ = defaultWebPanelUrl();
 
     createActions();
     createRibbon();
@@ -252,6 +253,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     createRouteDetailsDock();
     createProfileClassificationDock();
     createProfileDock();
+    createWebPageDock();
     createLogDock();
     createStatusBar();
     setDockNestingEnabled(true);
@@ -740,6 +742,26 @@ QString MainWindow::defaultCaptureSaveDirectory() const
     }
 
     return QDir::toNativeSeparators(QDir(baseDirectory).filePath(QStringLiteral("LASViewerCaptures")));
+}
+
+QString MainWindow::defaultWebPanelUrl() const
+{
+    return QStringLiteral("http://127.0.0.1:5176/");
+}
+
+QString MainWindow::normalizedWebPanelUrl(const QString& urlText) const
+{
+    const QString trimmedUrl = urlText.trimmed();
+    if (trimmedUrl.isEmpty()) {
+        return defaultWebPanelUrl();
+    }
+
+    const QUrl parsedUrl = QUrl::fromUserInput(trimmedUrl);
+    if (!parsedUrl.isValid() || parsedUrl.scheme().trimmed().isEmpty()) {
+        return defaultWebPanelUrl();
+    }
+
+    return parsedUrl.toString();
 }
 
 QString MainWindow::createTemporaryRecordingOutputPath(const QString& preferredFileName) const

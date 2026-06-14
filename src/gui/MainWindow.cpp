@@ -145,6 +145,7 @@
 #include "gui/TowerEditorWidget.h"
 #include "gui/UiHistoryStore.h"
 #include "gui/VisualizationPanelController.h"
+#include "gui/WebPageDock.h"
 #include "gui/support/RibbonIconFactory.h"
 #include "gui/support/SettingsKeys.h"
 #include "gui/support/UiHelpers.h"
@@ -1177,6 +1178,8 @@ void MainWindow::retranslateActionsAndBackstage()
     exportClearanceCsvAction_->setText(tr("Export Clearance CSV"));
     showProfileDockAction_->setText(tr("Profile View"));
     showProfileDockAction_->setToolTip(tr("Show or hide the span profile dock"));
+    showWebPanelAction_->setText(tr("Web Panel"));
+    showWebPanelAction_->setToolTip(tr("Show or hide the embedded web panel"));
     analyzeVegetationRisksAction_->setText(tr("Analyze Risks"));
     analyzeVegetationRisksAction_->setToolTip(tr("Analyze vegetation risks around the current measured corridor"));
     focusVegetationRiskAction_->setText(tr("Focus Current Risk"));
@@ -1357,6 +1360,9 @@ void MainWindow::retranslateActionsAndBackstage()
     if (backstageShowLogCheckBox_ != nullptr) {
         backstageShowLogCheckBox_->setText(tr("Show log panel"));
     }
+    if (backstageWebPanelUrlLineEdit_ != nullptr) {
+        backstageWebPanelUrlLineEdit_->setPlaceholderText(defaultWebPanelUrl());
+    }
     if (backstageCaptureBrowseButton_ != nullptr) {
         backstageCaptureBrowseButton_->setText(tr("Browse..."));
     }
@@ -1461,6 +1467,9 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     }
     if (logDock_ != nullptr) {
         logDock_->retranslateUi();
+    }
+    if (webPageDock_ != nullptr) {
+        webPageDock_->retranslateUi();
     }
     if (inspectorTabWidget_ != nullptr) {
         inspectorTabWidget_->setTabText(0, tr("Overview"));

@@ -22,6 +22,7 @@
 #include <QTabWidget>
 #include <QToolButton>
 #include <QToolBar>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "domain/InspectionData.h"
@@ -41,6 +42,7 @@
 #include "gui/SceneInspectorDock.h"
 #include "gui/SpanProfileDock.h"
 #include "gui/TowerEditorWidget.h"
+#include "gui/WebPageDock.h"
 #include "route/InspectionRoutePlanning.h"
 
 using namespace mainwindow_internal;
@@ -886,6 +888,16 @@ void MainWindow::createProfileDock()
     profilePlotWidget_ = profileDock_->plotWidget();
     addDockWidget(Qt::BottomDockWidgetArea, profileDock_);
     profileDock_->hide();
+}
+
+void MainWindow::createWebPageDock()
+{
+    webPageDock_ = new WebPageDock(QUrl(webPanelUrl_.trimmed().isEmpty() ? defaultWebPanelUrl() : webPanelUrl_), this);
+    addDockWidget(Qt::RightDockWidgetArea, webPageDock_);
+    if (inspectorDock_ != nullptr) {
+        tabifyDockWidget(inspectorDock_, webPageDock_);
+    }
+    webPageDock_->hide();
 }
 
 void MainWindow::createLogDock()

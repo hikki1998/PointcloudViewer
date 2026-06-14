@@ -39,6 +39,8 @@ inline constexpr char kVisualizationShowBoundingBox[] = "visualization/showBound
 inline constexpr char kUiLanguage[] = "ui/language";
 inline constexpr char kUiTheme[] = "ui/theme";
 
+inline constexpr char kWebPanelUrl[] = "web/panelUrl";
+
 inline constexpr char kWindowGeometry[] = "window/geometry";
 inline constexpr char kWindowState[] = "window/state";
 inline constexpr char kWindowMaximized[] = "window/maximized";
@@ -46,6 +48,7 @@ inline constexpr char kWindowShowLog[] = "window/showLog";
 inline constexpr char kWindowShowProfile[] = "window/showProfile";
 inline constexpr char kWindowShowProfileClassification[] = "window/showProfileClassification";
 inline constexpr char kWindowShowRouteDetails[] = "window/showRouteDetails";
+inline constexpr char kWindowShowWebPanel[] = "window/showWebPanel";
 inline constexpr char kWindowInspectorTab[] = "window/inspectorTab";
 inline constexpr char kWindowRouteDetailsTab[] = "window/routeDetailsTab";
 inline constexpr char kWindowRouteWaypointLabelMode[] = "window/routeWaypointLabelMode";

@@ -76,6 +76,11 @@ QCheckBox* BackstageApplicationSettingsWidget::showLogCheckBox() const
     return ui_ != nullptr ? ui_->showLogCheckBox : nullptr;
 }
 
+QLineEdit* BackstageApplicationSettingsWidget::webPanelUrlLineEdit() const
+{
+    return ui_ != nullptr ? ui_->webPanelUrlLineEdit : nullptr;
+}
+
 QLineEdit* BackstageApplicationSettingsWidget::captureSaveDirectoryLineEdit() const
 {
     return ui_ != nullptr ? ui_->captureSaveDirectoryLineEdit : nullptr;

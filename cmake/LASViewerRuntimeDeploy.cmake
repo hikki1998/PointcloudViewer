@@ -244,6 +244,35 @@ function(deploy_qt_runtime target_name use_qtitan)
             )
         endforeach()
     endif()
+
+    if(LAS_VIEWER_HAS_WEBENGINE_DOCK)
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/resources"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${QT_ROOT}/bin/QtWebEngineProcess.exe"
+            "$<TARGET_FILE_DIR:${target_name}>"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${QT_ROOT}/resources"
+            "$<TARGET_FILE_DIR:${target_name}>/resources"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target_name}>/translations/qtwebengine_locales"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${QT_ROOT}/translations/qtwebengine_locales"
+            "$<TARGET_FILE_DIR:${target_name}>/translations/qtwebengine_locales"
+            COMMENT "Deploying Qt WebEngine runtime assets"
+        )
+
+        file(GLOB qt_webengine_translation_files
+            LIST_DIRECTORIES FALSE
+            "${QT_ROOT}/translations/qtwebengine_*.qm"
+        )
+        foreach(qt_webengine_translation_file IN LISTS qt_webengine_translation_files)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${qt_webengine_translation_file}"
+                "$<TARGET_FILE_DIR:${target_name}>/translations"
+            )
+        endforeach()
+    endif()
 endfunction()
 
 function(deploy_translation_runtime target_name)

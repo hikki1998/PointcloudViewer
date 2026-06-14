@@ -74,6 +74,7 @@ class SpanProfileDock;
 class TowerController;
 class TowerEditorWidget;
 class VisualizationPanelController;
+class WebPageDock;
 
 namespace Qtitan
 {
@@ -131,6 +132,7 @@ private:
     void createRouteDetailsDock();
     void createProfileClassificationDock();
     void createProfileDock();
+    void createWebPageDock();
     void createLogDock();
     void createStatusBar();
     void createConnections();
@@ -262,6 +264,8 @@ private:
     void captureMainWindowScreenshot();
     void toggleScreenRecording();
     void stopScreenRecording(bool notifyUser);
+    QString defaultWebPanelUrl() const;
+    QString normalizedWebPanelUrl(const QString& urlText) const;
     QString createTemporaryRecordingOutputPath(const QString& preferredFileName) const;
     capture::ScreenRecordingResult finalizeRecordingOutputFile(const QString& temporaryFilePath, bool interactiveStop);
     QString defaultCaptureSaveDirectory() const;
@@ -290,6 +294,7 @@ private:
     ProfileClassificationController* profileClassificationController_ = nullptr;
     ProfileClassificationDock* profileClassificationDock_ = nullptr;
     SpanProfileDock* profileDock_ = nullptr;
+    WebPageDock* webPageDock_ = nullptr;
     ApplicationLogDock* logDock_ = nullptr;
     QTabWidget* inspectorTabWidget_ = nullptr;
     QTabWidget* routeDetailsTabWidget_ = nullptr;
@@ -316,6 +321,7 @@ private:
     Qtitan::RibbonGroup* routePlanningRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routeFileRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* routeExchangeRibbonGroup_ = nullptr;
+    Qtitan::RibbonGroup* webRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* workspaceRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* towerRibbonGroup_ = nullptr;
     Qtitan::RibbonGroup* clipRibbonGroup_ = nullptr;
@@ -453,6 +459,7 @@ private:
     QCheckBox* axesCheckBox_ = nullptr;
     QCheckBox* boundingBoxCheckBox_ = nullptr;
     QCheckBox* backstageShowLogCheckBox_ = nullptr;
+    QLineEdit* backstageWebPanelUrlLineEdit_ = nullptr;
     QLineEdit* backstageCaptureSaveDirectoryLineEdit_ = nullptr;
     QPushButton* backstageCaptureBrowseButton_ = nullptr;
     QCheckBox* backstageCaptureAutoSaveCheckBox_ = nullptr;
@@ -554,6 +561,7 @@ private:
     QAction* clearMeasurementAction_ = nullptr;
     QAction* exportClearanceCsvAction_ = nullptr;
     QAction* showProfileDockAction_ = nullptr;
+    QAction* showWebPanelAction_ = nullptr;
     QAction* analyzeVegetationRisksAction_ = nullptr;
     QAction* focusVegetationRiskAction_ = nullptr;
     QAction* createIssueFromRiskAction_ = nullptr;
@@ -653,6 +661,7 @@ private:
     bool pendingRibbonWindowMove_ = false;
     bool captureSkipSaveDialog_ = false;
     QString routeRoamLastCaptureSummary_;
+    QString webPanelUrl_;
     QString captureSaveDirectory_;
     QString recordingOutputFilePath_;
     QPoint pendingRibbonWindowMoveGlobalPos_;

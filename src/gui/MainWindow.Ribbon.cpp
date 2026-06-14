@@ -119,6 +119,9 @@ void MainWindow::createRibbon()
     routeExchangeRibbonGroup_->addAction(exportRouteKmlAction_, Qt::ToolButtonTextUnderIcon);
     routeExchangeRibbonGroup_->addAction(exportRouteDjiKmzAction_, Qt::ToolButtonTextUnderIcon);
 
+    webRibbonGroup_ = routePage_->addGroup(tr("Web"));
+    webRibbonGroup_->addAction(showWebPanelAction_, Qt::ToolButtonTextUnderIcon);
+
     clipRibbonGroup_ = homePage_->addGroup(tr("Clip"));
     clipRibbonGroup_->addAction(clipModeNoneAction_, Qt::ToolButtonTextUnderIcon);
     clipRibbonGroup_->addAction(clipModeBoxAction_, Qt::ToolButtonTextUnderIcon);

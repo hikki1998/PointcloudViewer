@@ -12,6 +12,7 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QUrl>
 
 #include <algorithm>
 
@@ -24,6 +25,7 @@
 #include "gui/RouteDetailsDock.h"
 #include "gui/SpanProfileDock.h"
 #include "gui/UiHistoryStore.h"
+#include "gui/WebPageDock.h"
 #include "gui/support/SettingsKeys.h"
 
 using namespace mainwindow_internal;
@@ -281,6 +283,15 @@ void MainWindow::loadWindowSettings()
         routeDetailsTabWidget_->setCurrentIndex(settings.value(settingskeys::kWindowRouteDetailsTab, 0).toInt());
     }
 
+    webPanelUrl_ = normalizedWebPanelUrl(settings.value(settingskeys::kWebPanelUrl, defaultWebPanelUrl()).toString());
+    if (webPageDock_ != nullptr && webPageDock_->pageUrl() != QUrl(webPanelUrl_)) {
+        webPageDock_->setPageUrl(QUrl(webPanelUrl_));
+    }
+    if (backstageWebPanelUrlLineEdit_ != nullptr) {
+        const QSignalBlocker blocker(backstageWebPanelUrlLineEdit_);
+        backstageWebPanelUrlLineEdit_->setText(webPanelUrl_);
+    }
+
     captureSaveDirectory_ = settings.value(
         settingskeys::kCaptureSaveDirectory,
         defaultCaptureSaveDirectory()).toString().trimmed();
@@ -483,6 +494,7 @@ void MainWindow::loadWindowSettings()
         const bool showLog = settings.value(settingskeys::kWindowShowLog, false).toBool();
         const bool showProfileClassification = settings.value(settingskeys::kWindowShowProfileClassification, false).toBool();
         const bool showRouteDetails = settings.value(settingskeys::kWindowShowRouteDetails, false).toBool();
+        const bool showWebPanel = settings.value(settingskeys::kWindowShowWebPanel, false).toBool();
         if (logDock_ != nullptr && logDock_->isVisible() != showLog) {
             logDock_->setVisible(showLog);
         }
@@ -491,6 +503,9 @@ void MainWindow::loadWindowSettings()
         }
         if (routeDetailsDock_ != nullptr && routeDetailsDock_->isVisible() != showRouteDetails) {
             routeDetailsDock_->setVisible(showRouteDetails);
+        }
+        if (webPageDock_ != nullptr && webPageDock_->isVisible() != showWebPanel) {
+            webPageDock_->setVisible(showWebPanel);
         }
     }
 
@@ -514,6 +529,9 @@ void MainWindow::loadWindowSettings()
         if (routeDetailsDock_ != nullptr && !routeDetailsDock_->isFloating()) {
             resizeDocks({ routeDetailsDock_ }, { clampedRightDockWidth }, Qt::Horizontal);
         }
+        if (webPageDock_ != nullptr && !webPageDock_->isFloating()) {
+            resizeDocks({ webPageDock_ }, { clampedRightDockWidth }, Qt::Horizontal);
+        }
     }
 
     syncProfileDockForMeasurementMode(viewer_ != nullptr && viewer_->measurementEnabled());
@@ -529,6 +547,10 @@ void MainWindow::loadWindowSettings()
     if (showProfileClassificationDockAction_ != nullptr) {
         const QSignalBlocker blocker(showProfileClassificationDockAction_);
         showProfileClassificationDockAction_->setChecked(profileClassificationDock_ != nullptr && profileClassificationDock_->isVisible());
+    }
+    if (showWebPanelAction_ != nullptr) {
+        const QSignalBlocker blocker(showWebPanelAction_);
+        showWebPanelAction_->setChecked(webPageDock_ != nullptr && webPageDock_->isVisible());
     }
 
     refreshLogPanel();
@@ -568,6 +590,9 @@ void MainWindow::persistWindowSettings(bool force) const
     if (routeDetailsDock_ != nullptr && !routeDetailsDock_->isFloating()) {
         rightDockWidth = std::max(rightDockWidth, routeDetailsDock_->width());
     }
+    if (webPageDock_ != nullptr && !webPageDock_->isFloating()) {
+        rightDockWidth = std::max(rightDockWidth, webPageDock_->width());
+    }
     if (rightDockWidth > 0) {
         settings.setValue(settingskeys::kWindowRightDockWidth, rightDockWidth);
     }
@@ -579,6 +604,9 @@ void MainWindow::persistWindowSettings(bool force) const
     settings.setValue(
         settingskeys::kWindowShowRouteDetails,
         dockVisiblePreference(routeDetailsDock_, nullptr));
+    settings.setValue(
+        settingskeys::kWindowShowWebPanel,
+        dockVisiblePreference(webPageDock_, showWebPanelAction_));
     settings.setValue(
         settingskeys::kWindowInspectorTab,
         inspectorTabWidget_ != nullptr ? inspectorTabWidget_->currentIndex() : 0);
@@ -676,6 +704,9 @@ void MainWindow::persistWindowSettings(bool force) const
         settingskeys::kCaptureSaveDirectory,
         captureSaveDirectory_.trimmed().isEmpty() ? defaultCaptureSaveDirectory() : captureSaveDirectory_);
     settings.setValue(settingskeys::kCaptureSkipSaveDialog, captureSkipSaveDialog_);
+    settings.setValue(
+        settingskeys::kWebPanelUrl,
+        webPanelUrl_.trimmed().isEmpty() ? defaultWebPanelUrl() : webPanelUrl_);
 }
 
 void MainWindow::loadThemeSettings()

@@ -54,6 +54,7 @@
 #include "gui/SpanProfileDock.h"
 #include "gui/TowerController.h"
 #include "gui/VisualizationPanelController.h"
+#include "gui/WebPageDock.h"
 #include "gui/support/UiHelpers.h"
 #include "route/InspectionRoutePlanning.h"
 #include "route/PowerlineRouteBridge.h"
@@ -1346,6 +1347,18 @@ void MainWindow::createControllerConnections()
             profileDock_->hide();
         }
     });
+    connect(showWebPanelAction_, &QAction::toggled, this, [this](bool visible) {
+        if (webPageDock_ == nullptr) {
+            return;
+        }
+
+        if (visible) {
+            webPageDock_->show();
+            webPageDock_->raise();
+        } else if (webPageDock_->isVisible()) {
+            webPageDock_->hide();
+        }
+    });
 }
 
 void MainWindow::createWindowAndViewerConnections()
@@ -1457,6 +1470,17 @@ void MainWindow::createWindowAndViewerConnections()
         scheduleDockPanelSizing();
         persistWindowSettings();
     });
+    connect(webPageDock_, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (closingWindow_) {
+            return;
+        }
+        if (showWebPanelAction_ != nullptr && showWebPanelAction_->isChecked() != visible) {
+            const QSignalBlocker blocker(showWebPanelAction_);
+            showWebPanelAction_->setChecked(visible);
+        }
+        scheduleDockPanelSizing();
+        persistWindowSettings();
+    });
 
     const auto persistDockState = [this]() {
         scheduleDockPanelSizing();
@@ -1466,11 +1490,13 @@ void MainWindow::createWindowAndViewerConnections()
     connect(inspectorDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(profileClassificationDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(profileDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
+    connect(webPageDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(logDock_, &QDockWidget::dockLocationChanged, this, persistDockState);
     connect(projectDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(inspectorDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(profileClassificationDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(profileDock_, &QDockWidget::topLevelChanged, this, persistDockState);
+    connect(webPageDock_, &QDockWidget::topLevelChanged, this, persistDockState);
     connect(logDock_, &QDockWidget::topLevelChanged, this, persistDockState);
 
     if (inspectorTabWidget_ != nullptr) {

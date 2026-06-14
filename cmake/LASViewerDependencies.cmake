@@ -240,6 +240,13 @@ foreach(cached_dependency_var
 endforeach()
 
 find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui Widgets OpenGL)
+find_package(Qt5WebEngineWidgets 5.15 QUIET)
+if(TARGET Qt5::WebEngineWidgets)
+    set(LAS_VIEWER_HAS_WEBENGINE_DOCK TRUE)
+else()
+    set(LAS_VIEWER_HAS_WEBENGINE_DOCK FALSE)
+    message(WARNING "Qt5WebEngineWidgets was not found. The embedded web dock will build with a dependency notice instead of an in-app browser.")
+endif()
 
 if(LAS_VIEWER_USE_QTITAN_SHIM_TARGET)
     set(QTITAN_INCLUDE_DIR "${LAS_VIEWER_BUNDLED_QTITAN_SHIM_DIR}" CACHE PATH "Bundled QtitanRibbon shim include directory" FORCE)
@@ -575,7 +582,10 @@ if(LAS_VIEWER_FORCE_RELEASE_THIRDPARTY_FOR_DEBUG)
         "${OSGUTIL_RELEASE_LIBRARY}"
     )
 
-    foreach(qt_target Qt5::Core Qt5::Gui Qt5::Widgets Qt5::OpenGL)
+    foreach(qt_target Qt5::Core Qt5::Gui Qt5::Widgets Qt5::OpenGL Qt5::WebEngineWidgets)
+        if(NOT TARGET ${qt_target})
+            continue()
+        endif()
         set_property(TARGET ${qt_target} PROPERTY MAP_IMPORTED_CONFIG_DEBUG Release)
     endforeach()
 else()

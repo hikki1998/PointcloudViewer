@@ -31,6 +31,7 @@ public:
     QHBoxLayout* themeButtonLayout() const;
     QHBoxLayout* languageButtonLayout() const;
     QCheckBox* showLogCheckBox() const;
+    QLineEdit* webPanelUrlLineEdit() const;
     QLineEdit* captureSaveDirectoryLineEdit() const;
     QPushButton* captureBrowseButton() const;
     QCheckBox* captureAutoSaveCheckBox() const;
