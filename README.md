@@ -77,31 +77,30 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 然后执行打包脚本：
 
 ```powershell
-.\scripts\package_release.ps1 -Version v1.3.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
+.\scripts\package_release.ps1 -Version v1.4.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
 ```
 
 默认会生成：
 
 ```text
-out/release/LASPointCloudViewer-v1.3.0-windows-x64/
-out/release/LASPointCloudViewer-v1.3.0-windows-x64.zip
-out/release/LASPointCloudViewer-v1.3.0-linux-x64.tar.gz
+out/release/LASPointCloudViewer-v1.4.0-windows-x64/
+out/release/LASPointCloudViewer-v1.4.0-windows-x64.zip
 ```
 
 发布说明模板见：
 
 ```text
-docs/releases/v1.3.0.md
+docs/releases/v1.4.0.md
 ```
 
 GitHub Release 建议流程：
 
 1. 打开仓库 Releases 页面
 2. 选择 `Draft a new release`
-3. 选择 tag `v1.3.0`
-4. 标题填写 `Release20260611-v1.3.0`
-5. 粘贴 `docs/releases/v1.3.0.md` 的内容
-6. 上传 `LASPointCloudViewer-v1.3.0-windows-x64.zip` 和 `LASPointCloudViewer-v1.3.0-linux-x64.tar.gz`
+3. 选择 tag `v1.4.0`
+4. 标题填写 `Release20260918-v1.4.0`
+5. 粘贴 `docs/releases/v1.4.0.md` 的内容
+6. 上传 `LASPointCloudViewer-v1.4.0-windows-x64.zip`
 7. 发布
 
 ## 文档导航
