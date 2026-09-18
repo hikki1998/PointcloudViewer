@@ -42,7 +42,9 @@ class QTimer;
 class QWheelEvent;
 class QFrame;
 class OsgPointCloudNode;
+class GaussianRenderer;
 struct LasFileMetadata;
+struct GaussianModel;
 
 namespace osg
 {
@@ -157,6 +159,9 @@ public:
     void setSceneClickModeEnabled(bool enabled);
     void setRectangleSelectionEnabled(bool enabled);
     void setSceneDragCaptureEnabled(bool enabled);
+    bool setGaussianModel(std::shared_ptr<const GaussianModel> model, QString* errorMessage = nullptr);
+    void clearGaussianModel();
+    bool hasGaussianModel() const;
 
 protected:
     void initializeGL() override;
@@ -197,6 +202,8 @@ private:
 
     osg::ref_ptr<osgViewer::Viewer> viewer_;
     osg::ref_ptr<osgViewer::GraphicsWindowEmbedded> graphicsWindow_;
+    std::shared_ptr<const GaussianModel> gaussianModel_;
+    std::unique_ptr<GaussianRenderer> gaussianRenderer_;
     bool initialized_ = false;
     InteractionOptions interactionOptions_;
     bool sceneClickModeEnabled_ = false;
@@ -235,6 +242,8 @@ public:
     void showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage);
 
     bool hasPointCloud() const;
+    bool hasGaussianModel() const;
+    bool hasRenderableScene() const;
     bool hasLoadedPointClouds() const;
     bool isPointCloudLoadingInProgress() const;
     bool hasFullResolutionPointCloud() const;
@@ -385,6 +394,7 @@ signals:
     void pointCloudLoadingStarted(const QString& message);
     void pointCloudLoadingProgress(const QString& message, int value, int maximum);
     void pointCloudLoadingFinished();
+    void pointCloudLoadingFailed(const QString& message);
     void visualizationOptionsChanged();
     void interactionOptionsChanged();
     void measurementChanged();
@@ -592,6 +602,8 @@ private:
     QWidget* routeCameraPreviewOverlay_ = nullptr;
 
     std::shared_ptr<PointCloudData> currentPointCloud_;
+    std::shared_ptr<GaussianModel> currentGaussianModel_;
+    std::thread gaussianLoadThread_;
     std::shared_ptr<PointCloudData> previewPointCloud_;
     mutable std::shared_ptr<PointCloudData> fullResolutionPointCloudCache_;
     osg::Vec3d sceneOriginWorld_;

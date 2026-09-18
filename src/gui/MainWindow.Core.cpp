@@ -344,7 +344,7 @@ void MainWindow::dropEvent(QDropEvent* event)
         return;
     }
 
-    showUserMessage(LogLevel::Warning, tr("Only LAS and LAZ files can be dropped here."), 4000);
+    showUserMessage(LogLevel::Warning, tr("Only LAS, LAZ, and Gaussian PLY files can be dropped here."), 4000);
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event)

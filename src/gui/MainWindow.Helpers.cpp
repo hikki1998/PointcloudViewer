@@ -91,7 +91,7 @@ bool isSupportedPointCloudFile(const QString& filePath)
     }
 
     const QString suffix = fileInfo.suffix().toLower();
-    return suffix == QStringLiteral("las") || suffix == QStringLiteral("laz");
+    return suffix == QStringLiteral("las") || suffix == QStringLiteral("laz") || suffix == QStringLiteral("ply");
 }
 
 QRect availableScreenGeometryFor(const QWidget* widget)

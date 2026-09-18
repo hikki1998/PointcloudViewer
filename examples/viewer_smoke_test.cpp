@@ -625,14 +625,43 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
         pumpEvents(500);
 
         QString errorMessage;
-        if (!viewer.loadPointCloud(filePath, &errorMessage)) {
+        const bool gaussianPly = QFileInfo(filePath).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0;
+        QElapsedTimer loadStartTimer;
+        loadStartTimer.start();
+        const bool loadStarted = gaussianPly
+            ? viewer.loadPointCloudFilesAsync(QStringList { filePath }, &errorMessage)
+            : viewer.loadPointCloud(filePath, &errorMessage);
+        const qint64 loadCallElapsedMs = loadStartTimer.elapsed();
+        if (!loadStarted) {
             std::cerr << "Load failed for " << filePath.toStdString() << ": "
                       << errorMessage.toStdString() << std::endl;
             allPassed = false;
             continue;
         }
+        if (gaussianPly) {
+            if (loadCallElapsedMs > 500) {
+                std::cerr << "Gaussian background load call blocked the UI thread for "
+                          << loadCallElapsedMs << " ms" << std::endl;
+                allPassed = false;
+                continue;
+            }
+            QElapsedTimer asyncWaitTimer;
+            asyncWaitTimer.start();
+            while (viewer.isPointCloudLoadingInProgress() && asyncWaitTimer.elapsed() < 15000) {
+                pumpEvents(25);
+            }
+            if (viewer.isPointCloudLoadingInProgress() || !viewer.hasGaussianModel()) {
+                std::cerr << "Gaussian background load did not finish within 15 seconds" << std::endl;
+                allPassed = false;
+                continue;
+            }
+            std::cout << "Gaussian async load call=" << loadCallElapsedMs
+                      << "ms ready=" << asyncWaitTimer.elapsed() << "ms" << std::endl;
+        }
 
-        pumpEvents(1000);
+        bool screenshotDelayOk = false;
+        const int screenshotDelayMs = qEnvironmentVariableIntValue("LAS_VIEWER_SMOKE_SCREENSHOT_DELAY_MS", &screenshotDelayOk);
+        pumpEvents(screenshotDelayOk ? std::max(1000, screenshotDelayMs) : 1000);
 
         QOpenGLWidget* glWidget = viewer.findChild<QOpenGLWidget*>();
         if (glWidget == nullptr) {
@@ -655,6 +684,12 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
         std::cout << "Loaded " << filePath.toStdString()
                   << " framebuffer=" << frame.width() << "x" << frame.height()
                   << " nonBackgroundPixels=" << nonBackgroundPixelCount << std::endl;
+
+        const QString screenshotPath = qEnvironmentVariable("LAS_VIEWER_SMOKE_SCREENSHOT").trimmed();
+        if (!screenshotPath.isEmpty() && !frame.save(screenshotPath)) {
+            std::cerr << "Failed to save viewer screenshot to " << screenshotPath.toStdString() << std::endl;
+            allPassed = false;
+        }
 
         if (!visiblePixels) {
             std::cerr << "Rendered framebuffer appears empty for "
@@ -4913,7 +4948,7 @@ int main(int argc, char* argv[])
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setProfile(QSurfaceFormat::CompatibilityProfile);
-    format.setVersion(2, 1);
+    format.setVersion(4, 3);
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);

@@ -15,6 +15,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QPointer>
 #include <QRubberBand>
 #include <QResizeEvent>
 #include <QTimer>
@@ -42,12 +43,15 @@
 #include <osg/Point>
 #include <osg/Shape>
 #include <osg/ShapeDrawable>
+#include <osg/State>
 #include <osg/StateSet>
 #include <osg/Vec4>
 #include <osg/Viewport>
 #include <osgGA/CameraManipulator>
 #include <osgGA/TrackballManipulator>
 
+#include "gaussian/GaussianPlyReader.h"
+#include "gaussian/GaussianRenderer.h"
 #include "osg/OsgPointCloudNode.h"
 #include "domain/DataManager.h"
 #include "pointcloud/ClipFilter.h"
@@ -1294,6 +1298,11 @@ OsgWidget::~OsgWidget()
     if (viewer_.valid()) {
         viewer_->setDone(true);
     }
+    if (isValid()) {
+        makeCurrent();
+        gaussianRenderer_.reset();
+        doneCurrent();
+    }
 }
 
 void OsgWidget::initializeGL()
@@ -1304,6 +1313,11 @@ void OsgWidget::initializeGL()
     viewer_->getCamera()->setGraphicsContext(graphicsWindow_.get());
 
     updateViewport(width(), height());
+    gaussianRenderer_ = std::make_unique<GaussianRenderer>();
+    QString ignoredError;
+    if (gaussianRenderer_->initialize(&ignoredError) && gaussianModel_ != nullptr) {
+        gaussianRenderer_->setModel(gaussianModel_, &ignoredError);
+    }
     initialized_ = true;
 }
 
@@ -1318,8 +1332,69 @@ void OsgWidget::paintGL()
 {
     if (viewer_.valid() && initialized_) {
         viewer_->frame();
+        if (gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel()) {
+            const osg::Matrixd osgView = viewer_->getCamera()->getViewMatrix();
+            const osg::Matrixd osgProjection = viewer_->getCamera()->getProjectionMatrix();
+            QMatrix4x4 view;
+            QMatrix4x4 projection;
+            for (int row = 0; row < 4; ++row) {
+                for (int column = 0; column < 4; ++column) {
+                    view(row, column) = static_cast<float>(osgView(column, row));
+                    projection(row, column) = static_cast<float>(osgProjection(column, row));
+                }
+            }
+            gaussianRenderer_->render(
+                view,
+                projection,
+                std::max(1, static_cast<int>(width() * devicePixelRatioF())),
+                std::max(1, static_cast<int>(height() * devicePixelRatioF())));
+            if (osg::GraphicsContext* graphicsContext = viewer_->getCamera()->getGraphicsContext()) {
+                if (osg::State* state = graphicsContext->getState()) {
+                    state->dirtyAllModes();
+                    state->dirtyAllAttributes();
+                    state->dirtyAllVertexArrays();
+                }
+            }
+        }
         emit frameRendered();
+        if (gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel()) {
+            update();
+        }
     }
+}
+
+bool OsgWidget::setGaussianModel(std::shared_ptr<const GaussianModel> model, QString* errorMessage)
+{
+    gaussianModel_ = std::move(model);
+    if (!isValid()) {
+        update();
+        return true;
+    }
+    makeCurrent();
+    if (gaussianRenderer_ == nullptr) {
+        gaussianRenderer_ = std::make_unique<GaussianRenderer>();
+    }
+    const bool success = gaussianRenderer_->initialize(errorMessage)
+        && gaussianRenderer_->setModel(gaussianModel_, errorMessage);
+    doneCurrent();
+    update();
+    return success;
+}
+
+void OsgWidget::clearGaussianModel()
+{
+    gaussianModel_.reset();
+    if (gaussianRenderer_ != nullptr && isValid()) {
+        makeCurrent();
+        gaussianRenderer_->clear();
+        doneCurrent();
+    }
+    update();
+}
+
+bool OsgWidget::hasGaussianModel() const
+{
+    return gaussianModel_ != nullptr && !gaussianModel_->empty();
 }
 
 void OsgWidget::leaveEvent(QEvent* event)
@@ -1741,6 +1816,9 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
 
 PointCloudViewer::~PointCloudViewer()
 {
+    if (gaussianLoadThread_.joinable()) {
+        gaussianLoadThread_.join();
+    }
     if (classificationTaskThread_.joinable()) {
         classificationTaskThread_.join();
     }
@@ -1755,6 +1833,100 @@ PointCloudViewer::~PointCloudViewer()
 bool PointCloudViewer::loadPointCloud(const QString& filePath, QString* errorMessage)
 {
     return loadPointCloudFiles(QStringList { filePath }, errorMessage);
+}
+
+bool PointCloudViewer::loadPointCloudFilesAsync(const QStringList& filePaths, QString* errorMessage)
+{
+    if (filePaths.size() != 1
+        || QFileInfo(filePaths.constFirst()).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) != 0) {
+        return loadPointCloudFiles(filePaths, errorMessage);
+    }
+    if (pointCloudLoadingActive_) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Another point cloud is still loading.");
+        }
+        return false;
+    }
+    if (gaussianLoadThread_.joinable()) {
+        gaussianLoadThread_.join();
+    }
+
+    const QString absolutePath = QFileInfo(filePaths.constFirst()).absoluteFilePath();
+    const QString loadTitle = tr("Loading %1").arg(QFileInfo(absolutePath).fileName());
+    setLoadingState(true, loadTitle, tr("Reading Gaussian model in parallel..."), -1);
+    emit pointCloudLoadingStarted(loadTitle);
+    emit pointCloudLoadingProgress(tr("Reading Gaussian model in parallel..."), 0, 0);
+    if (errorMessage != nullptr) {
+        *errorMessage = tr("Loading Gaussian model in background...");
+    }
+
+    QPointer<PointCloudViewer> self(this);
+    gaussianLoadThread_ = std::thread([self, absolutePath]() {
+        auto model = std::make_shared<GaussianModel>();
+        GaussianPlyReader reader;
+        QString localError;
+        const bool success = reader.read(absolutePath, model.get(), &localError);
+        if (self == nullptr) {
+            return;
+        }
+        QMetaObject::invokeMethod(self, [self, absolutePath, model, localError, success]() {
+            if (self == nullptr) {
+                return;
+            }
+            if (!success) {
+                self->setLoadingState(false, QString(), QString(), -1);
+                emit self->pointCloudLoadingFinished();
+                self->updateMessage(PointCloudViewer::tr("Open failed"), localError);
+                emit self->pointCloudLoadingFailed(localError);
+                return;
+            }
+
+            self->clearPointCloud();
+            self->currentGaussianModel_ = model;
+            self->currentFilePath_ = absolutePath;
+            self->currentFilePaths_ = QStringList { absolutePath };
+            self->visualizationOptions_.backgroundColor = QColor(38, 43, 51);
+            self->applyClearColor();
+            PointCloudDatasetInfo datasetInfo;
+            datasetInfo.datasetId = self->nextDatasetId_++;
+            datasetInfo.filePath = absolutePath;
+            datasetInfo.pointCount = model->size();
+            datasetInfo.minBounds.x = model->minBounds.x();
+            datasetInfo.minBounds.y = model->minBounds.y();
+            datasetInfo.minBounds.z = model->minBounds.z();
+            datasetInfo.maxBounds.x = model->maxBounds.x();
+            datasetInfo.maxBounds.y = model->maxBounds.y();
+            datasetInfo.maxBounds.z = model->maxBounds.z();
+            datasetInfo.hasColor = true;
+            DataManager::instance().setPointCloudDatasets(QList<PointCloudDatasetInfo> { datasetInfo });
+
+            self->setLoadingState(true, self->pointCloudLoadingTitle_, PointCloudViewer::tr("Uploading Gaussian model to GPU..."), -1);
+            emit self->pointCloudLoadingProgress(PointCloudViewer::tr("Uploading Gaussian model to GPU..."), 0, 0);
+            QString uploadError;
+            if (self->osgWidget_ == nullptr || !self->osgWidget_->setGaussianModel(model, &uploadError)) {
+                self->currentGaussianModel_.reset();
+                self->currentFilePath_.clear();
+                self->currentFilePaths_.clear();
+                DataManager::instance().clear();
+                self->setLoadingState(false, QString(), QString(), -1);
+                emit self->pointCloudLoadingFinished();
+                self->updateMessage(
+                    PointCloudViewer::tr("Open failed"),
+                    uploadError.isEmpty() ? PointCloudViewer::tr("Failed to initialize Gaussian rendering.") : uploadError);
+                emit self->pointCloudLoadingFailed(
+                    uploadError.isEmpty() ? PointCloudViewer::tr("Failed to initialize Gaussian rendering.") : uploadError);
+                return;
+            }
+
+            self->applyViewPreset(PointCloudViewPreset::Isometric);
+            self->updateFooter();
+            self->updateWelcomeOverlayVisibility();
+            self->setLoadingState(false, QString(), QString(), -1);
+            emit self->pointCloudLoadingFinished();
+            emit self->pointCloudLoaded();
+        }, Qt::QueuedConnection);
+    });
+    return true;
 }
 
 void PointCloudViewer::showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage)
@@ -1780,6 +1952,86 @@ void PointCloudViewer::showTransientPreviewPointCloud(const QString& filePath, c
 
 bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
 {
+    if (pointCloudLoadingActive_) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Another point cloud is still loading.");
+        }
+        return false;
+    }
+    if (filePaths.size() == 1 && QFileInfo(filePaths.constFirst()).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0) {
+        const QString absolutePath = QFileInfo(filePaths.constFirst()).absoluteFilePath();
+        setLoadingState(true, tr("Loading %1").arg(QFileInfo(absolutePath).fileName()), tr("Reading Gaussian model..."), -1);
+        emit pointCloudLoadingStarted(pointCloudLoadingTitle_);
+        emit pointCloudLoadingProgress(tr("Reading Gaussian model..."), 0, 0);
+
+        GaussianModel loadedModel;
+        GaussianPlyReader reader;
+        QString localError;
+        if (!reader.read(absolutePath, &loadedModel, &localError)) {
+            setLoadingState(false, QString(), QString(), -1);
+            emit pointCloudLoadingFinished();
+            updateMessage(tr("Open failed"), localError);
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
+        }
+
+        clearPointCloud();
+        currentGaussianModel_ = std::make_shared<GaussianModel>(std::move(loadedModel));
+        currentFilePath_ = absolutePath;
+        currentFilePaths_ = QStringList { absolutePath };
+        visualizationOptions_.backgroundColor = QColor(38, 43, 51);
+        applyClearColor();
+        PointCloudDatasetInfo datasetInfo;
+        datasetInfo.datasetId = nextDatasetId_++;
+        datasetInfo.filePath = absolutePath;
+        datasetInfo.pointCount = currentGaussianModel_->size();
+        datasetInfo.minBounds.x = currentGaussianModel_->minBounds.x();
+        datasetInfo.minBounds.y = currentGaussianModel_->minBounds.y();
+        datasetInfo.minBounds.z = currentGaussianModel_->minBounds.z();
+        datasetInfo.maxBounds.x = currentGaussianModel_->maxBounds.x();
+        datasetInfo.maxBounds.y = currentGaussianModel_->maxBounds.y();
+        datasetInfo.maxBounds.z = currentGaussianModel_->maxBounds.z();
+        datasetInfo.hasColor = true;
+        DataManager::instance().setPointCloudDatasets(QList<PointCloudDatasetInfo> { datasetInfo });
+
+        setLoadingState(true, pointCloudLoadingTitle_, tr("Uploading Gaussian model to GPU..."), -1);
+        emit pointCloudLoadingProgress(tr("Uploading Gaussian model to GPU..."), 0, 0);
+        if (osgWidget_ == nullptr || !osgWidget_->setGaussianModel(currentGaussianModel_, &localError)) {
+            currentGaussianModel_.reset();
+            currentFilePath_.clear();
+            currentFilePaths_.clear();
+            DataManager::instance().clear();
+            setLoadingState(false, QString(), QString(), -1);
+            emit pointCloudLoadingFinished();
+            if (errorMessage != nullptr) {
+                *errorMessage = localError.isEmpty() ? tr("Failed to initialize Gaussian rendering.") : localError;
+            }
+            return false;
+        }
+
+        applyViewPreset(PointCloudViewPreset::Isometric);
+        updateFooter();
+        updateWelcomeOverlayVisibility();
+        setLoadingState(false, QString(), QString(), -1);
+        emit pointCloudLoadingFinished();
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Loaded Gaussian model with %1 splats.").arg(formatPointCount(currentGaussianModel_->size()));
+        }
+        emit pointCloudLoaded();
+        return true;
+    }
+    for (const QString& filePath : filePaths) {
+        if (QFileInfo(filePath).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0) {
+            const QString localError = tr("Gaussian PLY files must be opened one at a time and cannot be mixed with LAS/LAZ datasets.");
+            if (errorMessage != nullptr) {
+                *errorMessage = localError;
+            }
+            return false;
+        }
+    }
+
     LasReader reader;
     QString localError;
     QStringList normalizedFilePaths;
@@ -1962,6 +2214,23 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
 
 bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage)
 {
+    if (pointCloudLoadingActive_) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tr("Another point cloud is still loading.");
+        }
+        return false;
+    }
+    if (filePaths.size() == 1 && QFileInfo(filePaths.constFirst()).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0) {
+        return loadPointCloudFilesAsync(filePaths, errorMessage);
+    }
+    for (const QString& filePath : filePaths) {
+        if (QFileInfo(filePath).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0) {
+            if (errorMessage != nullptr) {
+                *errorMessage = tr("Gaussian PLY files must be opened one at a time and cannot be mixed with LAS/LAZ datasets.");
+            }
+            return false;
+        }
+    }
     if (!hasLoadedPointClouds()) {
         return loadPointCloudFiles(filePaths, errorMessage);
     }
@@ -2118,6 +2387,10 @@ bool PointCloudViewer::appendPointCloudFiles(const QStringList& filePaths, QStri
 void PointCloudViewer::clearPointCloud()
 {
     routeRoamStopInternal(true);
+    currentGaussianModel_.reset();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->clearGaussianModel();
+    }
     currentPointCloud_.reset();
     currentFilePath_.clear();
     currentFilePaths_.clear();
@@ -2218,9 +2491,24 @@ bool PointCloudViewer::hasPointCloud() const
     return currentPointCloud_ != nullptr && !currentPointCloud_->empty();
 }
 
+bool PointCloudViewer::hasGaussianModel() const
+{
+    return currentGaussianModel_ != nullptr && !currentGaussianModel_->empty();
+}
+
+bool PointCloudViewer::hasRenderableScene() const
+{
+    return hasPointCloud() || hasGaussianModel();
+}
+
 bool PointCloudViewer::hasLoadedPointClouds() const
 {
     return !currentFilePaths_.isEmpty();
+}
+
+bool PointCloudViewer::isPointCloudLoadingInProgress() const
+{
+    return pointCloudLoadingActive_;
 }
 
 QString PointCloudViewer::currentFilePath() const
@@ -4711,6 +4999,21 @@ void PointCloudViewer::updateFooter()
     }
 
     if (!hasPointCloud()) {
+        if (hasGaussianModel()) {
+            const QFileInfo fileInfo(currentFilePath_);
+            updateMessage(
+                fileInfo.fileName().isEmpty() ? currentFilePath_ : fileInfo.fileName(),
+                tr("%1 Gaussian splats | GPU rasterization | Local origin offset %2")
+                    .arg(formatPointCount(currentGaussianModel_->size()))
+                    .arg(formatTriplet(
+                        currentGaussianModel_->fileOffset.x(),
+                        currentGaussianModel_->fileOffset.y(),
+                        currentGaussianModel_->fileOffset.z())));
+            if (cursorLabel_ != nullptr) {
+                cursorLabel_->setText(tr("Cursor Point: N/A"));
+            }
+            return;
+        }
         updateMessage(
             tr("All point cloud datasets are hidden"),
             tr("Enable one or more datasets in the project explorer to continue browsing, measuring, or editing."));
@@ -4838,7 +5141,7 @@ void PointCloudViewer::applyClearColor()
 
 void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
 {
-    if (!hasPointCloud() || osgWidget_ == nullptr) {
+    if (!hasRenderableScene() || osgWidget_ == nullptr) {
         return;
     }
 
@@ -4852,8 +5155,18 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
         return;
     }
 
-    const PointRecord& minBounds = currentPointCloud_->minBounds();
-    const PointRecord& maxBounds = currentPointCloud_->maxBounds();
+    PointRecord gaussianMinBounds;
+    PointRecord gaussianMaxBounds;
+    if (hasGaussianModel()) {
+        gaussianMinBounds.x = currentGaussianModel_->minBounds.x();
+        gaussianMinBounds.y = currentGaussianModel_->minBounds.y();
+        gaussianMinBounds.z = currentGaussianModel_->minBounds.z();
+        gaussianMaxBounds.x = currentGaussianModel_->maxBounds.x();
+        gaussianMaxBounds.y = currentGaussianModel_->maxBounds.y();
+        gaussianMaxBounds.z = currentGaussianModel_->maxBounds.z();
+    }
+    const PointRecord& minBounds = hasPointCloud() ? currentPointCloud_->minBounds() : gaussianMinBounds;
+    const PointRecord& maxBounds = hasPointCloud() ? currentPointCloud_->maxBounds() : gaussianMaxBounds;
     const osg::Vec3d center(
         (minBounds.x + maxBounds.x) * 0.5,
         (minBounds.y + maxBounds.y) * 0.5,

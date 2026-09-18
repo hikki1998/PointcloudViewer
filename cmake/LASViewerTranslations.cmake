@@ -18,6 +18,10 @@ if(QT_LRELEASE_EXECUTABLE)
             OUTPUT "${app_translation_output}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/translations"
             COMMAND "${QT_LRELEASE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/${app_translation_source}" -qm "${app_translation_output}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/translations"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${app_translation_output}"
+                "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/translations/${app_translation_name}.qm"
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${app_translation_source}"
             COMMENT "Generating translation ${app_translation_name}.qm"
             VERBATIM

@@ -1,5 +1,46 @@
 # 内嵌录屏替代 `ffmpeg.exe` 计划
 
+## 追加任务：高斯 PLY GPU 渲染接入调研（2026-09-18）
+
+### 目标
+
+- 调研支持 3D Gaussian Splatting PLY 的原生 GPU 开源渲染方案。
+- 结合当前 Qt 5.15 + OSG + QOpenGLWidget 架构评估接入成本、许可证与风险。
+- 给出可分阶段落地的推荐方案，本轮不改产品代码。
+
+### 阶段
+
+- G1 仓库渲染与构建边界梳理：`complete`
+- G2 外部方案、格式与许可证调研：`complete`
+- G3 接入方案对比与推荐：`complete`
+- G4 输出调研报告：`complete`
+- G5 OpenGL 4.3 Gaussian PLY MVP 实现：`complete`
+- G6 真实 718 万 splat 构建、回归与视觉验证：`complete`
+
+产出：`docs/agent/gaussian-splatting-evaluation.md`
+
+### 高斯 PLY MVP 完成状态
+
+- 已新增独立 `src/gaussian` 模块，保留 Qt/OSG 的窗口、相机和交互，使用原生 OpenGL 4.3 SSBO + instanced quad 渲染高斯。
+- 已支持 3DGS `binary_little_endian` PLY 的 SH0、opacity、scale、rotation 字段解析，后台 CPU counting sort 提供透明混合顺序。
+- 已接入打开、拖放、工程恢复、项目树、视角预设和中文翻译。
+- 已用 `test_data/CutResult_09-16-50.ply` 验证 7,179,215 splats，解析、GPU 上传、绘制和交互 smoke 通过。
+- 已完成深灰视口背景截图验收：模型居中、方向正确、非空帧，截图位于 `out/gaussian-smoke-final.png`。
+- 首版边界：单 Gaussian 主场景；不与 LAS/LAZ 同屏；仅支持 binary little-endian float32；仅渲染 SH0，不支持 SH1-SH3。
+
+### 高斯加载性能优化
+
+- G7 交互式 PLY 后台加载：`complete`
+- G8 多核解析、转换与中心重定位：`complete`
+- G9 真实 718 万 splat 性能 smoke：`complete`
+
+结果：
+- 用户直接打开、拖放或添加 Gaussian PLY 时，解析与 CPU 转换在专用工作线程执行，UI 线程仅负责最终 OpenGL 上传。
+- Reader 缓存字段偏移，移除逐 splat 的 `QString` / `QHash` 查找，并按硬件线程分块计算 opacity、scale、rotation、covariance、颜色和包围盒。
+- 中心重定位同样按分块并行处理。
+- 真实样例异步调用约 110-114 ms 返回，可渲染耗时约 1.2-1.35 秒（系统文件缓存命中场景），低于 5 秒目标。
+- 工程文件恢复仍使用同步编排以保持后续状态恢复顺序，但已共享多核 Reader 优化。
+
 ## 目标
 
 - 移除当前对外部 `ffmpeg.exe` 的依赖。

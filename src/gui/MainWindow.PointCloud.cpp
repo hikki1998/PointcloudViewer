@@ -15,9 +15,9 @@ void MainWindow::addPointCloudFiles()
     hideBackstageView();
     const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
-        tr("Add LAS Point Clouds"),
+        tr("Add Point Clouds or Gaussian Models"),
         QString(),
-        tr("LAS Files (*.las *.laz);;All Files (*.*)"));
+        tr("Supported Files (*.las *.laz *.ply);;LAS Files (*.las *.laz);;Gaussian PLY (*.ply);;All Files (*.*)"));
 
     if (filePaths.isEmpty()) {
         showUserMessage(LogLevel::Info, tr("Add datasets cancelled."), 2000);
@@ -39,7 +39,7 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
     }
 
     QString errorMessage;
-    if (viewer_->loadPointCloudFiles(filePaths, &errorMessage)) {
+    if (viewer_->loadPointCloudFilesAsync(filePaths, &errorMessage)) {
         currentProjectFilePath_.clear();
         linkedTowerFilePath_.clear();
         linkedRouteFilePath_.clear();
@@ -48,7 +48,9 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
         selectedVegetationRiskIndex_ = -1;
         currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
-        const QString successMessage = filePaths.size() == 1
+        const QString successMessage = viewer_->isPointCloudLoadingInProgress()
+            ? errorMessage
+            : filePaths.size() == 1
             ? tr("Loaded %1. %2").arg(QFileInfo(filePaths.constFirst()).fileName(), errorMessage)
             : tr("Loaded %1 datasets. %2")
                   .arg(QLocale().toString(filePaths.size()))

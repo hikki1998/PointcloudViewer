@@ -250,7 +250,7 @@ OpenFileKind detectOpenFileKind(const QString& filePath)
     }
 
     const QString suffix = fileInfo.suffix().toLower();
-    if (suffix == QStringLiteral("las") || suffix == QStringLiteral("laz")) {
+    if (suffix == QStringLiteral("las") || suffix == QStringLiteral("laz") || suffix == QStringLiteral("ply")) {
         return OpenFileKind::PointCloud;
     }
     if (suffix == QStringLiteral("lpproj")) {
@@ -1108,8 +1108,8 @@ void MainWindow::retranslateActionsAndBackstage()
 
     openAction_->setText(tr("Open"));
     openAction_->setToolTip(tr("Open a point cloud, route file, or project"));
-    addPointCloudAction_->setText(tr("Add LAS Files"));
-    addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
+    addPointCloudAction_->setText(tr("Add Data Files"));
+    addPointCloudAction_->setToolTip(tr("Add LAS/LAZ point clouds or one Gaussian PLY model"));
     removeDatasetAction_->setText(tr("Remove Selected Dataset"));
     removeDatasetAction_->setToolTip(tr("Remove the selected LAS or LAZ dataset from the project"));
     locateDatasetAction_->setText(tr("Open Folder"));
@@ -2270,7 +2270,7 @@ void MainWindow::openProjectExplorerFile()
         this,
         tr("Open"),
         QString(),
-        tr("Supported Files (*.las *.laz *.lpproj *.json);;LAS Files (*.las *.laz);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)"));
+        tr("Supported Files (*.las *.laz *.ply *.lpproj *.json);;Point Cloud Files (*.las *.laz *.ply);;Gaussian PLY (*.ply);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)"));
 
     if (filePath.isEmpty()) {
         showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
@@ -3082,9 +3082,9 @@ void MainWindow::openPointCloud()
     hideBackstageView();
     const QStringList filePaths = showStyledOpenFileNamesDialog(
         this,
-        tr("Open LAS Point Clouds"),
+        tr("Open Point Clouds or Gaussian Models"),
         QString(),
-        tr("LAS Files (*.las *.laz);;All Files (*.*)"));
+        tr("Supported Files (*.las *.laz *.ply);;LAS Files (*.las *.laz);;Gaussian PLY (*.ply);;All Files (*.*)"));
 
     if (filePaths.isEmpty()) {
         showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
@@ -3636,6 +3636,7 @@ void MainWindow::syncRouteRoamFloatingDialog()
 void MainWindow::updateActionState()
 {
     const bool hasPointCloud = viewer_->hasPointCloud();
+    const bool hasRenderableScene = viewer_ != nullptr && viewer_->hasRenderableScene();
     const bool profileClassificationReady = hasPointCloud;
     const bool hasTowerMarkers = viewer_ != nullptr && !viewer_->towerMarkers().isEmpty();
     const bool hasTowerSelection = viewer_ != nullptr && viewer_->selectedTowerIndex() >= 0;
@@ -3670,10 +3671,10 @@ void MainWindow::updateActionState()
     expandProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
     collapseProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
     clearAction_->setEnabled(viewer_ != nullptr && !viewer_->currentFilePaths().isEmpty());
-    fitSceneAction_->setEnabled(hasPointCloud);
-    topViewAction_->setEnabled(hasPointCloud);
-    frontViewAction_->setEnabled(hasPointCloud);
-    rightViewAction_->setEnabled(hasPointCloud);
+    fitSceneAction_->setEnabled(hasRenderableScene);
+    topViewAction_->setEnabled(hasRenderableScene);
+    frontViewAction_->setEnabled(hasRenderableScene);
+    rightViewAction_->setEnabled(hasRenderableScene);
     captureScreenshotAction_->setEnabled(true);
     toggleScreenRecordingAction_->setEnabled(true);
     const bool recordingActive =
@@ -4700,7 +4701,7 @@ void MainWindow::showProjectTreeContextMenu(const QPoint& pos)
     }
 
     if (itemType == QStringLiteral("pointCloudGroup")) {
-        QAction* addAction = menu.addAction(tr("Add LAS/LAZ Files"));
+        QAction* addAction = menu.addAction(tr("Add Data Files"));
         menu.addSeparator();
         QAction* showAllAction = menu.addAction(tr("Show All"));
         QAction* hideAllAction = menu.addAction(tr("Hide All"));

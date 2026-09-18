@@ -1908,6 +1908,11 @@ void MainWindow::createWindowAndViewerConnections()
     connect(viewer_, &PointCloudViewer::pointCloudLoadingFinished, this, [this]() {
         endOperationProgress();
     });
+    connect(viewer_, &PointCloudViewer::pointCloudLoadingFailed, this, [this](const QString& message) {
+        endOperationProgress();
+        showUserMessage(LogLevel::Error, message, 6000);
+        syncUiFromViewer();
+    });
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         endOperationProgress();
         classificationEditsDirty_ = false;

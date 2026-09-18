@@ -15,8 +15,8 @@ void MainWindow::createActions()
     openAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Open"), this);
     openAction_->setShortcut(QKeySequence::Open);
     openAction_->setToolTip(tr("Open a point cloud, route file, or project"));
-    addPointCloudAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Add LAS Files"), this);
-    addPointCloudAction_->setToolTip(tr("Add one or more LAS or LAZ datasets to the current project"));
+    addPointCloudAction_ = new QAction(createRibbonIcon(RibbonGlyph::Open), tr("Add Data Files"), this);
+    addPointCloudAction_->setToolTip(tr("Add LAS/LAZ point clouds or one Gaussian PLY model"));
     removeDatasetAction_ = new QAction(createRibbonIcon(RibbonGlyph::Clear), tr("Remove Selected Dataset"), this);
     removeDatasetAction_->setToolTip(tr("Remove the selected LAS or LAZ dataset from the project"));
     locateDatasetAction_ = new QAction(style()->standardIcon(QStyle::SP_DirOpenIcon), tr("Open Folder"), this);

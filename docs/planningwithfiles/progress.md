@@ -1,5 +1,40 @@
 # 进度记录
 
+## 2026-09-18 高斯 PLY GPU 渲染调研
+
+- 已读取 `docs/agent/context.md` 与 `docs/agent/README.md`。
+- 已确认工作分支为 `gaussian-splatting-support`，存在用户未跟踪文件，本轮不处理。
+- 已开始梳理 `PointCloudViewer`、OSG 节点、OpenGL 上下文与 CMake 依赖边界。
+- 已调研 OpenGL、Vulkan、CUDA/训练框架候选及许可证。
+- 已确认当前 OpenGL 2.1 上下文与 SSBO/compute shader 不兼容。
+- 已形成推荐路线：OpenGL 4.3 Compatibility + 独立 Gaussian renderer + CPU fallback/GPU radix sort。
+- 已输出 `docs/agent/gaussian-splatting-evaluation.md`。
+- 本轮未修改产品代码，未运行构建或 smoke。
+
+## 2026-09-18 高斯 PLY GPU 渲染实现
+
+- 新增 `src/gaussian`：Gaussian PLY reader、模型数据和 OpenGL 4.3 renderer。
+- 主程序和 smoke OpenGL 上下文升级为 4.3 Compatibility Profile。
+- “添加数据”、拖放与工程恢复已支持单个 `.ply`；LAS/LAZ 专属业务操作保持原行为。
+- 完成 Release 构建：`LASPointCloudViewer`、`LASViewerSmokeTest`。
+- 既有回归通过：`viewer-render`（LAS）、`route-roam`、`main-backstage`。
+- 真实 `CutResult_09-16-50.ply`（7,179,215 splats）执行 `viewer-render` 通过。
+- 最终截图 smoke 通过：`1024x703`，`nonBackgroundPixels=72877`；深灰背景、模型居中和结构方向已视觉确认。
+- `lupdate` 后新增高斯相关文本均已补中文：`1166 finished and 0 unfinished`。
+- `git diff --check` 通过；未提交、未推送，未处理用户的其他未跟踪文件。
+
+## 2026-09-18 高斯加载异步与多核优化
+
+- `GaussianPlyReader` 已缓存全部字段偏移，移除逐记录字符串和哈希查询。
+- 解析转换和中心重定位已按 `std::thread::hardware_concurrency()` 分块并行。
+- `PointCloudViewer::loadPointCloudFilesAsync()` 已用于交互式 PLY 打开、拖放和添加数据。
+- 后台失败新增信号通知主窗口；加载期间禁止启动第二个点云任务。
+- GPU 上传仍在 GUI/OpenGL 线程执行，避免跨线程使用 `QOpenGLWidget` context。
+- 异步 smoke 结果：调用返回 110-114 ms，7,179,215 splats ready 约 1.2-1.35 秒。
+- Release 构建通过：`LASPointCloudViewer`、`LASViewerSmokeTest`。
+- 回归通过：Gaussian `viewer-render`、LAS `viewer-render`、`route-roam`、`main-backstage`。
+- 翻译生成：`1169 finished and 0 unfinished`。
+
 ## 2026-04-18
 
 ### 会话目标

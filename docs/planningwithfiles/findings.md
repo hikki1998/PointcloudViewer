@@ -1,5 +1,47 @@
 # 内嵌录屏替代 `ffmpeg.exe` 发现记录
 
+## 高斯 PLY GPU 渲染接入调研（2026-09-18）
+
+### 初始约束
+
+- 目标格式仅为 3D Gaussian Splatting 的 `.ply`，不是普通三角网格 PLY。
+- 用户明确倾向独立 GPU 方案，不要求把高斯渲染塞进传统 OSG 点渲染路径。
+- 当前仓库使用 Qt 5.15、`QOpenGLWidget`、OSG `GraphicsWindowEmbedded`，主 viewer 为单线程 OSG。
+- 本轮只调研与评估，不修改产品代码。
+
+### 结论摘要
+
+- 当前应用强制 OpenGL 2.1 Compatibility Profile；现代高斯 renderer 的首要门槛是 OpenGL 4.3+。
+- 推荐 OpenGL 4.3 Compatibility Profile + 原生 renderer，不把高斯模型构造成 OSG 点节点。
+- 首版使用异步 CPU counting sort 验证全链路，目标方案增加 compute radix sort，保留 CPU fallback。
+- `splatapult`（MIT）最适合作为 GPU OpenGL 算法参考；`splatview`（MIT）最适合作为 MVP 结构参考。
+- NVIDIA `vk_gaussian_splatting`（Apache-2.0）适合作为性能与工程参考，但完整引入过重。
+- graphdeco 原仓代码是非商业研究许可证，只作为格式事实依据，不复制实现。
+- 高斯 PLY 必须按字段签名识别，并使用独立 `GaussianModel`，不能复用 `PointCloudData`。
+- 当前开发机 GTX 1050 Ti 4 GB，首版需要 SH 降级和显存预算，不应强制 CUDA/RTX/Vulkan 1.4。
+
+完整报告：`docs/agent/gaussian-splatting-evaluation.md`
+
+### MVP 实现与真实数据验证结论
+
+- 最终采用 OpenGL 4.3 Compatibility Profile，不引入 CUDA、Vulkan 或外部 viewer。
+- Gaussian 数据使用独立紧凑 GPU record（64 bytes/splat），不转换为 OSG 点节点。
+- 测试 PLY 包含 7,179,215 个 splats，约 465 MiB；字段完整且只有 SH0，无 `f_rest_*`。
+- GTX 1050 Ti 4 GB 环境可成功上传约 438 MiB SSBO 并完成渲染。
+- 真实数据 smoke 在约 19-25 秒内完成加载、上传和截图；最终帧 `1024x703`，非背景像素约 72,877。
+- 深灰背景下模型轮廓和空间方向可辨；模型整体偏亮源于该文件的 SH0 颜色与高覆盖率，不是空帧或背景清理错误。
+- 当前 CPU 量化排序足以完成 MVP 验证；只有交互帧率实测不足时才需要升级 GPU radix sort。
+
+### 加载性能瓶颈与优化结果
+
+- 原 Reader 在 718 万条记录热循环中反复执行 14 次 `QString::fromLatin1` + `QHash` 查找，累计接近一亿次字符串属性查询，是主要 CPU 浪费。
+- covariance、`exp`、sigmoid 和四元数归一化原为单线程，能够安全按互不重叠的输出区间并行。
+- 优化后字段偏移仅解析一次；每个线程直接读取映射文件并写入自己的输出区间，使用线程局部包围盒，结束后归并。
+- 输出模型中心重定位从单线程第二次扫描改为同范围并行扫描。
+- OpenGL SSBO 上传保留在 GUI 线程，因为 `QOpenGLWidget` context 归属 GUI 线程；当前总耗时已满足目标，不引入共享 context 和 staging buffer。
+- 正式异步 smoke 会断言启动调用不超过 500 ms，并持续泵 UI 事件等待后台任务完成。
+- 实测：启动调用约 110-114 ms，模型 ready 约 1,199-1,353 ms；完整 smoke 还包含固定窗口、截图和交互等待，不代表纯加载时间。
+
 ## 当前实现现状
 
 ### 1. 当前录屏后端是外部进程

@@ -822,9 +822,8 @@
         <translation type="vanished">就绪。打开或拖入 LAS/LAZ 文件以开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Core.cpp" line="347"/>
         <source>Only LAS and LAZ files can be dropped here.</source>
-        <translation>此处只能拖入 LAS 或 LAZ 文件。</translation>
+        <translation type="vanished">此处只能拖入 LAS 或 LAZ 文件。</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.Core.cpp" line="887"/>
@@ -887,6 +886,11 @@
         <translation>录屏需要 ffmpeg。请将 ffmpeg 添加到 PATH，或将 ffmpeg.exe 放在应用程序旁边。</translation>
     </message>
     <message>
+        <location filename="../src/gui/MainWindow.Core.cpp" line="347"/>
+        <source>Only LAS, LAZ, and Gaussian PLY files can be dropped here.</source>
+        <translation>此处仅支持拖放 LAS、LAZ 和高斯 PLY 文件。</translation>
+    </message>
+    <message>
         <location filename="../src/gui/MainWindow.Core.cpp" line="815"/>
         <source>Save Recording</source>
         <translation>保存录屏</translation>
@@ -944,7 +948,7 @@
         <location filename="../src/gui/MainWindow.Core.cpp" line="987"/>
         <location filename="../src/gui/MainWindow.Core.cpp" line="1101"/>
         <location filename="../src/gui/MainWindow.cpp" line="1151"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3682"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3683"/>
         <source>Stop Recording</source>
         <translation>停止录屏</translation>
     </message>
@@ -1251,8 +1255,8 @@
         <location filename="../src/gui/MainWindow.Connections.cpp" line="499"/>
         <location filename="../src/gui/MainWindow.cpp" line="1195"/>
         <location filename="../src/gui/MainWindow.cpp" line="1736"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3756"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3772"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3757"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3773"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="539"/>
         <source>Pause Roam</source>
         <translation>暂停漫游</translation>
@@ -1275,7 +1279,7 @@
         <location filename="../src/gui/MainWindow.Actions.cpp" line="155"/>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="618"/>
         <location filename="../src/gui/MainWindow.cpp" line="1202"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4752"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4753"/>
         <source>Import Route KML</source>
         <translation>导入航线KML</translation>
     </message>
@@ -1356,7 +1360,7 @@
     <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="179"/>
         <location filename="../src/gui/MainWindow.cpp" line="1226"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4725"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4726"/>
         <source>Mark Issue</source>
         <translation>标记隐患</translation>
     </message>
@@ -1682,10 +1686,10 @@
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1587"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4819"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4830"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4867"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4820"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4831"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4861"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4868"/>
         <source>Extent</source>
         <translation>尺寸</translation>
     </message>
@@ -1807,7 +1811,7 @@
         <translation>通道风险</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2049"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2054"/>
         <location filename="../src/gui/MainWindow.cpp" line="1616"/>
         <location filename="../src/gui/MainWindow.cpp" line="1943"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="183"/>
@@ -1896,207 +1900,216 @@
         <translation type="vanished">预览已加载，正在继续导入 %1 的全分辨率点云...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4246"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4247"/>
         <source>Point Clouds (%1)</source>
         <translation>点云（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4252"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4253"/>
         <source>Images (%1)</source>
         <translation>图像（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4258"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4259"/>
         <source>Trajectories (%1)</source>
         <translation>轨迹（%1）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4299"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4300"/>
         <source>Image %1</source>
         <translation>图像 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4307"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4308"/>
         <source>%1
 %2</source>
         <translation>%1
 %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4322"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4852"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4882"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4323"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4853"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4883"/>
         <source>Inspection Route</source>
         <translation>巡检航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4325"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4326"/>
         <source>%1 (%2 WP)</source>
         <translation>%1（%2 个航点）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4328"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4329"/>
         <source>%1 waypoint(s)</source>
         <translation>%1 个航点</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4516"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4517"/>
         <source>All image attachments were removed from the project.</source>
         <translation>项目中的全部图像附件已移除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4527"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4528"/>
         <source>Select an inspection issue before attaching an image.</source>
         <translation>请先选择一个隐患记录，再关联图像。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4535"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4536"/>
         <source>Attach Image</source>
         <translation>关联图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4537"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4538"/>
         <source>Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;All Files (*.*)</source>
         <translation>图像文件 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff *.webp);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4545"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4546"/>
         <source>Unable to attach the selected image.</source>
         <translation>无法关联所选图像。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4553"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4554"/>
         <source>Image attached to the selected inspection issue.</source>
         <translation>已将图像关联到当前选中的隐患记录。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4599"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4629"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4674"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4600"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4630"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4675"/>
         <source>Focus in View</source>
         <translation>聚焦到视图</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4677"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4678"/>
         <source>Hide</source>
         <translation>隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4678"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4759"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4679"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4760"/>
         <source>Remove Trajectory</source>
         <translation>移除轨迹</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4703"/>
         <source>Add LAS/LAZ Files</source>
-        <translation>添加 LAS/LAZ 文件</translation>
-    </message>
-    <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4705"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4729"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4754"/>
-        <source>Show All</source>
-        <translation>全部显示</translation>
+        <translation type="vanished">添加 LAS/LAZ 文件</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="4706"/>
         <location filename="../src/gui/MainWindow.cpp" line="4730"/>
         <location filename="../src/gui/MainWindow.cpp" line="4755"/>
+        <source>Show All</source>
+        <translation>全部显示</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="4707"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4731"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4756"/>
         <source>Hide All</source>
         <translation>全部隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4708"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4709"/>
         <source>Remove All Point Clouds</source>
         <translation>移除全部点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4726"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4727"/>
         <source>Attach Image To Selected Issue</source>
         <translation>为当前隐患关联图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4732"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4733"/>
         <source>Remove All Images</source>
         <translation>移除全部图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4816"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4817"/>
         <source>Review the active dataset metadata, spatial bounds, and attribute availability before further analysis.</source>
         <translation>在继续分析前，请先查看当前数据集的元数据、空间范围以及属性可用性。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4818"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4819"/>
         <source>Point Count</source>
         <translation>点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4820"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
         <source>Projection</source>
         <translation>投影</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4822"/>
         <source>Native RGB</source>
         <translation>原生 RGB</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4822"/>
         <location filename="../src/gui/MainWindow.cpp" line="4833"/>
         <location filename="../src/gui/MainWindow.cpp" line="4834"/>
         <location filename="../src/gui/MainWindow.cpp" line="4835"/>
         <location filename="../src/gui/MainWindow.cpp" line="4836"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4837"/>
         <source>Available</source>
         <translation>可用</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4822"/>
         <location filename="../src/gui/MainWindow.cpp" line="4833"/>
         <location filename="../src/gui/MainWindow.cpp" line="4834"/>
         <location filename="../src/gui/MainWindow.cpp" line="4835"/>
         <location filename="../src/gui/MainWindow.cpp" line="4836"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4837"/>
         <source>Unavailable</source>
         <translation>不可用</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4824"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4825"/>
         <source>Dataset Name</source>
         <translation>数据集名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4825"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4826"/>
         <source>Full Path</source>
         <translation>完整路径</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4826"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
         <source>File Size</source>
         <translation>文件大小</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4828"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
         <source>Visibility</source>
         <translation>可见性</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4828"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
         <source>Visible</source>
         <translation>显示</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1491"/>
         <location filename="../src/gui/MainWindow.cpp" line="1503"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4828"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4860"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="628"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="756"/>
         <source>Hidden</source>
         <translation>隐藏</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="2273"/>
+        <source>Supported Files (*.las *.laz *.ply *.lpproj *.json);;Point Cloud Files (*.las *.laz *.ply);;Gaussian PLY (*.ply);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)</source>
+        <translation>支持的文件 (*.las *.laz *.ply *.lpproj *.json);;点云文件 (*.las *.laz *.ply);;高斯 PLY (*.ply);;航线 JSON 文件 (*.json);;激光雷达电力工程 (*.lpproj *.json);;所有文件 (*.*)</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="3085"/>
+        <source>Open Point Clouds or Gaussian Models</source>
+        <translation>打开点云或高斯模型</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="3440"/>
@@ -2114,29 +2127,29 @@
         <translation>保留当前裁切区域外部的点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4828"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4829"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4866"/>
         <source>Min Bounds</source>
         <translation>最小包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4829"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4866"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4830"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4867"/>
         <source>Max Bounds</source>
         <translation>最大包围盒</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4831"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
         <source>Projection Text</source>
         <translation>投影文本</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4833"/>
         <source>RGB Attribute</source>
         <translation>RGB 属性</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4833"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4834"/>
         <source>Intensity</source>
         <translation>强度</translation>
     </message>
@@ -2146,7 +2159,7 @@
         <location filename="../src/gui/MainWindow.cpp" line="1163"/>
         <location filename="../src/gui/MainWindow.cpp" line="1414"/>
         <location filename="../src/gui/MainWindow.cpp" line="1641"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4834"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4835"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="215"/>
         <location filename="../src/gui/MainWindow.Ribbon.cpp" line="91"/>
         <source>Classification</source>
@@ -2185,46 +2198,46 @@
         <translation>%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4235"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4236"/>
         <source>Unsaved Project</source>
         <translation>未保存工程</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4242"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4243"/>
         <source>Project: %1
 Current project CRS: %2</source>
         <translation>工程：%1
 当前工程坐标系：%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4835"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4836"/>
         <source>Return Info</source>
         <translation>回波信息</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4836"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4837"/>
         <source>GPS Time</source>
         <translation>GPS 时间</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4858"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4864"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4859"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
         <source>Waypoints</source>
         <translation>航点数</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4863"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4864"/>
         <source>Route Name</source>
         <translation>轨迹名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4872"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4873"/>
         <source>Inspect route bounds, waypoint count, and visibility before exporting or editing.</source>
         <translation>在导出或编辑前，请先查看轨迹范围、航点数量和可见状态。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4598"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4838"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4599"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4839"/>
         <source>Point Cloud Details</source>
         <translation>点云详细信息</translation>
     </message>
@@ -2250,33 +2263,33 @@ Current project CRS: %2</source>
         <translation type="vanished">坐标系</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4630"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4631"/>
         <source>Open Image</source>
         <translation>打开图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4631"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4632"/>
         <source>Replace Image</source>
         <translation>替换图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4635"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4636"/>
         <source>Remove Image</source>
         <translation>移除图像</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4644"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4645"/>
         <source>Unable to open the image file.</source>
         <translation>无法打开图像文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4667"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4668"/>
         <source>Image attachment removed.</source>
         <translation>图像关联已移除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4675"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4871"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4676"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4872"/>
         <source>Trajectory Details</source>
         <translation>轨迹详细信息</translation>
     </message>
@@ -2299,8 +2312,8 @@ Native RGB: %8</source>
 原生 RGB：%8</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4820"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4831"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4821"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4832"/>
         <source>Unknown</source>
         <translation>未知</translation>
     </message>
@@ -2415,7 +2428,7 @@ Extent: %5</source>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1691"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3985"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3986"/>
         <source>Disabled</source>
         <translation>禁用</translation>
     </message>
@@ -2531,7 +2544,7 @@ Extent: %5</source>
         <translation>巡检报告已导出：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2063"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2068"/>
         <source>Inspection issue added. Continue clicking points to add more, or right-click to cancel.</source>
         <translation>巡检隐患已添加。继续点击点位可连续添加，右键可取消。</translation>
     </message>
@@ -2541,14 +2554,12 @@ Extent: %5</source>
         <translation>工程文件中不包含任何点云路径。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3085"/>
         <source>Open LAS Point Clouds</source>
-        <translation>打开 LAS 点云</translation>
+        <translation type="vanished">打开 LAS 点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="18"/>
         <source>Add LAS Point Clouds</source>
-        <translation>添加 LAS 点云</translation>
+        <translation type="vanished">添加 LAS 点云</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.PointCloud.cpp" line="23"/>
@@ -2556,12 +2567,12 @@ Extent: %5</source>
         <translation>添加数据集已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="53"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="55"/>
         <source>Loaded %1 datasets. %2</source>
         <translation>已加载 %1 个数据集。%2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3976"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3977"/>
         <source>Add at least two measured points to analyze corridor clearance.</source>
         <translation>请至少量测两个点后再分析通道净空。</translation>
     </message>
@@ -2590,8 +2601,8 @@ Extent: %5</source>
         <translation type="vanished">全部 %1 个分段均满足当前 %2 米净空阈值。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4123"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4202"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4124"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4203"/>
         <source>%1 - %2 m</source>
         <translation>%1 - %2 米</translation>
     </message>
@@ -2644,17 +2655,17 @@ Extent: %5</source>
         <translation type="vanished">数据集已添加。%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="121"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="123"/>
         <source>Select a dataset in the project tree before removing it.</source>
         <translation>移除前请先在工程树中选择一个数据集。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="129"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="131"/>
         <source>Dataset removed. The project is now empty.</source>
         <translation>数据集已移除，当前工程已为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="162"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="164"/>
         <source>Dataset removed from the project.</source>
         <translation>数据集已从工程中移除。</translation>
     </message>
@@ -2950,6 +2961,19 @@ Extent: %5</source>
         <translation>打开点云、航线文件或工程</translation>
     </message>
     <message>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="18"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1111"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4704"/>
+        <source>Add Data Files</source>
+        <translation>添加数据文件</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.Actions.cpp" line="19"/>
+        <location filename="../src/gui/MainWindow.cpp" line="1112"/>
+        <source>Add LAS/LAZ point clouds or one Gaussian PLY model</source>
+        <translation>添加 LAS/LAZ 点云或一个高斯 PLY 模型</translation>
+    </message>
+    <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="50"/>
         <location filename="../src/gui/MainWindow.cpp" line="1134"/>
         <source>Switch to top view</source>
@@ -3032,9 +3056,8 @@ Extent: %5</source>
         <translation type="vanished">矩形</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="2273"/>
         <source>Supported Files (*.las *.laz *.lpproj *.json);;LAS Files (*.las *.laz);;Route JSON Files (*.json);;LiDAR Power Projects (*.lpproj *.json);;All Files (*.*)</source>
-        <translation>支持的文件 (*.las *.laz *.lpproj *.json);;LAS 文件 (*.las *.laz);;航线 JSON 文件 (*.json);;电力巡检工程 (*.lpproj *.json);;所有文件 (*.*)</translation>
+        <translation type="vanished">支持的文件 (*.las *.laz *.lpproj *.json);;LAS 文件 (*.las *.laz);;航线 JSON 文件 (*.json);;电力巡检工程 (*.lpproj *.json);;所有文件 (*.*)</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="2321"/>
@@ -3284,118 +3307,118 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">显示 %1 条 / 共 %2 条</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3844"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3845"/>
         <source>Export Application Log</source>
         <translation>导出应用日志</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3846"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3847"/>
         <source>CSV Files (*.csv);;Text Files (*.txt)</source>
         <translation>CSV 文件 (*.csv);;文本文件 (*.txt)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3854"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3855"/>
         <source>Failed to export log: %1</source>
         <translation>导出日志失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3860"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3861"/>
         <source>Log exported to %1</source>
         <translation>日志已导出到 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3937"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3938"/>
         <source>Left drag orbits (%1), middle or right drag pans (%2), and the mouse wheel zooms (%3). Current zoom sensitivity is %4. Use the controls below to match your preferred interaction feel.</source>
         <translation>左键拖拽旋转（%1），中键或右键拖拽平移（%2），鼠标滚轮缩放（%3）。当前缩放灵敏度为 %4。可用下方控件调整到你习惯的交互手感。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3981"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3982"/>
         <source>Advisory %1 m | Warning %2 m | Critical %3 m</source>
         <translation>提醒 %1 米 | 预警 %2 米 | 紧急 %3 米</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3989"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3990"/>
         <source>0 / 0 / 0</source>
         <translation>0 / 0 / 0</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3993"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3994"/>
         <location filename="../src/gui/MainWindow.Route.cpp" line="771"/>
         <source>%1 / %2 / %3</source>
         <translation>%1 / %2 / %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3999"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4000"/>
         <source>Clearance threshold is disabled. Set a value above 0 m to enable risk bands.</source>
         <translation>净空阈值已禁用。将数值设为大于 0 米即可启用风险带。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4002"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4003"/>
         <source>%1 critical segment(s), %2 warning segment(s), and %3 advisory segment(s) were detected under %4.</source>
         <translation>在 %4 规则下，检测到 %1 个紧急分段、%2 个预警分段和 %3 个提醒分段。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4009"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4010"/>
         <source>%1 warning segment(s) and %2 advisory segment(s) were detected under %3.</source>
         <translation>在 %3 规则下，检测到 %1 个预警分段和 %2 个提醒分段。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4015"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4016"/>
         <source>All measured segments stay outside the active %1 risk bands.</source>
         <translation>所有量测分段都位于当前 %1 风险带之外。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4061"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4062"/>
         <source>Listed %1 path segment(s). Set a threshold above 0 m to enable electric-scene risk bands.</source>
         <translation>已列出 %1 个路径分段。将阈值设为大于 0 米即可启用电力场景风险带。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4065"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4066"/>
         <source>%1 critical, %2 warning, %3 advisory segment(s) under %4. Select a row to highlight it in the profile or export the full list.</source>
         <translation>在 %4 规则下有 %1 个紧急、%2 个预警、%3 个提醒分段。选择一行可在剖面中高亮或导出完整列表。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4072"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4073"/>
         <source>All %1 segment(s) stay outside the current %2 risk bands.</source>
         <translation>全部 %1 个分段都位于当前 %2 风险带之外。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4165"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4166"/>
         <source>No vegetation risk clusters available.</source>
         <translation>当前没有植被风险聚类结果。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4166"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4167"/>
         <source>%1 vegetation risk cluster(s)</source>
         <translation>%1 个植被风险聚类</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4169"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4170"/>
         <source>Measure a corridor path first, then run the analysis.</source>
         <translation>请先量测一条通道路径，再运行分析。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4171"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4172"/>
         <source>Run analysis to scan points near the measured corridor and propose vegetation issues.</source>
         <translation>运行分析以扫描量测通道附近的点，并生成植被隐患建议。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4172"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4173"/>
         <source>Select a cluster to focus it in the scene or convert it into inspection issues.</source>
         <translation>选择一个聚类以在场景中定位，或将其转换为巡检隐患。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4174"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4175"/>
         <source>Search radius %1 m | Cluster gap %2 m | Min cluster points %3 | Classification preference %4</source>
         <translation>搜索半径 %1 米 | 聚类间隔 %2 米 | 最小聚类点数 %3 | 分类优先 %4</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4178"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4179"/>
         <source>on</source>
         <translation>开</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="4178"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4179"/>
         <source>off</source>
         <translation>关</translation>
     </message>
@@ -3633,14 +3656,14 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1687"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3960"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3961"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="290"/>
         <source>Start Measurement</source>
         <translation>开始量测</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1688"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3961"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3962"/>
         <location filename="../src/gui/MainWindow.Docks.cpp" line="291"/>
         <source>Clear Measurement</source>
         <translation>清除量测</translation>
@@ -3925,7 +3948,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <location filename="../src/gui/MainWindow.cpp" line="3431"/>
         <location filename="../src/gui/MainWindow.cpp" line="3432"/>
         <location filename="../src/gui/MainWindow.cpp" line="3433"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3943"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3944"/>
         <source>%1%</source>
         <translation>%1%</translation>
     </message>
@@ -3952,7 +3975,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">杆塔名称</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2013"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2018"/>
         <source>Tower marker added.</source>
         <translation>已添加杆塔标注。</translation>
     </message>
@@ -4023,23 +4046,23 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation>杆塔工具已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1928"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1933"/>
         <source>Scene cleared.</source>
         <translation>场景已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1936"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1941"/>
         <source>Navigation preferences updated.</source>
         <translation>导航偏好已更新。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="1993"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="1998"/>
         <source>Tower marker moved.</source>
         <translation>已移动杆塔标注。</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="1084"/>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2004"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2009"/>
         <source>Tower marker name cannot be empty.</source>
         <translation>杆塔名称不能为空。</translation>
     </message>
@@ -4234,21 +4257,17 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <translation type="vanished">打开一个或多个 LAS 或 LAZ 数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="18"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1111"/>
         <source>Add LAS Files</source>
-        <translation>添加 LAS 文件</translation>
+        <translation type="vanished">添加 LAS 文件</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Actions.cpp" line="19"/>
-        <location filename="../src/gui/MainWindow.cpp" line="1112"/>
         <source>Add one or more LAS or LAZ datasets to the current project</source>
-        <translation>将一个或多个 LAS 或 LAZ 数据集添加到当前工程</translation>
+        <translation type="vanished">将一个或多个 LAS 或 LAZ 数据集添加到当前工程</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="20"/>
         <location filename="../src/gui/MainWindow.cpp" line="1113"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4604"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4605"/>
         <source>Remove Selected Dataset</source>
         <translation>移除选中数据集</translation>
     </message>
@@ -4261,8 +4280,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="22"/>
         <location filename="../src/gui/MainWindow.cpp" line="1115"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4601"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4633"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4602"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4634"/>
         <source>Open Folder</source>
         <translation>打开文件夹</translation>
     </message>
@@ -4275,8 +4294,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="24"/>
         <location filename="../src/gui/MainWindow.cpp" line="1117"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4602"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4634"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4603"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4635"/>
         <source>Copy Path</source>
         <translation>复制路径</translation>
     </message>
@@ -4318,8 +4337,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <location filename="../src/gui/MainWindow.cpp" line="1269"/>
         <location filename="../src/gui/MainWindow.cpp" line="1294"/>
         <location filename="../src/gui/MainWindow.cpp" line="1325"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4237"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4784"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4238"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4785"/>
         <source>Project Management</source>
         <translation>工程管理</translation>
     </message>
@@ -4344,7 +4363,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     <message>
         <location filename="../src/gui/MainWindow.Actions.cpp" line="69"/>
         <location filename="../src/gui/MainWindow.cpp" line="1151"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3682"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3683"/>
         <source>Start Recording</source>
         <translation>开始录屏</translation>
     </message>
@@ -4357,7 +4376,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <location filename="../src/gui/MainWindow.Actions.cpp" line="151"/>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="563"/>
         <location filename="../src/gui/MainWindow.cpp" line="1198"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4751"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4752"/>
         <source>Import Route File</source>
         <translation>导入航线文件</translation>
     </message>
@@ -4553,13 +4572,13 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1155"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3686"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3687"/>
         <source>Start MP4 screen recording for the current application window</source>
         <translation>开始对当前应用窗口进行 MP4 录屏</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1154"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3685"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3686"/>
         <source>Stop the active MP4 screen recording</source>
         <translation>停止当前 MP4 录屏</translation>
     </message>
@@ -4811,7 +4830,7 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1666"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4054"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4055"/>
         <source>Add at least two measured points to list corridor segments and export clearance details.</source>
         <translation>至少添加两个量测点后，才能列出通道分段并导出净空明细。</translation>
     </message>
@@ -4819,8 +4838,8 @@ Repository: LAS Point Cloud Viewer for transmission line inspection workflows.</
         <location filename="../src/gui/MainWindow.Connections.cpp" line="488"/>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="499"/>
         <location filename="../src/gui/MainWindow.cpp" line="1736"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3756"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3772"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3757"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3773"/>
         <source>Resume Roam</source>
         <translation>继续漫游</translation>
     </message>
@@ -4961,15 +4980,15 @@ Saved files: %2</source>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="137"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4615"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4651"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4616"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4652"/>
         <source>Unable to open the selected file folder.</source>
         <translation>无法打开所选文件所在文件夹。</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.Connections.cpp" line="149"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4620"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4656"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4621"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4657"/>
         <source>Selected path copied.</source>
         <translation>已复制所选路径。</translation>
     </message>
@@ -5065,12 +5084,12 @@ Chainage: %4 - %5 m</source>
         <translation>已清空巡检航线。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2129"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2134"/>
         <source>Preparing clipped export...</source>
         <translation>正在准备裁切导出...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2134"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2139"/>
         <source>No active clip region to apply.</source>
         <translation>没有可应用的裁切区域。</translation>
     </message>
@@ -5083,27 +5102,27 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">正在应用裁切过滤...</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2138"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2143"/>
         <source>Clip produced an empty result.</source>
         <translation>裁切结果为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2142"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2147"/>
         <source>Save Clipped Point Cloud</source>
         <translation>保存裁切后的点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2144"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2149"/>
         <source>LAS Point Cloud (*.las)</source>
         <translation>LAS 点云文件 (*.las)</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2152"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2157"/>
         <source>Export failed: %1</source>
         <translation>导出失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2157"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2162"/>
         <source>Clip export complete. %1 points written to %2</source>
         <translation>裁切导出完成。已将 %1 个点写入 %2</translation>
     </message>
@@ -5161,7 +5180,7 @@ Chainage: %4 - %5 m</source>
         <translation>杆塔添加模式已开启。请持续点击点位以添加杆塔标注，完成后请取消工具。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.Connections.cpp" line="2012"/>
+        <location filename="../src/gui/MainWindow.Connections.cpp" line="2017"/>
         <source>Tower marker added. Continue clicking points to add more, or cancel the tool when finished.</source>
         <translation>已添加杆塔标注。可继续点击点位添加更多，或在完成后取消工具。</translation>
     </message>
@@ -5223,10 +5242,8 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">打开 LAS 点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3087"/>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="20"/>
         <source>LAS Files (*.las *.laz);;All Files (*.*)</source>
-        <translation>LAS 文件 (*.las *.laz);;所有文件 (*.*)</translation>
+        <translation type="vanished">LAS 文件 (*.las *.laz);;所有文件 (*.*)</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="2276"/>
@@ -5235,7 +5252,7 @@ Chainage: %4 - %5 m</source>
         <translation>已取消打开。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="52"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="54"/>
         <source>Loaded %1. %2</source>
         <translation>已加载 %1。%2</translation>
     </message>
@@ -5269,25 +5286,36 @@ Chainage: %4 - %5 m</source>
         <translation type="vanished">%1 | %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="63"/>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="78"/>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="167"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="18"/>
+        <source>Add Point Clouds or Gaussian Models</source>
+        <translation>添加点云或高斯模型</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.cpp" line="3087"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="20"/>
+        <source>Supported Files (*.las *.laz *.ply);;LAS Files (*.las *.laz);;Gaussian PLY (*.ply);;All Files (*.*)</source>
+        <translation>支持的文件 (*.las *.laz *.ply);;LAS 文件 (*.las *.laz);;高斯 PLY (*.ply);;所有文件 (*.*)</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="65"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="80"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="169"/>
         <location filename="../src/gui/MainWindow.ProjectSerializer.cpp" line="61"/>
         <source>Failed to load point cloud.</source>
         <translation>加载点云失败。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="94"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="96"/>
         <source>Datasets added.</source>
         <translation>数据集已添加。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="175"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="177"/>
         <source>Choose Single Point Color</source>
         <translation>选择单点颜色</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="187"/>
+        <location filename="../src/gui/MainWindow.PointCloud.cpp" line="189"/>
         <source>Choose Background Color</source>
         <translation>选择背景颜色</translation>
     </message>
@@ -5364,15 +5392,15 @@ Chainage: %4 - %5 m</source>
         <location filename="../src/gui/MainWindow.cpp" line="3473"/>
         <location filename="../src/gui/MainWindow.cpp" line="3482"/>
         <location filename="../src/gui/MainWindow.cpp" line="3483"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3966"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3968"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3970"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3988"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4205"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4826"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4856"/>
-        <location filename="../src/gui/MainWindow.cpp" line="4865"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3967"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3969"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3971"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3989"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4206"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4827"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4857"/>
         <location filename="../src/gui/MainWindow.cpp" line="4866"/>
+        <location filename="../src/gui/MainWindow.cpp" line="4867"/>
         <location filename="../src/gui/MainWindow.TowerIssue.cpp" line="256"/>
         <location filename="../src/gui/MainWindow.TowerIssue.cpp" line="257"/>
         <source>N/A</source>
@@ -5405,22 +5433,22 @@ Max (%2)</source>
         <translation type="vanished">左键拖拽旋转（%1），中键或右键拖拽平移（%2），鼠标滚轮缩放（%3）。使用下方开关调整为你习惯的交互方向。</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3940"/>
         <location filename="../src/gui/MainWindow.cpp" line="3941"/>
         <location filename="../src/gui/MainWindow.cpp" line="3942"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3943"/>
         <source>inverted</source>
         <translation>反向</translation>
     </message>
     <message>
-        <location filename="../src/gui/MainWindow.cpp" line="3940"/>
         <location filename="../src/gui/MainWindow.cpp" line="3941"/>
         <location filename="../src/gui/MainWindow.cpp" line="3942"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3943"/>
         <source>normal</source>
         <translation>正常</translation>
     </message>
     <message>
         <location filename="../src/gui/MainWindow.cpp" line="1687"/>
-        <location filename="../src/gui/MainWindow.cpp" line="3960"/>
+        <location filename="../src/gui/MainWindow.cpp" line="3961"/>
         <source>Stop Measurement</source>
         <translation>停止量测</translation>
     </message>
@@ -5598,121 +5626,126 @@ Max (%2)</source>
 <context>
     <name>PointCloudViewer</name>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="282"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="286"/>
         <source>Camera preview unavailable</source>
         <translation>相机预览不可用</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="491"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="495"/>
         <source>Elevation Ramp</source>
         <translation>高程渐变</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="493"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="497"/>
         <source>Single Color</source>
         <translation>单色</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="495"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="499"/>
         <source>Classification</source>
         <translation>分类</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="498"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="502"/>
         <source>RGB</source>
         <translation>RGB</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1775"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1947"/>
         <source>Preview Ready</source>
         <translation>预览已就绪</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1798"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2050"/>
         <source>No point cloud files were specified.</source>
         <translation>未指定任何点云文件。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1799"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1850"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1859"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1879"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1914"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1973"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2051"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2102"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2111"/>
         <source>Open failed</source>
         <translation>打开失败</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1807"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1855"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1963"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2059"/>
         <source>Loading %1</source>
         <translation>正在加载 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1808"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2060"/>
         <source>Loading %1 datasets</source>
         <translation>正在加载 %1 个数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1809"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1811"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1998"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2000"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2061"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2063"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2267"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2269"/>
         <source>Preparing point cloud import...</source>
         <translation>正在准备点云导入...</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1835"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2024"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2087"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2293"/>
         <source>Reading %1 (%2/%3 points, %4%)</source>
         <translation>正在读取 %1（%2/%3 个点，%4%）</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1840"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2029"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2092"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2298"/>
         <source>Reading %1 (%2 points)</source>
         <translation>正在读取 %1（%2 个点）</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1858"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2047"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2110"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2316"/>
         <source>Point cloud file is empty: %1</source>
         <translation>点云文件为空：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1988"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2257"/>
         <source>All selected datasets are already loaded.</source>
         <translation>所选数据集均已加载。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1996"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2265"/>
         <source>Adding %1</source>
         <translation>正在添加 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1997"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2266"/>
         <source>Adding %1 datasets</source>
         <translation>正在添加 %1 个数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2039"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2048"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2308"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2317"/>
         <source>Add failed</source>
         <translation>添加失败</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2103"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2372"/>
         <source>Added %1. Total datasets: %2, total points: %3.</source>
         <translation>已添加 %1。当前共 %2 个数据集，总点数 %3。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2107"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2376"/>
         <source>Added %1 datasets. Total datasets: %2, total points: %3.</source>
         <translation>已添加 %1 个数据集。当前共 %2 个数据集，总点数 %3。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2197"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2470"/>
         <source>Open one or more LAS or LAZ files to continue.</source>
         <translation>请打开一个或多个 LAS 或 LAZ 文件继续。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2917"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3205"/>
         <source>Wait until the current point cloud is fully ready before starting profile classification.</source>
         <translation>请等待当前点云完全就绪后再启动剖面分类。</translation>
     </message>
@@ -5721,7 +5754,7 @@ Max (%2)</source>
         <translation type="vanished">已启用剖面分类模式。拖拽矩形框可对来源类别进行分类，按住 Alt 并拖动鼠标左键可调整视角，右键退出，按 Esc 取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2953"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3241"/>
         <source>Profile classification mode disabled.</source>
         <translation>已关闭剖面分类模式。</translation>
     </message>
@@ -5730,7 +5763,7 @@ Max (%2)</source>
         <translation type="vanished">已启用剖面分类模式（多边形）。左键添加顶点，右键应用，拖动可调整视角，按 Esc 清空或退出。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2956"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3244"/>
         <source>Profile classification mode enabled (rectangle). Drag a rectangle to classify source classes, hold Alt and drag left mouse to adjust view, right-click to exit, and press Esc to cancel.</source>
         <translation>已启用剖面分类模式（矩形）。拖拽矩形可对来源类别进行分类，按住 Alt 并拖动鼠标左键可调整视角，右键退出，按 Esc 取消。</translation>
     </message>
@@ -5739,117 +5772,117 @@ Max (%2)</source>
         <translation type="vanished">已切换到多边形选择。左键添加顶点，右键应用，并可自由调整视角。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2981"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3269"/>
         <source>Switched to rectangle selection. Drag a rectangle to apply profile classification.</source>
         <translation>已切换到矩形选择。拖拽矩形即可应用剖面分类。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3021"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3309"/>
         <source>Reverted %1 profile classification point(s).</source>
         <translation>已撤销 %1 个剖面分类点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3042"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3330"/>
         <source>Reapplied %1 profile classification point(s).</source>
         <translation>已重做 %1 个剖面分类点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3062"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3350"/>
         <source>Cleared all project profile classification edits.</source>
         <translation>已清空工程内全部剖面分类编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3175"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3463"/>
         <source>Measurement mode enabled. Click points to measure, and right-click to undo the last point.</source>
         <translation>已启用量测模式。点击点位开始量测，右键可回退上一个点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3625"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4287"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3913"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4575"/>
         <source>Inspection Route</source>
         <translation>巡检航线</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3814"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7318"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7790"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4102"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7631"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="8103"/>
         <source>Target %1</source>
         <translation>目标 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4595"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4883"/>
         <source>%1
 %2</source>
         <translation>%1
 %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4596"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4884"/>
         <source>Loading point cloud</source>
         <translation>正在加载点云</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4706"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4994"/>
         <source>Open one or more LAS or LAZ files. Left drag orbits, middle or right drag pans, and the mouse wheel zooms.</source>
         <translation>请打开一个或多个 LAS 或 LAZ 文件。左键拖动旋转，中键或右键拖动平移，鼠标滚轮缩放。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4715"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5018"/>
         <source>All point cloud datasets are hidden</source>
         <translation>所有点云数据集均已隐藏</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4716"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5019"/>
         <source>Enable one or more datasets in the project explorer to continue browsing, measuring, or editing.</source>
         <translation>请在项目目录树中重新启用一个或多个数据集，以继续浏览、量测或编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4725"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5028"/>
         <source>%1 datasets loaded</source>
         <translation>已加载 %1 个数据集</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4727"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5030"/>
         <source>%1 points | Datasets %2 | %3 | %4 px | Axes %5 | Bounds %6</source>
         <translation>%1 个点 | 数据集 %2 | %3 | %4 像素 | 坐标轴 %5 | 包围盒 %6</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4735"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5038"/>
         <source> | Issues %1</source>
         <translation> | 隐患 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4736"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5039"/>
         <source> | Route WPs %1</source>
         <translation> | 航线航点 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4738"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5041"/>
         <source>playing</source>
         <translation>播放中</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4738"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5041"/>
         <source>paused</source>
         <translation>已暂停</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4739"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5042"/>
         <source> | Roam %1 @ %2 m/s</source>
         <translation> | 漫游 %1 @ %2 米/秒</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4742"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5045"/>
         <source> | Photos %1</source>
         <translation> | 拍照 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4748"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5051"/>
         <source> | Measure %1 over %2 pts | ΔZ %3</source>
         <translation> | 量测 %1，%2 点 | 高差 %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4753"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5056"/>
         <source> | Measurement: pick the next point, right-click to undo</source>
         <translation> | 量测：请选择下一个点，右键回退</translation>
     </message>
@@ -5862,7 +5895,7 @@ Max (%2)</source>
         <translation type="vanished"> | 剖面分类：来源 %1 -&gt; 目标 %2 | 编辑 %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4794"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5097"/>
         <source> | Issue marking: click a point to add an issue, right-click to cancel</source>
         <translation> | 隐患标记：点击一点添加隐患，右键取消</translation>
     </message>
@@ -5871,27 +5904,27 @@ Max (%2)</source>
         <translation type="vanished">已添加多边形顶点 %1。右键应用选择。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4988"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5301"/>
         <source>Polygon vertex %1 added. Add at least %2 vertices to apply.</source>
         <translation>已添加多边形顶点 %1。至少添加 %2 个顶点后可应用。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5051"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5364"/>
         <source>First point selected. Click the next point to continue measuring.</source>
         <translation>已选择第一个点。请继续点击下一个点进行量测。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5054"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5367"/>
         <source>Measured %1 segment(s), total distance %2, height delta %3. Right-click to undo the last point.</source>
         <translation>已量测 %1 段，总距离 %2，高差 %3。右键可回退上一个点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5247"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5560"/>
         <source>Polygon selection cleared.</source>
         <translation>多边形选择已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5259"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5572"/>
         <source>Route waypoint move cancelled.</source>
         <translation>已取消航点拖拽移动。</translation>
     </message>
@@ -5900,321 +5933,376 @@ Max (%2)</source>
         <translation type="vanished">已取消多边形选择。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5333"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5646"/>
         <source>Profile classification selection cancelled.</source>
         <translation>已取消剖面分类选择。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5343"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5656"/>
         <source>Tower marker removed.</source>
         <translation>已删除杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5347"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5354"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5660"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5667"/>
         <source>Tower tool cancelled.</source>
         <translation>杆塔工具已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5360"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5673"/>
         <source>Issue marking cancelled.</source>
         <translation>隐患标记已取消。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5369"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5682"/>
         <source>No measurement point to undo.</source>
         <translation>没有可回退的量测点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5375"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5688"/>
         <source>Measurement point removed. %1 segment(s) remain, total distance %2.</source>
         <translation>已移除一个量测点。还剩 %1 段，总距离 %2。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5380"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5693"/>
         <source>Measurement point removed. Click the next point to continue measuring.</source>
         <translation>已移除一个量测点。请继续点击下一个点进行量测。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5382"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5695"/>
         <source>Measurement points cleared.</source>
         <translation>量测点已清空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5142"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5913"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5455"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6226"/>
         <source>Add at least three polygon vertices before applying profile classification.</source>
         <translation>应用剖面分类前请至少添加三个多边形顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2540"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1963"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1965"/>
+        <source>Reading Gaussian model...</source>
+        <translation>正在读取高斯模型...</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1903"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1904"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1999"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2000"/>
+        <source>Uploading Gaussian model to GPU...</source>
+        <translation>正在将高斯模型上传到 GPU...</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1846"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1957"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2219"/>
+        <source>Another point cloud is still loading.</source>
+        <translation>另一个点云仍在加载中。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1856"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1858"/>
+        <source>Reading Gaussian model in parallel...</source>
+        <translation>正在并行读取高斯模型...</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1860"/>
+        <source>Loading Gaussian model in background...</source>
+        <translation>正在后台加载高斯模型...</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1915"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="1917"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2009"/>
+        <source>Failed to initialize Gaussian rendering.</source>
+        <translation>高斯渲染初始化失败。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2020"/>
+        <source>Loaded Gaussian model with %1 splats.</source>
+        <translation>已加载包含 %1 个高斯基元的模型。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2027"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2229"/>
+        <source>Gaussian PLY files must be opened one at a time and cannot be mixed with LAS/LAZ datasets.</source>
+        <translation>高斯 PLY 文件必须逐个打开，不能与 LAS/LAZ 数据集混合加载。</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2828"/>
         <source>Box clip switched to view-aligned mode. Click the first corner point to start.</source>
         <translation>包围盒裁切已切换为视角对齐模式。点击第一个角点开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2541"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2829"/>
         <source>Box clip switched to world-aligned mode. Click the first corner point to start.</source>
         <translation>包围盒裁切已切换为世界轴对齐模式。点击第一个角点开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2571"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2609"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2859"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2897"/>
         <source>Load a point cloud before starting clip selection.</source>
         <translation>开始裁切选择前请先加载点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2575"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2613"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2863"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2901"/>
         <source>Select a point cloud dataset before starting an active-dataset clip.</source>
         <translation>开始“当前数据集”裁切前，请先选择一个点云数据集。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2602"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2890"/>
         <source>Polygon clip mode enabled. Left-click to add vertices, right-click to undo, and double-click to finish.</source>
         <translation>多边形裁切模式已启用。左键添加顶点，右键回退，双击结束。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2640"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2928"/>
         <source>View-aligned box clip enabled. Click the first corner point to start.</source>
         <translation>视角对齐包围盒裁切已启用。点击第一个角点开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2641"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2929"/>
         <source>World-aligned box clip enabled. Click the first corner point to start.</source>
         <translation>世界轴对齐包围盒裁切已启用。点击第一个角点开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2955"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3243"/>
         <source>Profile classification mode enabled (polygon). Left-click to add vertices, double-click to apply, right-click to undo one vertex, drag to adjust view, and press Esc to clear or exit.</source>
         <translation>剖面分类模式已启用（多边形）。左键添加顶点，双击应用，右键回退一个顶点，拖动可调整视角，按 Esc 清空或退出。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2980"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3268"/>
         <source>Switched to polygon selection. Left-click to add vertices, double-click to apply, and right-click to undo one vertex.</source>
         <translation>已切换为多边形选择。左键添加顶点，双击应用，右键回退一个顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4904"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5006"/>
+        <source>%1 Gaussian splats | GPU rasterization | Local origin offset %2</source>
+        <translation>%1 个高斯基元 | GPU 光栅化 | 局部原点偏移 %2</translation>
+    </message>
+    <message>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5217"/>
         <source>Unable to capture the current camera for polygon clipping.</source>
         <translation>无法捕获当前相机状态，不能进行多边形裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4920"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5233"/>
         <source>Clip polygon vertex %1 added. Double-click to apply, right-click to undo.</source>
         <translation>已添加裁切多边形顶点 %1。双击应用，右键回退。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4922"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5235"/>
         <source>Clip polygon vertex %1 added. Add at least %2 vertices to apply.</source>
         <translation>已添加裁切多边形顶点 %1。至少再添加到 %2 个顶点后才能应用。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4948"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5261"/>
         <source>Unable to capture the current camera for the view-aligned box clip.</source>
         <translation>无法捕获当前相机状态，不能进行视角对齐包围盒裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4953"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5266"/>
         <source>Box first corner selected. Hover another point to preview the box, then left-click to confirm.</source>
         <translation>已选中包围盒第一个角点。悬停到另一个点可预览包围盒，然后左键确认。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4960"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5273"/>
         <source>Unable to build the clip box from the selected points.</source>
         <translation>无法根据选中的点构建裁切包围盒。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4970"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5283"/>
         <source>View-aligned box clip applied.</source>
         <translation>已应用视角对齐包围盒裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4971"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5284"/>
         <source>World-aligned box clip applied.</source>
         <translation>已应用世界轴对齐包围盒裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4986"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5299"/>
         <source>Polygon vertex %1 added. Double-click to apply, right-click to undo one vertex.</source>
         <translation>已添加多边形顶点 %1。双击应用，右键回退一个顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5114"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5427"/>
         <source>Add at least three polygon vertices before applying the clip.</source>
         <translation>应用裁切前请至少添加三个多边形顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5126"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5439"/>
         <source>Unable to build the clip volume from the drawn polygon.</source>
         <translation>无法根据绘制的多边形构建裁切体。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5134"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5447"/>
         <source>Polygon clip applied.</source>
         <translation>已应用多边形裁切。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5236"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5549"/>
         <source>Clip editing cancelled.</source>
         <translation>已取消裁切编辑。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5278"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5591"/>
         <source>Clip polygon vertex undone. Selection is now empty.</source>
         <translation>已回退一个裁切多边形顶点。当前选择已为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5279"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5592"/>
         <source>Clip polygon vertex undone. %1 vertex/vertices remain.</source>
         <translation>已回退一个裁切多边形顶点。剩余 %1 个顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5283"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5596"/>
         <source>No clip polygon vertex to undo.</source>
         <translation>没有可回退的裁切多边形顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5294"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5607"/>
         <source>Box first corner cleared. Click the first corner point to start again.</source>
         <translation>已清除包围盒第一个角点。点击第一个角点重新开始。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5296"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5609"/>
         <source>No clip box corner to undo.</source>
         <translation>没有可回退的裁切包围盒角点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5319"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5632"/>
         <source>Polygon vertex undone. Selection is now empty.</source>
         <translation>已回退一个多边形顶点。当前选择已为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5320"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5633"/>
         <source>Polygon vertex undone. %1 vertex/vertices remain.</source>
         <translation>已回退一个多边形顶点。剩余 %1 个顶点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5325"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5638"/>
         <source>No polygon vertex to undo. Left-click to add vertices, double-click to apply.</source>
         <translation>没有可回退的多边形顶点。左键添加顶点，双击应用。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5792"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6105"/>
         <source>No active clip region to export.</source>
         <translation>没有可导出的活动裁切区域。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5804"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6117"/>
         <source>Select a point cloud dataset before exporting an active-dataset clip.</source>
         <translation>导出“当前数据集”裁切前，请先选择一个点云数据集。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5820"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6133"/>
         <source>The selected dataset is not currently loaded.</source>
         <translation>当前选中的数据集尚未加载。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5841"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6154"/>
         <source>No visible datasets are available for clip export.</source>
         <translation>没有可用于裁切导出的可见数据集。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5971"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6284"/>
         <source>Choose at least one source classification before profile classification.</source>
         <translation>进行剖面分类前请至少选择一个来源类别。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5997"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6310"/>
         <source>No visible datasets are available for profile classification.</source>
         <translation>当前没有可用于剖面分类的可见数据集。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="6018"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6331"/>
         <source>Selection region is too small for profile classification.</source>
         <translation>选择区域过小，无法进行剖面分类。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="6038"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6351"/>
         <source>Applying profile classification polygon selection...</source>
         <translation>正在应用剖面分类多边形选择...</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="6039"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6352"/>
         <source>Applying profile classification selection...</source>
         <translation>正在应用剖面分类选择...</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="6159"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="6472"/>
         <source>Profile classification completed. %1 point(s) hit, %2 point(s) changed to class %3.</source>
         <translation>剖面分类完成。命中 %1 个点，%2 个点已改为类别 %3。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="6689"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7002"/>
         <source>%1 pts | 3D %2 | Height %3</source>
         <translation>%1 点 | 三维距离 %2 | 高差 %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7243"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7556"/>
         <source>Link a part point to enable aiming guidance.</source>
         <translation>请先关联部件点以启用瞄准偏离提示。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7275"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7588"/>
         <source>Target nearly centered</source>
         <translation>目标已接近画面中心</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7280"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7593"/>
         <source>move left</source>
         <translation>向左微调</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7282"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7595"/>
         <source>move right</source>
         <translation>向右微调</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7285"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7598"/>
         <source>move down</source>
         <translation>向下微调</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7287"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7600"/>
         <source>move up</source>
         <translation>向上微调</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7289"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7602"/>
         <source> + </source>
         <translation> + </translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7292"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7605"/>
         <source>Offset %1 px | %2</source>
         <translation>偏离 %1 像素 | %2</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7304"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7617"/>
         <source>Drag waypoint or adjust yaw/pitch until the target returns to frame.</source>
         <translation>请继续拖拽航点或调整偏航/俯仰，直到目标重新回到画面内。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7349"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7662"/>
         <source>Target %1 in frame</source>
         <translation>目标 %1 已进入画面</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7350"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7663"/>
         <source>Target %1 off-screen</source>
         <translation>目标 %1 已离开画面</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7354"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7667"/>
         <source>Captured: %1</source>
         <translation>已拍摄：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7355"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7668"/>
         <source>Captured waypoint snapshot</source>
         <translation>已拍摄航点快照</translation>
     </message>
@@ -6223,43 +6311,43 @@ Max (%2)</source>
         <translation type="vanished">航点 #%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7322"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7793"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7635"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="8106"/>
         <source>Unlinked</source>
         <translation>未关联</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7325"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7638"/>
         <source>Route Camera Preview | Dragging %1</source>
         <translation>航点相机预览 | 正在拖拽 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7326"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7639"/>
         <source>Route Camera Preview | %1</source>
         <translation>航点相机预览 | %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7328"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7641"/>
         <source>Target %1/%2: %3</source>
         <translation>目标 %1/%2：%3</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7332"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7645"/>
         <source>Target: %1</source>
         <translation>目标部件：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7334"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7647"/>
         <source>Yaw %1 | Pitch %2 | Cam %3 / %4 | Target %5/%6</source>
         <translation>机头偏航 %1 | 云台俯仰 %2 | 相机 %3 / %4 | 目标 %5/%6</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7341"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7654"/>
         <source>Yaw %1 | Pitch %2 | Cam %3 / %4</source>
         <translation>机头偏航 %1 | 云台俯仰 %2 | 相机 %3 / %4</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="7347"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="7660"/>
         <source>No linked part point</source>
         <translation>当前航点未关联部件点</translation>
     </message>
@@ -6276,17 +6364,17 @@ Max (%2)</source>
         <translation type="vanished">点云文件为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1944"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2196"/>
         <source>Loaded point cloud with %1 points.</source>
         <translation>已加载包含 %1 个点的点云。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="1946"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2198"/>
         <source>Loaded %1 datasets with %2 points.</source>
         <translation>已加载 %1 个数据集，共 %2 个点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="2196"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="2469"/>
         <source>Scene cleared</source>
         <translation>场景已清空</translation>
     </message>
@@ -6295,12 +6383,12 @@ Max (%2)</source>
         <translation type="vanished">打开 LAS 或 LAZ 文件以继续。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3149"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3437"/>
         <source>Load a point cloud before starting measurement.</source>
         <translation>请先加载点云再开始量测。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3172"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3460"/>
         <source>Measurement mode disabled.</source>
         <translation>量测模式已关闭。</translation>
     </message>
@@ -6309,22 +6397,22 @@ Max (%2)</source>
         <translation type="vanished">量测模式已开启。请点击第一个点。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3187"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3475"/>
         <source>Measurement cleared.</source>
         <translation>量测结果已清除。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3256"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3544"/>
         <source>Hover a point before adding a tower marker.</source>
         <translation>请先将鼠标悬停到一个点上，再添加杆塔标注。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="3263"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="3551"/>
         <source>Tower marker name cannot be empty.</source>
         <translation>杆塔名称不能为空。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4705"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4993"/>
         <source>Ready for point cloud inspection</source>
         <translation>准备查看点云</translation>
     </message>
@@ -6333,9 +6421,10 @@ Max (%2)</source>
         <translation type="vanished">打开 LAS 或 LAZ 文件。左键拖拽旋转，中键或右键拖拽平移，鼠标滚轮缩放。</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4708"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4718"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4812"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="4996"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5013"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5021"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5115"/>
         <source>Cursor Point: N/A</source>
         <translation>当前点坐标：无</translation>
     </message>
@@ -6344,19 +6433,19 @@ Max (%2)</source>
         <translation type="vanished">%1 个点 | %2 | %3 px | 坐标轴 %4 | 包围盒 %5</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4732"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4733"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5035"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5036"/>
         <source>on</source>
         <translation>开</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4732"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4733"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5035"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5036"/>
         <source>off</source>
         <translation>关</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4734"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5037"/>
         <source> | Towers %1</source>
         <translation> | 杆塔 %1</translation>
     </message>
@@ -6369,53 +6458,53 @@ Max (%2)</source>
         <translation type="vanished"> | 量测：请选择第二个点</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4755"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5058"/>
         <source> | Measurement: pick the first point</source>
         <translation> | 量测：请选择第一个点</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4762"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5065"/>
         <source>polygon</source>
         <translation>多边形</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4763"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5066"/>
         <source>rectangle</source>
         <translation>矩形</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4765"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5068"/>
         <source> | Profile classify (%1): processing</source>
         <translation> | 剖面分类（%1）：处理中</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4775"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5078"/>
         <source> | Profile classify (%1): source %2 -&gt; target %3 | edits %4</source>
         <translation> | 剖面分类（%1）：来源 %2 -&gt; 目标 %3 | 编辑 %4</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4782"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5085"/>
         <source> | vertices %1</source>
         <translation> | 顶点 %1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4797"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5100"/>
         <source> | Opacity %1% | Depth Cue %2 | EDL-style %3</source>
         <translation> | 透明度 %1% | 深度雾化 %2 | EDL 风格 %3</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4803"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5106"/>
         <source> | Round splats</source>
         <translation> | 圆形 splat</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4811"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5114"/>
         <source>Cursor Point: %1</source>
         <translation>当前点坐标：%1</translation>
     </message>
     <message>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="4932"/>
-        <location filename="../src/gui/PointCloudViewer.cpp" line="5031"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5245"/>
+        <location filename="../src/gui/PointCloudViewer.cpp" line="5344"/>
         <source>No point was found near the clicked position.</source>
         <translation>点击位置附近未找到点。</translation>
     </message>

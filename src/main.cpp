@@ -393,7 +393,7 @@ int main(int argc, char* argv[])
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setProfile(QSurfaceFormat::CompatibilityProfile);
-    format.setVersion(2, 1);
+    format.setVersion(4, 3);
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
