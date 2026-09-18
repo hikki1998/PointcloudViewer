@@ -177,7 +177,15 @@ bool GaussianRenderer::setModel(std::shared_ptr<const GaussianModel> model, QStr
         return false;
     }
 
-    model_ = std::move(model);
+    {
+        std::lock_guard<std::mutex> lock(sortMutex_);
+        model_ = std::move(model);
+        sortedIndices_.resize(model_->splats.size());
+        std::iota(sortedIndices_.begin(), sortedIndices_.end(), 0u);
+        sortRequested_ = false;
+        sortedIndicesReady_ = false;
+        lastRequestedViewProjection_.fill(0.0f);
+    }
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, splatBuffer_);
     glBufferData(
         GL_SHADER_STORAGE_BUFFER,
@@ -185,8 +193,6 @@ bool GaussianRenderer::setModel(std::shared_ptr<const GaussianModel> model, QStr
         model_->splats.data(),
         GL_STATIC_DRAW);
 
-    sortedIndices_.resize(model_->splats.size());
-    std::iota(sortedIndices_.begin(), sortedIndices_.end(), 0u);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, indexBuffer_);
     glBufferData(
         GL_SHADER_STORAGE_BUFFER,
@@ -194,7 +200,6 @@ bool GaussianRenderer::setModel(std::shared_ptr<const GaussianModel> model, QStr
         sortedIndices_.data(),
         GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    lastRequestedViewProjection_.fill(0.0f);
     return true;
 }
 

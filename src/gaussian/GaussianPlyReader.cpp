@@ -262,13 +262,23 @@ bool GaussianPlyReader::read(const QString& filePath, GaussianModel* model, QStr
         return false;
     }
 
-    const qint64 expectedBytes = static_cast<qint64>(header.vertexCount) * header.rowSize;
-    if (file.size() - header.dataOffset < expectedBytes) {
+    const qint64 availableBytes = file.size() - header.dataOffset;
+    if (header.rowSize <= 0
+        || availableBytes < 0
+        || header.vertexCount > availableBytes / header.rowSize) {
         if (errorMessage != nullptr) {
             *errorMessage = QStringLiteral("Gaussian PLY data is truncated.");
         }
         return false;
     }
+    if (static_cast<qulonglong>(header.vertexCount)
+        > static_cast<qulonglong>(std::numeric_limits<std::size_t>::max() / sizeof(GaussianGpuRecord))) {
+        if (errorMessage != nullptr) {
+            *errorMessage = QStringLiteral("Gaussian PLY vertex count is too large.");
+        }
+        return false;
+    }
+    const qint64 expectedBytes = static_cast<qint64>(header.vertexCount) * header.rowSize;
 
     GaussianModel loaded;
     loaded.fileOffset = header.fileOffset;

@@ -1901,17 +1901,20 @@ void MainWindow::createWindowAndViewerConnections()
 
     connect(viewer_, &PointCloudViewer::pointCloudLoadingStarted, this, [this](const QString& message) {
         beginOperationProgress(message);
+        updateActionState();
     });
     connect(viewer_, &PointCloudViewer::pointCloudLoadingProgress, this, [this](const QString& message, int value, int maximum) {
         updateOperationProgress(message, value, maximum);
     });
     connect(viewer_, &PointCloudViewer::pointCloudLoadingFinished, this, [this]() {
         endOperationProgress();
+        updateActionState();
     });
     connect(viewer_, &PointCloudViewer::pointCloudLoadingFailed, this, [this](const QString& message) {
         endOperationProgress();
         showUserMessage(LogLevel::Error, message, 6000);
         syncUiFromViewer();
+        updateActionState();
     });
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         endOperationProgress();
@@ -1920,17 +1923,25 @@ void MainWindow::createWindowAndViewerConnections()
         syncUiFromViewer();
     });
     connect(viewer_, &PointCloudViewer::pointCloudCleared, this, [this]() {
-        endOperationProgress();
+        const bool replacingScene = viewer_->isPointCloudLoadingInProgress();
+        if (!replacingScene) {
+            endOperationProgress();
+        }
+        currentProjectFilePath_.clear();
         classificationEditsDirty_ = false;
         linkedTowerFilePath_.clear();
         linkedRouteFilePath_.clear();
         setTowerEditingEnabled(false);
+        vegetationRiskResults_.clear();
+        selectedVegetationRiskIndex_ = -1;
         currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
         selectedRouteWaypointTargetIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
-        showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
+        if (!replacingScene) {
+            showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
+        }
     });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { syncUiFromViewer(); });
     connect(viewer_, &PointCloudViewer::visualizationOptionsChanged, this, [this]() { persistVisualizationSettings(); });

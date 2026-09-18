@@ -40,6 +40,10 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
 
     QString errorMessage;
     if (viewer_->loadPointCloudFilesAsync(filePaths, &errorMessage)) {
+        if (viewer_->isPointCloudLoadingInProgress()) {
+            showUserMessage(LogLevel::Info, errorMessage, 4500);
+            return true;
+        }
         currentProjectFilePath_.clear();
         linkedTowerFilePath_.clear();
         linkedRouteFilePath_.clear();
@@ -48,9 +52,7 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
         selectedVegetationRiskIndex_ = -1;
         currentPowerlineRoute_ = PowerlineRouteDocument();
         selectedRouteWaypointIndex_ = -1;
-        const QString successMessage = viewer_->isPointCloudLoadingInProgress()
-            ? errorMessage
-            : filePaths.size() == 1
+        const QString successMessage = filePaths.size() == 1
             ? tr("Loaded %1. %2").arg(QFileInfo(filePaths.constFirst()).fileName(), errorMessage)
             : tr("Loaded %1 datasets. %2")
                   .arg(QLocale().toString(filePaths.size()))
@@ -82,6 +84,11 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
         return false;
     }
 
+    if (viewer_->isPointCloudLoadingInProgress()) {
+        showUserMessage(LogLevel::Info, errorMessage, 4500);
+        return true;
+    }
+
     currentProjectFilePath_.clear();
     linkedTowerFilePath_.clear();
     linkedRouteFilePath_.clear();
@@ -100,6 +107,9 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
 
 void MainWindow::clearPointCloud()
 {
+    if (viewer_ == nullptr || viewer_->isPointCloudLoadingInProgress()) {
+        return;
+    }
     currentProjectFilePath_.clear();
     linkedTowerFilePath_.clear();
     linkedRouteFilePath_.clear();

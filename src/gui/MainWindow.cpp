@@ -3670,7 +3670,10 @@ void MainWindow::updateActionState()
     copyDatasetPathAction_->setEnabled(hasPathSelection);
     expandProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
     collapseProjectTreeAction_->setEnabled(projectTreeWidget_ != nullptr && projectTreeWidget_->topLevelItemCount() > 0);
-    clearAction_->setEnabled(viewer_ != nullptr && !viewer_->currentFilePaths().isEmpty());
+    clearAction_->setEnabled(
+        viewer_ != nullptr
+        && !viewer_->isPointCloudLoadingInProgress()
+        && !viewer_->currentFilePaths().isEmpty());
     fitSceneAction_->setEnabled(hasRenderableScene);
     topViewAction_->setEnabled(hasRenderableScene);
     frontViewAction_->setEnabled(hasRenderableScene);
