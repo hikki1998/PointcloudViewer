@@ -28,6 +28,7 @@ layout(std430, binding = 1) readonly buffer IndexBuffer { uint sortedIndices[]; 
 uniform mat4 uView;
 uniform mat4 uProjection;
 uniform vec2 uViewport;
+uniform uint uInstanceStride;
 
 out vec2 vGaussianCoord;
 out vec4 vColor;
@@ -36,7 +37,7 @@ void main()
 {
     const vec2 corners[4] = vec2[4](
         vec2(-1.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(1.0, 1.0));
-    uint splatIndex = sortedIndices[gl_InstanceID];
+    uint splatIndex = sortedIndices[uint(gl_InstanceID) * uInstanceStride];
     SplatRecord splat = splats[splatIndex];
     vec4 viewPosition = uView * vec4(splat.positionAlpha.xyz, 1.0);
     float depth = -viewPosition.z;
@@ -201,6 +202,7 @@ bool GaussianRenderer::setModel(std::shared_ptr<const GaussianModel> model, QStr
         std::iota(sortedIndices_.begin(), sortedIndices_.end(), 0u);
         sortRequested_ = false;
         sortedIndicesReady_ = false;
+        interactionActive_ = false;
         lastRequestedViewProjection_.fill(0.0f);
     }
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, splatBuffer_);
@@ -227,6 +229,19 @@ void GaussianRenderer::clear()
     sortedIndices_.clear();
     sortRequested_ = false;
     sortedIndicesReady_ = false;
+    interactionActive_ = false;
+}
+
+void GaussianRenderer::setInteractionActive(bool active)
+{
+    std::lock_guard<std::mutex> lock(sortMutex_);
+    if (interactionActive_ == active) {
+        return;
+    }
+    interactionActive_ = active;
+    if (!active) {
+        lastRequestedViewProjection_.fill(0.0f);
+    }
 }
 
 void GaussianRenderer::render(const QMatrix4x4& view, const QMatrix4x4& projection, int width, int height)
@@ -238,10 +253,20 @@ void GaussianRenderer::render(const QMatrix4x4& view, const QMatrix4x4& projecti
     uploadSortedIndices();
     requestSort(projection * view);
 
+    bool interactionActive = false;
+    {
+        std::lock_guard<std::mutex> lock(sortMutex_);
+        interactionActive = interactionActive_;
+    }
+    constexpr unsigned int kInteractionStride = 4;
+    const unsigned int instanceStride = interactionActive ? kInteractionStride : 1U;
+    const std::size_t instanceCount = (model_->splats.size() + instanceStride - 1U) / instanceStride;
+
     glUseProgram(program_);
     glUniformMatrix4fv(viewLocation_, 1, GL_FALSE, view.constData());
     glUniformMatrix4fv(projectionLocation_, 1, GL_FALSE, projection.constData());
     glUniform2f(viewportLocation_, static_cast<float>(width), static_cast<float>(height));
+    glUniform1ui(instanceStrideLocation_, instanceStride);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, splatBuffer_);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, indexBuffer_);
     glBindVertexArray(vao_);
@@ -250,7 +275,7 @@ void GaussianRenderer::render(const QMatrix4x4& view, const QMatrix4x4& projecti
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(model_->splats.size()));
+    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(instanceCount));
     glBindVertexArray(0);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
@@ -260,6 +285,12 @@ void GaussianRenderer::render(const QMatrix4x4& view, const QMatrix4x4& projecti
 bool GaussianRenderer::hasModel() const
 {
     return model_ != nullptr && !model_->empty();
+}
+
+bool GaussianRenderer::needsRedraw()
+{
+    std::lock_guard<std::mutex> lock(sortMutex_);
+    return interactionActive_ || sortRequested_ || sortInProgress_ || sortedIndicesReady_;
 }
 
 bool GaussianRenderer::buildProgram(QString* errorMessage)
@@ -297,6 +328,7 @@ bool GaussianRenderer::buildProgram(QString* errorMessage)
     viewLocation_ = glGetUniformLocation(program_, "uView");
     projectionLocation_ = glGetUniformLocation(program_, "uProjection");
     viewportLocation_ = glGetUniformLocation(program_, "uViewport");
+    instanceStrideLocation_ = glGetUniformLocation(program_, "uInstanceStride");
     return true;
 }
 
@@ -324,7 +356,8 @@ unsigned int GaussianRenderer::compileShader(unsigned int type, const char* sour
 void GaussianRenderer::requestSort(const QMatrix4x4& viewProjection)
 {
     std::lock_guard<std::mutex> lock(sortMutex_);
-    if (model_ == nullptr || sortRequested_ || matrixNearlyEqual(viewProjection, lastRequestedViewProjection_)) {
+    if (model_ == nullptr || interactionActive_ || sortRequested_ || sortInProgress_
+        || matrixNearlyEqual(viewProjection, lastRequestedViewProjection_)) {
         return;
     }
     pendingViewProjection_ = viewProjection;
@@ -351,8 +384,11 @@ void GaussianRenderer::sortLoop()
             model = model_;
             matrix = pendingViewProjection_;
             sortRequested_ = false;
+            sortInProgress_ = true;
         }
         if (model == nullptr || model->empty()) {
+            std::lock_guard<std::mutex> lock(sortMutex_);
+            sortInProgress_ = false;
             continue;
         }
 
@@ -395,6 +431,7 @@ void GaussianRenderer::sortLoop()
                 sortedIndices_.swap(localScratch);
                 sortedIndicesReady_ = true;
             }
+            sortInProgress_ = false;
         }
     }
 }

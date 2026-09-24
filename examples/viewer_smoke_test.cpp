@@ -747,6 +747,54 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
         }
 
         if (gaussianPly) {
+            osgViewer::Viewer* gaussianViewer = osgWidget->getViewer();
+            auto* gaussianManipulator = gaussianViewer != nullptr
+                ? dynamic_cast<osgGA::TrackballManipulator*>(gaussianViewer->getCameraManipulator())
+                : nullptr;
+            if (gaussianManipulator == nullptr) {
+                std::cerr << "Gaussian pivot smoke could not access the trackball manipulator for "
+                          << filePath.toStdString() << std::endl;
+                allPassed = false;
+                continue;
+            }
+            if (!verify(!gaussianManipulator->getVerticalAxisFixed(), "Gaussian viewing should use a free screen-space trackball")) {
+                allPassed = false;
+            }
+            const osg::Matrixd viewBeforePress = gaussianViewer->getCamera()->getViewMatrix();
+
+            QMouseEvent interactionPressEvent(
+                QEvent::MouseButtonPress,
+                QPointF(clickPoint),
+                Qt::LeftButton,
+                Qt::LeftButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(osgWidget, &interactionPressEvent);
+            if (!verify(osgWidget->gaussianInteractionActive_, "Gaussian left drag should enable interaction rendering")) {
+                allPassed = false;
+            }
+            const osg::Matrixd viewAfterPress = gaussianViewer->getCamera()->getViewMatrix();
+            double maxViewDelta = 0.0;
+            for (int row = 0; row < 4; ++row) {
+                for (int column = 0; column < 4; ++column) {
+                    maxViewDelta = std::max(maxViewDelta, std::abs(viewAfterPress(row, column) - viewBeforePress(row, column)));
+                }
+            }
+            if (!verify(maxViewDelta <= 1e-8, "Gaussian left press should not move the camera before dragging")) {
+                allPassed = false;
+            }
+            QMouseEvent interactionReleaseEvent(
+                QEvent::MouseButtonRelease,
+                QPointF(clickPoint),
+                Qt::LeftButton,
+                Qt::NoButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(osgWidget, &interactionReleaseEvent);
+            if (!verify(!osgWidget->gaussianInteractionActive_, "Gaussian left release should restore full rendering")) {
+                allPassed = false;
+            }
+            viewer.resetView();
+            pumpEvents(200);
+
             osgViewer::Viewer* osgViewer = osgWidget->getViewer();
             auto* manipulator = osgViewer != nullptr
                 ? dynamic_cast<osgGA::TrackballManipulator*>(osgViewer->getCameraManipulator())
@@ -809,6 +857,44 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
                 invertedXForward && invertedYMirrored,
                 "Viewer render smoke should invert both orbit axes when invert option is enabled")) {
             allPassed = false;
+        }
+
+        if (gaussianPly) {
+            const QString switchProjectPath = QFileInfo(QStringLiteral("./out/build/bin/Release/project.lpproj")).absoluteFilePath();
+            QFile projectFile(switchProjectPath);
+            if (projectFile.open(QIODevice::ReadOnly)) {
+                const QJsonArray projectPaths = QJsonDocument::fromJson(projectFile.readAll())
+                    .object().value(QStringLiteral("pointCloudFilePaths")).toArray();
+                projectFile.close();
+                QStringList resolvedProjectPaths;
+                for (const QJsonValue& pathValue : projectPaths) {
+                    resolvedProjectPaths.append(QFileInfo(QFileInfo(switchProjectPath).dir(), pathValue.toString()).absoluteFilePath());
+                }
+                QString switchError;
+                if (!viewer.loadPointCloudFiles(resolvedProjectPaths, &switchError)) {
+                    std::cerr << "Gaussian-to-project point-cloud switch failed: " << switchError.toStdString() << std::endl;
+                    allPassed = false;
+                    continue;
+                }
+                pumpEvents(800);
+                auto* switchManipulator = dynamic_cast<osgGA::TrackballManipulator*>(osgWidget->getViewer()->getCameraManipulator());
+                if (!verify(!viewer.hasGaussianModel(), "Loading project point clouds after Gaussian should clear the Gaussian renderer")) {
+                    allPassed = false;
+                }
+                if (!verify(viewer.hasPointCloud(), "Loading project point clouds after Gaussian should build the point cloud scene")) {
+                    allPassed = false;
+                }
+                if (!verify(switchManipulator != nullptr && switchManipulator->getVerticalAxisFixed(),
+                        "Loading project point clouds should restore fixed Z-up orbiting")) {
+                    allPassed = false;
+                }
+                const QImage switchedFrame = glWidget->grabFramebuffer();
+                int switchedNonBackgroundPixelCount = 0;
+                if (!hasVisiblePixels(switchedFrame, &switchedNonBackgroundPixelCount)) {
+                    std::cerr << "Project point-cloud framebuffer is empty after switching from Gaussian" << std::endl;
+                    allPassed = false;
+                }
+            }
         }
     }
 

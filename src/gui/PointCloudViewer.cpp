@@ -1357,7 +1357,7 @@ void OsgWidget::paintGL()
             }
         }
         emit frameRendered();
-        if (gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel()) {
+        if (gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel() && gaussianRenderer_->needsRedraw()) {
             update();
         }
     }
@@ -1366,6 +1366,9 @@ void OsgWidget::paintGL()
 bool OsgWidget::setGaussianModel(std::shared_ptr<const GaussianModel> model, QString* errorMessage)
 {
     gaussianModel_ = std::move(model);
+    if (auto* manipulator = dynamic_cast<PointCloudTrackballManipulator*>(viewer_->getCameraManipulator())) {
+        manipulator->setVerticalAxisFixed(false);
+    }
     if (!isValid()) {
         update();
         return true;
@@ -1384,6 +1387,10 @@ bool OsgWidget::setGaussianModel(std::shared_ptr<const GaussianModel> model, QSt
 void OsgWidget::clearGaussianModel()
 {
     gaussianModel_.reset();
+    gaussianInteractionActive_ = false;
+    if (auto* manipulator = dynamic_cast<PointCloudTrackballManipulator*>(viewer_->getCameraManipulator())) {
+        manipulator->setVerticalAxisFixed(true);
+    }
     if (gaussianRenderer_ != nullptr && isValid()) {
         makeCurrent();
         gaussianRenderer_->clear();
@@ -1422,12 +1429,19 @@ void OsgWidget::mousePressEvent(QMouseEvent* event)
     }
 
     if (event->button() == Qt::LeftButton) {
+        if (gaussianModel_ != nullptr && !gaussianModel_->empty()) {
+            setGaussianOrbitCenterAt(event->localPos());
+        }
         leftButtonPressed_ = true;
         leftButtonAnchor_ = event->localPos();
         leftButtonDragDetected_ = false;
         leftButtonEventDispatched_ = !sceneClickModeEnabled_;
         lastOrbitCursorPosition_ = event->localPos();
         lastOrbitEventPosition_ = event->localPos();
+        if (!sceneClickModeEnabled_ && gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel()) {
+            gaussianInteractionActive_ = true;
+            gaussianRenderer_->setInteractionActive(true);
+        }
     } else if (event->button() == Qt::MiddleButton) {
         middleButtonPressed_ = true;
         middleButtonAnchor_ = event->localPos();
@@ -1507,6 +1521,11 @@ void OsgWidget::mouseReleaseEvent(QMouseEvent* event)
         leftButtonPressed_ = false;
         leftButtonDragDetected_ = false;
         leftButtonEventDispatched_ = false;
+        if (gaussianInteractionActive_ && gaussianRenderer_ != nullptr) {
+            gaussianInteractionActive_ = false;
+            gaussianRenderer_->setInteractionActive(false);
+            needsRedraw = true;
+        }
     } else if (event->button() == Qt::MiddleButton) {
         middleButtonPressed_ = false;
     } else if (event->button() == Qt::RightButton) {
@@ -1580,6 +1599,10 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
     if (sceneClickModeEnabled_ && leftButtonPressed_ && leftButtonDragDetected_ && !leftButtonEventDispatched_) {
         dispatchMouseButtonEvent(leftButtonAnchor_, Qt::LeftButton, true);
         leftButtonEventDispatched_ = true;
+        if (gaussianRenderer_ != nullptr && gaussianRenderer_->hasModel()) {
+            gaussianInteractionActive_ = true;
+            gaussianRenderer_->setInteractionActive(true);
+        }
     }
 
     if (!sceneClickModeEnabled_
@@ -1597,6 +1620,87 @@ void OsgWidget::mouseMoveEvent(QMouseEvent* event)
     if (needsRedraw) {
         update();
     }
+}
+
+bool OsgWidget::setGaussianOrbitCenterAt(const QPointF& localPos)
+{
+    if (gaussianModel_ == nullptr || gaussianModel_->empty() || viewer_ == nullptr
+        || viewer_->getCamera() == nullptr || viewer_->getCamera()->getViewport() == nullptr) {
+        return false;
+    }
+
+    auto* manipulator = dynamic_cast<osgGA::TrackballManipulator*>(viewer_->getCameraManipulator());
+    if (manipulator == nullptr) {
+        return false;
+    }
+
+    osg::Camera* camera = viewer_->getCamera();
+    const osg::Matrixd localToWindow =
+        camera->getViewMatrix()
+        * camera->getProjectionMatrix()
+        * camera->getViewport()->computeWindowMatrix();
+    const double devicePixelRatio = devicePixelRatioF();
+    const double clickX = localPos.x() * devicePixelRatio;
+    const double clickY = (static_cast<double>(height()) - localPos.y()) * devicePixelRatio;
+    constexpr double kPickTolerancePixels = 24.0;
+    const double tolerance = kPickTolerancePixels * devicePixelRatio;
+    const double toleranceSquared = tolerance * tolerance;
+
+    bool found = false;
+    double bestDistanceSquared = toleranceSquared;
+    double bestDepth = std::numeric_limits<double>::max();
+    osg::Vec3d bestCenter;
+    for (const GaussianGpuRecord& splat : gaussianModel_->splats) {
+        const osg::Vec3d projected = osg::Vec3d(
+            splat.positionAlpha[0],
+            splat.positionAlpha[1],
+            splat.positionAlpha[2])
+            * localToWindow;
+        if (!std::isfinite(projected.x()) || !std::isfinite(projected.y()) || !std::isfinite(projected.z())
+            || projected.z() < 0.0 || projected.z() > 1.0) {
+            continue;
+        }
+
+        const double dx = projected.x() - clickX;
+        const double dy = projected.y() - clickY;
+        const double distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared > bestDistanceSquared) {
+            continue;
+        }
+        if (!found
+            || distanceSquared < bestDistanceSquared - 0.001
+            || (std::abs(distanceSquared - bestDistanceSquared) <= 0.001 && projected.z() < bestDepth)) {
+            found = true;
+            bestDistanceSquared = distanceSquared;
+            bestDepth = projected.z();
+            bestCenter.set(splat.positionAlpha[0], splat.positionAlpha[1], splat.positionAlpha[2]);
+        }
+    }
+
+    if (!found) {
+        return false;
+    }
+
+    osg::Vec3d eye;
+    osg::Vec3d currentCenter;
+    osg::Vec3d up;
+    manipulator->getTransformation(eye, currentCenter, up);
+    osg::Vec3d forward = currentCenter - eye;
+    if (forward.length2() <= 1e-12) {
+        return false;
+    }
+    forward.normalize();
+
+    const double pivotDistance = (bestCenter - eye) * forward;
+    if (!std::isfinite(pivotDistance) || pivotDistance <= 0.01) {
+        return false;
+    }
+
+    // Keep the eye and viewing direction unchanged. An arbitrary off-axis center would make
+    // OrbitManipulator move the camera immediately; using the picked depth on the view axis
+    // changes the orbit radius without causing a click-time scene jump.
+    manipulator->setTransformation(eye, eye + forward * pivotDistance, up);
+    return true;
 }
 
 void OsgWidget::dispatchMouseButtonEvent(const QPointF& localPos, Qt::MouseButton button, bool pressed)
@@ -2140,6 +2244,10 @@ bool PointCloudViewer::loadPointCloudFiles(const QStringList& filePaths, QString
         loadedDatasets.append(std::move(loadedDataset));
     }
 
+    currentGaussianModel_.reset();
+    if (osgWidget_ != nullptr) {
+        osgWidget_->clearGaussianModel();
+    }
     loadedPointCloudDatasets_ = std::move(loadedDatasets);
     DataManager::instance().setPointCloudDatasets(datasetInfos);
     currentFilePaths_ = normalizedFilePaths;

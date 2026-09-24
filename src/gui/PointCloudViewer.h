@@ -198,6 +198,7 @@ private:
     int mapMouseButton(Qt::MouseButton button) const;
     void dispatchMouseButtonEvent(const QPointF& localPos, Qt::MouseButton button, bool pressed);
     void dispatchMouseMotion(const QPointF& localPos);
+    bool setGaussianOrbitCenterAt(const QPointF& localPos);
     static float toDevicePixels(float value, float devicePixelRatio);
 
     osg::ref_ptr<osgViewer::Viewer> viewer_;
@@ -211,6 +212,7 @@ private:
     bool leftButtonPressed_ = false;
     bool middleButtonPressed_ = false;
     bool rightButtonPressed_ = false;
+    bool gaussianInteractionActive_ = false;
     bool leftButtonDragDetected_ = false;
     bool leftButtonEventDispatched_ = false;
     bool rightButtonDragDetected_ = false;

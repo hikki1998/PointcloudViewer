@@ -22,8 +22,10 @@ public:
     bool initialize(QString* errorMessage = nullptr);
     bool setModel(std::shared_ptr<const GaussianModel> model, QString* errorMessage = nullptr);
     void clear();
+    void setInteractionActive(bool active);
     void render(const QMatrix4x4& view, const QMatrix4x4& projection, int width, int height);
     [[nodiscard]] bool hasModel() const;
+    [[nodiscard]] bool needsRedraw();
 
 private:
     bool buildProgram(QString* errorMessage);
@@ -41,6 +43,7 @@ private:
     int viewLocation_ = -1;
     int projectionLocation_ = -1;
     int viewportLocation_ = -1;
+    int instanceStrideLocation_ = -1;
     bool initialized_ = false;
 
     std::thread sortThread_;
@@ -48,7 +51,9 @@ private:
     std::condition_variable sortCondition_;
     bool stopSortThread_ = false;
     bool sortRequested_ = false;
+    bool sortInProgress_ = false;
     bool sortedIndicesReady_ = false;
+    bool interactionActive_ = false;
     QMatrix4x4 pendingViewProjection_;
     QMatrix4x4 lastRequestedViewProjection_;
     std::vector<std::uint32_t> sortedIndices_;
