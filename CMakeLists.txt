@@ -18,8 +18,8 @@ option(
 
 option(
     LAS_VIEWER_MSVC_TRACK_FILE_ACCESS
-    "Enable MSBuild Tracker-based file access tracking for MSVC builds. OFF avoids the TRK0002 invalid-handle failure seen on this toolchain while keeping /MP parallel compilation."
-    OFF
+    "Enable MSBuild Tracker-based file access tracking for incremental MSVC builds. Disable only when the toolchain reports TRK0002 invalid-handle failures."
+    ON
 )
 
 if(MSVC)
