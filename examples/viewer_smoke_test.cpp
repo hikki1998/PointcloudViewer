@@ -40,6 +40,8 @@
 #include <QTimer>
 #include <QLineEdit>
 
+#include <osgGA/TrackballManipulator>
+
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
 #endif
@@ -742,6 +744,39 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
                       << filePath.toStdString() << std::endl;
             allPassed = false;
             continue;
+        }
+
+        if (gaussianPly) {
+            osgViewer::Viewer* osgViewer = osgWidget->getViewer();
+            auto* manipulator = osgViewer != nullptr
+                ? dynamic_cast<osgGA::TrackballManipulator*>(osgViewer->getCameraManipulator())
+                : nullptr;
+            if (manipulator == nullptr) {
+                std::cerr << "Gaussian zoom smoke could not access the trackball manipulator for "
+                          << filePath.toStdString() << std::endl;
+                allPassed = false;
+                continue;
+            }
+
+            manipulator->setDistance(std::max(0.05, manipulator->getDistance() * 0.03));
+            osgWidget->update();
+            pumpEvents(500);
+            const QImage zoomedFrame = glWidget->grabFramebuffer();
+            int zoomedNonBackgroundPixelCount = 0;
+            const bool zoomedVisiblePixels = hasVisiblePixels(zoomedFrame, &zoomedNonBackgroundPixelCount);
+            const double zoomedCoverage = zoomedFrame.isNull()
+                ? 1.0
+                : static_cast<double>(zoomedNonBackgroundPixelCount)
+                    / static_cast<double>(zoomedFrame.width() * zoomedFrame.height());
+            std::cout << "Zoomed Gaussian " << filePath.toStdString()
+                      << " nonBackgroundPixels=" << zoomedNonBackgroundPixelCount
+                      << " coverage=" << zoomedCoverage << std::endl;
+            if (!zoomedVisiblePixels || zoomedCoverage >= 0.98) {
+                std::cerr << "Zoomed Gaussian render became empty or saturated for "
+                          << filePath.toStdString() << std::endl;
+                allPassed = false;
+                continue;
+            }
         }
 
         const QPointF orbitDragStart = QPointF(clickPoint);

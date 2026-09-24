@@ -40,32 +40,49 @@ void main()
     SplatRecord splat = splats[splatIndex];
     vec4 viewPosition = uView * vec4(splat.positionAlpha.xyz, 1.0);
     float depth = -viewPosition.z;
-    if (depth <= 0.01 || splat.positionAlpha.w <= 0.003) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        vGaussianCoord = vec2(10.0);
-        vColor = vec4(0.0);
-        return;
-    }
-
     mat3 covarianceWorld = mat3(
         vec3(splat.covarianceA.x, splat.covarianceA.y, splat.covarianceA.z),
         vec3(splat.covarianceA.y, splat.covarianceB.x, splat.covarianceB.y),
         vec3(splat.covarianceA.z, splat.covarianceB.y, splat.covarianceB.z));
     mat3 rotation = mat3(uView);
     mat3 covarianceView = rotation * covarianceWorld * transpose(rotation);
+    float supportDepth = 2.0 * sqrt(max(0.0, max(covarianceView[0][0], max(covarianceView[1][1], covarianceView[2][2]))));
+    if (depth <= max(0.01, supportDepth) || splat.positionAlpha.w <= 0.003) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vGaussianCoord = vec2(10.0);
+        vColor = vec4(0.0);
+        return;
+    }
 
     float focalX = 0.5 * uViewport.x * uProjection[0][0];
     float focalY = 0.5 * uViewport.y * uProjection[1][1];
-    vec3 jacobianX = vec3(focalX / depth, 0.0, focalX * viewPosition.x / (depth * depth));
-    vec3 jacobianY = vec3(0.0, focalY / depth, focalY * viewPosition.y / (depth * depth));
+    float viewLimitX = 1.3 * depth / max(abs(uProjection[0][0]), 1e-6);
+    float viewLimitY = 1.3 * depth / max(abs(uProjection[1][1]), 1e-6);
+    float projectedX = clamp(viewPosition.x, -viewLimitX, viewLimitX);
+    float projectedY = clamp(viewPosition.y, -viewLimitY, viewLimitY);
+    vec3 jacobianX = vec3(focalX / depth, 0.0, focalX * projectedX / (depth * depth));
+    vec3 jacobianY = vec3(0.0, focalY / depth, focalY * projectedY / (depth * depth));
     float covXX = dot(jacobianX, covarianceView * jacobianX) + 0.3;
     float covXY = dot(jacobianX, covarianceView * jacobianY);
     float covYY = dot(jacobianY, covarianceView * jacobianY) + 0.3;
+    if (isnan(covXX) || isinf(covXX) || isnan(covXY) || isinf(covXY) || isnan(covYY) || isinf(covYY)) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vGaussianCoord = vec2(10.0);
+        vColor = vec4(0.0);
+        return;
+    }
 
     float trace = covXX + covYY;
     float radius = sqrt(max(0.0, 0.25 * trace * trace - (covXX * covYY - covXY * covXY)));
     float lambdaMajor = max(0.1, 0.5 * trace + radius);
     float lambdaMinor = max(0.1, 0.5 * trace - radius);
+    float maxAxisPixels = clamp(0.04 * min(uViewport.x, uViewport.y), 24.0, 96.0);
+    if (3.0 * sqrt(lambdaMajor) > maxAxisPixels) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        vGaussianCoord = vec2(10.0);
+        vColor = vec4(0.0);
+        return;
+    }
     vec2 majorAxis = abs(covXY) > 1e-6
         ? normalize(vec2(lambdaMajor - covYY, covXY))
         : (covXX >= covYY ? vec2(1.0, 0.0) : vec2(0.0, 1.0));
@@ -228,6 +245,8 @@ void GaussianRenderer::render(const QMatrix4x4& view, const QMatrix4x4& projecti
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, splatBuffer_);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, indexBuffer_);
     glBindVertexArray(vao_);
+    glViewport(0, 0, width, height);
+    glDisable(GL_SCISSOR_TEST);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
