@@ -235,6 +235,7 @@ MainWindow::MainWindow(QTranslator* appTranslator, QTranslator* qtTranslator, QW
     applyLanguage(currentLanguage_);
     loadThemeSettings();
     loadWindowSettings();
+    refreshWelcomeWorkspace();
 
     syncUiFromViewer();
     updateNavigationHelpText();

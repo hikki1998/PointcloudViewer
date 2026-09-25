@@ -1439,6 +1439,7 @@ void MainWindow::retranslatePanelsAndRuntimeState()
     }
 
     refreshBackstageRecentProjects();
+    refreshWelcomeWorkspace();
     refreshBackstageProjectPropertiesPage();
     refreshBackstageApplicationSettingsPage();
     refreshBackstageAboutPage();

@@ -75,6 +75,8 @@
 #include "gui/SpanProfileDock.h"
 #include "gui/TowerController.h"
 #include "gui/VisualizationPanelController.h"
+#include "gui/WelcomeWorkspaceWidget.h"
+#include "gui/WorkspaceThumbnailCache.h"
 #include "logging/ApplicationLogger.h"
 #include "route/InspectionRoutePlanning.h"
 #include "route/PowerlineRouteBridge.h"
@@ -100,6 +102,66 @@ bool runMainBackstageSmoke(const QStringList& filePaths)
     if (!verify(ribbonBar != nullptr, "MainWindow should expose a RibbonBar")) {
         return false;
     }
+
+    PointCloudViewer* welcomeViewer = window.findChild<PointCloudViewer*>();
+    if (!verify(welcomeViewer != nullptr, "MainWindow should expose the point-cloud viewer")) {
+        return false;
+    }
+    WelcomeWorkspaceWidget* welcomeWorkspace = welcomeViewer->welcomeWorkspace();
+    if (!verify(welcomeWorkspace != nullptr, "Empty viewer should create the recent workspace")) {
+        return false;
+    }
+    if (!verify(welcomeWorkspace->isVisible(), "Recent workspace should be visible before loading data")) {
+        return false;
+    }
+    if (!verify(welcomeWorkspace->findChildren<QPushButton*>().size() >= 3,
+            "Recent workspace should expose project, open-data, and add-data actions")) {
+        return false;
+    }
+    if (!verify(welcomeWorkspace->findChildren<QListWidget*>().size() == 2,
+            "Recent workspace should expose project and data lists")) {
+        return false;
+    }
+
+    QTemporaryDir thumbnailTempDir;
+    if (!verify(thumbnailTempDir.isValid(), "Thumbnail smoke should create a temporary directory")) {
+        return false;
+    }
+    qputenv("LAS_VIEWER_THUMBNAIL_CACHE_DIR", thumbnailTempDir.path().toUtf8());
+    const QString thumbnailSourcePath = QDir(thumbnailTempDir.path()).filePath(QStringLiteral("thumbnail-source.las"));
+    QFile thumbnailSourceFile(thumbnailSourcePath);
+    if (!verify(thumbnailSourceFile.open(QIODevice::WriteOnly), "Thumbnail smoke should create a source file")) {
+        return false;
+    }
+    thumbnailSourceFile.write("thumbnail-v1");
+    thumbnailSourceFile.close();
+    QImage thumbnailSourceImage(640, 360, QImage::Format_RGB32);
+    thumbnailSourceImage.fill(QColor(QStringLiteral("#16a34a")));
+    if (!verify(WorkspaceThumbnailCache::save(
+            thumbnailSourcePath,
+            WorkspaceThumbnailCache::Kind::Data,
+            thumbnailSourceImage),
+            "Thumbnail cache should save a rendered scene image")) {
+        return false;
+    }
+    const QImage cachedThumbnail = WorkspaceThumbnailCache::imageFor(
+        thumbnailSourcePath,
+        WorkspaceThumbnailCache::Kind::Data);
+    if (!verify(cachedThumbnail.size() == QSize(320, 180), "Thumbnail cache should return the expected card image size")) {
+        return false;
+    }
+    thumbnailSourceFile.open(QIODevice::Append);
+    thumbnailSourceFile.write("-changed");
+    thumbnailSourceFile.close();
+    const QImage invalidatedThumbnail = WorkspaceThumbnailCache::imageFor(
+        thumbnailSourcePath,
+        WorkspaceThumbnailCache::Kind::Data);
+    if (!verify(invalidatedThumbnail.pixelColor(0, 0) != cachedThumbnail.pixelColor(0, 0),
+            "Changing the source file should invalidate the cached thumbnail")) {
+        qunsetenv("LAS_VIEWER_THUMBNAIL_CACHE_DIR");
+        return false;
+    }
+    qunsetenv("LAS_VIEWER_THUMBNAIL_CACHE_DIR");
 
     QScreen* targetScreen = window.screen();
     if (targetScreen == nullptr) {

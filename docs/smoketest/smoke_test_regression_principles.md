@@ -102,14 +102,16 @@ MainWindow 封装入口：
 ### 5.1 render
 
 1. `viewer-render`（requiresLas=true）
-   - 实现：[examples/ViewerRenderSmoke.cpp#L88](../../examples/ViewerRenderSmoke.cpp#L88)
-   - 加载真实 LAS，检查 framebuffer 可见像素、点击后渲染和轨道拖拽/反转映射。
+   - 实现：[examples/ViewerRenderSmoke.cpp](../../examples/ViewerRenderSmoke.cpp)
+   - LAS/LAZ：检查 framebuffer 可见像素、点击后渲染和轨道拖拽/反转映射。
+   - Gaussian PLY：同一 mode 把 `--las` 指向受支持 `.ply`，额外验证异步加载、自由轨迹球、交互降级状态和连续渲染；当前没有独立 `gaussian-render` mode。
 
 ### 5.2 ui
 
 2. `main-backstage`（false）
-   - 实现：[examples/MainWindowSmoke.cpp#L90](../../examples/MainWindowSmoke.cpp#L90)
+   - 实现：[examples/MainWindowSmoke.cpp](../../examples/MainWindowSmoke.cpp)
    - MainWindow 大集成，覆盖 Dock、Ribbon、导航、量测、净空、航线、杆塔、隐患和 Backstage。
+   - 同时覆盖空场景最近工作台、缩略图缓存命中/失效与测试缓存隔离。
    - 航点编辑器通过生产 viewer 双击信号打开，Cancel 后验证对话框关闭。
 
 3. `main-settings-restore`（false）

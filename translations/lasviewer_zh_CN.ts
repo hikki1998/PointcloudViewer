@@ -5594,6 +5594,22 @@ Max (%2)</source>
         <source>Edit Route: %1</source>
         <translation>编辑航线：%1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n dataset(s)</source>
+        <translation><numerusform>%n 个数据集</numerusform></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n tower(s)</source>
+        <translation><numerusform>%n 座杆塔</numerusform></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n issue(s)</source>
+        <translation><numerusform>%n 项隐患</numerusform></translation>
+    </message>
+    <message><source>Route included</source><translation>含巡检航线</translation></message>
+    <message><source>%1 · %2</source><translation>%1 · %2</translation></message>
+    <message><source>Data file does not exist.</source><translation>数据文件不存在。</translation></message>
+    <message><source>File moved or deleted</source><translation>文件已移动或删除</translation></message>
 </context>
 <context>
     <name>NavigationSettingsWidget</name>
@@ -7400,5 +7416,21 @@ Max (%2)</source>
         <source>Stored project CRS without a matching common catalog entry.</source>
         <translation>已保存的工程坐标系未命中常用目录条目。</translation>
     </message>
+</context>
+<context>
+    <name>WelcomeWorkspaceWidget</name>
+    <message><source>No recent projects</source><translation>暂无最近工程</translation></message>
+    <message><source>No recent data</source><translation>暂无最近数据</translation></message>
+    <message><source>Welcome to Power Point Cloud</source><translation>欢迎使用 Power Point Cloud</translation></message>
+    <message><source>Continue an inspection project or open point-cloud data to begin.</source><translation>继续巡检工程，或打开点云数据开始工作。</translation></message>
+    <message><source>Open Project</source><translation>打开工程</translation></message>
+    <message><source>Open Data</source><translation>打开数据</translation></message>
+    <message><source>Add Data</source><translation>追加数据</translation></message>
+    <message><source>Recent Projects</source><translation>最近工程</translation></message>
+    <message><source>Recent Data</source><translation>最近数据</translation></message>
+    <message><source>Open</source><translation>打开</translation></message>
+    <message><source>Add to Current Scene</source><translation>追加到当前场景</translation></message>
+    <message><source>Open Folder</source><translation>打开文件夹</translation></message>
+    <message><source>Remove from Recent</source><translation>从最近记录中移除</translation></message>
 </context>
 </TS>

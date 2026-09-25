@@ -5,6 +5,9 @@
 ## 当前核心能力
 
 - 多个 `.las/.laz` 数据加载与项目树管理
+- 单个 3D Gaussian Splatting `.ply` 加载与 OpenGL 4.3 GPU 渲染
+- Gaussian 大文件工作线程解析、交互期降级排序/渲染、视图适配与自由轨迹球交互
+- 当前 Gaussian 与 LAS/LAZ 不支持混载或同屏显示
 - 视角预设、场景适配、悬停坐标显示
 - RGB / 高程 / 单色 / 分类显示
 - `Point Size`、`Point Opacity`、`Depth Cue`、`EDL-style Shading`、`Round splats`
@@ -13,6 +16,39 @@
 - 杆塔编辑、属性维护
 - 隐患台账、列表管理、导出
 - 工程文件保存/加载
+- 空场景“最近工程 / 最近数据”工作台
+  - 最近工程业务摘要
+  - 最近数据文件类型与大小
+  - 被动场景缩略图及类型占位图
+  - 缺失文件状态
+  - 打开、追加、定位文件夹、移除最近记录
+  - 缩略图启动时不重读点云，缓存有容量上限
+
+## Gaussian 模块当前状态
+
+### 已具备
+- binary little-endian、float32 3DGS PLY 校验与读取
+- 必需属性：`x/y/z`、`f_dc_0..2`、`opacity`、`scale_0..2`、`rot_0..3`
+- SH0 颜色、透明度、缩放、旋转和三维协方差
+- OpenGL 4.3 SSBO + instanced quad GPU rasterization
+- 大型 PLY 后台解析和并行转换/排序
+- Ribbon、拖放、通用打开、项目树和工程恢复入口
+- `viewer-render` smoke 可把 `--las` 参数指向受支持 `.ply` 验证
+
+### 当前边界
+- 不支持普通任意 PLY、ASCII PLY 或缺少 3DGS 字段的 PLY
+- 不支持 SH1-SH3 渲染
+- 不支持多 Gaussian 模型
+- 不支持 Gaussian 与 LAS/LAZ、杆塔/隐患/航线 overlay 的同屏深度组合
+
+## 最近工作台当前状态
+
+- 空场景工作台取代静态启动海报
+- 最近工程沿用 `project/recentProjects`；最近数据使用 `project/recentDataFiles`
+- 缩略图由正常渲染后的 framebuffer 被动捕获，位于 `AppLocalDataLocation/thumbnails`
+- 缓存按路径、文件大小和修改时间失效，使用原子写入，最多 200 张 / 100MB
+- 单数据场景保存数据缩略图；工程保存完整场景缩略图，避免多数据场景误写给单文件
+- 工作台读取最近工程摘要时对异常大 JSON 设有限制，不在启动时读取 LAS/LAZ/PLY
 
 ## 航线模块当前状态
 

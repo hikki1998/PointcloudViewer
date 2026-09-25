@@ -2,9 +2,15 @@
 
 #include <QCheckBox>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFont>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QImage>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QKeySequence>
@@ -12,7 +18,9 @@
 #include <QListWidgetItem>
 #include <QPushButton>
 #include <QSettings>
+#include <QSet>
 #include <QSignalBlocker>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -27,7 +35,9 @@
 #include "gui/BackstageProjectPropertiesWidget.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
+#include "gui/WelcomeWorkspaceWidget.h"
 #include "gui/WebPageDock.h"
+#include "gui/WorkspaceThumbnailCache.h"
 #include "gui/support/RibbonIconFactory.h"
 #include "gui/support/SettingsKeys.h"
 #include "gui/support/UiHelpers.h"
@@ -42,6 +52,8 @@ namespace settingskeys = lasviewer::gui::settingskeys;
 
 namespace
 {
+constexpr qint64 kMaximumRecentProjectSummaryBytes = 10LL * 1024LL * 1024LL;
+
 void normalizeBackstageNavigationButton(Qtitan::RibbonBackstageView* backstageView, QAction* action)
 {
     if (backstageView == nullptr || action == nullptr) {
@@ -407,6 +419,244 @@ void MainWindow::hideBackstageView()
     if (backstageView_ != nullptr && backstageView_->isVisible()) {
         backstageView_->hide();
     }
+}
+
+void MainWindow::refreshWelcomeWorkspace()
+{
+    if (viewer_ == nullptr || viewer_->welcomeWorkspace() == nullptr) {
+        return;
+    }
+
+    QSettings settings;
+    const QString lastOpenedProject = normalizedProjectFilePath(
+        settings.value(settingskeys::kProjectLastOpenedProject).toString());
+    const QStringList recentProjects = normalizedRecentProjectFiles(
+        settings.value(settingskeys::kProjectRecentProjects).toStringList(),
+        lastOpenedProject);
+    settings.setValue(settingskeys::kProjectRecentProjects, recentProjects);
+
+    QList<WelcomeWorkspaceItem> projectItems;
+    for (const QString& projectPath : recentProjects.mid(0, 6)) {
+        const QFileInfo projectInfo(projectPath);
+        QFile projectFile(projectPath);
+        QJsonObject projectObject;
+        if (projectInfo.size() <= kMaximumRecentProjectSummaryBytes && projectFile.open(QIODevice::ReadOnly)) {
+            projectObject = QJsonDocument::fromJson(projectFile.readAll()).object();
+        }
+
+        int datasetCount = projectObject.value(QStringLiteral("pointCloudFilePaths")).toArray().size();
+        if (datasetCount == 0 && !projectObject.value(QStringLiteral("pointCloudFilePath")).toString().trimmed().isEmpty()) {
+            datasetCount = 1;
+        }
+        const int towerCount = projectObject.value(QStringLiteral("towerMarkers")).toArray().size();
+        const int issueCount = projectObject.value(QStringLiteral("inspectionIssues")).toArray().size();
+        const bool hasRoute = !projectObject.value(QStringLiteral("routes")).toArray().isEmpty()
+            || !projectObject.value(QStringLiteral("routeFile")).toObject().value(QStringLiteral("relativePath")).toString().trimmed().isEmpty();
+        QStringList summaryParts {
+            tr("%n dataset(s)", nullptr, datasetCount),
+            tr("%n tower(s)", nullptr, towerCount),
+            tr("%n issue(s)", nullptr, issueCount)
+        };
+        if (hasRoute) {
+            summaryParts.append(tr("Route included"));
+        }
+
+        const bool missing = !projectInfo.exists();
+        projectItems.append({
+            projectInfo.completeBaseName().isEmpty() ? projectInfo.fileName() : projectInfo.completeBaseName(),
+            missing ? tr("File moved or deleted") : summaryParts.join(QStringLiteral(" · ")),
+            projectInfo.absolutePath(),
+            projectPath,
+            WorkspaceThumbnailCache::imageFor(projectPath, WorkspaceThumbnailCache::Kind::Project),
+            missing
+        });
+    }
+    viewer_->welcomeWorkspace()->setRecentProjects(projectItems);
+
+    QStringList recentDataFiles;
+    QSet<QString> seenDataPaths;
+    for (const QString& storedPath : settings.value(settingskeys::kProjectRecentDataFiles).toStringList()) {
+        const QString normalizedPath = QFileInfo(storedPath).absoluteFilePath();
+        const QString key = normalizedPath.toLower();
+        const QString suffix = QFileInfo(normalizedPath).suffix().toLower();
+        const bool supported = suffix == QStringLiteral("las") || suffix == QStringLiteral("laz") || suffix == QStringLiteral("ply");
+        if (!supported || seenDataPaths.contains(key)) {
+            continue;
+        }
+        seenDataPaths.insert(key);
+        recentDataFiles.append(normalizedPath);
+        if (recentDataFiles.size() >= 10) {
+            break;
+        }
+    }
+    settings.setValue(settingskeys::kProjectRecentDataFiles, recentDataFiles);
+
+    QList<WelcomeWorkspaceItem> dataItems;
+    for (const QString& dataPath : recentDataFiles.mid(0, 6)) {
+        const QFileInfo dataInfo(dataPath);
+        const bool missing = !dataInfo.exists();
+        dataItems.append({
+            dataInfo.fileName(),
+            missing
+                ? tr("File moved or deleted")
+                : tr("%1 · %2").arg(dataInfo.suffix().toUpper(), QLocale().formattedDataSize(dataInfo.size())),
+            dataInfo.absolutePath(),
+            dataPath,
+            WorkspaceThumbnailCache::imageFor(dataPath, WorkspaceThumbnailCache::Kind::Data),
+            missing
+        });
+    }
+    viewer_->welcomeWorkspace()->setRecentDataFiles(dataItems);
+}
+
+void MainWindow::recordRecentDataFiles(const QStringList& filePaths)
+{
+    QSettings settings;
+    QStringList recentDataFiles = settings.value(settingskeys::kProjectRecentDataFiles).toStringList();
+    for (auto it = filePaths.crbegin(); it != filePaths.crend(); ++it) {
+        const QString normalizedPath = QFileInfo(*it).absoluteFilePath();
+        if (!QFileInfo::exists(normalizedPath) || !isSupportedPointCloudFile(normalizedPath)) {
+            continue;
+        }
+        for (int index = recentDataFiles.size() - 1; index >= 0; --index) {
+            if (QString::compare(QFileInfo(recentDataFiles.at(index)).absoluteFilePath(), normalizedPath, Qt::CaseInsensitive) == 0) {
+                recentDataFiles.removeAt(index);
+            }
+        }
+        recentDataFiles.prepend(normalizedPath);
+    }
+    if (recentDataFiles.size() > 10) {
+        recentDataFiles = QStringList(recentDataFiles.mid(0, 10));
+    }
+    settings.setValue(settingskeys::kProjectRecentDataFiles, recentDataFiles);
+    refreshWelcomeWorkspace();
+}
+
+void MainWindow::scheduleWorkspaceThumbnailCapture()
+{
+    if (viewer_ == nullptr || !viewer_->hasLoadedPointClouds()) {
+        return;
+    }
+    workspaceThumbnailCapturePending_ = true;
+    workspaceThumbnailCaptureQueued_ = false;
+    workspaceThumbnailFramesToWait_ = 2;
+    workspaceThumbnailCaptureAttempts_ = 0;
+    workspaceThumbnailProjectPath_ = currentProjectFilePath_;
+    workspaceThumbnailDataPaths_ = viewer_->currentFilePaths();
+    viewer_->requestSceneFrame();
+}
+
+void MainWindow::captureWorkspaceThumbnails()
+{
+    if (!workspaceThumbnailCapturePending_ || viewer_ == nullptr || !viewer_->hasLoadedPointClouds()) {
+        return;
+    }
+    if (workspaceThumbnailProjectPath_ != currentProjectFilePath_
+        || workspaceThumbnailDataPaths_ != viewer_->currentFilePaths()) {
+        workspaceThumbnailCapturePending_ = false;
+        return;
+    }
+
+    const QImage image = viewer_->captureSceneThumbnail();
+    if (!isUsableWorkspaceThumbnail(image)) {
+        ++workspaceThumbnailCaptureAttempts_;
+        if (workspaceThumbnailCaptureAttempts_ >= 2) {
+            workspaceThumbnailCapturePending_ = false;
+        } else {
+            workspaceThumbnailFramesToWait_ = 1;
+            viewer_->requestSceneFrame();
+        }
+        return;
+    }
+    workspaceThumbnailCapturePending_ = false;
+    if (!workspaceThumbnailProjectPath_.isEmpty()) {
+        WorkspaceThumbnailCache::save(workspaceThumbnailProjectPath_, WorkspaceThumbnailCache::Kind::Project, image);
+    }
+    if (workspaceThumbnailDataPaths_.size() == 1) {
+        WorkspaceThumbnailCache::save(workspaceThumbnailDataPaths_.constFirst(), WorkspaceThumbnailCache::Kind::Data, image);
+    }
+    refreshWelcomeWorkspace();
+}
+
+bool MainWindow::isUsableWorkspaceThumbnail(const QImage& image) const
+{
+    if (image.isNull() || image.width() < 64 || image.height() < 36) {
+        return false;
+    }
+    const QColor reference = image.pixelColor(0, 0);
+    const int sampleColumns = 16;
+    const int sampleRows = 9;
+    int differingSamples = 0;
+    for (int row = 0; row < sampleRows; ++row) {
+        const int y = row * (image.height() - 1) / (sampleRows - 1);
+        for (int column = 0; column < sampleColumns; ++column) {
+            const int x = column * (image.width() - 1) / (sampleColumns - 1);
+            const QColor sample = image.pixelColor(x, y);
+            if (qAbs(sample.red() - reference.red())
+                    + qAbs(sample.green() - reference.green())
+                    + qAbs(sample.blue() - reference.blue()) > 24) {
+                ++differingSamples;
+            }
+        }
+    }
+    return differingSamples >= 3;
+}
+
+void MainWindow::removeRecentItem(const QString& filePath, bool projectItem)
+{
+    QSettings settings;
+    const char* key = projectItem ? settingskeys::kProjectRecentProjects : settingskeys::kProjectRecentDataFiles;
+    QStringList paths = settings.value(key).toStringList();
+    for (int index = paths.size() - 1; index >= 0; --index) {
+        if (QString::compare(QFileInfo(paths.at(index)).absoluteFilePath(), QFileInfo(filePath).absoluteFilePath(), Qt::CaseInsensitive) == 0) {
+            paths.removeAt(index);
+        }
+    }
+    settings.setValue(key, paths);
+    if (projectItem
+        && QString::compare(settings.value(settingskeys::kProjectLastOpenedProject).toString(), filePath, Qt::CaseInsensitive) == 0) {
+        settings.remove(settingskeys::kProjectLastOpenedProject);
+    }
+    refreshWelcomeWorkspace();
+    refreshBackstageRecentProjects();
+}
+
+void MainWindow::locateRecentItem(const QString& filePath)
+{
+    const QFileInfo fileInfo(filePath);
+    if (!fileInfo.absoluteDir().exists() || !QDesktopServices::openUrl(QUrl::fromLocalFile(fileInfo.absolutePath()))) {
+        showUserMessage(LogLevel::Warning, tr("Unable to open the selected file folder."), 3000);
+    }
+}
+
+void MainWindow::appendRecentDataFile(const QString& filePath)
+{
+    if (!QFileInfo::exists(filePath)) {
+        refreshWelcomeWorkspace();
+        showUserMessage(LogLevel::Warning, tr("Data file does not exist."), 4000);
+        return;
+    }
+    appendPointCloudFiles(QStringList { filePath });
+}
+
+void MainWindow::openRecentProject(const QString& filePath)
+{
+    if (!QFileInfo::exists(filePath)) {
+        refreshWelcomeWorkspace();
+        showUserMessage(LogLevel::Warning, tr("Project file does not exist."), 4000);
+        return;
+    }
+    loadProjectFile(filePath);
+}
+
+void MainWindow::openRecentDataFile(const QString& filePath)
+{
+    if (!QFileInfo::exists(filePath)) {
+        refreshWelcomeWorkspace();
+        showUserMessage(LogLevel::Warning, tr("Data file does not exist."), 4000);
+        return;
+    }
+    loadPointCloudFiles(QStringList { filePath });
 }
 
 void MainWindow::refreshBackstageRecentProjects()

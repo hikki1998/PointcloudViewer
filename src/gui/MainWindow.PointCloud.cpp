@@ -72,11 +72,14 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
     }
 
     QString errorMessage;
+    pendingRecentDataFiles_ = filePaths;
+    pendingDataLoadResetsProject_ = true;
     if (viewer_->loadPointCloudFilesAsync(filePaths, &errorMessage)) {
         if (viewer_->isPointCloudLoadingInProgress()) {
             showUserMessage(LogLevel::Info, errorMessage, 4500);
             return true;
         }
+        pendingDataLoadResetsProject_ = false;
         currentProjectFilePath_.clear();
         linkedTowerFilePath_.clear();
         linkedRouteFilePath_.clear();
@@ -94,6 +97,8 @@ bool MainWindow::loadPointCloudFiles(const QStringList& filePaths)
         return true;
     }
 
+    pendingRecentDataFiles_.clear();
+    pendingDataLoadResetsProject_ = false;
     syncUiFromViewer();
     showUserMessage(
         LogLevel::Error,
@@ -107,8 +112,12 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
     if (viewer_ == nullptr) {
         return false;
     }
+    pendingRecentDataFiles_ = filePaths;
+    pendingDataLoadResetsProject_ = true;
     QString errorMessage;
     if (!viewer_->appendPointCloudFiles(filePaths, &errorMessage)) {
+        pendingRecentDataFiles_.clear();
+        pendingDataLoadResetsProject_ = false;
         syncUiFromViewer();
         showUserMessage(
             LogLevel::Error,
@@ -118,10 +127,13 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
     }
 
     if (viewer_->isPointCloudLoadingInProgress()) {
+        pendingRecentDataFiles_ = filePaths;
         showUserMessage(LogLevel::Info, errorMessage, 4500);
         return true;
     }
 
+    pendingRecentDataFiles_.clear();
+    pendingDataLoadResetsProject_ = false;
     currentProjectFilePath_.clear();
     linkedTowerFilePath_.clear();
     linkedRouteFilePath_.clear();

@@ -7,6 +7,7 @@
 #include <thread>
 
 #include <QColor>
+#include <QImage>
 #include <QList>
 #include <QPointF>
 #include <QPolygonF>
@@ -40,6 +41,7 @@ class QWheelEvent;
 class QFrame;
 class OsgPointCloudNode;
 class GaussianRenderer;
+class WelcomeWorkspaceWidget;
 struct LasFileMetadata;
 struct GaussianModel;
 
@@ -206,6 +208,9 @@ public:
     QColor inspectionRouteWaypointColor() const;
     QColor inspectionRoutePartPointColor() const;
     QColor inspectionRouteTrajectoryColor() const;
+    WelcomeWorkspaceWidget* welcomeWorkspace() const;
+    QImage captureSceneThumbnail() const;
+    void requestSceneFrame();
 
 public slots:
     void setPointSize(int pointSize);
@@ -325,6 +330,12 @@ signals:
     void inspectionRouteWaypointDragFinished(int index, const PointRecord& point);
     void inspectionRouteRoamStateChanged();
     void inspectionRouteRoamPhotoCaptured(int waypointIndex, int targetIndex, const QString& targetLabel, int captureCount);
+    void welcomeOpenProjectRequested();
+    void welcomeOpenDataRequested();
+    void welcomeAddDataRequested();
+    void welcomeRecentProjectRequested(const QString& filePath);
+    void welcomeRecentDataRequested(const QString& filePath);
+    void sceneFrameRendered();
 
 private:
     void changeEvent(QEvent* event) override;
@@ -496,7 +507,7 @@ private:
     QLabel* detailLabel_ = nullptr;
     QLabel* cursorLabel_ = nullptr;
     QFrame* welcomeOverlay_ = nullptr;
-    QLabel* welcomeImageLabel_ = nullptr;
+    WelcomeWorkspaceWidget* welcomeWorkspace_ = nullptr;
     QLabel* welcomeStatusLabel_ = nullptr;
     QLabel* measurementStartOverlayLabel_ = nullptr;
     QLabel* measurementEndOverlayLabel_ = nullptr;

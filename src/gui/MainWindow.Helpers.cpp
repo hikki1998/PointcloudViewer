@@ -264,10 +264,10 @@ QStringList normalizedRecentProjectFiles(const QStringList& recentPaths, const Q
     };
 
     if (!preferredPath.isEmpty()) {
-        appendPath(preferredPath, false);
+        appendPath(preferredPath, true);
     }
     for (const QString& recentPath : recentPaths) {
-        appendPath(recentPath, false);
+        appendPath(recentPath, true);
     }
 
     if (normalizedPaths.size() > kRecentProjectHistoryLimit) {

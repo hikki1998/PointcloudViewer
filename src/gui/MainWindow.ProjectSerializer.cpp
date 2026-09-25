@@ -56,7 +56,10 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     QString errorMessage;
-    if (!viewer_->loadPointCloudFiles(pointCloudFilePaths, &errorMessage)) {
+    loadingProjectFile_ = true;
+    const bool pointCloudLoaded = viewer_->loadPointCloudFiles(pointCloudFilePaths, &errorMessage);
+    loadingProjectFile_ = false;
+    if (!pointCloudLoaded) {
         syncUiFromViewer();
         showUserMessage(LogLevel::Error, errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage, 6000);
         return false;
@@ -209,6 +212,8 @@ bool MainWindow::loadProjectFile(const QString& filePath)
 
     currentProjectFilePath_ = filePath;
     recordRecentProjectFilePath(filePath);
+    refreshWelcomeWorkspace();
+    scheduleWorkspaceThumbnailCapture();
     classificationEditsDirty_ = false;
     setTowerEditingEnabled(false);
     const QString languageCode = projectObject.value(QStringLiteral("language")).toString();
@@ -380,6 +385,8 @@ bool MainWindow::saveProjectFile(const QString& filePath)
 
     currentProjectFilePath_ = filePath;
     recordRecentProjectFilePath(filePath);
+    refreshWelcomeWorkspace();
+    scheduleWorkspaceThumbnailCapture();
     classificationEditsDirty_ = false;
     rebuildProjectTree();
     if (towerFileSyncOk && routeFileSyncOk) {

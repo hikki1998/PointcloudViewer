@@ -25,6 +25,7 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTimer>
 #include <QTreeWidgetItem>
 #include <QUrl>
 
@@ -54,6 +55,7 @@
 #include "gui/SpanProfileDock.h"
 #include "gui/TowerController.h"
 #include "gui/VisualizationPanelController.h"
+#include "gui/WelcomeWorkspaceWidget.h"
 #include "gui/WebPageDock.h"
 #include "gui/support/UiHelpers.h"
 #include "route/InspectionRoutePlanning.h"
@@ -604,6 +606,20 @@ void MainWindow::createWindowAndViewerConnections()
         }
     });
 
+    connect(viewer_, &PointCloudViewer::welcomeOpenProjectRequested, this, &MainWindow::openProject);
+    connect(viewer_, &PointCloudViewer::welcomeOpenDataRequested, this, &MainWindow::openPointCloud);
+    connect(viewer_, &PointCloudViewer::welcomeAddDataRequested, this, &MainWindow::addPointCloudFiles);
+    connect(viewer_, &PointCloudViewer::welcomeRecentProjectRequested, this, &MainWindow::openRecentProject);
+    connect(viewer_, &PointCloudViewer::welcomeRecentDataRequested, this, &MainWindow::openRecentDataFile);
+    connect(viewer_->welcomeWorkspace(), &WelcomeWorkspaceWidget::appendRecentDataRequested, this, &MainWindow::appendRecentDataFile);
+    connect(viewer_->welcomeWorkspace(), &WelcomeWorkspaceWidget::locateRecentItemRequested, this, &MainWindow::locateRecentItem);
+    connect(viewer_->welcomeWorkspace(), &WelcomeWorkspaceWidget::removeRecentProjectRequested, this, [this](const QString& filePath) {
+        removeRecentItem(filePath, true);
+    });
+    connect(viewer_->welcomeWorkspace(), &WelcomeWorkspaceWidget::removeRecentDataRequested, this, [this](const QString& filePath) {
+        removeRecentItem(filePath, false);
+    });
+
     connect(viewer_, &PointCloudViewer::pointCloudLoadingStarted, this, [this](const QString& message) {
         beginOperationProgress(message);
         updateActionState();
@@ -615,8 +631,26 @@ void MainWindow::createWindowAndViewerConnections()
         endOperationProgress();
         updateActionState();
     });
+    connect(viewer_, &PointCloudViewer::sceneFrameRendered, this, [this]() {
+        if (!workspaceThumbnailCapturePending_ || workspaceThumbnailCaptureQueued_) {
+            return;
+        }
+        if (workspaceThumbnailFramesToWait_ > 0) {
+            --workspaceThumbnailFramesToWait_;
+            viewer_->requestSceneFrame();
+            return;
+        }
+        workspaceThumbnailCaptureQueued_ = true;
+        QTimer::singleShot(150, this, [this]() {
+            workspaceThumbnailCaptureQueued_ = false;
+            captureWorkspaceThumbnails();
+        });
+    });
     connect(viewer_, &PointCloudViewer::pointCloudLoadingFailed, this, [this](const QString& message) {
         endOperationProgress();
+        pendingRecentDataFiles_.clear();
+        pendingDataLoadResetsProject_ = false;
+        workspaceThumbnailCapturePending_ = false;
         showUserMessage(LogLevel::Error, message, 6000);
         syncUiFromViewer();
         updateActionState();
@@ -624,6 +658,22 @@ void MainWindow::createWindowAndViewerConnections()
     connect(viewer_, &PointCloudViewer::pointCloudLoaded, this, [this]() {
         endOperationProgress();
         classificationEditsDirty_ = false;
+        if (!loadingProjectFile_) {
+            const QStringList recentDataFiles = pendingRecentDataFiles_.isEmpty()
+                ? viewer_->currentFilePaths()
+                : pendingRecentDataFiles_;
+            recordRecentDataFiles(recentDataFiles);
+        }
+        pendingRecentDataFiles_.clear();
+        if (pendingDataLoadResetsProject_ && !loadingProjectFile_) {
+            currentProjectFilePath_.clear();
+            linkedTowerFilePath_.clear();
+            linkedRouteFilePath_.clear();
+            pendingDataLoadResetsProject_ = false;
+        }
+        if (!loadingProjectFile_) {
+            scheduleWorkspaceThumbnailCapture();
+        }
         rebuildProjectTree();
         syncUiFromViewer();
     });
@@ -633,6 +683,10 @@ void MainWindow::createWindowAndViewerConnections()
             endOperationProgress();
         }
         currentProjectFilePath_.clear();
+        workspaceThumbnailCapturePending_ = false;
+        workspaceThumbnailCaptureQueued_ = false;
+        pendingRecentDataFiles_.clear();
+        pendingDataLoadResetsProject_ = false;
         classificationEditsDirty_ = false;
         linkedTowerFilePath_.clear();
         linkedRouteFilePath_.clear();
@@ -644,6 +698,7 @@ void MainWindow::createWindowAndViewerConnections()
         selectedRouteWaypointTargetIndex_ = -1;
         viewer_->clearInspectionRouteWaypoints();
         syncUiFromViewer();
+        refreshWelcomeWorkspace();
         if (!replacingScene) {
             showUserMessage(LogLevel::Info, tr("Scene cleared."), 3000);
         }

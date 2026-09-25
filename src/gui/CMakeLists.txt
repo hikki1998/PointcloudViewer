@@ -98,6 +98,10 @@ las_viewer_add_shared_sources(
     UiHistoryStore.h
     VisualizationPanelController.cpp
     VisualizationPanelController.h
+    WelcomeWorkspaceWidget.cpp
+    WelcomeWorkspaceWidget.h
+    WorkspaceThumbnailCache.cpp
+    WorkspaceThumbnailCache.h
     WebPageDock.cpp
     WebPageDock.h
     support/RibbonIconFactory.cpp

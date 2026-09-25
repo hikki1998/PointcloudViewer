@@ -6,8 +6,10 @@
   - `MainWindow.*` 负责 Ribbon、dock、检查器、表格、动作和项目级状态组织。
   - `PointCloudViewer.*` 负责 OSG 嵌入、相机、拾取、覆盖层、漫游和场景交互。
 - `src/osg/`
-  - `OsgPointCloudNode.*` 负责点云几何与渲染状态。
-  - `PointCloudVisualization.h` 是显示参数的单一模型入口。
+  - `OsgPointCloudNode.*` 负责 LAS/LAZ 点云几何与渲染状态。
+  - `PointCloudVisualization.h` 是 LAS/LAZ 显示参数的单一模型入口。
+- `src/gaussian/`
+  - `GaussianModel`、`GaussianPlyReader`、`GaussianRenderer` 负责 3DGS PLY 数据、解析和原生 OpenGL GPU 渲染。
 - `src/pointcloud/`
   - `LasReader.*` 负责 LAS/LAZ 读取。
   - `PointCloudData.*` 负责点云基础数据结构。
@@ -34,11 +36,24 @@
 
 ## 核心运行链路
 
-### 点云加载与渲染
+### LAS/LAZ 加载与渲染
 1. `LasReader` 读取 LAS/LAZ，填充 `PointCloudData`
 2. `PointCloudViewer` 持有当前点云与可视化状态
 3. `OsgPointCloudNode` 把点云转成 OSG 几何
 4. `MainWindow` 通过检查器和 Ribbon 修改显示参数，再下发给 viewer
+
+### Gaussian PLY 加载与渲染
+1. `GaussianPlyReader` 校验并解析受支持的 binary little-endian 3DGS PLY
+2. 大型 PLY 在工作线程构建 `GaussianModel`
+3. `OsgWidget` 复用 OSG 相机和输入，在同一 `QOpenGLWidget` 中调用 `GaussianRenderer`
+4. `GaussianRenderer` 使用 OpenGL 4.3 SSBO、排序、实例化 quad 和 alpha blending 绘制
+5. 当前视图一次只承载一种主数据类型：LAS/LAZ 或单个 Gaussian；不支持混载和同屏深度组合
+
+### 空场景最近工作台
+1. `MainWindow.Backstage.cpp` 从 `QSettings` 读取最近工程/数据并解析轻量工程摘要
+2. `WelcomeWorkspaceWidget` 显示可交互列表、缺失状态和右键菜单
+3. 场景稳定渲染后，`PointCloudViewer`/`OsgWidget` 提供 framebuffer，`WorkspaceThumbnailCache` 被动保存缩略图
+4. 启动工作台只读工程 JSON 和缩略图缓存，不重新读取 LAS/LAZ/PLY
 
 ### 场景交互
 1. `OsgWidget` 负责 Qt 鼠标/滚轮/键盘事件
@@ -66,7 +81,7 @@
 - `src/gui/MainWindow.Ribbon.cpp`
   - Ribbon 页面、组、快速工具栏、窗口控制按钮
 - `src/gui/MainWindow.Backstage.cpp`
-  - Backstage 页面、最近工程、应用设置入口
+  - Backstage 页面、最近工程/数据工作台、缩略图调度、应用设置入口
 - `src/gui/MainWindow.Docks.cpp`
   - 左右/底部 dock、检查器区、量测区、日志区、状态栏
 - `src/gui/MainWindow.Connections.cpp`
@@ -96,7 +111,7 @@
 - `src/gui/MainWindow.SettingsStore.cpp`
   - `QSettings` / `UiHistoryStore` 读写与窗口状态恢复
 - `src/gui/MainWindow.Helpers.cpp`
-  - 共享 helper、JSON 辅助转换、最近工程记录等稳定内部实现
+  - 共享 helper、JSON 辅助转换、最近工程路径归一化等稳定内部实现
 - `src/gui/MainWindowInternal.h`
   - `MainWindow` 拆分后共享的最小内部声明与常量
 
@@ -104,10 +119,12 @@
 
 - `src/gui/OsgWidget.*`
   - Qt/OpenGL/OSG 嵌入和鼠标、键盘、滚轮事件桥接
+  - 持有并调用原生 `GaussianRenderer`，复用 OSG 相机矩阵
 - `src/gui/PointCloudViewer.cpp`
   - Viewer 通用交互、场景、拾取、Overlay 和基础显示状态
 - `src/gui/PointCloudViewer.Loading.cpp`
   - LAS/LAZ/Gaussian 加载、追加与清空
+  - Gaussian 单模型异步解析、GPU 上传和失败状态恢复
 - `src/gui/PointCloudViewer.Clip.cpp`
   - 多边形/盒裁剪、裁剪预览与导出
 - `src/gui/PointCloudViewer.Classification.cpp`
@@ -142,6 +159,15 @@
 ### 渲染
 - `src/osg/OsgPointCloudNode.cpp`
 - `src/osg/PointCloudVisualization.h`
+- `src/gaussian/GaussianPlyReader.cpp`
+- `src/gaussian/GaussianRenderer.cpp`
+- `src/gui/OsgWidget.cpp`
+
+### 空场景工作台 / 工程入口
+- `src/gui/WelcomeWorkspaceWidget.*`
+- `src/gui/WorkspaceThumbnailCache.*`
+- `src/gui/MainWindow.Backstage.cpp`
+- `src/gui/MainWindow.ViewerConnections.cpp`
 
 ### 巡检业务
 - `src/domain/InspectionData.*`
@@ -157,7 +183,7 @@
 
 ## 约束边界
 
-- 显示参数不要分散定义，统一收口到 `PointCloudVisualization.h`。
+- LAS/LAZ 显示参数不要分散定义，统一收口到 `PointCloudVisualization.h`；Gaussian 专属参数留在 Gaussian 模块，不要硬塞进 LAS 数据模型。
 - 业务模型不要直接耦合到 OSG 绘制结构，尽量经由 viewer/bridge 投影到显示层。
 - 工程文件、外部 route 文件、导出格式是三个不同边界，不要混成一个模型层。
 - 对已有大文件，优先沿现有结构最小侵入修改；只有在职责已经明显失控时才拆分。

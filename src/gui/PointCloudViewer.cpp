@@ -1,4 +1,6 @@
 #include "gui/PointCloudViewer.h"
+
+#include "gui/WelcomeWorkspaceWidget.h"
 #include "gui/PointCloudViewerOverlays.h"
 
 #include <QCoreApplication>
@@ -990,6 +992,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::selectionRectangleFinished, this, &PointCloudViewer::handleSelectionRectangleFinished);
     connect(osgWidget_, &OsgWidget::selectionEscapePressed, this, &PointCloudViewer::handleSelectionEscapePressed);
     connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::scheduleOverlayWidgetRefresh);
+    connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::sceneFrameRendered);
 
     classificationTaskStatusTimer_ = new QTimer(this);
     classificationTaskStatusTimer_->setInterval(250);
@@ -1516,36 +1519,42 @@ void PointCloudViewer::createWelcomeOverlay()
 {
     welcomeOverlay_ = new QFrame(osgWidget_);
     welcomeOverlay_->setObjectName(QStringLiteral("viewerWelcomeOverlay"));
-    welcomeOverlay_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     welcomeOverlay_->setStyleSheet(QStringLiteral(
         "QFrame#viewerWelcomeOverlay {"
-        "background-color: #0a1118;"
+        "background-color: #f4f7fb;"
         "}"));
 
     auto* overlayLayout = new QVBoxLayout(welcomeOverlay_);
-    overlayLayout->setContentsMargins(24, 24, 24, 24);
+    overlayLayout->setContentsMargins(0, 0, 0, 0);
     overlayLayout->setSpacing(0);
-    overlayLayout->addStretch();
 
-    welcomeImageLabel_ = new QLabel(welcomeOverlay_);
-    welcomeImageLabel_->setAlignment(Qt::AlignCenter);
-    welcomeImageLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-    overlayLayout->addWidget(welcomeImageLabel_, 0, Qt::AlignCenter);
+    welcomeWorkspace_ = new WelcomeWorkspaceWidget(welcomeOverlay_);
+    overlayLayout->addWidget(welcomeWorkspace_, 1);
 
     welcomeStatusLabel_ = new QLabel(welcomeOverlay_);
     welcomeStatusLabel_->setAlignment(Qt::AlignCenter);
-    welcomeStatusLabel_->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     welcomeStatusLabel_->setStyleSheet(QStringLiteral(
         "QLabel {"
-        "color: rgba(226, 232, 240, 0.96);"
-        "font-size: 13px;"
+        "background-color: #f4f7fb;"
+        "color: #334155;"
+        "font-size: 14px;"
         "font-weight: 600;"
-        "padding-top: 14px;"
+        "padding: 24px;"
         "}"));
     welcomeStatusLabel_->hide();
-    overlayLayout->addWidget(welcomeStatusLabel_, 0, Qt::AlignHCenter);
+    overlayLayout->addWidget(welcomeStatusLabel_, 1);
 
-    overlayLayout->addStretch();
+    connect(welcomeWorkspace_, &WelcomeWorkspaceWidget::openProjectRequested,
+        this, &PointCloudViewer::welcomeOpenProjectRequested);
+    connect(welcomeWorkspace_, &WelcomeWorkspaceWidget::openDataRequested,
+        this, &PointCloudViewer::welcomeOpenDataRequested);
+    connect(welcomeWorkspace_, &WelcomeWorkspaceWidget::addDataRequested,
+        this, &PointCloudViewer::welcomeAddDataRequested);
+    connect(welcomeWorkspace_, &WelcomeWorkspaceWidget::recentProjectRequested,
+        this, &PointCloudViewer::welcomeRecentProjectRequested);
+    connect(welcomeWorkspace_, &WelcomeWorkspaceWidget::recentDataRequested,
+        this, &PointCloudViewer::welcomeRecentDataRequested);
+
     welcomeOverlay_->hide();
 }
 
@@ -1575,7 +1584,7 @@ void PointCloudViewer::setLoadingState(bool active, const QString& title, const 
 
 void PointCloudViewer::updateWelcomeOverlayVisibility()
 {
-    if (welcomeOverlay_ == nullptr || osgWidget_ == nullptr || welcomeImageLabel_ == nullptr) {
+    if (welcomeOverlay_ == nullptr || osgWidget_ == nullptr || welcomeWorkspace_ == nullptr) {
         return;
     }
 
@@ -1589,18 +1598,10 @@ void PointCloudViewer::updateWelcomeOverlayVisibility()
         return;
     }
 
-    const QPixmap splashPixmap(QStringLiteral(":/assets/icon/Splash.png"));
-    if (!splashPixmap.isNull()) {
-        const QSize availableSize(
-            std::max(320, static_cast<int>(std::lround(welcomeOverlay_->width() * 0.60))),
-            std::max(180, static_cast<int>(std::lround(welcomeOverlay_->height() * 0.60))));
-        welcomeImageLabel_->setPixmap(splashPixmap.scaled(availableSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-    } else {
-        welcomeImageLabel_->clear();
-    }
-
+    const bool showLoading = pointCloudLoadingActive_ && !pointCloudLoadingDetail_.trimmed().isEmpty();
+    welcomeWorkspace_->setVisible(!showLoading);
     if (welcomeStatusLabel_ != nullptr) {
-        if (pointCloudLoadingActive_ && !pointCloudLoadingDetail_.trimmed().isEmpty()) {
+        if (showLoading) {
             const QString loadingText = pointCloudLoadingProgressPercent_ >= 0
                 ? tr("%1\n%2")
                       .arg(pointCloudLoadingTitle_.trimmed().isEmpty() ? tr("Loading point cloud") : pointCloudLoadingTitle_)
@@ -3486,8 +3487,28 @@ void PointCloudViewer::syncCurrentFilePath()
     }
 }
 
+WelcomeWorkspaceWidget* PointCloudViewer::welcomeWorkspace() const
+{
+    return welcomeWorkspace_;
+}
+
+QImage PointCloudViewer::captureSceneThumbnail() const
+{
+    return osgWidget_ != nullptr ? osgWidget_->grabFramebuffer() : QImage();
+}
+
+void PointCloudViewer::requestSceneFrame()
+{
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
 void PointCloudViewer::retranslateUi()
 {
+    if (welcomeWorkspace_ != nullptr) {
+        welcomeWorkspace_->retranslateUi();
+    }
     updateFooter();
     updateMeasurementOverlayWidgets();
     updateInspectionRouteOverlayWidgets();

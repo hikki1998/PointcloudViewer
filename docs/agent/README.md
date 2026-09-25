@@ -1,76 +1,53 @@
 # Agent Onboarding
 
-本目录提供面向 agent 的渐进式披露文档。
-
-目标只有两个：
-- 让新 agent 在 2-5 分钟内找到正确入口，而不是先读完整个仓库。
-- 让后续维护尽量只改一处，避免 `README`、`PROJECT_CONTEXT`、`AGENTS`、`CLAUDE` 长期漂移。
+本目录只保留面向 agent 的当前项目事实与工作指引，目标是让新 agent 在 2-5 分钟内找到正确入口，而不是保存历史过程、会话快照或一次性调研。
 
 ## 推荐阅读顺序
 
-### 第 1 层：先建立最小上下文
 1. 根目录 `AGENTS.md`
-2. 根目录 `CLAUDE.md`（如果你使用 Claude Code）
+2. 根目录 `CLAUDE.md`（如果存在且使用 Claude Code）
 3. `context.md`
-4. `session-handoff.md`（如果需要快速接上最近一轮工程整理和高频改动点）
-
-### 第 2 层：按任务选专题
-- 改架构、定位模块边界：
-  - `architecture.md`
-- 想知道当前产品已经做到哪里：
-  - `product-state.md`
-- 准备动手改代码、跑验证、更新翻译或发布：
-  - `workflows.md`
-- 想继续接 `MainWindow` 拆分后的回归收口、防复发规则：
-  - `refactor-regression-report.md` + `workflows.md`
-
-### 第 3 层：按专题深挖
-- 航线模块规划与后续优化：
-  - `planning/ROUTE_MODULE_ROADMAP.md`
-  - `planning/PLAN.md`
-- 近期设计/实现过程：
-  - `docs/superpowers/specs/`
-  - `docs/superpowers/plans/`
-- `MainWindow` 重构回归收口：
-  - `refactor-regression-report.md`
-- 最近一轮会话接手摘要：
-  - `session-handoff.md`
-- 发布说明：
-  - `docs/releases/`
+4. 按任务继续阅读：
+   - 模块边界与核心链路：`architecture.md`
+   - 当前产品能力与限制：`product-state.md`
+   - 改动路径、构建和验证：`workflows.md`
 
 ## 按任务快速跳转
 
 | 任务 | 先读 |
 |---|---|
 | UI / Ribbon / dock / 交互 | `architecture.md` + `workflows.md` |
-| MainWindow 重构 / 回归防复发 | `refactor-regression-report.md` + `workflows.md` |
+| MainWindow 重构 / 回归防复发 | `architecture.md` + `workflows.md` |
 | OSG 渲染 / 显示参数 / 点云表现 | `architecture.md` + `workflows.md` |
+| Gaussian PLY / GPU splat 渲染 | `product-state.md` + `architecture.md` + `workflows.md` |
+| 最近工程 / 最近数据 / 缩略图 | `architecture.md` + `workflows.md` |
 | 航线编辑 / 巡检业务 / 导出 | `product-state.md` + `planning/ROUTE_MODULE_ROADMAP.md` |
 | 构建 / 依赖 / smoke test / 发布 | `workflows.md` |
 | 只想快速知道项目是什么 | 根目录 `README.md` |
 
-## 文档定位
+## 文件定位
 
-- 根目录 `README.md`
-  - 面向人和 agent 的总入口，保留项目概览、构建运行、文档导航。
-- 根目录 `AGENTS.md`
-  - Codex 自动读取的仓库级规则入口。
-- 根目录 `CLAUDE.md`
-  - Claude Code 自动读取的兼容入口，内容尽量薄。
-- `docs/agent/context.md`
-  - 5 分钟内建立仓库上下文。
-- `docs/agent/session-handoff.md`
-  - 最近一轮工程整理、代码热区和直接可执行的接手入口。
-- `docs/agent/refactor-regression-report.md`
-  - `MainWindow` 拆分后的回归家族、修复结论、验证范围和防复发规则。
-- `docs/history/codex-collaboration-retrospective.md`
-  - 项目演进复盘，不作为日常 onboarding 主入口。
+- `context.md`
+  - 5 分钟上下文、关键入口、当前能力和验证基线。
+- `architecture.md`
+  - 当前模块边界、核心运行链路和代码职责。
+- `product-state.md`
+  - 当前已经具备的用户可见能力及明确限制。
+- `workflows.md`
+  - 常见改动路径、构建、smoke、翻译、发布和提交规则。
+
+历史过程、版本发布、专题 smoke 和平台迁移资料分别放在：
+
+- `docs/history/`
+- `docs/releases/`
+- `docs/smoketest/`
+- `docs/linux-*.md`
+- `planning/`
 
 ## 维护原则
 
-- 新增功能时，优先更新 `product-state.md`。
-- 新增常改路径、验证方法、翻译/发布流程时，优先更新 `workflows.md`。
-- 模块边界、核心数据流变化时，优先更新 `architecture.md`。
-- 会话级接手信息和近期高频改动入口，优先更新 `session-handoff.md`。
-- `MainWindow` 重构回归结论、防复发清单和验证陷阱，优先更新 `refactor-regression-report.md`。
-- 只有当首读顺序变化时，才更新本文件和根目录 `AGENTS.md` / `CLAUDE.md`。
+- 功能状态变化：更新 `product-state.md`。
+- 模块边界或核心数据流变化：更新 `architecture.md`。
+- 常改路径、验证、翻译、发布流程变化：更新 `workflows.md`。
+- 关键入口、首读信息或验证基线变化：更新 `context.md`。
+- 历史复盘、一次性调研和会话交接记录不要放回 `docs/agent/`。

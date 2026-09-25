@@ -4,6 +4,7 @@ namespace lasviewer::gui::settingskeys
 {
 inline constexpr char kProjectRecentProjects[] = "project/recentProjects";
 inline constexpr char kProjectLastOpenedProject[] = "project/lastOpenedProject";
+inline constexpr char kProjectRecentDataFiles[] = "project/recentDataFiles";
 
 inline constexpr char kInteractionInvertOrbitDrag[] = "interaction/invertOrbitDrag";
 inline constexpr char kInteractionInvertPanDrag[] = "interaction/invertPanDrag";

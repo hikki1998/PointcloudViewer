@@ -25,6 +25,8 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 ### smoke test
 ```powershell
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
+# Gaussian 复用 viewer-render；参数名仍为 --las
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las <gaussian-model.ply>
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
 ```
@@ -72,6 +74,26 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 1. `src/gui/PointCloudViewer.h`
 2. `src/gui/PointCloudViewer.cpp`
 
+### 改 Gaussian PLY
+1. `src/gaussian/GaussianModel.h`
+2. `src/gaussian/GaussianPlyReader.*`
+3. `src/gaussian/GaussianRenderer.*`
+4. `src/gui/OsgWidget.*`
+5. `src/gui/PointCloudViewer.Loading.cpp`
+6. `examples/ViewerRenderSmoke.cpp`
+
+约束：Gaussian 不进入 `PointCloudData`，不把原生 renderer 伪装成 `osg::Node`；当前不支持与 LAS/LAZ 混载。
+
+### 改空场景首页 / 最近工程与数据
+1. `src/gui/WelcomeWorkspaceWidget.*`
+2. `src/gui/WorkspaceThumbnailCache.*`
+3. `src/gui/MainWindow.Backstage.cpp`
+4. `src/gui/MainWindow.PointCloud.cpp`
+5. `src/gui/MainWindow.ViewerConnections.cpp`
+6. `examples/MainWindowSmoke.cpp`
+
+约束：启动时不得为了缩略图重新读取点云；缩略图只能复用正常渲染结果。Smoke 中用 `LAS_VIEWER_THUMBNAIL_CACHE_DIR` 指向临时目录，避免污染用户缓存。
+
 ### 改航线
 1. `src/route/PowerlineRouteTypes.h`
 2. `src/route/PowerlineRouteJson.*`
@@ -101,7 +123,9 @@ cmake --build out/build --config Release --target LASPointCloudViewer LASViewerS
 
 ### 需要补 smoke 的场景
 - 改点云渲染
+- 改 Gaussian 解析、排序、渲染或交互
 - 改拾取或相机
+- 改最近工作台、缩略图缓存或缺失文件状态
 - 改航线显示、漫游、预览
 - 改翻译生成或部署逻辑
 
@@ -173,6 +197,7 @@ Copy-Item "out/build/translations/lasviewer_zh_CN.qm" "out/build/bin/Release/tra
 
 ### 额外人工检查
 - 涉及 UI 样式时，检查：
+  - 空场景最近工作台（宽/窄窗口、中文、缩略图和缺失状态）
   - dock
   - Ribbon
   - Message Box
@@ -243,6 +268,13 @@ git add -f docs/brainstorming/...
 
 - 使用 `skip-worktree` 后，要注意远端如果也修改了同名文件，本地不一定会第一时间显式提示；这类文件更适合作为个人工作副本，而不是多人同时编辑的正式文档。
 
+## 大文件瘦身后的定位原则
+
+- `MainWindow.cpp`、`PointCloudViewer.cpp` 和 `viewer_smoke_test.cpp` 已按职责拆分；不要因旧文档或搜索结果把新逻辑重新堆回总入口。
+- 优先修改职责文件：`MainWindow.*.cpp`、`PointCloudViewer.*.cpp`、`examples/*Smoke.cpp`。
+- 当前低风险拆分已收口，不再按行数机械拆文件；只有职责边界或编译维护问题明确时再拆。
+- 新共享源码继续登记在所属目录 `CMakeLists.txt`，通过 `LASViewerCoreObj` 同时供主程序和 smoke 使用。
+
 ## 文档更新规则
 
 - 功能状态变化：
@@ -250,7 +282,7 @@ git add -f docs/brainstorming/...
 - 模块边界变化：
   - 更新 `architecture.md`
 - 完成一轮较大的重构回归排查后：
-  - 更新 `docs/agent/refactor-regression-report.md`
+  - 把仍然有效的防复发规则更新到 `workflows.md`；历史过程如需保留则放 `docs/history/`
 - 入口顺序或阅读路径变化：
   - 更新 `docs/agent/README.md`
 - 强约束变化：

@@ -19,15 +19,19 @@
 - 净空分析与导出：`src/domain/ClearanceAnalysis.*`、`src/domain/ClearanceReportExporter.*`
 - 剖面投影与绘制：`src/domain/ProfileMarkerProjection.*`、`src/gui/ProfilePlotWidget.*`
 - 点云显示参数模型：`src/osg/PointCloudVisualization.h`
-- 点云渲染与 shader：`src/osg/OsgPointCloudNode.cpp`
+- LAS/LAZ 点云渲染与 shader：`src/osg/OsgPointCloudNode.cpp`
+- Gaussian PLY 数据与 GPU 渲染：`src/gaussian/GaussianModel.h`、`src/gaussian/GaussianPlyReader.cpp`、`src/gaussian/GaussianRenderer.cpp`
 - LAS/LAZ 读取：`src/pointcloud/LasReader.cpp`
+- 空场景最近工作台：`src/gui/WelcomeWorkspaceWidget.*`、`src/gui/WorkspaceThumbnailCache.*`
 - 中文翻译：`translations/lasviewer_zh_CN.ts`
 - 构建与部署逻辑：`CMakeLists.txt`、`cmake/LASViewerDependencies.cmake`、`cmake/LASViewerTargetConfig.cmake`、`cmake/LASViewerRuntimeDeploy.cmake`、`src/*/CMakeLists.txt`、`examples/CMakeLists.txt`
 
 ## Current User-Facing Features
-- 加载一个或多个 `.las/.laz`
-- 左侧 `Project Explorer` 目录树，支持搜索、展开折叠、定位文件夹、复制路径
-- 工程打开/保存/另存为，持久化多数据集、显示参数、语言、杆塔和隐患台账
+- 加载一个或多个 `.las/.laz`，或单个受支持的 3D Gaussian Splatting `.ply`
+- Gaussian PLY 使用 OpenGL 4.3 GPU renderer；当前不与 LAS/LAZ 同屏混合
+- 空场景显示“最近工程 / 最近数据”工作台，支持缩略图缓存、缺失文件状态、打开/追加/定位/移除
+- 左侧 `Project Explorer` 目录树，支持多数据集/高斯模型状态、搜索、展开折叠、定位文件夹、复制路径
+- 工程打开/保存/另存为，持久化数据路径、显示参数、语言、杆塔和隐患台账
 - RGB、高程渐变、单色显示
 - 点大小、透明度、深度雾化、EDL 风格增强、圆形 splat
 - 顶视、前视、右视、适配视图
@@ -59,7 +63,7 @@
 - `src/gui/MainWindow.Ribbon.cpp`
   - Ribbon 页面、组、快速工具栏、窗口控制
 - `src/gui/MainWindow.Backstage.cpp`
-  - Backstage 页面、最近工程、应用设置入口
+  - Backstage 页面、最近工程、空场景工作台数据、缩略图调度、应用设置入口
 - `src/gui/MainWindow.Docks.cpp`
   - dock、检查器、日志、状态栏
 - `src/gui/MainWindow.Connections.cpp`
@@ -96,7 +100,7 @@
 ### `src/gui/PointCloudViewer.*`
 - `OsgWidget.*`：Qt/OpenGL/OSG 嵌入与原始输入事件桥接
 - `PointCloudViewer.cpp`：通用交互、场景、拾取与 Overlay
-- `PointCloudViewer.Loading.cpp`：LAS/LAZ/Gaussian 加载、追加、清空
+- `PointCloudViewer.Loading.cpp`：LAS/LAZ/Gaussian 加载、追加、清空；Gaussian 只允许单模型且不与 LAS/LAZ 混载
 - `PointCloudViewer.Clip.cpp`：裁剪编辑、预览和导出
 - `PointCloudViewer.Classification.cpp`：分类显示、选择任务与 Undo/Redo
 - `PointCloudViewer.Measurement.cpp`：量测状态、计算和覆盖层
@@ -124,13 +128,24 @@
 - 杆塔/隐患投影标记绘制
 
 ### `src/osg/OsgPointCloudNode.cpp`
-- 点云几何构建
+- LAS/LAZ 点云几何构建
 - 渲染状态
 - EDL-style / depth cue / opacity / round splat 等 shader uniform
 
+### `src/gaussian/*`
+- `GaussianModel.h`：Gaussian CPU 数据与 bounds
+- `GaussianPlyReader.*`：受支持 3DGS PLY 的校验、解析和并行转换
+- `GaussianRenderer.*`：OpenGL 4.3 SSBO、排序、实例化 quad 和 alpha 混合
+- `OsgWidget.*` 复用 OSG 相机与输入，在同一 `QOpenGLWidget` 中调用原生 Gaussian renderer
+
+### `src/gui/WelcomeWorkspaceWidget.*` / `WorkspaceThumbnailCache.*`
+- 空场景最近工程与最近数据列表、右键操作和响应式布局
+- 缩略图只在正常场景渲染后被动捕获；启动时不重新读取点云
+- 缓存位于 `QStandardPaths::AppLocalDataLocation/thumbnails`，按路径、大小、修改时间失效并限制容量
+
 ### `src/osg/PointCloudVisualization.h`
-- 所有显示参数的单一数据结构
-- 如果新增显示选项，通常先从这里加字段，再串到 GUI 和渲染层
+- LAS/LAZ 点云显示参数的单一数据结构
+- 如果新增 LAS/LAZ 显示选项，通常先从这里加字段，再串到 GUI 和渲染层；Gaussian 参数留在 Gaussian 模块
 
 ### `CMakeLists.txt`
 - 顶层项目入口，只保留 option/cache 变量、模块 include、目标创建与接线
@@ -155,6 +170,8 @@
 cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DQT_ROOT=E:/code/Qt5.15.2/5.15.2/msvc2019_64
 cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
+# Gaussian PLY 也复用 viewer-render；把 --las 参数指向受支持的小型 .ply
+.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las <gaussian-model.ply>
 .\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
 ```
 
@@ -201,6 +218,16 @@ cmake --build out/build --config Release --target LASPointCloudViewer
   - `src/gui/MainWindow.Ribbon.cpp`
   - `src/gui/MainWindow.Backstage.cpp`
   - `src/gui/PointCloudViewer.cpp`
+- “修空场景首页 / 最近记录 / 缩略图”：
+  - `src/gui/WelcomeWorkspaceWidget.*`
+  - `src/gui/WorkspaceThumbnailCache.*`
+  - `src/gui/MainWindow.Backstage.cpp`
+  - `src/gui/MainWindow.ViewerConnections.cpp`
+- “修 Gaussian PLY”：
+  - `src/gaussian/*`
+  - `src/gui/OsgWidget.*`
+  - `src/gui/PointCloudViewer.Loading.cpp`
+  - `examples/ViewerRenderSmoke.cpp`
 - “修电力巡检业务功能”：
   - `src/domain/InspectionData.*`
   - `src/gui/MainWindow.cpp`
