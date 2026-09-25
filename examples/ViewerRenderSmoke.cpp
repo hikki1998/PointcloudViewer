@@ -142,6 +142,18 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
         QObject::connect(&viewer, &PointCloudViewer::pointCloudPreviewReady, &viewer, [&previewReady]() {
             previewReady = true;
         });
+        QElapsedTimer heartbeatClock;
+        heartbeatClock.start();
+        qint64 previousHeartbeatMs = heartbeatClock.elapsed();
+        qint64 maximumHeartbeatGapMs = 0;
+        QTimer heartbeatTimer;
+        heartbeatTimer.setInterval(10);
+        QObject::connect(&heartbeatTimer, &QTimer::timeout, &viewer, [&]() {
+            const qint64 now = heartbeatClock.elapsed();
+            maximumHeartbeatGapMs = std::max(maximumHeartbeatGapMs, now - previousHeartbeatMs);
+            previousHeartbeatMs = now;
+        });
+        heartbeatTimer.start();
         QElapsedTimer loadStartTimer;
         loadStartTimer.start();
         const bool loadStarted = viewer.loadPointCloudFilesAsync(QStringList { filePath }, &errorMessage);
@@ -176,9 +188,17 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             allPassed = false;
             continue;
         }
+        heartbeatTimer.stop();
         std::cout << "Async load call=" << loadCallElapsedMs
                   << "ms ready=" << asyncWaitTimer.elapsed() << "ms"
+                  << " maxUiHeartbeatGap=" << maximumHeartbeatGapMs << "ms"
                   << (gaussianPly ? "" : " preview=yes") << std::endl;
+        if (!gaussianPly && maximumHeartbeatGapMs > 500) {
+            std::cerr << "UI heartbeat stalled for " << maximumHeartbeatGapMs
+                      << " ms during background load commit" << std::endl;
+            allPassed = false;
+            continue;
+        }
 
         bool screenshotDelayOk = false;
         const int screenshotDelayMs = qEnvironmentVariableIntValue("LAS_VIEWER_SMOKE_SCREENSHOT_DELAY_MS", &screenshotDelayOk);
@@ -236,19 +256,44 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
                 continue;
             }
             const auto& lodDataset = viewer.loadedPointCloudDatasets_.constFirst();
-            runOrbitDragAndCaptureEventPosition(osgWidget, QPointF(420.0, 320.0), QPointF(80.0, 35.0));
-            pumpEvents(50);
-            if (!viewer.cameraMoving_ || !lodDataset.sceneNode.valid()
-                || lodDataset.sceneNode->getNumChildren() != 1
-                || lodDataset.sceneNode->getChild(0) != lodDataset.previewSceneNode.get()) {
-                std::cerr << "Interaction LOD did not switch to preview node" << std::endl;
+            const QPointF lodDragStart(420.0, 320.0);
+            const QPointF lodDragEnd = lodDragStart + QPointF(80.0, 35.0);
+            QMouseEvent lodPressEvent(
+                QEvent::MouseButtonPress,
+                lodDragStart,
+                Qt::LeftButton,
+                Qt::LeftButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(osgWidget, &lodPressEvent);
+            QMouseEvent lodMoveEvent(
+                QEvent::MouseMove,
+                lodDragEnd,
+                Qt::NoButton,
+                Qt::LeftButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(osgWidget, &lodMoveEvent);
+            pumpEvents(250);
+            if (!viewer.cameraMoving_ || !osgWidget->cameraInteractionActive()
+                || !lodDataset.sceneNode.valid()
+                || lodDataset.sceneNode->getNumChildren() != 2
+                || lodDataset.previewSceneNode->getNodeMask() == 0u
+                || lodDataset.fullSceneNode->getNodeMask() != 0u) {
+                std::cerr << "Interaction LOD did not remain on preview while dragging" << std::endl;
                 allPassed = false;
                 continue;
             }
+            QMouseEvent lodReleaseEvent(
+                QEvent::MouseButtonRelease,
+                lodDragEnd,
+                Qt::LeftButton,
+                Qt::NoButton,
+                Qt::NoModifier);
+            QApplication::sendEvent(osgWidget, &lodReleaseEvent);
             pumpEvents(250);
-            if (viewer.cameraMoving_
-                || lodDataset.sceneNode->getChild(0) != lodDataset.fullSceneNode.get()) {
-                std::cerr << "Interaction LOD did not restore full node" << std::endl;
+            if (viewer.cameraMoving_ || osgWidget->cameraInteractionActive()
+                || lodDataset.fullSceneNode->getNodeMask() == 0u
+                || lodDataset.previewSceneNode->getNodeMask() != 0u) {
+                std::cerr << "Interaction LOD did not restore full node after drag release" << std::endl;
                 allPassed = false;
                 continue;
             }
@@ -262,6 +307,9 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
                 continue;
             }
             QString appendError;
+            maximumHeartbeatGapMs = 0;
+            previousHeartbeatMs = heartbeatClock.elapsed();
+            heartbeatTimer.start();
             QElapsedTimer appendCallTimer;
             appendCallTimer.start();
             const bool appendStarted = viewer.appendPointCloudFilesAsync(QStringList { duplicatePath }, &appendError);
@@ -271,8 +319,13 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             while (viewer.isPointCloudLoadingInProgress() && appendWaitTimer.elapsed() < 15000) {
                 pumpEvents(25);
             }
+            heartbeatTimer.stop();
+            std::cout << "Async append call=" << appendCallElapsedMs
+                      << "ms ready=" << appendWaitTimer.elapsed()
+                      << "ms maxUiHeartbeatGap=" << maximumHeartbeatGapMs << "ms" << std::endl;
             if (!appendStarted
                 || appendCallElapsedMs > 500
+                || maximumHeartbeatGapMs > 500
                 || viewer.isPointCloudLoadingInProgress()
                 || viewer.loadedPointCloudDatasets_.size() != 2
                 || viewer.visiblePointCount() != originalPointCount * 2

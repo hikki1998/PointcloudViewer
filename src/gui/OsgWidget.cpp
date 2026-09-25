@@ -240,6 +240,11 @@ bool OsgWidget::hasGaussianModel() const
     return gaussianModel_ != nullptr && !gaussianModel_->empty();
 }
 
+bool OsgWidget::cameraInteractionActive() const
+{
+    return leftButtonPressed_ || middleButtonPressed_ || rightButtonPressed_;
+}
+
 void OsgWidget::leaveEvent(QEvent* event)
 {
     QOpenGLWidget::leaveEvent(event);

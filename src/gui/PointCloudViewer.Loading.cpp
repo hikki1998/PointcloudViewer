@@ -15,6 +15,7 @@
 #include "domain/DataManager.h"
 #include "gaussian/GaussianPlyReader.h"
 #include "gaussian/GaussianRenderer.h"
+#include "osg/OsgPointCloudNode.h"
 #include "pointcloud/LasReader.h"
 
 namespace
@@ -176,8 +177,9 @@ void PointCloudViewer::startAsyncSingleFileLoad(const QString& filePath)
     emit pointCloudLoadingProgress(tr("Reading point cloud in background..."), 0, 1000);
 
     const std::size_t previewThreshold = progressivePreviewThresholdPoints();
+    const PointCloudVisualizationOptions preparedVisualizationOptions = visualizationOptions_;
     QPointer<PointCloudViewer> self(this);
-    asyncLoadThread_ = std::thread([self, absolutePath, token, previewThreshold]() {
+    asyncLoadThread_ = std::thread([self, absolutePath, token, previewThreshold, preparedVisualizationOptions]() {
         auto pointCloud = std::make_shared<PointCloudData>();
         LasFileMetadata metadata;
         LasReader reader;
@@ -270,7 +272,41 @@ void PointCloudViewer::startAsyncSingleFileLoad(const QString& filePath)
         if (self == nullptr) {
             return;
         }
-        QMetaObject::invokeMethod(self, [self, absolutePath, token, pointCloud, metadata, localError, success]() {
+        LoadedPointCloudDataset preparedDataset;
+        PointCloudDatasetInfo preparedDatasetInfo;
+        if (success) {
+            preparedDatasetInfo.datasetId = 1;
+            preparedDatasetInfo.filePath = absolutePath;
+            preparedDatasetInfo.pointCount = metadata.pointCount;
+            preparedDatasetInfo.minBounds = metadata.minBounds;
+            preparedDatasetInfo.maxBounds = metadata.maxBounds;
+            preparedDatasetInfo.hasColor = metadata.hasColor;
+            preparedDatasetInfo.hasIntensity = metadata.hasIntensity;
+            preparedDatasetInfo.hasClassification = metadata.hasClassification;
+            preparedDatasetInfo.hasReturnInfo = metadata.hasReturnInfo;
+            preparedDatasetInfo.hasGpsTime = metadata.hasGpsTime;
+            preparedDatasetInfo.visible = true;
+            preparedDatasetInfo.projectionText = metadata.projectionText;
+            preparedDataset.info = preparedDatasetInfo;
+            preparedDataset.pointCloud = pointCloud;
+            buildDatasetSpatialIndex(&preparedDataset);
+            buildDatasetInteractionPreview(&preparedDataset);
+            PointCloudVisualizationOptions preparedOptions = preparedVisualizationOptions;
+            preparedOptions.showAxes = false;
+            preparedOptions.showBoundingBox = false;
+            preparedOptions.sharedElevationRangeValid = true;
+            preparedOptions.sharedElevationMin = metadata.minBounds.z;
+            preparedOptions.sharedElevationMax = metadata.maxBounds.z;
+            if (!pointCloud->hasColor() && preparedOptions.colorMode == PointCloudColorMode::Rgb) {
+                preparedOptions.colorMode = PointCloudColorMode::Elevation;
+            }
+            preparedDataset.fullSceneNode = OsgPointCloudNode::build(*pointCloud, preparedOptions);
+            preparedDataset.previewSceneNode = preparedDataset.interactionPreview != nullptr
+                ? OsgPointCloudNode::build(*preparedDataset.interactionPreview, preparedOptions)
+                : nullptr;
+        }
+        QMetaObject::invokeMethod(self, [self, absolutePath, token, pointCloud, metadata, localError, success,
+                                           preparedDataset = std::move(preparedDataset), preparedDatasetInfo]() mutable {
             if (self == nullptr || token != self->asyncLoadToken_) {
                 return;
             }
@@ -290,37 +326,18 @@ void PointCloudViewer::startAsyncSingleFileLoad(const QString& filePath)
             self->clearPointCloud();
             self->previewPointCloud_.reset();
             self->tiledPointCloudModeActive_ = false;
-            PointCloudDatasetInfo datasetInfo;
-            datasetInfo.datasetId = 1;
-            datasetInfo.filePath = absolutePath;
-            datasetInfo.pointCount = metadata.pointCount;
-            datasetInfo.minBounds = metadata.minBounds;
-            datasetInfo.maxBounds = metadata.maxBounds;
-            datasetInfo.hasColor = metadata.hasColor;
-            datasetInfo.hasIntensity = metadata.hasIntensity;
-            datasetInfo.hasClassification = metadata.hasClassification;
-            datasetInfo.hasReturnInfo = metadata.hasReturnInfo;
-            datasetInfo.hasGpsTime = metadata.hasGpsTime;
-            datasetInfo.visible = true;
-            datasetInfo.projectionText = metadata.projectionText;
-
-            LoadedPointCloudDataset dataset;
-            dataset.info = datasetInfo;
-            dataset.pointCloud = pointCloud;
-            self->buildDatasetSpatialIndex(&dataset);
-            self->buildDatasetInteractionPreview(&dataset);
-            self->loadedPointCloudDatasets_.append(std::move(dataset));
+            self->loadedPointCloudDatasets_.append(std::move(preparedDataset));
             self->invalidateMergedPointCloudCache();
             self->currentPointCloud_ = pointCloud;
             self->currentFilePath_ = absolutePath;
             self->currentFilePaths_ = QStringList { absolutePath };
             self->nextDatasetId_ = 2;
-            DataManager::instance().setPointCloudDatasets(QList<PointCloudDatasetInfo> { datasetInfo });
+            DataManager::instance().setPointCloudDatasets(QList<PointCloudDatasetInfo> { preparedDatasetInfo });
             self->syncVisualizationClassificationState();
             if (!pointCloud->hasColor() && self->visualizationOptions_.colorMode == PointCloudColorMode::Rgb) {
                 self->visualizationOptions_.colorMode = PointCloudColorMode::Elevation;
             }
-            self->rebuildScene();
+            self->rebuildScene(true);
             self->applyViewPreset(PointCloudViewPreset::Isometric);
             self->updateFooter();
             self->updateWelcomeOverlayVisibility();
@@ -362,8 +379,9 @@ void PointCloudViewer::startAsyncPointCloudBatchLoad(const QStringList& filePath
     emit pointCloudLoadingProgress(tr("Reading point clouds in background..."), 0, 1000);
 
     const int firstDatasetId = append ? nextDatasetId_ : 1;
+    const PointCloudVisualizationOptions preparedVisualizationOptions = visualizationOptions_;
     QPointer<PointCloudViewer> self(this);
-    asyncLoadThread_ = std::thread([self, normalizedFilePaths, token, append, firstDatasetId]() {
+    asyncLoadThread_ = std::thread([self, normalizedFilePaths, token, append, firstDatasetId, preparedVisualizationOptions]() {
         QList<LoadedPointCloudDataset> datasets;
         QList<PointCloudDatasetInfo> datasetInfos;
         QString localError;
@@ -436,6 +454,26 @@ void PointCloudViewer::startAsyncPointCloudBatchLoad(const QStringList& filePath
         if (self == nullptr) {
             return;
         }
+        if (datasets.size() == normalizedFilePaths.size() && !datasets.isEmpty()) {
+            double sharedMinZ = datasets.constFirst().info.minBounds.z;
+            double sharedMaxZ = datasets.constFirst().info.maxBounds.z;
+            for (const LoadedPointCloudDataset& dataset : datasets) {
+                sharedMinZ = std::min(sharedMinZ, dataset.info.minBounds.z);
+                sharedMaxZ = std::max(sharedMaxZ, dataset.info.maxBounds.z);
+            }
+            PointCloudVisualizationOptions preparedOptions = preparedVisualizationOptions;
+            preparedOptions.showAxes = false;
+            preparedOptions.showBoundingBox = false;
+            preparedOptions.sharedElevationRangeValid = true;
+            preparedOptions.sharedElevationMin = sharedMinZ;
+            preparedOptions.sharedElevationMax = sharedMaxZ;
+            for (LoadedPointCloudDataset& dataset : datasets) {
+                dataset.fullSceneNode = OsgPointCloudNode::build(*dataset.pointCloud, preparedOptions);
+                dataset.previewSceneNode = dataset.interactionPreview != nullptr
+                    ? OsgPointCloudNode::build(*dataset.interactionPreview, preparedOptions)
+                    : nullptr;
+            }
+        }
         QMetaObject::invokeMethod(self, [self, normalizedFilePaths, token, append, datasets = std::move(datasets), datasetInfos, localError]() mutable {
             if (self == nullptr || token != self->asyncLoadToken_) {
                 return;
@@ -472,7 +510,9 @@ void PointCloudViewer::startAsyncPointCloudBatchLoad(const QStringList& filePath
             self->nextDatasetId_ = combinedInfos.size() + 1;
             self->rebuildMergedPointCloud();
             self->syncVisualizationClassificationState();
-            self->rebuildScene();
+            const bool sharedElevationRangeChanged =
+                append && self->visualizationOptions_.colorMode == PointCloudColorMode::Elevation;
+            self->rebuildScene(!sharedElevationRangeChanged);
             if (!append) {
                 self->applyViewPreset(PointCloudViewPreset::Isometric);
             }

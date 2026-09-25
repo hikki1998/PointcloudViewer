@@ -1011,6 +1011,10 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     refineIdleTimer_->setSingleShot(true);
     refineIdleTimer_->setInterval(kInteractionLodIdleMilliseconds);
     connect(refineIdleTimer_, &QTimer::timeout, this, [this]() {
+        if (osgWidget_ != nullptr && osgWidget_->cameraInteractionActive()) {
+            refineIdleTimer_->start();
+            return;
+        }
         setInteractionLodActive(false);
     });
 
@@ -1828,7 +1832,7 @@ void PointCloudViewer::updateWelcomeOverlayVisibility()
     welcomeOverlay_->raise();
 }
 
-void PointCloudViewer::rebuildScene()
+void PointCloudViewer::rebuildScene(bool reusePreparedDatasetNodes)
 {
     if (!rootGroup_.valid()) {
         return;
@@ -1878,16 +1882,24 @@ void PointCloudViewer::rebuildScene()
             dataset.sceneNode = nullptr;
             continue;
         }
-        dataset.fullSceneNode = OsgPointCloudNode::build(*dataset.pointCloud, datasetVisualizationOptions);
-        dataset.previewSceneNode = dataset.interactionPreview != nullptr
-            ? OsgPointCloudNode::build(*dataset.interactionPreview, datasetVisualizationOptions)
-            : nullptr;
+        if (!reusePreparedDatasetNodes || !dataset.fullSceneNode.valid()) {
+            dataset.fullSceneNode = OsgPointCloudNode::build(*dataset.pointCloud, datasetVisualizationOptions);
+        }
+        if (!reusePreparedDatasetNodes || (dataset.interactionPreview != nullptr && !dataset.previewSceneNode.valid())) {
+            dataset.previewSceneNode = dataset.interactionPreview != nullptr
+                ? OsgPointCloudNode::build(*dataset.interactionPreview, datasetVisualizationOptions)
+                : nullptr;
+        }
         dataset.sceneNode = new osg::Group();
-        osg::Node* activeNode = cameraMoving_ && dataset.previewSceneNode.valid()
-            ? dataset.previewSceneNode.get()
-            : dataset.fullSceneNode.get();
-        if (activeNode != nullptr) {
-            dataset.sceneNode->addChild(activeNode);
+        if (dataset.fullSceneNode.valid()) {
+            dataset.fullSceneNode->setNodeMask(cameraMoving_ && dataset.previewSceneNode.valid() ? 0u : ~0u);
+            dataset.sceneNode->addChild(dataset.fullSceneNode.get());
+        }
+        if (dataset.previewSceneNode.valid()) {
+            dataset.previewSceneNode->setNodeMask(cameraMoving_ ? ~0u : 0u);
+            dataset.sceneNode->addChild(dataset.previewSceneNode.get());
+        }
+        if (dataset.sceneNode->getNumChildren() > 0) {
             pointCloudGroup->addChild(dataset.sceneNode.get());
         }
     }
@@ -2883,8 +2895,8 @@ void PointCloudViewer::setInteractionLodActive(bool active)
         if (!dataset.sceneNode.valid() || !dataset.previewSceneNode.valid() || !dataset.fullSceneNode.valid()) {
             continue;
         }
-        dataset.sceneNode->removeChildren(0, dataset.sceneNode->getNumChildren());
-        dataset.sceneNode->addChild(active ? dataset.previewSceneNode.get() : dataset.fullSceneNode.get());
+        dataset.fullSceneNode->setNodeMask(active ? 0u : ~0u);
+        dataset.previewSceneNode->setNodeMask(active ? ~0u : 0u);
     }
     if (osgWidget_ != nullptr) {
         osgWidget_->update();

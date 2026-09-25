@@ -48,6 +48,7 @@ public:
     bool setGaussianModel(std::shared_ptr<const GaussianModel> model, QString* errorMessage = nullptr);
     void clearGaussianModel();
     bool hasGaussianModel() const;
+    bool cameraInteractionActive() const;
 
 protected:
     void initializeGL() override;

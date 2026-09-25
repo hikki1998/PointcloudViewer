@@ -391,7 +391,7 @@ private:
     const PointCloudData* activePointCloudDataForTile(const PointCloudTileId& tileId) const;
     const PointCloudTileData* findTileData(const PointCloudTileSet& tileSet, const PointCloudTileId& tileId) const;
     const PointCloudData* ensureFullResolutionPointCloudCache(QString* errorMessage = nullptr) const;
-    void rebuildScene();
+    void rebuildScene(bool reusePreparedDatasetNodes = false);
     void rebuildMergedPointCloud();
     void invalidateMergedPointCloudCache();
     void updateSceneOriginFromCurrentPointCloud();

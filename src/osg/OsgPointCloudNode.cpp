@@ -413,9 +413,13 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
     return transform;
 }
 
-osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
+osg::ref_ptr<osg::Node> buildBoundingBoxGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
-    osg::ref_ptr<osg::Vec3dArray> vertices = new osg::Vec3dArray();
+    const osg::Vec3d origin(
+        (minBounds.x + maxBounds.x) * 0.5,
+        (minBounds.y + maxBounds.y) * 0.5,
+        (minBounds.z + maxBounds.z) * 0.5);
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
     const osg::Vec4 boundsColor(0.96f, 0.77f, 0.28f, 1.0f);
 
@@ -435,7 +439,10 @@ osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, con
     };
 
     for (const osg::Vec3d& vertex : edgePairs) {
-        vertices->push_back(vertex);
+        vertices->push_back(osg::Vec3(
+            static_cast<float>(vertex.x() - origin.x()),
+            static_cast<float>(vertex.y() - origin.y()),
+            static_cast<float>(vertex.z() - origin.z())));
         colors->push_back(boundsColor);
     }
 
@@ -453,10 +460,13 @@ osg::ref_ptr<osg::Geode> buildBoundingBoxGeode(const PointRecord& minBounds, con
     stateSet->setAttributeAndModes(new osg::LineWidth(2.0f), osg::StateAttribute::ON);
     stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
 
-    return geode;
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
+    transform->setMatrix(osg::Matrixd::translate(origin));
+    transform->addChild(geode.get());
+    return transform;
 }
 
-osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
+osg::ref_ptr<osg::Node> buildAxesGeode(const PointRecord& minBounds, const PointRecord& maxBounds)
 {
     const double maxExtent = std::max({
         maxBounds.x - minBounds.x,
@@ -467,7 +477,7 @@ osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const Poin
     const double axisLength = maxExtent * 0.18;
     const osg::Vec3d origin(minBounds.x, minBounds.y, minBounds.z);
 
-    osg::ref_ptr<osg::Vec3dArray> vertices = new osg::Vec3dArray();
+    osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
     osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array();
 
     const osg::Vec3d axisPairs[] = {
@@ -483,7 +493,10 @@ osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const Poin
     };
 
     for (const osg::Vec3d& vertex : axisPairs) {
-        vertices->push_back(vertex);
+        vertices->push_back(osg::Vec3(
+            static_cast<float>(vertex.x() - origin.x()),
+            static_cast<float>(vertex.y() - origin.y()),
+            static_cast<float>(vertex.z() - origin.z())));
     }
 
     for (const osg::Vec4& axisColor : axisColors) {
@@ -504,7 +517,10 @@ osg::ref_ptr<osg::Geode> buildAxesGeode(const PointRecord& minBounds, const Poin
     stateSet->setAttributeAndModes(new osg::LineWidth(3.0f), osg::StateAttribute::ON);
     stateSet->setMode(GL_LIGHTING, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
 
-    return geode;
+    osg::ref_ptr<osg::MatrixTransform> transform = new osg::MatrixTransform();
+    transform->setMatrix(osg::Matrixd::translate(origin));
+    transform->addChild(geode.get());
+    return transform;
 }
 }
 
