@@ -55,3 +55,7 @@ test_data/45-46(#045_#046) - 副本.las
 test_data/45-46(#045_#046).las
 test_data/湖北_鄂州_无_110_华柴线.las
 translations/lasviewer_zh_CN.qm
+test_data/N#045.json
+.codegraph/.gitignore
+test_data/gaussian_truck_iteration_7000.ply
+test_data/nju_xianlincampus.ply
