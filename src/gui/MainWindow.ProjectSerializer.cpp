@@ -9,6 +9,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QSignalBlocker>
 #include <QSpinBox>
 
@@ -66,24 +67,25 @@ bool MainWindow::loadProjectFile(const QString& filePath)
     }
 
     const QJsonObject visualizationObject = projectObject.value(QStringLiteral("visualization")).toObject();
-    const PointCloudVisualizationOptions defaults = viewer_->visualizationOptions();
-    viewer_->setPointSize(visualizationObject.value(QStringLiteral("pointSize")).toInt(static_cast<int>(defaults.pointSize)));
-    viewer_->setPointOpacity(visualizationObject.value(QStringLiteral("pointOpacity")).toInt(static_cast<int>(defaults.pointOpacity * 100.0f)));
-    viewer_->setDepthCueStrength(visualizationObject.value(QStringLiteral("depthCueStrength")).toInt(static_cast<int>(defaults.depthCueStrength * 100.0f)));
-    viewer_->setEdlStrength(visualizationObject.value(QStringLiteral("edlStrength")).toInt(static_cast<int>(defaults.edlStrength * 100.0f)));
-    viewer_->setClassificationColorMap(classificationColorMapFromJson(visualizationObject.value(QStringLiteral("classificationColors")).toObject(), defaults.classificationColors));
-    viewer_->setClassificationVisibilityMap(classificationVisibilityMapFromJson(visualizationObject.value(QStringLiteral("classificationVisibility")).toObject(), defaults.classificationVisibility));
-    viewer_->setClassificationFallbackColor(colorFromJson(visualizationObject.value(QStringLiteral("classificationFallbackColor")).toObject(), defaults.classificationFallbackColor));
+    PointCloudVisualizationOptions visualizationOptions = viewer_->visualizationOptions();
+    visualizationOptions.pointSize = visualizationObject.value(QStringLiteral("pointSize")).toInt(static_cast<int>(visualizationOptions.pointSize));
+    visualizationOptions.pointOpacity = visualizationObject.value(QStringLiteral("pointOpacity")).toInt(static_cast<int>(visualizationOptions.pointOpacity * 100.0f)) / 100.0f;
+    visualizationOptions.depthCueStrength = visualizationObject.value(QStringLiteral("depthCueStrength")).toInt(static_cast<int>(visualizationOptions.depthCueStrength * 100.0f)) / 100.0f;
+    visualizationOptions.edlStrength = visualizationObject.value(QStringLiteral("edlStrength")).toInt(static_cast<int>(visualizationOptions.edlStrength * 100.0f)) / 100.0f;
+    visualizationOptions.classificationColors = classificationColorMapFromJson(visualizationObject.value(QStringLiteral("classificationColors")).toObject(), visualizationOptions.classificationColors);
+    visualizationOptions.classificationVisibility = classificationVisibilityMapFromJson(visualizationObject.value(QStringLiteral("classificationVisibility")).toObject(), visualizationOptions.classificationVisibility);
+    visualizationOptions.classificationFallbackColor = colorFromJson(visualizationObject.value(QStringLiteral("classificationFallbackColor")).toObject(), visualizationOptions.classificationFallbackColor);
+    visualizationOptions.colorMode = static_cast<PointCloudColorMode>(visualizationObject.value(QStringLiteral("colorMode")).toInt(static_cast<int>(visualizationOptions.colorMode)));
+    visualizationOptions.singleColor = colorFromJson(visualizationObject.value(QStringLiteral("singleColor")).toObject(), visualizationOptions.singleColor);
+    visualizationOptions.backgroundColor = colorFromJson(visualizationObject.value(QStringLiteral("backgroundColor")).toObject(), visualizationOptions.backgroundColor);
+    visualizationOptions.useRoundSplats = visualizationObject.value(QStringLiteral("useRoundSplats")).toBool(visualizationOptions.useRoundSplats);
+    visualizationOptions.showAxes = visualizationObject.value(QStringLiteral("showAxes")).toBool(visualizationOptions.showAxes);
+    visualizationOptions.showBoundingBox = visualizationObject.value(QStringLiteral("showBoundingBox")).toBool(visualizationOptions.showBoundingBox);
+    viewer_->setVisualizationOptions(visualizationOptions);
     classificationNameOverrides_ = classificationNameMapFromJson(visualizationObject.value(QStringLiteral("classificationNameOverrides")).toObject());
-    viewer_->setColorMode(visualizationObject.value(QStringLiteral("colorMode")).toInt(static_cast<int>(defaults.colorMode)));
-    viewer_->setSingleColor(colorFromJson(visualizationObject.value(QStringLiteral("singleColor")).toObject(), defaults.singleColor));
-    viewer_->setBackgroundColor(colorFromJson(visualizationObject.value(QStringLiteral("backgroundColor")).toObject(), defaults.backgroundColor));
     viewer_->setInspectionRouteWaypointColor(colorFromJson(visualizationObject.value(QStringLiteral("routeWaypointColor")).toObject(), viewer_->inspectionRouteWaypointColor()));
     viewer_->setInspectionRoutePartPointColor(colorFromJson(visualizationObject.value(QStringLiteral("routePartPointColor")).toObject(), viewer_->inspectionRoutePartPointColor()));
     viewer_->setInspectionRouteTrajectoryColor(colorFromJson(visualizationObject.value(QStringLiteral("routeTrajectoryColor")).toObject(), viewer_->inspectionRouteTrajectoryColor()));
-    viewer_->setUseRoundSplats(visualizationObject.value(QStringLiteral("useRoundSplats")).toBool(defaults.useRoundSplats));
-    viewer_->setShowAxes(visualizationObject.value(QStringLiteral("showAxes")).toBool(defaults.showAxes));
-    viewer_->setShowBoundingBox(visualizationObject.value(QStringLiteral("showBoundingBox")).toBool(defaults.showBoundingBox));
 
     InteractionOptions interactionOptions = viewer_->interactionOptions();
     const QJsonObject interactionObject = projectObject.value(QStringLiteral("interaction")).toObject();
@@ -357,14 +359,13 @@ bool MainWindow::saveProjectFile(const QString& filePath)
         { QStringLiteral("inspectionIssues"), inspectionIssuesArray }
     };
 
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    QSaveFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)
+        || file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented)) < 0
+        || !file.commit()) {
         showUserMessage(LogLevel::Error, tr("Failed to save project file."), 5000);
         return false;
     }
-
-    file.write(QJsonDocument(projectObject).toJson(QJsonDocument::Indented));
-    file.close();
 
     bool routeFileSyncOk = true;
     QString routeFileSyncError;

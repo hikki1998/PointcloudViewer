@@ -386,7 +386,7 @@ bool PointCloudViewer::buildScreenPolygonClipRegion(
     const osg::Matrixd& windowToWorld,
     ClipRegion* clipRegion) const
 {
-    if (clipRegion == nullptr || currentPointCloud_ == nullptr || currentPointCloud_->empty() || polygon.size() < 3) {
+    if (clipRegion == nullptr || polygon.size() < 3) {
         return false;
     }
 
@@ -394,8 +394,11 @@ bool PointCloudViewer::buildScreenPolygonClipRegion(
         return false;
     }
 
-    const PointRecord& minBounds = currentPointCloud_->minBounds();
-    const PointRecord& maxBounds = currentPointCloud_->maxBounds();
+    PointRecord minBounds;
+    PointRecord maxBounds;
+    if (!visiblePointCloudBounds(&minBounds, &maxBounds)) {
+        return false;
+    }
     const osg::Vec3d boundsCorners[8] = {
         osg::Vec3d(minBounds.x, minBounds.y, minBounds.z),
         osg::Vec3d(maxBounds.x, minBounds.y, minBounds.z),

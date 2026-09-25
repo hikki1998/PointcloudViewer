@@ -115,7 +115,7 @@ bool MainWindow::appendPointCloudFiles(const QStringList& filePaths)
     pendingRecentDataFiles_ = filePaths;
     pendingDataLoadResetsProject_ = true;
     QString errorMessage;
-    if (!viewer_->appendPointCloudFiles(filePaths, &errorMessage)) {
+    if (!viewer_->appendPointCloudFilesAsync(filePaths, &errorMessage)) {
         pendingRecentDataFiles_.clear();
         pendingDataLoadResetsProject_ = false;
         syncUiFromViewer();
@@ -178,51 +178,17 @@ void MainWindow::removeSelectedDataset()
         showUserMessage(LogLevel::Warning, tr("Select a dataset in the project tree before removing it."), 3000);
         return;
     }
-    QStringList remainingFilePaths = viewer_->currentFilePaths();
-    remainingFilePaths.removeAll(datasetPath);
-
-    if (remainingFilePaths.isEmpty()) {
-        clearPointCloud();
-        showUserMessage(LogLevel::Info, tr("Dataset removed. The project is now empty."), 3000);
+    if (!viewer_->removePointCloudDataset(datasetPath)) {
+        showUserMessage(LogLevel::Error, tr("Failed to remove the selected dataset."), 5000);
         return;
     }
 
-    const QList<TowerMarker> towerMarkers = viewer_->towerMarkers();
-    const QList<InspectionIssue> inspectionIssues = viewer_->inspectionIssues();
-    const int selectedTowerIndex = viewer_->selectedTowerIndex();
-    const int selectedIssueIndex = viewer_->selectedIssueIndex();
-    QHash<QString, bool> datasetVisibility;
-    for (const PointCloudDatasetInfo& datasetInfo : DataManager::instance().pointCloudDatasets()) {
-        datasetVisibility.insert(datasetInfo.filePath.toLower(), datasetInfo.visible);
-    }
-    QString errorMessage;
-    if (viewer_->loadPointCloudFiles(remainingFilePaths, &errorMessage)) {
-        currentProjectFilePath_.clear();
-        linkedRouteFilePath_.clear();
-        setTowerEditingEnabled(false);
-        for (const PointCloudDatasetInfo& datasetInfo : DataManager::instance().pointCloudDatasets()) {
-            const auto visibilityIt = datasetVisibility.constFind(datasetInfo.filePath.toLower());
-            if (visibilityIt != datasetVisibility.constEnd() && !visibilityIt.value()) {
-                viewer_->setPointCloudDatasetVisible(datasetInfo.filePath, false);
-            }
-        }
-        viewer_->setTowerMarkers(towerMarkers);
-        viewer_->setInspectionIssues(inspectionIssues);
-        viewer_->setSelectedTowerIndex(selectedTowerIndex);
-        viewer_->setSelectedIssueIndex(selectedIssueIndex);
-        vegetationRiskResults_.clear();
-        selectedVegetationRiskIndex_ = -1;
-        currentPowerlineRoute_ = PowerlineRouteDocument();
-        selectedRouteWaypointIndex_ = -1;
-        viewer_->clearInspectionRouteWaypoints();
-        syncUiFromViewer();
-        showUserMessage(LogLevel::Info, tr("Dataset removed from the project."), 3000);
+    currentProjectFilePath_.clear();
+    syncUiFromViewer();
+    if (viewer_->currentFilePaths().isEmpty()) {
+        showUserMessage(LogLevel::Info, tr("Dataset removed. The project is now empty."), 3000);
     } else {
-        syncUiFromViewer();
-        showUserMessage(
-            LogLevel::Error,
-            errorMessage.isEmpty() ? tr("Failed to load point cloud.") : errorMessage,
-            6000);
+        showUserMessage(LogLevel::Info, tr("Dataset removed from the project."), 3000);
     }
 }
 
@@ -267,8 +233,10 @@ void MainWindow::openPointCloud()
 
 void MainWindow::updateDatasetPanel()
 {
-    const PointCloudData* pointCloudData = viewer_->pointCloudData();
-    if (pointCloudData == nullptr && viewer_->currentFilePaths().isEmpty()) {
+    PointRecord minBounds;
+    PointRecord maxBounds;
+    const bool hasVisiblePointCloud = viewer_->visiblePointCloudBounds(&minBounds, &maxBounds);
+    if (!hasVisiblePointCloud && viewer_->currentFilePaths().isEmpty()) {
         datasetNameValueLabel_->setText(tr("No dataset loaded"));
         datasetPathValueLabel_->setText(tr("Open, add, or drag LAS/LAZ files into the window."));
         datasetPointsValueLabel_->setText(QStringLiteral("0"));
@@ -278,7 +246,7 @@ void MainWindow::updateDatasetPanel()
         return;
     }
 
-    if (pointCloudData == nullptr) {
+    if (!hasVisiblePointCloud) {
         datasetNameValueLabel_->setText(tr("All datasets hidden"));
         datasetPathValueLabel_->setText(datasetPathSummary(viewer_->currentFilePaths()));
         datasetPointsValueLabel_->setText(QStringLiteral("0"));
@@ -289,15 +257,13 @@ void MainWindow::updateDatasetPanel()
     }
 
     const QStringList filePaths = viewer_->currentFilePaths();
-    const PointRecord& minBounds = pointCloudData->minBounds();
-    const PointRecord& maxBounds = pointCloudData->maxBounds();
 
     datasetNameValueLabel_->setText(
         filePaths.size() == 1
             ? QFileInfo(filePaths.constFirst()).fileName()
             : tr("%1 datasets").arg(QLocale().toString(filePaths.size())));
     datasetPathValueLabel_->setText(datasetPathSummary(filePaths));
-    datasetPointsValueLabel_->setText(QLocale().toString(static_cast<qlonglong>(pointCloudData->size())));
+    datasetPointsValueLabel_->setText(QLocale().toString(static_cast<qlonglong>(viewer_->visiblePointCount())));
     datasetBoundsValueLabel_->setText(
         tr("Min (%1)\nMax (%2)")
             .arg(formatTriplet(minBounds.x, minBounds.y, minBounds.z))
@@ -306,8 +272,12 @@ void MainWindow::updateDatasetPanel()
         maxBounds.x - minBounds.x,
         maxBounds.y - minBounds.y,
         maxBounds.z - minBounds.z));
+    bool hasNativeColor = false;
+    for (const PointCloudDatasetInfo& dataset : viewer_->pointCloudDatasets()) {
+        hasNativeColor = hasNativeColor || (dataset.visible && dataset.hasColor);
+    }
     datasetColorValueLabel_->setText(
         tr("%1 | Native RGB: %2")
             .arg(colorModeName(viewer_->visualizationOptions().colorMode))
-            .arg(pointCloudData->hasColor() ? tr("yes") : tr("no")));
+            .arg(hasNativeColor ? tr("yes") : tr("no")));
 }

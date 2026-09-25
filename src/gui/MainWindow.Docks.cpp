@@ -957,4 +957,16 @@ void MainWindow::createStatusBar()
         "border-radius: 6px;"
         "}"));
     statusBar()->addPermanentWidget(globalProgressBar_);
+
+    cancelOperationButton_ = new QPushButton(tr("Cancel"), this);
+    cancelOperationButton_->setVisible(false);
+    cancelOperationButton_->setStyleSheet(QStringLiteral(
+        "QPushButton { background: #ffffff; color: #1e293b; border: 1px solid #94a3b8; border-radius: 6px; padding: 3px 10px; }"
+        "QPushButton:hover { background: #f1f5f9; }"));
+    connect(cancelOperationButton_, &QPushButton::clicked, this, [this]() {
+        if (viewer_ != nullptr) {
+            viewer_->cancelPointCloudLoading();
+        }
+    });
+    statusBar()->addPermanentWidget(cancelOperationButton_);
 }

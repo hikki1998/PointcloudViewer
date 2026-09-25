@@ -37,10 +37,14 @@
 ## 核心运行链路
 
 ### LAS/LAZ 加载与渲染
-1. `LasReader` 读取 LAS/LAZ，填充 `PointCloudData`
-2. `PointCloudViewer` 持有当前点云与可视化状态
-3. `OsgPointCloudNode` 把点云转成 OSG 几何
-4. `MainWindow` 通过检查器和 Ribbon 修改显示参数，再下发给 viewer
+1. 用户打开、追加或拖放的 LAS/LAZ 由 `PointCloudViewer` 工作线程调用 `LasReader` 后台读取，支持多文件串行进度和取消；大文件单文件打开时先显示有上限的 preview，再原子替换为完整数据；工程恢复保留同步兼容路径
+2. `PointCloudViewer` 按 dataset 保存 `PointCloudData`，每个可见 dataset 构建独立 OSG 节点，不再为日常渲染常驻复制一份合并点云
+3. 需要全量连续点数组的分析兼容 API 才按需生成合并缓存；preview 阶段不会向分析 API 暴露为完整数据；显隐、删除和分类提交会使缓存失效
+4. 每个完整 dataset 构建轻量 XY 网格索引（只保存 32 位点索引），拾取先筛选网格再精确投影点，不复制 `PointRecord`
+5. 超过阈值的数据集额外保留一个最多约 18 万点的交互预览节点；相机运动时切换预览节点，静止约 150ms 后恢复完整节点，不复制全量点云
+6. `OsgPointCloudNode` 把各 dataset 转成 OSG 几何，场景统一绘制全局 bounds/axes，并共享高程着色范围
+7. 点大小、透明度、Depth Cue、EDL、圆形 splat 和背景色直接更新 OSG State/Uniform，不重建点几何
+8. `MainWindow` 通过检查器和 Ribbon 修改显示参数，再下发给 viewer
 
 ### Gaussian PLY 加载与渲染
 1. `GaussianPlyReader` 校验并解析受支持的 binary little-endian 3DGS PLY

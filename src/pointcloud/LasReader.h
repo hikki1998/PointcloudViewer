@@ -46,7 +46,8 @@ public:
         QString* errorMessage = nullptr,
         LasFileMetadata* metadata = nullptr,
         ProgressCallback progressCallback = ProgressCallback(),
-        CancellationCallback cancellationCallback = CancellationCallback()) const;
+        CancellationCallback cancellationCallback = CancellationCallback(),
+        int sourceDatasetId = -1) const;
 
     bool readPoints(
         const QString& filePath,

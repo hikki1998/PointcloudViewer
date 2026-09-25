@@ -2608,6 +2608,9 @@ void MainWindow::beginOperationProgress(const QString& message)
         globalProgressBar_->setVisible(true);
         globalProgressBar_->setRange(0, 0);
     }
+    if (cancelOperationButton_ != nullptr) {
+        cancelOperationButton_->setVisible(viewer_ != nullptr && viewer_->canCancelPointCloudLoading());
+    }
     if (statusBar() != nullptr && !message.trimmed().isEmpty()) {
         statusBar()->showMessage(message);
     }
@@ -2638,6 +2641,9 @@ void MainWindow::endOperationProgress()
         globalProgressBar_->hide();
         globalProgressBar_->setRange(0, 1000);
         globalProgressBar_->setValue(0);
+    }
+    if (cancelOperationButton_ != nullptr) {
+        cancelOperationButton_->hide();
     }
 }
 

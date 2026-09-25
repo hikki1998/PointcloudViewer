@@ -27,6 +27,13 @@ public:
     static osg::ref_ptr<osg::Group> build(
         const PointCloudData& pointCloudData,
         const PointCloudVisualizationOptions& visualizationOptions);
+    static void updateRenderingState(
+        osg::Node* node,
+        const PointCloudVisualizationOptions& visualizationOptions);
+    static osg::ref_ptr<osg::Group> buildAuxiliaryNodes(
+        const PointRecord& minBounds,
+        const PointRecord& maxBounds,
+        const PointCloudVisualizationOptions& visualizationOptions);
 
     osg::Group* root() const;
     void clear();

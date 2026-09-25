@@ -143,6 +143,9 @@ struct PointCloudVisualizationOptions
     bool useRoundSplats = true;
     bool showAxes = true;
     bool showBoundingBox = true;
+    bool sharedElevationRangeValid = false;
+    double sharedElevationMin = 0.0;
+    double sharedElevationMax = 0.0;
 
     ClipRegion clipRegion;
 };

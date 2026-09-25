@@ -15,6 +15,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 #include <QWidget>
 #include <QGridLayout>
 
@@ -147,6 +148,7 @@ public:
     bool loadPointCloud(const QString& filePath, QString* errorMessage = nullptr);
     bool loadPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     bool loadPointCloudFilesAsync(const QStringList& filePaths, QString* errorMessage = nullptr);
+    bool appendPointCloudFilesAsync(const QStringList& filePaths, QString* errorMessage = nullptr);
     bool appendPointCloudFiles(const QStringList& filePaths, QString* errorMessage = nullptr);
     void clearPointCloud();
     void showTransientPreviewPointCloud(const QString& filePath, const PointCloudData& pointCloudPreview, const QString& detailMessage);
@@ -156,11 +158,15 @@ public:
     bool hasRenderableScene() const;
     bool hasLoadedPointClouds() const;
     bool isPointCloudLoadingInProgress() const;
+    bool canCancelPointCloudLoading() const;
+    void cancelPointCloudLoading();
     bool hasFullResolutionPointCloud() const;
     QString currentFilePath() const;
     QStringList currentFilePaths() const;
     const PointCloudData* pointCloudData() const;
     const PointCloudData* fullResolutionPointCloudData(QString* errorMessage = nullptr);
+    std::size_t visiblePointCount() const;
+    bool visiblePointCloudBounds(PointRecord* minBounds, PointRecord* maxBounds) const;
     const QList<PointCloudDatasetInfo>& pointCloudDatasets() const;
     const PointCloudVisualizationOptions& visualizationOptions() const;
     bool hasActiveClipRegion() const;
@@ -196,6 +202,7 @@ public:
     bool focusOnPoint(const PointRecord& point, double distanceScale = 0.35);
     bool focusOnBounds(const PointRecord& minBounds, const PointRecord& maxBounds, double distanceScale = 1.0);
     bool setPointCloudDatasetVisible(const QString& filePath, bool visible);
+    bool removePointCloudDataset(const QString& filePath);
     bool isInspectionIssueVisible(int index) const;
     void setInspectionIssueVisible(int index, bool visible);
     bool inspectionRouteVisible() const;
@@ -213,6 +220,7 @@ public:
     void requestSceneFrame();
 
 public slots:
+    void setVisualizationOptions(const PointCloudVisualizationOptions& options);
     void setPointSize(int pointSize);
     void setPointOpacity(int opacityPercent);
     void setColorMode(int colorModeIndex);
@@ -306,7 +314,9 @@ signals:
     void pointCloudCleared();
     void pointCloudLoadingStarted(const QString& message);
     void pointCloudLoadingProgress(const QString& message, int value, int maximum);
+    void pointCloudPreviewReady();
     void pointCloudLoadingFinished();
+    void pointCloudLoadingCancelled();
     void pointCloudLoadingFailed(const QString& message);
     void visualizationOptionsChanged();
     void interactionOptionsChanged();
@@ -338,6 +348,8 @@ signals:
     void sceneFrameRendered();
 
 private:
+    struct LoadedPointCloudDataset;
+
     void changeEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void createStatusPanel();
@@ -345,6 +357,7 @@ private:
     void createWelcomeOverlay();
     void createRouteCameraPreviewOverlay();
     void startAsyncSingleFileLoad(const QString& filePath);
+    void startAsyncPointCloudBatchLoad(const QStringList& filePaths, bool append);
     void cancelAsyncPointCloudLoad();
     void completeAsyncLoadFailure(std::uint64_t token, const QString& errorMessage);
     void applyAsyncPreview(
@@ -377,9 +390,10 @@ private:
         double* depthHint = nullptr) const;
     const PointCloudData* activePointCloudDataForTile(const PointCloudTileId& tileId) const;
     const PointCloudTileData* findTileData(const PointCloudTileSet& tileSet, const PointCloudTileId& tileId) const;
-    const PointCloudData* ensureFullResolutionPointCloudCache(QString* errorMessage = nullptr);
+    const PointCloudData* ensureFullResolutionPointCloudCache(QString* errorMessage = nullptr) const;
     void rebuildScene();
     void rebuildMergedPointCloud();
+    void invalidateMergedPointCloudCache();
     void updateSceneOriginFromCurrentPointCloud();
     osg::Vec3d overlaySceneOrigin() const;
     void updateFooter();
@@ -432,6 +446,22 @@ private:
         std::uint64_t elapsedMilliseconds);
     int effectiveClassificationForPoint(const QString& datasetPath, const PointRecord& point) const;
     bool pickPointAtScreenPosition(const QPointF& localPos, PointRecord* pickedPoint, float tolerancePixels = 14.0f) const;
+    bool datasetBoundsNearScreenPosition(
+        const LoadedPointCloudDataset& dataset,
+        const osg::Matrixd& localToWindow,
+        double clickX,
+        double clickY,
+        double tolerance) const;
+    static void buildDatasetSpatialIndex(LoadedPointCloudDataset* dataset);
+    static void buildDatasetInteractionPreview(LoadedPointCloudDataset* dataset);
+    void setInteractionLodActive(bool active);
+    void collectPickCandidateIndices(
+        const LoadedPointCloudDataset& dataset,
+        const osg::Matrixd& localToWindow,
+        double clickX,
+        double clickY,
+        double tolerance,
+        QVector<std::uint32_t>* candidateIndices) const;
     int pickTowerMarkerAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     int pickInspectionIssueAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
     int pickInspectionRouteWaypointAtScreenPosition(const QPointF& localPos, float tolerancePixels = 18.0f) const;
@@ -490,6 +520,12 @@ private:
     {
         PointCloudDatasetInfo info;
         std::shared_ptr<PointCloudData> pointCloud;
+        std::shared_ptr<PointCloudData> interactionPreview;
+        osg::ref_ptr<osg::Group> sceneNode;
+        osg::ref_ptr<osg::Node> fullSceneNode;
+        osg::ref_ptr<osg::Node> previewSceneNode;
+        int spatialGridSize = 0;
+        QVector<QVector<std::uint32_t>> spatialGridPointIndices;
     };
 
     struct ClipCameraSnapshot
@@ -521,6 +557,7 @@ private:
     QWidget* routeCameraPreviewOverlay_ = nullptr;
 
     std::shared_ptr<PointCloudData> currentPointCloud_;
+    mutable std::shared_ptr<PointCloudData> mergedPointCloudCache_;
     std::shared_ptr<GaussianModel> currentGaussianModel_;
     std::thread gaussianLoadThread_;
     std::shared_ptr<PointCloudData> previewPointCloud_;
@@ -533,6 +570,7 @@ private:
     PointCloudVisualizationOptions visualizationOptions_;
     InteractionOptions interactionOptions_;
     bool pointCloudLoadingActive_ = false;
+    bool pointCloudLoadingCancellable_ = false;
     QString pointCloudLoadingTitle_;
     QString pointCloudLoadingDetail_;
     int pointCloudLoadingProgressPercent_ = -1;

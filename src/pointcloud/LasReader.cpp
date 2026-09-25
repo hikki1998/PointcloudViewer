@@ -472,7 +472,8 @@ bool LasReader::read(
     QString* errorMessage,
     LasFileMetadata* metadata,
     ProgressCallback progressCallback,
-    CancellationCallback cancellationCallback) const
+    CancellationCallback cancellationCallback,
+    int sourceDatasetId) const
 {
     if (output == nullptr) {
         if (errorMessage != nullptr) {
@@ -505,6 +506,11 @@ bool LasReader::read(
     }
     return false;
 #else
+    LasFileMetadata headerMetadata;
+    if (readMetadata(filePath, &headerMetadata, nullptr) && headerMetadata.pointCount > 0) {
+        output->reserve(headerMetadata.pointCount);
+    }
+
     PointRecord minBounds;
     PointRecord maxBounds;
     minBounds.x = minBounds.y = minBounds.z = std::numeric_limits<double>::max();
@@ -516,7 +522,9 @@ bool LasReader::read(
     bool hasGpsTime = false;
     bool firstPoint = true;
     std::size_t loadedCount = 0;
-    const auto pointCallback = [&output, &minBounds, &maxBounds, &hasColor, &hasIntensity, &hasClassification, &hasReturnInfo, &hasGpsTime, &firstPoint, &loadedCount](const PointRecord& point) {
+    const auto pointCallback = [&output, &minBounds, &maxBounds, &hasColor, &hasIntensity, &hasClassification, &hasReturnInfo, &hasGpsTime, &firstPoint, &loadedCount, sourceDatasetId](PointRecord point) {
+        point.sourceDatasetId = sourceDatasetId;
+        point.sourcePointIndex = static_cast<std::uint32_t>(loadedCount);
         output->appendPointFast(point);
         if (firstPoint) {
             minBounds = point;

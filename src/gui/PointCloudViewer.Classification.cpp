@@ -388,6 +388,7 @@ void PointCloudViewer::commitClassificationEditsToPointCloudData()
 
     if (changedAnyPoint) {
         DataManager::instance().setPointCloudDatasets(datasetInfos);
+        invalidateMergedPointCloudCache();
     }
 
     classificationEditStore_.clear();

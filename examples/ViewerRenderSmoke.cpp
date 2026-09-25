@@ -134,11 +134,17 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
 
         QString errorMessage;
         const bool gaussianPly = QFileInfo(filePath).suffix().compare(QStringLiteral("ply"), Qt::CaseInsensitive) == 0;
+        if (!gaussianPly) {
+            qputenv("LAS_VIEWER_PREVIEW_THRESHOLD_POINTS", QByteArrayLiteral("1"));
+            qputenv("LAS_VIEWER_INTERACTION_LOD_THRESHOLD_POINTS", QByteArrayLiteral("1"));
+        }
+        bool previewReady = false;
+        QObject::connect(&viewer, &PointCloudViewer::pointCloudPreviewReady, &viewer, [&previewReady]() {
+            previewReady = true;
+        });
         QElapsedTimer loadStartTimer;
         loadStartTimer.start();
-        const bool loadStarted = gaussianPly
-            ? viewer.loadPointCloudFilesAsync(QStringList { filePath }, &errorMessage)
-            : viewer.loadPointCloud(filePath, &errorMessage);
+        const bool loadStarted = viewer.loadPointCloudFilesAsync(QStringList { filePath }, &errorMessage);
         const qint64 loadCallElapsedMs = loadStartTimer.elapsed();
         if (!loadStarted) {
             std::cerr << "Load failed for " << filePath.toStdString() << ": "
@@ -146,26 +152,33 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             allPassed = false;
             continue;
         }
-        if (gaussianPly) {
-            if (loadCallElapsedMs > 500) {
-                std::cerr << "Gaussian background load call blocked the UI thread for "
-                          << loadCallElapsedMs << " ms" << std::endl;
-                allPassed = false;
-                continue;
-            }
-            QElapsedTimer asyncWaitTimer;
-            asyncWaitTimer.start();
-            while (viewer.isPointCloudLoadingInProgress() && asyncWaitTimer.elapsed() < 15000) {
-                pumpEvents(25);
-            }
-            if (viewer.isPointCloudLoadingInProgress() || !viewer.hasGaussianModel()) {
-                std::cerr << "Gaussian background load did not finish within 15 seconds" << std::endl;
-                allPassed = false;
-                continue;
-            }
-            std::cout << "Gaussian async load call=" << loadCallElapsedMs
-                      << "ms ready=" << asyncWaitTimer.elapsed() << "ms" << std::endl;
+        if (loadCallElapsedMs > 500) {
+            std::cerr << "Background load call blocked the UI thread for "
+                      << loadCallElapsedMs << " ms" << std::endl;
+            allPassed = false;
+            continue;
         }
+        QElapsedTimer asyncWaitTimer;
+        asyncWaitTimer.start();
+        while (viewer.isPointCloudLoadingInProgress() && asyncWaitTimer.elapsed() < 15000) {
+            pumpEvents(25);
+        }
+        if (viewer.isPointCloudLoadingInProgress()
+            || (gaussianPly ? !viewer.hasGaussianModel() : !viewer.hasPointCloud())
+            || (!gaussianPly && !previewReady)) {
+            std::cerr << "Background load did not finish within 15 seconds"
+                      << " active=" << viewer.isPointCloudLoadingInProgress()
+                      << " preview=" << previewReady
+                      << " points=" << viewer.visiblePointCount()
+                      << " files=" << viewer.currentFilePaths().size()
+                      << " token=" << viewer.asyncLoadToken_
+                      << std::endl;
+            allPassed = false;
+            continue;
+        }
+        std::cout << "Async load call=" << loadCallElapsedMs
+                  << "ms ready=" << asyncWaitTimer.elapsed() << "ms"
+                  << (gaussianPly ? "" : " preview=yes") << std::endl;
 
         bool screenshotDelayOk = false;
         const int screenshotDelayMs = qEnvironmentVariableIntValue("LAS_VIEWER_SMOKE_SCREENSHOT_DELAY_MS", &screenshotDelayOk);
@@ -211,6 +224,98 @@ bool runViewerRenderSmoke(const QStringList& filePaths)
             std::cerr << "No OsgWidget found for " << filePath.toStdString() << std::endl;
             allPassed = false;
             continue;
+        }
+
+        if (!gaussianPly) {
+            qunsetenv("LAS_VIEWER_PREVIEW_THRESHOLD_POINTS");
+            qunsetenv("LAS_VIEWER_INTERACTION_LOD_THRESHOLD_POINTS");
+            if (viewer.loadedPointCloudDatasets_.isEmpty()
+                || viewer.loadedPointCloudDatasets_.constFirst().interactionPreview == nullptr) {
+                std::cerr << "Interaction LOD preview was not built" << std::endl;
+                allPassed = false;
+                continue;
+            }
+            const auto& lodDataset = viewer.loadedPointCloudDatasets_.constFirst();
+            runOrbitDragAndCaptureEventPosition(osgWidget, QPointF(420.0, 320.0), QPointF(80.0, 35.0));
+            pumpEvents(50);
+            if (!viewer.cameraMoving_ || !lodDataset.sceneNode.valid()
+                || lodDataset.sceneNode->getNumChildren() != 1
+                || lodDataset.sceneNode->getChild(0) != lodDataset.previewSceneNode.get()) {
+                std::cerr << "Interaction LOD did not switch to preview node" << std::endl;
+                allPassed = false;
+                continue;
+            }
+            pumpEvents(250);
+            if (viewer.cameraMoving_
+                || lodDataset.sceneNode->getChild(0) != lodDataset.fullSceneNode.get()) {
+                std::cerr << "Interaction LOD did not restore full node" << std::endl;
+                allPassed = false;
+                continue;
+            }
+
+            const std::size_t originalPointCount = viewer.visiblePointCount();
+            const QString duplicatePath = QDir::temp().filePath(QStringLiteral("lasviewer_multi_dataset_smoke.las"));
+            QFile::remove(duplicatePath);
+            if (!QFile::copy(filePath, duplicatePath)) {
+                std::cerr << "Failed to create temporary second LAS dataset" << std::endl;
+                allPassed = false;
+                continue;
+            }
+            QString appendError;
+            QElapsedTimer appendCallTimer;
+            appendCallTimer.start();
+            const bool appendStarted = viewer.appendPointCloudFilesAsync(QStringList { duplicatePath }, &appendError);
+            const qint64 appendCallElapsedMs = appendCallTimer.elapsed();
+            QElapsedTimer appendWaitTimer;
+            appendWaitTimer.start();
+            while (viewer.isPointCloudLoadingInProgress() && appendWaitTimer.elapsed() < 15000) {
+                pumpEvents(25);
+            }
+            if (!appendStarted
+                || appendCallElapsedMs > 500
+                || viewer.isPointCloudLoadingInProgress()
+                || viewer.loadedPointCloudDatasets_.size() != 2
+                || viewer.visiblePointCount() != originalPointCount * 2
+                || viewer.mergedPointCloudCache_ != nullptr
+                || !viewer.pointCloudNode_.valid()) {
+                std::cerr << "Independent multi-dataset rendering state is invalid: "
+                          << appendError.toStdString() << std::endl;
+                QFile::remove(duplicatePath);
+                allPassed = false;
+                continue;
+            }
+            const auto* pointCloudGroup = viewer.pointCloudNode_->asGroup();
+            if (pointCloudGroup == nullptr || pointCloudGroup->getNumChildren() != 2) {
+                std::cerr << "Expected two independent point-cloud scene nodes" << std::endl;
+                QFile::remove(duplicatePath);
+                allPassed = false;
+                continue;
+            }
+            if (viewer.pointCloudData() == nullptr
+                || viewer.pointCloudData()->size() != originalPointCount * 2
+                || viewer.mergedPointCloudCache_ == nullptr) {
+                std::cerr << "On-demand merged analysis cache is invalid" << std::endl;
+                QFile::remove(duplicatePath);
+                allPassed = false;
+                continue;
+            }
+            if (!viewer.setPointCloudDatasetVisible(duplicatePath, false)
+                || viewer.visiblePointCount() != originalPointCount
+                || viewer.mergedPointCloudCache_ != nullptr) {
+                std::cerr << "Dataset visibility did not invalidate the merged cache" << std::endl;
+                QFile::remove(duplicatePath);
+                allPassed = false;
+                continue;
+            }
+            if (!viewer.removePointCloudDataset(duplicatePath)
+                || viewer.currentFilePaths().size() != 1
+                || viewer.visiblePointCount() != originalPointCount) {
+                std::cerr << "In-memory dataset removal failed" << std::endl;
+                QFile::remove(duplicatePath);
+                allPassed = false;
+                continue;
+            }
+            QFile::remove(duplicatePath);
         }
 
         const QPoint clickPoint = osgWidget->rect().center();

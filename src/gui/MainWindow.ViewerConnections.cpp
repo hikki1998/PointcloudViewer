@@ -646,6 +646,13 @@ void MainWindow::createWindowAndViewerConnections()
             captureWorkspaceThumbnails();
         });
     });
+    connect(viewer_, &PointCloudViewer::pointCloudLoadingCancelled, this, [this]() {
+        endOperationProgress();
+        pendingRecentDataFiles_.clear();
+        pendingDataLoadResetsProject_ = false;
+        showUserMessage(LogLevel::Info, tr("Point cloud loading cancelled."), 3000);
+        updateActionState();
+    });
     connect(viewer_, &PointCloudViewer::pointCloudLoadingFailed, this, [this](const QString& message) {
         endOperationProgress();
         pendingRecentDataFiles_.clear();

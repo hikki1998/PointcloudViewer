@@ -531,6 +531,7 @@ private:
     QToolButton* closeButton_ = nullptr;
     QLabel* recordingStatusBadgeLabel_ = nullptr;
     QProgressBar* globalProgressBar_ = nullptr;
+    QPushButton* cancelOperationButton_ = nullptr;
 
     QAction* openAction_ = nullptr;
     QAction* addPointCloudAction_ = nullptr;

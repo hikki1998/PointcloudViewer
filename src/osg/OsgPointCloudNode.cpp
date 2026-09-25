@@ -12,6 +12,7 @@
 #include <osg/Group>
 #include <osg/LineWidth>
 #include <osg/MatrixTransform>
+#include <osg/NodeVisitor>
 #include <osg/Point>
 #include <osg/Program>
 #include <osg/Shader>
@@ -47,6 +48,44 @@ float clampUnit(float value)
 {
     return std::clamp(value, 0.0f, 1.0f);
 }
+
+class RenderingStateVisitor final : public osg::NodeVisitor
+{
+public:
+    explicit RenderingStateVisitor(const PointCloudVisualizationOptions& options)
+        : osg::NodeVisitor(TRAVERSE_ALL_CHILDREN)
+        , options_(options)
+    {
+    }
+
+    void apply(osg::Node& node) override
+    {
+        if (osg::StateSet* stateSet = node.getStateSet()) {
+            if (stateSet->getUniform("uPointOpacity") != nullptr) {
+                stateSet->setAttributeAndModes(new osg::Point(options_.pointSize), osg::StateAttribute::ON);
+                setFloat(stateSet, "uPointOpacity", clampUnit(options_.pointOpacity));
+                setFloat(stateSet, "uDepthCueStrength", clampUnit(options_.depthCueStrength));
+                setFloat(stateSet, "uEdlStrength", clampUnit(options_.edlStrength));
+                setFloat(stateSet, "uUseRoundSplats", options_.useRoundSplats ? 1.0f : 0.0f);
+                if (osg::Uniform* uniform = stateSet->getUniform("uBackgroundColor")) {
+                    const osg::Vec4 color = toOsgColor(options_.backgroundColor);
+                    uniform->set(osg::Vec3(color.r(), color.g(), color.b()));
+                }
+            }
+        }
+        traverse(node);
+    }
+
+private:
+    static void setFloat(osg::StateSet* stateSet, const char* name, float value)
+    {
+        if (osg::Uniform* uniform = stateSet->getUniform(name)) {
+            uniform->set(value);
+        }
+    }
+
+    const PointCloudVisualizationOptions& options_;
+};
 
 osg::Program* buildPointCloudProgram()
 {
@@ -328,8 +367,13 @@ osg::ref_ptr<osg::Node> buildPointCloudNode(
     colors->reserve(pointCount);
     datasetIds->reserve(pointCount);
 
-    const double minZ = minBounds.z;
-    const double heightSpan = std::max(0.0, maxBounds.z - minZ);
+    const double minZ = visualizationOptions.sharedElevationRangeValid
+        ? visualizationOptions.sharedElevationMin
+        : minBounds.z;
+    const double maxZ = visualizationOptions.sharedElevationRangeValid
+        ? visualizationOptions.sharedElevationMax
+        : maxBounds.z;
+    const double heightSpan = std::max(0.0, maxZ - minZ);
 
     const std::vector<PointRecord>& points = pointCloudData.points();
     for (std::size_t pointIndex = 0; pointIndex < pointCount; ++pointIndex) {
@@ -487,6 +531,33 @@ osg::ref_ptr<osg::Group> OsgPointCloudNode::build(
     }
 
     return root;
+}
+
+osg::ref_ptr<osg::Group> OsgPointCloudNode::buildAuxiliaryNodes(
+    const PointRecord& minBounds,
+    const PointRecord& maxBounds,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    osg::ref_ptr<osg::Group> root = new osg::Group();
+    if (visualizationOptions.showBoundingBox) {
+        root->addChild(buildBoundingBoxGeode(minBounds, maxBounds).get());
+    }
+    if (visualizationOptions.showAxes) {
+        root->addChild(buildAxesGeode(minBounds, maxBounds).get());
+    }
+    return root;
+}
+
+void OsgPointCloudNode::updateRenderingState(
+    osg::Node* node,
+    const PointCloudVisualizationOptions& visualizationOptions)
+{
+    if (node == nullptr) {
+        return;
+    }
+
+    RenderingStateVisitor visitor(visualizationOptions);
+    node->accept(visitor);
 }
 
 osg::Group* OsgPointCloudNode::root() const

@@ -74,6 +74,9 @@ constexpr int kMinWheelZoomSensitivityPercent = 50;
 constexpr int kMaxWheelZoomSensitivityPercent = 200;
 constexpr double kDefaultWheelZoomFactor = 0.45;
 constexpr int kRouteRoamTimerIntervalMs = 33;
+constexpr std::size_t kInteractionPreviewThresholdPoints = 500000;
+constexpr std::size_t kInteractionPreviewTargetPoints = 180000;
+constexpr int kInteractionLodIdleMilliseconds = 150;
 constexpr double kRouteRoamMinSpeedMetersPerSecond = 0.1;
 constexpr double kRouteRoamMaxSpeedMetersPerSecond = 80.0;
 constexpr double kRouteRoamDwellSeconds = 0.8;
@@ -108,6 +111,15 @@ int clampWheelZoomSensitivityPercent(int percent)
 double wheelZoomSensitivityScale(int percent)
 {
     return static_cast<double>(clampWheelZoomSensitivityPercent(percent)) / 100.0;
+}
+
+std::size_t interactionPreviewThresholdPoints()
+{
+    bool ok = false;
+    const int overrideValue = qEnvironmentVariableIntValue("LAS_VIEWER_INTERACTION_LOD_THRESHOLD_POINTS", &ok);
+    return ok && overrideValue > 0
+        ? static_cast<std::size_t>(overrideValue)
+        : kInteractionPreviewThresholdPoints;
 }
 
 double wheelZoomFactorForSensitivity(int percent)
@@ -993,6 +1005,14 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
     connect(osgWidget_, &OsgWidget::selectionEscapePressed, this, &PointCloudViewer::handleSelectionEscapePressed);
     connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::scheduleOverlayWidgetRefresh);
     connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::sceneFrameRendered);
+    connect(osgWidget_, &OsgWidget::frameRendered, this, &PointCloudViewer::handleFrameRendered);
+
+    refineIdleTimer_ = new QTimer(this);
+    refineIdleTimer_->setSingleShot(true);
+    refineIdleTimer_->setInterval(kInteractionLodIdleMilliseconds);
+    connect(refineIdleTimer_, &QTimer::timeout, this, [this]() {
+        setInteractionLodActive(false);
+    });
 
     classificationTaskStatusTimer_ = new QTimer(this);
     classificationTaskStatusTimer_->setInterval(250);
@@ -1017,6 +1037,7 @@ PointCloudViewer::PointCloudViewer(QWidget* parent)
 
 PointCloudViewer::~PointCloudViewer()
 {
+    cancelAsyncPointCloudLoad();
     if (gaussianLoadThread_.joinable()) {
         gaussianLoadThread_.join();
     }
@@ -1033,7 +1054,7 @@ PointCloudViewer::~PointCloudViewer()
 
 bool PointCloudViewer::hasPointCloud() const
 {
-    return currentPointCloud_ != nullptr && !currentPointCloud_->empty();
+    return visiblePointCount() > 0;
 }
 
 bool PointCloudViewer::hasGaussianModel() const
@@ -1056,6 +1077,11 @@ bool PointCloudViewer::isPointCloudLoadingInProgress() const
     return pointCloudLoadingActive_;
 }
 
+bool PointCloudViewer::canCancelPointCloudLoading() const
+{
+    return pointCloudLoadingActive_ && pointCloudLoadingCancellable_;
+}
+
 QString PointCloudViewer::currentFilePath() const
 {
     return currentFilePath_;
@@ -1068,7 +1094,110 @@ QStringList PointCloudViewer::currentFilePaths() const
 
 const PointCloudData* PointCloudViewer::pointCloudData() const
 {
-    return hasPointCloud() ? currentPointCloud_.get() : nullptr;
+    return hasFullResolutionPointCloud() ? ensureFullResolutionPointCloudCache() : nullptr;
+}
+
+bool PointCloudViewer::hasFullResolutionPointCloud() const
+{
+    return hasPointCloud() && !tiledPointCloudModeActive_;
+}
+
+const PointCloudData* PointCloudViewer::fullResolutionPointCloudData(QString* errorMessage)
+{
+    return ensureFullResolutionPointCloudCache(errorMessage);
+}
+
+std::size_t PointCloudViewer::visiblePointCount() const
+{
+    if (loadedPointCloudDatasets_.isEmpty()) {
+        return currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0;
+    }
+
+    std::size_t count = 0;
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (dataset.info.visible && dataset.pointCloud != nullptr) {
+            count += dataset.pointCloud->size();
+        }
+    }
+    return count;
+}
+
+bool PointCloudViewer::visiblePointCloudBounds(PointRecord* minBounds, PointRecord* maxBounds) const
+{
+    if (minBounds == nullptr || maxBounds == nullptr) {
+        return false;
+    }
+
+    if (loadedPointCloudDatasets_.isEmpty()) {
+        if (currentPointCloud_ == nullptr || currentPointCloud_->empty()) {
+            return false;
+        }
+        *minBounds = currentPointCloud_->minBounds();
+        *maxBounds = currentPointCloud_->maxBounds();
+        return true;
+    }
+
+    bool found = false;
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr || dataset.pointCloud->empty()) {
+            continue;
+        }
+        if (!found) {
+            *minBounds = dataset.pointCloud->minBounds();
+            *maxBounds = dataset.pointCloud->maxBounds();
+            found = true;
+            continue;
+        }
+        const PointRecord& datasetMin = dataset.pointCloud->minBounds();
+        const PointRecord& datasetMax = dataset.pointCloud->maxBounds();
+        minBounds->x = std::min(minBounds->x, datasetMin.x);
+        minBounds->y = std::min(minBounds->y, datasetMin.y);
+        minBounds->z = std::min(minBounds->z, datasetMin.z);
+        maxBounds->x = std::max(maxBounds->x, datasetMax.x);
+        maxBounds->y = std::max(maxBounds->y, datasetMax.y);
+        maxBounds->z = std::max(maxBounds->z, datasetMax.z);
+    }
+    return found;
+}
+
+const PointCloudData* PointCloudViewer::ensureFullResolutionPointCloudCache(QString* errorMessage) const
+{
+    if (!hasFullResolutionPointCloud()) {
+        if (errorMessage != nullptr) {
+            *errorMessage = tiledPointCloudModeActive_
+                ? tr("Full-resolution point cloud data is still loading.")
+                : tr("No visible point cloud data is available.");
+        }
+        return nullptr;
+    }
+    if (mergedPointCloudCache_ != nullptr) {
+        return mergedPointCloudCache_.get();
+    }
+    if (loadedPointCloudDatasets_.isEmpty()) {
+        return currentPointCloud_.get();
+    }
+
+    std::shared_ptr<PointCloudData> singleDataset;
+    int visibleDatasetCount = 0;
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr || dataset.pointCloud->empty()) {
+            continue;
+        }
+        ++visibleDatasetCount;
+        if (visibleDatasetCount == 1) {
+            singleDataset = dataset.pointCloud;
+        } else {
+            if (visibleDatasetCount == 2) {
+                mergedPointCloudCache_ = std::make_shared<PointCloudData>();
+                mergedPointCloudCache_->append(*singleDataset);
+            }
+            mergedPointCloudCache_->append(*dataset.pointCloud);
+        }
+    }
+    if (visibleDatasetCount == 1) {
+        mergedPointCloudCache_ = singleDataset;
+    }
+    return mergedPointCloudCache_.get();
 }
 
 const QList<PointCloudDatasetInfo>& PointCloudViewer::pointCloudDatasets() const
@@ -1096,6 +1225,37 @@ PointRecord PointCloudViewer::hoveredPoint() const
     return hoveredPoint_;
 }
 
+void PointCloudViewer::setVisualizationOptions(const PointCloudVisualizationOptions& options)
+{
+    const bool geometryChanged = visualizationOptions_.colorMode != options.colorMode
+        || visualizationOptions_.singleColor != options.singleColor
+        || visualizationOptions_.classificationColors != options.classificationColors
+        || visualizationOptions_.classificationVisibility != options.classificationVisibility
+        || visualizationOptions_.classificationFallbackColor != options.classificationFallbackColor;
+    const bool auxiliaryChanged = visualizationOptions_.showAxes != options.showAxes
+        || visualizationOptions_.showBoundingBox != options.showBoundingBox;
+    const bool backgroundChanged = visualizationOptions_.backgroundColor != options.backgroundColor;
+
+    visualizationOptions_ = options;
+    if (!visualizationOptions_.classificationVisibility.contains(-1)) {
+        visualizationOptions_.classificationVisibility.insert(-1, true);
+    }
+    syncVisualizationClassificationState();
+    if (backgroundChanged) {
+        applyClearColor();
+    }
+    if (hasPointCloud()) {
+        if (geometryChanged || auxiliaryChanged) {
+            rebuildScene();
+        } else {
+            OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+            osgWidget_->update();
+        }
+    }
+    updateFooter();
+    emit visualizationOptionsChanged();
+}
+
 void PointCloudViewer::setPointSize(int pointSize)
 {
     const float clampedPointSize = std::clamp(static_cast<float>(pointSize), 1.0f, 12.0f);
@@ -1104,7 +1264,10 @@ void PointCloudViewer::setPointSize(int pointSize)
     }
 
     visualizationOptions_.pointSize = clampedPointSize;
-    rebuildScene();
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1117,7 +1280,10 @@ void PointCloudViewer::setPointOpacity(int opacityPercent)
     }
 
     visualizationOptions_.pointOpacity = clampedOpacity;
-    rebuildScene();
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1176,9 +1342,7 @@ void PointCloudViewer::setBackgroundColor(const QColor& color)
 
     visualizationOptions_.backgroundColor = color;
     applyClearColor();
-    if (hasPointCloud()) {
-        rebuildScene();
-    }
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1191,7 +1355,10 @@ void PointCloudViewer::setDepthCueStrength(int strengthPercent)
     }
 
     visualizationOptions_.depthCueStrength = clampedStrength;
-    rebuildScene();
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1204,7 +1371,10 @@ void PointCloudViewer::setEdlStrength(int strengthPercent)
     }
 
     visualizationOptions_.edlStrength = clampedStrength;
-    rebuildScene();
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1216,7 +1386,10 @@ void PointCloudViewer::setUseRoundSplats(bool enabled)
     }
 
     visualizationOptions_.useRoundSplats = enabled;
-    rebuildScene();
+    OsgPointCloudNode::updateRenderingState(pointCloudNode_.get(), visualizationOptions_);
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
     updateFooter();
     emit visualizationOptionsChanged();
 }
@@ -1354,11 +1527,13 @@ bool PointCloudViewer::focusOnPoint(const PointRecord& point, double distanceSca
 
     osg::Vec3d offset = eye - center;
     double datasetExtent = 2.0;
-    if (hasPointCloud()) {
+    PointRecord visibleMinBounds;
+    PointRecord visibleMaxBounds;
+    if (visiblePointCloudBounds(&visibleMinBounds, &visibleMaxBounds)) {
         datasetExtent = std::max({
-            static_cast<double>(currentPointCloud_->maxBounds().x - currentPointCloud_->minBounds().x),
-            static_cast<double>(currentPointCloud_->maxBounds().y - currentPointCloud_->minBounds().y),
-            static_cast<double>(currentPointCloud_->maxBounds().z - currentPointCloud_->minBounds().z),
+            static_cast<double>(visibleMaxBounds.x - visibleMinBounds.x),
+            static_cast<double>(visibleMaxBounds.y - visibleMinBounds.y),
+            static_cast<double>(visibleMaxBounds.z - visibleMinBounds.z),
             2.0
         });
     } else {
@@ -1433,6 +1608,37 @@ bool PointCloudViewer::focusOnBounds(const PointRecord& minBounds, const PointRe
     manipulator->home(0.0);
     osgWidget_->update();
     return true;
+}
+
+bool PointCloudViewer::removePointCloudDataset(const QString& filePath)
+{
+    for (int datasetIndex = 0; datasetIndex < loadedPointCloudDatasets_.size(); ++datasetIndex) {
+        if (loadedPointCloudDatasets_.at(datasetIndex).info.filePath.compare(filePath, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+
+        loadedPointCloudDatasets_.removeAt(datasetIndex);
+        invalidateMergedPointCloudCache();
+        for (int pathIndex = currentFilePaths_.size() - 1; pathIndex >= 0; --pathIndex) {
+            if (currentFilePaths_.at(pathIndex).compare(filePath, Qt::CaseInsensitive) == 0) {
+                currentFilePaths_.removeAt(pathIndex);
+            }
+        }
+        QList<PointCloudDatasetInfo> datasetInfos = DataManager::instance().pointCloudDatasets();
+        for (int infoIndex = datasetInfos.size() - 1; infoIndex >= 0; --infoIndex) {
+            if (datasetInfos.at(infoIndex).filePath.compare(filePath, Qt::CaseInsensitive) == 0) {
+                datasetInfos.removeAt(infoIndex);
+            }
+        }
+        DataManager::instance().setPointCloudDatasets(datasetInfos);
+        rebuildMergedPointCloud();
+        rebuildScene();
+        updateFooter();
+        updateWelcomeOverlayVisibility();
+        emit pointCloudLoaded();
+        return true;
+    }
+    return false;
 }
 
 bool PointCloudViewer::setPointCloudDatasetVisible(const QString& filePath, bool visible)
@@ -1567,6 +1773,9 @@ void PointCloudViewer::createRouteCameraPreviewOverlay()
 void PointCloudViewer::setLoadingState(bool active, const QString& title, const QString& detail, int progressPercent)
 {
     pointCloudLoadingActive_ = active;
+    if (!active) {
+        pointCloudLoadingCancellable_ = false;
+    }
     pointCloudLoadingTitle_ = title;
     pointCloudLoadingDetail_ = detail;
     pointCloudLoadingProgressPercent_ = progressPercent;
@@ -1647,9 +1856,53 @@ void PointCloudViewer::rebuildScene()
         return;
     }
 
-    pointCloudNode_ = OsgPointCloudNode::build(*currentPointCloud_, visualizationOptions_);
-    if (pointCloudNode_.valid()) {
-        rootGroup_->addChild(pointCloudNode_.get());
+    PointRecord sceneMinBounds;
+    PointRecord sceneMaxBounds;
+    const bool hasSceneBounds = visiblePointCloudBounds(&sceneMinBounds, &sceneMaxBounds);
+    PointCloudVisualizationOptions datasetVisualizationOptions = visualizationOptions_;
+    datasetVisualizationOptions.showAxes = false;
+    datasetVisualizationOptions.showBoundingBox = false;
+    datasetVisualizationOptions.sharedElevationRangeValid = hasSceneBounds;
+    datasetVisualizationOptions.sharedElevationMin = hasSceneBounds ? sceneMinBounds.z : 0.0;
+    datasetVisualizationOptions.sharedElevationMax = hasSceneBounds ? sceneMaxBounds.z : 0.0;
+
+    osg::ref_ptr<osg::Group> pointCloudGroup = new osg::Group();
+    if (loadedPointCloudDatasets_.isEmpty() && currentPointCloud_ != nullptr && !currentPointCloud_->empty()) {
+        osg::ref_ptr<osg::Node> previewNode = OsgPointCloudNode::build(*currentPointCloud_, datasetVisualizationOptions);
+        if (previewNode.valid()) {
+            pointCloudGroup->addChild(previewNode.get());
+        }
+    }
+    for (LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr || dataset.pointCloud->empty()) {
+            dataset.sceneNode = nullptr;
+            continue;
+        }
+        dataset.fullSceneNode = OsgPointCloudNode::build(*dataset.pointCloud, datasetVisualizationOptions);
+        dataset.previewSceneNode = dataset.interactionPreview != nullptr
+            ? OsgPointCloudNode::build(*dataset.interactionPreview, datasetVisualizationOptions)
+            : nullptr;
+        dataset.sceneNode = new osg::Group();
+        osg::Node* activeNode = cameraMoving_ && dataset.previewSceneNode.valid()
+            ? dataset.previewSceneNode.get()
+            : dataset.fullSceneNode.get();
+        if (activeNode != nullptr) {
+            dataset.sceneNode->addChild(activeNode);
+            pointCloudGroup->addChild(dataset.sceneNode.get());
+        }
+    }
+    pointCloudNode_ = pointCloudGroup;
+    if (pointCloudGroup->getNumChildren() > 0) {
+        rootGroup_->addChild(pointCloudGroup.get());
+    }
+    if (hasSceneBounds) {
+        osg::ref_ptr<osg::Group> auxiliaryNodes = OsgPointCloudNode::buildAuxiliaryNodes(
+            sceneMinBounds,
+            sceneMaxBounds,
+            visualizationOptions_);
+        if (auxiliaryNodes.valid() && auxiliaryNodes->getNumChildren() > 0) {
+            rootGroup_->addChild(auxiliaryNodes.get());
+        }
     }
 
     refreshTowerMarkersOverlay();
@@ -1661,29 +1914,21 @@ void PointCloudViewer::rebuildScene()
 
 void PointCloudViewer::rebuildMergedPointCloud()
 {
+    invalidateMergedPointCloudCache();
     currentPointCloud_.reset();
-    std::shared_ptr<PointCloudData> singleVisibleDataset;
-    int visibleDatasetCount = 0;
     for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
-        if (!dataset.info.visible || !dataset.pointCloud) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr || dataset.pointCloud->empty()) {
             continue;
         }
-        ++visibleDatasetCount;
-        if (visibleDatasetCount == 1) {
-            singleVisibleDataset = dataset.pointCloud;
-        } else {
-            if (visibleDatasetCount == 2) {
-                currentPointCloud_ = std::make_shared<PointCloudData>();
-                currentPointCloud_->append(*singleVisibleDataset);
-            }
-            currentPointCloud_->append(*dataset.pointCloud);
-        }
-    }
-
-    if (visibleDatasetCount == 1) {
-        currentPointCloud_ = std::move(singleVisibleDataset);
+        currentPointCloud_ = dataset.pointCloud;
+        break;
     }
     syncCurrentFilePath();
+}
+
+void PointCloudViewer::invalidateMergedPointCloudCache()
+{
+    mergedPointCloudCache_.reset();
 }
 
 void PointCloudViewer::updateSceneOriginFromCurrentPointCloud()
@@ -1691,12 +1936,11 @@ void PointCloudViewer::updateSceneOriginFromCurrentPointCloud()
     sceneOriginValid_ = false;
     sceneOriginWorld_.set(0.0, 0.0, 0.0);
 
-    if (currentPointCloud_ == nullptr || currentPointCloud_->empty()) {
+    PointRecord minBounds;
+    PointRecord maxBounds;
+    if (!visiblePointCloudBounds(&minBounds, &maxBounds)) {
         return;
     }
-
-    const PointRecord& minBounds = currentPointCloud_->minBounds();
-    const PointRecord& maxBounds = currentPointCloud_->maxBounds();
     sceneOriginWorld_.set(
         (minBounds.x + maxBounds.x) * 0.5,
         (minBounds.y + maxBounds.y) * 0.5,
@@ -1751,7 +1995,7 @@ void PointCloudViewer::updateFooter()
         ? tr("%1 datasets loaded").arg(QLocale().toString(currentFilePaths_.size()))
         : (fileInfo.fileName().isEmpty() ? currentFilePath_ : fileInfo.fileName());
     QString detail = tr("%1 points | Datasets %2 | %3 | %4 px | Axes %5 | Bounds %6")
-        .arg(formatPointCount(currentPointCloud_ != nullptr ? currentPointCloud_->size() : 0))
+        .arg(formatPointCount(visiblePointCount()))
         .arg(QLocale().toString(currentFilePaths_.size()))
         .arg(colorModeLabel(visualizationOptions_.colorMode))
         .arg(QLocale().toString(static_cast<int>(visualizationOptions_.pointSize)))
@@ -1767,6 +2011,10 @@ void PointCloudViewer::updateFooter()
             .arg(QLocale().toString(inspectionRouteRoamSpeedMetersPerSecond_, 'f', 1));
         detail += tr(" | Photos %1")
             .arg(QLocale().toString(inspectionRouteRoamCaptureCount_));
+    }
+
+    if (tiledPointCloudModeActive_) {
+        detail += tr(" | Preview mode: full resolution is still loading");
     }
 
     if (measurementEnabled_) {
@@ -1888,8 +2136,11 @@ void PointCloudViewer::applyViewPreset(PointCloudViewPreset viewPreset)
         gaussianMaxBounds.y = currentGaussianModel_->maxBounds.y();
         gaussianMaxBounds.z = currentGaussianModel_->maxBounds.z();
     }
-    const PointRecord& minBounds = hasPointCloud() ? currentPointCloud_->minBounds() : gaussianMinBounds;
-    const PointRecord& maxBounds = hasPointCloud() ? currentPointCloud_->maxBounds() : gaussianMaxBounds;
+    PointRecord pointCloudMinBounds;
+    PointRecord pointCloudMaxBounds;
+    const bool hasVisibleBounds = visiblePointCloudBounds(&pointCloudMinBounds, &pointCloudMaxBounds);
+    const PointRecord& minBounds = hasVisibleBounds ? pointCloudMinBounds : gaussianMinBounds;
+    const PointRecord& maxBounds = hasVisibleBounds ? pointCloudMaxBounds : gaussianMaxBounds;
     const osg::Vec3d center(
         (minBounds.x + maxBounds.x) * 0.5,
         (minBounds.y + maxBounds.y) * 0.5,
@@ -2541,22 +2792,21 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
     bool found = false;
     double bestDistanceSquared = toleranceSquared;
     double bestDepth = std::numeric_limits<double>::max();
-
-    for (const PointRecord& point : currentPointCloud_->points()) {
+    const auto testPoint = [&](const PointRecord& point) {
         const osg::Vec3d projected = osg::Vec3d(
             point.x - sceneOrigin.x(),
             point.y - sceneOrigin.y(),
             point.z - sceneOrigin.z())
             * localToWindow;
         if (projected.z() < 0.0 || projected.z() > 1.0) {
-            continue;
+            return;
         }
 
         const double dx = projected.x() - clickX;
         const double dy = projected.y() - clickY;
         const double distanceSquared = dx * dx + dy * dy;
         if (distanceSquared > bestDistanceSquared) {
-            continue;
+            return;
         }
 
         if (!found
@@ -2567,9 +2817,232 @@ bool PointCloudViewer::pickPointAtScreenPosition(const QPointF& localPos, PointR
             bestDepth = projected.z();
             *pickedPoint = point;
         }
+    };
+
+    if (!loadedPointCloudDatasets_.isEmpty()) {
+        for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+            if (!dataset.info.visible || dataset.pointCloud == nullptr
+                || !datasetBoundsNearScreenPosition(dataset, localToWindow, clickX, clickY, tolerance)) {
+                continue;
+            }
+            QVector<std::uint32_t> candidateIndices;
+            collectPickCandidateIndices(dataset, localToWindow, clickX, clickY, tolerance, &candidateIndices);
+            const std::vector<PointRecord>& points = dataset.pointCloud->points();
+            if (candidateIndices.isEmpty()) {
+                for (const PointRecord& point : points) {
+                    testPoint(point);
+                }
+            } else {
+                for (std::uint32_t pointIndex : candidateIndices) {
+                    if (pointIndex < points.size()) {
+                        testPoint(points[pointIndex]);
+                    }
+                }
+            }
+        }
+    } else {
+        for (const PointRecord& point : currentPointCloud_->points()) {
+            testPoint(point);
+        }
+    }
+    return found;
+}
+
+void PointCloudViewer::buildDatasetInteractionPreview(LoadedPointCloudDataset* dataset)
+{
+    if (dataset == nullptr || dataset->pointCloud == nullptr
+        || dataset->pointCloud->size() < interactionPreviewThresholdPoints()) {
+        return;
     }
 
-    return found;
+    const std::vector<PointRecord>& points = dataset->pointCloud->points();
+    const std::size_t stride = std::max<std::size_t>(1, points.size() / kInteractionPreviewTargetPoints);
+    auto preview = std::make_shared<PointCloudData>();
+    preview->reserve(std::min(kInteractionPreviewTargetPoints, points.size()));
+    for (std::size_t pointIndex = 0; pointIndex < points.size(); pointIndex += stride) {
+        preview->appendPointFast(points[pointIndex]);
+    }
+    preview->finalizeImport(
+        dataset->pointCloud->minBounds(),
+        dataset->pointCloud->maxBounds(),
+        dataset->pointCloud->hasColor(),
+        dataset->pointCloud->hasIntensity(),
+        dataset->pointCloud->hasClassification(),
+        dataset->pointCloud->hasReturnInfo(),
+        dataset->pointCloud->hasGpsTime());
+    dataset->interactionPreview = std::move(preview);
+}
+
+void PointCloudViewer::setInteractionLodActive(bool active)
+{
+    if (cameraMoving_ == active) {
+        return;
+    }
+    cameraMoving_ = active;
+    for (LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.sceneNode.valid() || !dataset.previewSceneNode.valid() || !dataset.fullSceneNode.valid()) {
+            continue;
+        }
+        dataset.sceneNode->removeChildren(0, dataset.sceneNode->getNumChildren());
+        dataset.sceneNode->addChild(active ? dataset.previewSceneNode.get() : dataset.fullSceneNode.get());
+    }
+    if (osgWidget_ != nullptr) {
+        osgWidget_->update();
+    }
+}
+
+void PointCloudViewer::handleFrameRendered()
+{
+    if (osgWidget_ == nullptr || loadedPointCloudDatasets_.isEmpty()) {
+        return;
+    }
+    osgViewer::Viewer* viewer = osgWidget_->getViewer();
+    if (viewer == nullptr || viewer->getCamera() == nullptr) {
+        return;
+    }
+
+    const osg::Matrixd viewMatrix = viewer->getCamera()->getViewMatrix();
+    if (!frameCameraStateValid_) {
+        lastCameraViewMatrix_ = viewMatrix;
+        frameCameraStateValid_ = true;
+        return;
+    }
+    bool changed = false;
+    for (int row = 0; row < 4 && !changed; ++row) {
+        for (int column = 0; column < 4; ++column) {
+            if (std::abs(viewMatrix(row, column) - lastCameraViewMatrix_(row, column)) > 1e-7) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) {
+        return;
+    }
+
+    lastCameraViewMatrix_ = viewMatrix;
+    setInteractionLodActive(true);
+    if (refineIdleTimer_ != nullptr) {
+        refineIdleTimer_->start();
+    }
+}
+
+void PointCloudViewer::buildDatasetSpatialIndex(LoadedPointCloudDataset* dataset)
+{
+    if (dataset == nullptr || dataset->pointCloud == nullptr || dataset->pointCloud->empty()) {
+        return;
+    }
+
+    const std::size_t pointCount = dataset->pointCloud->size();
+    const int gridSize = std::clamp(
+        static_cast<int>(std::ceil(std::sqrt(static_cast<double>(pointCount) / 4096.0))),
+        4,
+        64);
+    dataset->spatialGridSize = gridSize;
+    dataset->spatialGridPointIndices.clear();
+    dataset->spatialGridPointIndices.resize(gridSize * gridSize);
+
+    const PointRecord& min = dataset->pointCloud->minBounds();
+    const PointRecord& max = dataset->pointCloud->maxBounds();
+    const double spanX = std::max(1e-9, max.x - min.x);
+    const double spanY = std::max(1e-9, max.y - min.y);
+    const std::vector<PointRecord>& points = dataset->pointCloud->points();
+    for (std::size_t pointIndex = 0; pointIndex < points.size(); ++pointIndex) {
+        const PointRecord& point = points[pointIndex];
+        const int x = std::clamp(static_cast<int>((point.x - min.x) / spanX * gridSize), 0, gridSize - 1);
+        const int y = std::clamp(static_cast<int>((point.y - min.y) / spanY * gridSize), 0, gridSize - 1);
+        dataset->spatialGridPointIndices[y * gridSize + x].append(static_cast<std::uint32_t>(pointIndex));
+    }
+}
+
+void PointCloudViewer::collectPickCandidateIndices(
+    const LoadedPointCloudDataset& dataset,
+    const osg::Matrixd& localToWindow,
+    double clickX,
+    double clickY,
+    double tolerance,
+    QVector<std::uint32_t>* candidateIndices) const
+{
+    if (candidateIndices == nullptr || dataset.spatialGridSize <= 0 || dataset.spatialGridPointIndices.isEmpty()) {
+        return;
+    }
+
+    const PointRecord& min = dataset.info.minBounds;
+    const PointRecord& max = dataset.info.maxBounds;
+    const double spanX = std::max(1e-9, max.x - min.x);
+    const double spanY = std::max(1e-9, max.y - min.y);
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const int gridSize = dataset.spatialGridSize;
+    for (int y = 0; y < gridSize; ++y) {
+        for (int x = 0; x < gridSize; ++x) {
+            const double x0 = min.x + spanX * static_cast<double>(x) / gridSize;
+            const double x1 = min.x + spanX * static_cast<double>(x + 1) / gridSize;
+            const double y0 = min.y + spanY * static_cast<double>(y) / gridSize;
+            const double y1 = min.y + spanY * static_cast<double>(y + 1) / gridSize;
+            double screenMinX = std::numeric_limits<double>::max();
+            double screenMinY = std::numeric_limits<double>::max();
+            double screenMaxX = std::numeric_limits<double>::lowest();
+            double screenMaxY = std::numeric_limits<double>::lowest();
+            bool visible = false;
+            const osg::Vec3d corners[] = {
+                { x0, y0, min.z }, { x1, y0, min.z }, { x0, y1, min.z }, { x1, y1, min.z },
+                { x0, y0, max.z }, { x1, y0, max.z }, { x0, y1, max.z }, { x1, y1, max.z }
+            };
+            for (const osg::Vec3d& corner : corners) {
+                const osg::Vec3d projected = (corner - sceneOrigin) * localToWindow;
+                if (projected.z() < 0.0 || projected.z() > 1.0) {
+                    continue;
+                }
+                visible = true;
+                screenMinX = std::min(screenMinX, projected.x());
+                screenMinY = std::min(screenMinY, projected.y());
+                screenMaxX = std::max(screenMaxX, projected.x());
+                screenMaxY = std::max(screenMaxY, projected.y());
+            }
+            if (visible
+                && clickX >= screenMinX - tolerance && clickX <= screenMaxX + tolerance
+                && clickY >= screenMinY - tolerance && clickY <= screenMaxY + tolerance) {
+                candidateIndices->append(dataset.spatialGridPointIndices.at(y * gridSize + x));
+            }
+        }
+    }
+}
+
+bool PointCloudViewer::datasetBoundsNearScreenPosition(
+    const LoadedPointCloudDataset& dataset,
+    const osg::Matrixd& localToWindow,
+    double clickX,
+    double clickY,
+    double tolerance) const
+{
+    const osg::Vec3d sceneOrigin = overlaySceneOrigin();
+    const PointRecord& min = dataset.info.minBounds;
+    const PointRecord& max = dataset.info.maxBounds;
+    const osg::Vec3d corners[] = {
+        { min.x, min.y, min.z }, { max.x, min.y, min.z },
+        { min.x, max.y, min.z }, { max.x, max.y, min.z },
+        { min.x, min.y, max.z }, { max.x, min.y, max.z },
+        { min.x, max.y, max.z }, { max.x, max.y, max.z }
+    };
+    double minX = std::numeric_limits<double>::max();
+    double minY = std::numeric_limits<double>::max();
+    double maxX = std::numeric_limits<double>::lowest();
+    double maxY = std::numeric_limits<double>::lowest();
+    bool anyVisible = false;
+    for (const osg::Vec3d& corner : corners) {
+        const osg::Vec3d projected = (corner - sceneOrigin) * localToWindow;
+        if (projected.z() < 0.0 || projected.z() > 1.0) {
+            continue;
+        }
+        anyVisible = true;
+        minX = std::min(minX, projected.x());
+        minY = std::min(minY, projected.y());
+        maxX = std::max(maxX, projected.x());
+        maxY = std::max(maxY, projected.y());
+    }
+    return !anyVisible
+        || (clickX >= minX - tolerance && clickX <= maxX + tolerance
+            && clickY >= minY - tolerance && clickY <= maxY + tolerance);
 }
 
 int PointCloudViewer::pickInspectionRouteWaypointAtScreenPosition(const QPointF& localPos, float tolerancePixels) const
@@ -3144,63 +3617,72 @@ void PointCloudViewer::updateRouteCameraPreviewOverlay()
     const double verticalFovRadians = routePreviewVerticalFovRadians(focalLengthRatio);
     const double tanHalfFov = std::tan(verticalFovRadians * 0.5);
     const double nearPlane = 0.35;
-    const double minZ = currentPointCloud_->minBounds().z;
-    const double heightSpan = std::max(0.0, currentPointCloud_->maxBounds().z - minZ);
-    const std::vector<PointRecord>& points = currentPointCloud_->points();
-    const std::size_t pointStride = std::max<std::size_t>(1u, points.size() / 140000u);
+    PointRecord visibleMinBounds;
+    PointRecord visibleMaxBounds;
+    visiblePointCloudBounds(&visibleMinBounds, &visibleMaxBounds);
+    const double minZ = visibleMinBounds.z;
+    const double heightSpan = std::max(0.0, visibleMaxBounds.z - minZ);
+    const std::size_t totalVisiblePoints = visiblePointCount();
+    const std::size_t pointStride = std::max<std::size_t>(1u, totalVisiblePoints / 140000u);
 
-    for (std::size_t pointIndex = 0; pointIndex < points.size(); pointIndex += pointStride) {
-        const PointRecord& point = points[pointIndex];
-        if (!routePreviewPointVisible(point, visualizationOptions_)) {
+    for (const LoadedPointCloudDataset& dataset : loadedPointCloudDatasets_) {
+        if (!dataset.info.visible || dataset.pointCloud == nullptr) {
             continue;
         }
+        const std::vector<PointRecord>& points = dataset.pointCloud->points();
+        for (std::size_t pointIndex = 0; pointIndex < points.size(); pointIndex += pointStride) {
+            const PointRecord& point = points[pointIndex];
+            if (!routePreviewPointVisible(point, visualizationOptions_)) {
+                continue;
+            }
 
-        const osg::Vec3d relativePoint(
-            static_cast<double>(point.x) - static_cast<double>(cameraPoint.x),
-            static_cast<double>(point.y) - static_cast<double>(cameraPoint.y),
-            static_cast<double>(point.z) - static_cast<double>(cameraPoint.z));
-        const double zCamera = relativePoint * forward;
-        if (zCamera <= nearPlane) {
-            continue;
-        }
+            const osg::Vec3d relativePoint(
+                static_cast<double>(point.x) - static_cast<double>(cameraPoint.x),
+                static_cast<double>(point.y) - static_cast<double>(cameraPoint.y),
+                static_cast<double>(point.z) - static_cast<double>(cameraPoint.z));
+            const double zCamera = relativePoint * forward;
+            if (zCamera <= nearPlane) {
+                continue;
+            }
 
-        const double xCamera = relativePoint * right;
-        const double yCamera = relativePoint * up;
-        const double normalizedX = xCamera / (zCamera * tanHalfFov * aspectRatio);
-        const double normalizedY = yCamera / (zCamera * tanHalfFov);
-        if (std::abs(normalizedX) > 1.05 || std::abs(normalizedY) > 1.05) {
-            continue;
-        }
+            const double xCamera = relativePoint * right;
+            const double yCamera = relativePoint * up;
+            const double normalizedX = xCamera / (zCamera * tanHalfFov * aspectRatio);
+            const double normalizedY = yCamera / (zCamera * tanHalfFov);
+            if (std::abs(normalizedX) > 1.05 || std::abs(normalizedY) > 1.05) {
+                continue;
+            }
 
-        const int pixelX = std::clamp(
-            static_cast<int>(std::lround((normalizedX * 0.5 + 0.5) * static_cast<double>(previewImage.width() - 1))),
-            0,
-            previewImage.width() - 1);
-        const int pixelY = std::clamp(
-            static_cast<int>(std::lround((0.5 - normalizedY * 0.5) * static_cast<double>(previewImage.height() - 1))),
-            0,
-            previewImage.height() - 1);
-        const std::size_t depthIndex = static_cast<std::size_t>(pixelY * previewImage.width() + pixelX);
-        if (zCamera >= depthBuffer[depthIndex]) {
-            continue;
-        }
+            const int pixelX = std::clamp(
+                static_cast<int>(std::lround((normalizedX * 0.5 + 0.5) * static_cast<double>(previewImage.width() - 1))),
+                0,
+                previewImage.width() - 1);
+            const int pixelY = std::clamp(
+                static_cast<int>(std::lround((0.5 - normalizedY * 0.5) * static_cast<double>(previewImage.height() - 1))),
+                0,
+                previewImage.height() - 1);
+            const std::size_t depthIndex = static_cast<std::size_t>(pixelY * previewImage.width() + pixelX);
+            if (zCamera >= depthBuffer[depthIndex]) {
+                continue;
+            }
 
-        depthBuffer[depthIndex] = static_cast<float>(zCamera);
-        const QColor pointColor = routePreviewPointColor(point, visualizationOptions_, minZ, heightSpan);
-        const float pointAlpha = clampUnit(
-            static_cast<float>(pointColor.alphaF()) * clampUnit(visualizationOptions_.pointOpacity));
-        if (pointAlpha <= 0.01f) {
-            continue;
-        }
+            depthBuffer[depthIndex] = static_cast<float>(zCamera);
+            const QColor pointColor = routePreviewPointColor(point, visualizationOptions_, minZ, heightSpan);
+            const float pointAlpha = clampUnit(
+                static_cast<float>(pointColor.alphaF()) * clampUnit(visualizationOptions_.pointOpacity));
+            if (pointAlpha <= 0.01f) {
+                continue;
+            }
 
-        QRgb* scanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY));
-        scanLine[pixelX] = blendRoutePreviewPixel(scanLine[pixelX], pointColor, pointAlpha);
-        if (pixelX + 1 < previewImage.width()) {
-            scanLine[pixelX + 1] = blendRoutePreviewPixel(scanLine[pixelX + 1], pointColor, pointAlpha);
-        }
-        if (pixelY + 1 < previewImage.height()) {
-            QRgb* nextScanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY + 1));
-            nextScanLine[pixelX] = blendRoutePreviewPixel(nextScanLine[pixelX], pointColor, pointAlpha);
+            QRgb* scanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY));
+            scanLine[pixelX] = blendRoutePreviewPixel(scanLine[pixelX], pointColor, pointAlpha);
+            if (pixelX + 1 < previewImage.width()) {
+                scanLine[pixelX + 1] = blendRoutePreviewPixel(scanLine[pixelX + 1], pointColor, pointAlpha);
+            }
+            if (pixelY + 1 < previewImage.height()) {
+                QRgb* nextScanLine = reinterpret_cast<QRgb*>(previewImage.scanLine(pixelY + 1));
+                nextScanLine[pixelX] = blendRoutePreviewPixel(nextScanLine[pixelX], pointColor, pointAlpha);
+            }
         }
     }
 
