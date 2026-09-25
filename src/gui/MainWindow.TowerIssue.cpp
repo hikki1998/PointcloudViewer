@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QComboBox>
+#include <QFileInfo>
 #include <QLineEdit>
 #include <QLabel>
 #include <QPlainTextEdit>
@@ -11,6 +12,7 @@
 
 #include <set>
 
+#include "domain/TowerFileInterop.h"
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
 
@@ -294,4 +296,100 @@ void MainWindow::setTowerEditingEnabled(bool enabled)
 
     updateActionState();
     updateTowerPanel();
+}
+
+bool MainWindow::importTowerFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    QList<TowerRecord> towers;
+    QString errorMessage;
+    if (!importTowerLiTowerFile(filePath, &towers, &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to import tower file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    viewer_->setTowerMarkers(towers);
+    if (updateLink) {
+        linkedTowerFilePath_ = QFileInfo(filePath).absoluteFilePath();
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Imported tower file: %1").arg(QFileInfo(filePath).fileName()),
+            3500);
+    }
+    updateActionState();
+    return true;
+}
+
+bool MainWindow::exportTowerFile(const QString& filePath, bool updateLink, bool notify)
+{
+    if (viewer_ == nullptr) {
+        return false;
+    }
+
+    QString normalizedPath = filePath;
+    if (QFileInfo(normalizedPath).suffix().isEmpty()) {
+        normalizedPath += QStringLiteral(".LiTower");
+    }
+
+    QString errorMessage;
+    if (!exportTowerLiTowerFile(normalizedPath, viewer_->towerMarkers(), &errorMessage)) {
+        if (notify) {
+            showUserMessage(
+                LogLevel::Error,
+                errorMessage.isEmpty() ? tr("Failed to save tower file.") : errorMessage,
+                5000);
+        }
+        return false;
+    }
+
+    if (updateLink) {
+        linkedTowerFilePath_ = QFileInfo(normalizedPath).absoluteFilePath();
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Tower file saved: %1").arg(QFileInfo(normalizedPath).fileName()),
+            3000);
+    }
+    updateActionState();
+    return true;
+}
+
+bool MainWindow::reloadLinkedTowerFile(bool notify)
+{
+    const QString linkedPath = linkedTowerFilePath_.trimmed();
+    if (linkedPath.isEmpty()) {
+        if (notify) {
+            showUserMessage(LogLevel::Warning, tr("No linked tower file to reload."), 3000);
+        }
+        return false;
+    }
+
+    if (!QFileInfo::exists(linkedPath)) {
+        if (notify) {
+            showUserMessage(LogLevel::Error, tr("Linked tower file was not found."), 4000);
+        }
+        return false;
+    }
+
+    if (!importTowerFile(linkedPath, false, false)) {
+        return false;
+    }
+    if (notify) {
+        showUserMessage(
+            LogLevel::Info,
+            tr("Reloaded tower file: %1").arg(QFileInfo(linkedPath).fileName()),
+            3000);
+    }
+    return true;
 }

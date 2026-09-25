@@ -30,17 +30,24 @@ las_viewer_add_shared_sources(
     MainWindow.cpp
     MainWindow.h
     MainWindow.Actions.cpp
+    MainWindow.Analysis.cpp
     MainWindow.Backstage.cpp
+    MainWindow.Capture.cpp
     MainWindow.Connections.cpp
+    MainWindow.ControllerConnections.cpp
     MainWindow.Core.cpp
     MainWindow.Docks.cpp
     MainWindow.Helpers.cpp
     MainWindow.PointCloud.cpp
+    MainWindow.ProfileClassification.cpp
+    MainWindow.ProjectExplorer.cpp
     MainWindow.ProjectSerializer.cpp
     MainWindow.Ribbon.cpp
     MainWindow.Route.cpp
+    MainWindow.RouteEditor.cpp
     MainWindow.SettingsStore.cpp
     MainWindow.TowerIssue.cpp
+    MainWindow.ViewerConnections.cpp
     MeasurementAnalysisController.cpp
     MeasurementAnalysisController.h
     MeasurementPanelWidget.cpp
@@ -48,8 +55,19 @@ las_viewer_add_shared_sources(
     NavigationSettingsWidget.cpp
     NavigationSettingsWidget.h
     NavigationSettingsWidget.ui
+    OsgWidget.cpp
+    OsgWidget.h
     PointCloudViewer.cpp
     PointCloudViewer.h
+    PointCloudViewer.Classification.cpp
+    PointCloudViewer.Clip.cpp
+    PointCloudViewer.Loading.cpp
+    PointCloudViewer.Markers.cpp
+    PointCloudViewer.Measurement.cpp
+    PointCloudViewer.Route.cpp
+    PointCloudViewer.RouteRoam.cpp
+    PointCloudViewerOverlays.cpp
+    PointCloudViewerOverlays.h
     ProfileClassificationController.cpp
     ProfileClassificationController.h
     ProfileClassificationDock.cpp

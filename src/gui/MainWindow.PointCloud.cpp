@@ -1,6 +1,11 @@
 #include "gui/MainWindow.h"
 
+#include <QCoreApplication>
 #include <QFileInfo>
+#include <QLabel>
+#include <QLocale>
+
+#include <algorithm>
 
 #include "domain/DataManager.h"
 #include "gui/PointCloudViewer.h"
@@ -9,6 +14,34 @@
 
 using namespace mainwindow_internal;
 using lasviewer::gui::showStyledOpenFileNamesDialog;
+
+namespace
+{
+QString colorModeName(PointCloudColorMode colorMode)
+{
+    switch (colorMode) {
+    case PointCloudColorMode::Elevation: return QCoreApplication::translate("MainWindow", "Elevation ramp");
+    case PointCloudColorMode::SingleColor: return QCoreApplication::translate("MainWindow", "Single color");
+    case PointCloudColorMode::Classification: return QCoreApplication::translate("MainWindow", "Classification");
+    case PointCloudColorMode::Rgb:
+    default: return QCoreApplication::translate("MainWindow", "RGB");
+    }
+}
+
+QString datasetPathSummary(const QStringList& filePaths)
+{
+    QStringList lines;
+    const int visibleCount = std::min(4, filePaths.size());
+    for (int index = 0; index < visibleCount; ++index) {
+        lines.append(filePaths.at(index));
+    }
+    if (filePaths.size() > visibleCount) {
+        lines.append(QCoreApplication::translate("MainWindow", "... and %1 more")
+            .arg(QLocale().toString(filePaths.size() - visibleCount)));
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+}
 
 void MainWindow::addPointCloudFiles()
 {
@@ -200,4 +233,69 @@ void MainWindow::chooseBackgroundColor()
     if (chosenColor.isValid()) {
         viewer_->setBackgroundColor(chosenColor);
     }
+}
+
+void MainWindow::openPointCloud()
+{
+    hideBackstageView();
+    const QStringList filePaths = showStyledOpenFileNamesDialog(
+        this,
+        tr("Open Point Clouds or Gaussian Models"),
+        QString(),
+        tr("Supported Files (*.las *.laz *.ply);;LAS Files (*.las *.laz);;Gaussian PLY (*.ply);;All Files (*.*)"));
+
+    if (filePaths.isEmpty()) {
+        showUserMessage(LogLevel::Info, tr("Open cancelled."), 2000);
+        return;
+    }
+
+    loadPointCloudFiles(filePaths);
+}
+
+
+void MainWindow::updateDatasetPanel()
+{
+    const PointCloudData* pointCloudData = viewer_->pointCloudData();
+    if (pointCloudData == nullptr && viewer_->currentFilePaths().isEmpty()) {
+        datasetNameValueLabel_->setText(tr("No dataset loaded"));
+        datasetPathValueLabel_->setText(tr("Open, add, or drag LAS/LAZ files into the window."));
+        datasetPointsValueLabel_->setText(QStringLiteral("0"));
+        datasetBoundsValueLabel_->setText(tr("N/A"));
+        datasetExtentValueLabel_->setText(tr("N/A"));
+        datasetColorValueLabel_->setText(colorModeName(viewer_->visualizationOptions().colorMode));
+        return;
+    }
+
+    if (pointCloudData == nullptr) {
+        datasetNameValueLabel_->setText(tr("All datasets hidden"));
+        datasetPathValueLabel_->setText(datasetPathSummary(viewer_->currentFilePaths()));
+        datasetPointsValueLabel_->setText(QStringLiteral("0"));
+        datasetBoundsValueLabel_->setText(tr("N/A"));
+        datasetExtentValueLabel_->setText(tr("N/A"));
+        datasetColorValueLabel_->setText(colorModeName(viewer_->visualizationOptions().colorMode));
+        return;
+    }
+
+    const QStringList filePaths = viewer_->currentFilePaths();
+    const PointRecord& minBounds = pointCloudData->minBounds();
+    const PointRecord& maxBounds = pointCloudData->maxBounds();
+
+    datasetNameValueLabel_->setText(
+        filePaths.size() == 1
+            ? QFileInfo(filePaths.constFirst()).fileName()
+            : tr("%1 datasets").arg(QLocale().toString(filePaths.size())));
+    datasetPathValueLabel_->setText(datasetPathSummary(filePaths));
+    datasetPointsValueLabel_->setText(QLocale().toString(static_cast<qlonglong>(pointCloudData->size())));
+    datasetBoundsValueLabel_->setText(
+        tr("Min (%1)\nMax (%2)")
+            .arg(formatTriplet(minBounds.x, minBounds.y, minBounds.z))
+            .arg(formatTriplet(maxBounds.x, maxBounds.y, maxBounds.z)));
+    datasetExtentValueLabel_->setText(formatTriplet(
+        maxBounds.x - minBounds.x,
+        maxBounds.y - minBounds.y,
+        maxBounds.z - minBounds.z));
+    datasetColorValueLabel_->setText(
+        tr("%1 | Native RGB: %2")
+            .arg(colorModeName(viewer_->visualizationOptions().colorMode))
+            .arg(pointCloudData->hasColor() ? tr("yes") : tr("no")));
 }

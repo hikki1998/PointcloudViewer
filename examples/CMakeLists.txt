@@ -1,1 +1,9 @@
-las_viewer_add_smoke_sources(viewer_smoke_test.cpp)
+las_viewer_add_smoke_sources(
+    viewer_smoke_test.cpp
+    SmokeTestSupport.h
+    ViewerRenderSmoke.cpp
+    MainWindowSmoke.cpp
+    ProjectAndClassificationSmoke.cpp
+    RouteSmoke.cpp
+    TowerIssueSmoke.cpp
+)

@@ -70,11 +70,25 @@
 - `src/gui/MainWindow.Docks.cpp`
   - 左右/底部 dock、检查器区、量测区、日志区、状态栏
 - `src/gui/MainWindow.Connections.cpp`
-  - viewer、dock、controller、动作之间的信号槽连接
+  - 连接创建总入口
+- `src/gui/MainWindow.ControllerConnections.cpp`
+  - controller、dock 和业务动作之间的信号槽连接
+- `src/gui/MainWindow.ViewerConnections.cpp`
+  - 主窗口动作、viewer 和全局 UI 状态之间的信号槽连接
+- `src/gui/MainWindow.Capture.cpp`
+  - 截图、录屏和捕获文件落盘
+- `src/gui/MainWindow.Analysis.cpp`
+  - 量测、净空与植被分析面板同步
+- `src/gui/MainWindow.ProfileClassification.cpp`
+  - 分类配色表、分类编辑状态与 LAS 保存
+- `src/gui/MainWindow.ProjectExplorer.cpp`
+  - 项目树构建、过滤、可见性和上下文菜单
 - `src/gui/MainWindow.PointCloud.cpp`
   - 点云打开、追加、清空、配色和基础显示同步
 - `src/gui/MainWindow.Route.cpp`
-  - 航线导入导出、编辑、焦点、表格刷新、漫游状态同步
+  - 航线导入导出、焦点、表格刷新、漫游状态同步
+- `src/gui/MainWindow.RouteEditor.cpp`
+  - 航点编辑对话框、实时预览、保存/取消恢复
 - `src/gui/MainWindow.TowerIssue.cpp`
   - 杆塔/隐患面板、详情编辑器、导入导出与聚焦
 - `src/gui/MainWindow.ProjectSerializer.cpp`
@@ -85,6 +99,33 @@
   - 共享 helper、JSON 辅助转换、最近工程记录等稳定内部实现
 - `src/gui/MainWindowInternal.h`
   - `MainWindow` 拆分后共享的最小内部声明与常量
+
+## PointCloudViewer 拆分边界
+
+- `src/gui/OsgWidget.*`
+  - Qt/OpenGL/OSG 嵌入和鼠标、键盘、滚轮事件桥接
+- `src/gui/PointCloudViewer.cpp`
+  - Viewer 通用交互、场景、拾取、Overlay 和基础显示状态
+- `src/gui/PointCloudViewer.Loading.cpp`
+  - LAS/LAZ/Gaussian 加载、追加与清空
+- `src/gui/PointCloudViewer.Clip.cpp`
+  - 多边形/盒裁剪、裁剪预览与导出
+- `src/gui/PointCloudViewer.Classification.cpp`
+  - 分类配色可见性、框选/多边形分类任务与 Undo/Redo
+- `src/gui/PointCloudViewer.Measurement.cpp`
+  - 连续量测状态、计算、OSG overlay 与 Qt 标签
+- `src/gui/PointCloudViewer.Markers.cpp`
+  - 杆塔/隐患状态、拾取、OSG overlay 与 Qt 标签
+- `src/gui/PointCloudViewerOverlays.*`
+  - 裁剪和分类共用的多边形选择覆盖层
+- `src/gui/PointCloudViewer.Route.cpp`
+  - 航线显示数据、标签、颜色、可见性和编辑状态
+- `src/gui/PointCloudViewer.RouteRoam.cpp`
+  - 航线漫游状态机、相机位姿和模拟拍照
+
+## Smoke 编译单元
+
+`LASViewerSmokeTest.exe` 仍是唯一 smoke 可执行文件，场景实现按职责拆在 `examples/*Smoke.cpp`，`viewer_smoke_test.cpp` 只保留公共 helper、命令行入口和场景注册。
 
 ## 当前高热文件
 
@@ -120,4 +161,4 @@
 - 业务模型不要直接耦合到 OSG 绘制结构，尽量经由 viewer/bridge 投影到显示层。
 - 工程文件、外部 route 文件、导出格式是三个不同边界，不要混成一个模型层。
 - 对已有大文件，优先沿现有结构最小侵入修改；只有在职责已经明显失控时才拆分。
-- `MainWindow.ProjectSerializer.cpp` 和 `MainWindow.SettingsStore.cpp` 是正式编译单元，不要再用 `.cpp` 包含 `.cpp` 的方式继续扩展。
+- 所有职责拆分文件都是正式编译单元，不要用 `.cpp` 包含 `.cpp` 或 `.inc` 聚合来伪拆分。

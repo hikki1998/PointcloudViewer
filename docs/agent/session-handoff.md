@@ -1,6 +1,6 @@
 # Session Handoff
 
-更新时间：2026-04-17
+更新时间：2026-09-24
 
 ## 用途
 
@@ -49,6 +49,36 @@
 - `src/gui/MainWindowInternal.h`
 
 ## 近期值得知道的改动方向
+
+### 2026-09-24 大文件瘦身进度
+
+已完成第一轮纯编译单元拆分，保持 public API 与行为不变：
+
+- `PointCloudViewer.cpp`：8689 → 6186 行
+  - 新增 `OsgWidget.*`
+  - 新增 `PointCloudViewer.Loading.cpp`
+  - 新增 `PointCloudViewer.Route.cpp`
+  - 新增 `PointCloudViewer.RouteRoam.cpp`
+- `viewer_smoke_test.cpp`：5240 → 1100 行
+  - 场景拆到 `examples/*Smoke.cpp`
+  - 仍只有一个 `LASViewerSmokeTest.exe`
+- `MainWindow.cpp`：4923 → 2766 行
+  - 新增 `MainWindow.Analysis.cpp`
+  - 新增 `MainWindow.ProfileClassification.cpp`
+  - 新增 `MainWindow.ProjectExplorer.cpp`
+- Connections 拆为总入口、ControllerConnections、ViewerConnections。
+- Capture 从 `MainWindow.Core.cpp` 独立。
+- 删除未构建空壳 `MainWindow.ProjectIO.cpp`、`MainWindow.Settings.cpp`。
+
+最终验证状态：Release 双目标构建通过；统一 `LASViewerSmokeTest.exe --mode all` 的 20 个模式全部通过；`git diff --check` 通过。
+
+后续接手时：
+
+1. 先读 `.planning/2026-09-24-source-file-slimming-audit/` 下的三个计划文件，并查看当前 `git status --short`，避免误带与目标提交无关的本地文件。
+2. `PointCloudViewer` 的 Clip、Classification、Measurement、Markers 已完成拆分，主文件目前约 3500 行。
+3. `MainWindow.Route.cpp` 的航点编辑对话框已迁至 `MainWindow.RouteEditor.cpp`；主文件从约 1598 行降至约 1025 行。
+4. 大文件低风险瘦身计划已经收口；除非出现明确编译或维护痛点，不再按行数机械拆分。
+5. 暂不拆 `InspectionRoutePlanning.cpp`、`PowerlineRouteJson.cpp`、`LasReader.cpp`，除非单独安排内部接口重构。
 
 最近一轮 UI 调整主要集中在 Backstage 和首页入口：
 

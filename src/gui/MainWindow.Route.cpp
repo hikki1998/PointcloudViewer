@@ -3,14 +3,20 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QColor>
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QHash>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLocale>
 #include <QPointF>
+#include <QPushButton>
 #include <QSignalBlocker>
 #include <QStringList>
 #include <QTableWidget>
@@ -22,13 +28,18 @@
 #include "gui/MainWindowInternal.h"
 #include "gui/PointCloudViewer.h"
 #include "gui/RouteDetailsDock.h"
+#include "gui/support/UiHelpers.h"
 
 #include "route/InspectionRoutePlanning.h"
 #include "route/PowerlineRouteBridge.h"
 #include "route/PowerlineRouteJson.h"
 
+using lasviewer::crs::CoordinateSystemKind;
+using lasviewer::crs::CoordinateSystemRef;
 using lasviewer::crs::CrsAuthorityService;
 using lasviewer::crs::CrsTransformService;
+using lasviewer::crs::defaultGeographicCoordinateSystem;
+using lasviewer::gui::enforceLightDialogButtonStyles;
 using namespace mainwindow_internal;
 
 namespace
@@ -848,4 +859,167 @@ void MainWindow::applyRoutePartTableColumnVisibility()
     routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnX, !showCoordinates);
     routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnY, !showCoordinates);
     routePartPointsTableWidget_->setColumnHidden(kRoutePartColumnZ, !showCoordinates);
+}
+
+void MainWindow::syncProjectCoordinateSystemsFromRoutePlanning()
+{
+    if (projectCoordinateSystems_.pointCloudCrs.authName.trimmed().isEmpty()) {
+        projectCoordinateSystems_.pointCloudCrs.authName = QStringLiteral("EPSG");
+    }
+
+    projectCoordinateSystems_.pointCloudCrs.code = routePlanningOptions_.crs.sourceEpsg;
+    if (projectCoordinateSystems_.pointCloudCrs.code <= 0) {
+        projectCoordinateSystems_.pointCloudCrs.displayName.clear();
+        projectCoordinateSystems_.pointCloudCrs.wkt.clear();
+    } else {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.pointCloudCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.pointCloudCrs = normalized;
+        }
+    }
+    projectCoordinateSystems_.pointCloudCrs.kind = CoordinateSystemKind::Projected;
+
+    if (projectCoordinateSystems_.geographicCrs.code <= 0) {
+        projectCoordinateSystems_.geographicCrs = defaultGeographicCoordinateSystem();
+    } else {
+        CoordinateSystemRef normalized;
+        if (CrsAuthorityService::normalizeCoordinateSystem(projectCoordinateSystems_.geographicCrs, &normalized, nullptr)) {
+            projectCoordinateSystems_.geographicCrs = normalized;
+        }
+    }
+    projectCoordinateSystems_.geographicCrs.kind = CoordinateSystemKind::Geographic;
+}
+
+void MainWindow::ensureRouteRoamFloatingDialog()
+{
+    if (routeRoamFloatingDialog_ != nullptr) {
+        return;
+    }
+
+    routeRoamFloatingDialog_ = new QDialog(this, Qt::Tool);
+    routeRoamFloatingDialog_->setModal(false);
+    routeRoamFloatingDialog_->setAttribute(Qt::WA_DeleteOnClose, false);
+    routeRoamFloatingDialog_->setWindowTitle(tr("Route Roam Controls"));
+    routeRoamFloatingDialog_->setMinimumWidth(320);
+    routeRoamFloatingDialog_->setStyleSheet(QStringLiteral(
+        "QDialog {"
+        "background-color: #f8fafc;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 10px;"
+        "}"
+        "QLabel {"
+        "color: #334155;"
+        "}"
+        "QDoubleSpinBox, QComboBox {"
+        "background-color: #ffffff;"
+        "color: #0f172a;"
+        "border: 1px solid #cbd5e1;"
+        "border-radius: 6px;"
+        "padding: 4px 8px;"
+        "}"));
+
+    auto* layout = new QFormLayout(routeRoamFloatingDialog_);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(8);
+    layout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    routeRoamFloatingSpeedSpinBox_ = new QDoubleSpinBox(routeRoamFloatingDialog_);
+    routeRoamFloatingSpeedSpinBox_->setRange(0.1, 80.0);
+    routeRoamFloatingSpeedSpinBox_->setDecimals(1);
+    routeRoamFloatingSpeedSpinBox_->setSingleStep(0.5);
+
+    routeRoamFloatingViewModeComboBox_ = new QComboBox(routeRoamFloatingDialog_);
+    routeRoamFloatingViewModeComboBox_->addItem(tr("Third Person"), static_cast<int>(RouteRoamViewMode::ThirdPerson));
+    routeRoamFloatingViewModeComboBox_->addItem(tr("First Person"), static_cast<int>(RouteRoamViewMode::FirstPerson));
+
+    routeRoamFloatingCaptureLabel_ = new QLabel(routeRoamFloatingDialog_);
+    routeRoamFloatingCaptureLabel_->setWordWrap(true);
+    routeRoamFloatingCaptureLabel_->setStyleSheet(QStringLiteral("color: #166534; font-weight: 600;"));
+    routeRoamFloatingCaptureLabel_->setText(tr("Awaiting photo capture."));
+
+    layout->addRow(tr("Roam Speed"), routeRoamFloatingSpeedSpinBox_);
+    layout->addRow(tr("Roam View Mode"), routeRoamFloatingViewModeComboBox_);
+    layout->addRow(tr("Capture"), routeRoamFloatingCaptureLabel_);
+
+    connect(routeRoamFloatingSpeedSpinBox_, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double speed) {
+        if (viewer_ != nullptr) {
+            viewer_->setInspectionRouteRoamSpeedMetersPerSecond(speed);
+            persistWindowSettings();
+        }
+    });
+    connect(routeRoamFloatingViewModeComboBox_, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+        if (viewer_ == nullptr || routeRoamFloatingViewModeComboBox_ == nullptr) {
+            return;
+        }
+        viewer_->setInspectionRouteRoamViewMode(static_cast<RouteRoamViewMode>(routeRoamFloatingViewModeComboBox_->currentData().toInt()));
+        persistWindowSettings();
+    });
+}
+
+void MainWindow::syncRouteRoamFloatingDialog()
+{
+    if (viewer_ == nullptr) {
+        if (routeRoamFloatingDialog_ != nullptr) {
+            routeRoamFloatingDialog_->hide();
+        }
+        return;
+    }
+
+    const bool roamActive = viewer_->inspectionRouteRoamActive();
+    if (!roamActive) {
+        if (routeRoamFloatingDialog_ != nullptr) {
+            routeRoamFloatingDialog_->hide();
+        }
+        return;
+    }
+
+    ensureRouteRoamFloatingDialog();
+    if (routeRoamFloatingDialog_ == nullptr) {
+        return;
+    }
+
+    if (routeRoamFloatingSpeedSpinBox_ != nullptr) {
+        const QSignalBlocker blocker(routeRoamFloatingSpeedSpinBox_);
+        routeRoamFloatingSpeedSpinBox_->setValue(viewer_->inspectionRouteRoamSpeedMetersPerSecond());
+    }
+    if (routeRoamFloatingViewModeComboBox_ != nullptr) {
+        const QSignalBlocker blocker(routeRoamFloatingViewModeComboBox_);
+        const int modeIndex = routeRoamFloatingViewModeComboBox_->findData(static_cast<int>(viewer_->inspectionRouteRoamViewMode()));
+        routeRoamFloatingViewModeComboBox_->setCurrentIndex(modeIndex >= 0 ? modeIndex : 0);
+    }
+    if (routeRoamFloatingCaptureLabel_ != nullptr) {
+        routeRoamFloatingCaptureLabel_->setText(
+            routeRoamLastCaptureSummary_.trimmed().isEmpty()
+                ? tr("Awaiting photo capture.")
+                : routeRoamLastCaptureSummary_);
+    }
+
+    if (!routeRoamFloatingDialog_->isVisible()) {
+        QPoint anchor = mapToGlobal(QPoint(width() - routeRoamFloatingDialog_->width() - 24, 120));
+        if (viewer_ != nullptr) {
+            const QPoint viewerGlobalTopLeft = viewer_->mapToGlobal(QPoint(0, 0));
+            const QRect viewerGlobalRect(viewerGlobalTopLeft, viewer_->size());
+            const int anchorX = viewerGlobalRect.right() - routeRoamFloatingDialog_->width() - 16;
+            const int anchorY = viewerGlobalRect.top()
+                + std::max(
+                    16,
+                    (viewerGlobalRect.height() - routeRoamFloatingDialog_->height()) / 2);
+            anchor = QPoint(anchorX, anchorY);
+        }
+        routeRoamFloatingDialog_->move(anchor);
+    }
+    routeRoamFloatingDialog_->show();
+    routeRoamFloatingDialog_->raise();
+}
+
+
+void MainWindow::syncDataManagerTrajectory() const
+{
+    const QList<PointRecord> routePoints = toRouteDisplayPoints(currentPowerlineRoute_);
+
+    DataManager::instance().setTrajectory(
+        currentPowerlineRoute_.taskName.trimmed().isEmpty() ? tr("Inspection Route") : currentPowerlineRoute_.taskName.trimmed(),
+        routePoints,
+        viewer_ != nullptr ? viewer_->inspectionRouteVisible() : true);
 }

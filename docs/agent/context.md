@@ -63,11 +63,25 @@
 - `src/gui/MainWindow.Docks.cpp`
   - dock、检查器、日志、状态栏
 - `src/gui/MainWindow.Connections.cpp`
-  - viewer、dock、controller、动作之间的信号槽连接
+  - 信号槽连接总入口
+- `src/gui/MainWindow.ControllerConnections.cpp`
+  - controller 和业务 UI 连接
+- `src/gui/MainWindow.ViewerConnections.cpp`
+  - viewer、动作和全局 UI 连接
+- `src/gui/MainWindow.Capture.cpp`
+  - 截图、录屏和文件保存
+- `src/gui/MainWindow.Analysis.cpp`
+  - 量测、净空和植被分析面板
+- `src/gui/MainWindow.ProfileClassification.cpp`
+  - 分类编辑与 LAS 保存
+- `src/gui/MainWindow.ProjectExplorer.cpp`
+  - 项目树构建、过滤和上下文操作
 - `src/gui/MainWindow.PointCloud.cpp`
   - 点云打开、追加、清空、配色和基础显示同步
 - `src/gui/MainWindow.Route.cpp`
-  - 航线导入导出、编辑、焦点、表格刷新、漫游状态同步
+  - 航线导入导出、焦点、表格刷新、漫游状态同步
+- `src/gui/MainWindow.RouteEditor.cpp`
+  - 航点编辑对话框、实时预览、保存/取消恢复
 - `src/gui/MainWindow.TowerIssue.cpp`
   - 杆塔/隐患面板、详情编辑器、导入导出与聚焦
 - `src/gui/MainWindow.ProjectSerializer.cpp`
@@ -80,13 +94,17 @@
   - 拆分后的共享内部声明与常量
 
 ### `src/gui/PointCloudViewer.*`
-- OSG 嵌入小部件
-- 相机操纵器
-- 点点击/悬停拾取
-- 状态栏信息
-- 多点量测逻辑
-- 杆塔/隐患拾取与覆盖层
-- 右上角坐标轴覆盖层
+- `OsgWidget.*`：Qt/OpenGL/OSG 嵌入与原始输入事件桥接
+- `PointCloudViewer.cpp`：通用交互、场景、拾取与 Overlay
+- `PointCloudViewer.Loading.cpp`：LAS/LAZ/Gaussian 加载、追加、清空
+- `PointCloudViewer.Clip.cpp`：裁剪编辑、预览和导出
+- `PointCloudViewer.Classification.cpp`：分类显示、选择任务与 Undo/Redo
+- `PointCloudViewer.Measurement.cpp`：量测状态、计算和覆盖层
+- `PointCloudViewer.Markers.cpp`：杆塔/隐患状态、拾取和覆盖层
+- `PointCloudViewerOverlays.*`：裁剪/分类共用多边形覆盖层
+- `PointCloudViewer.Route.cpp`：航线显示数据、标签、颜色和编辑状态
+- `PointCloudViewer.RouteRoam.cpp`：漫游状态机与相机位姿
+- `PointCloudViewer.h`：保持统一 Viewer public API
 
 ### `src/domain/InspectionData.*`
 - 杆塔业务属性和隐患台账模型
