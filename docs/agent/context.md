@@ -1,262 +1,122 @@
 # Agent Context
 
-## What This Repo Is
-这是一个基于 Qt 5.15、OpenSceneGraph 和 LASlib 的 Windows 桌面点云查看器。当前重点不是通用 GIS 能力，而是电力巡检/通道检查场景下的点云浏览、业务标注、量测分析和较稳定的本地构建体验。
+## Product
 
-## Read This Next
-- `docs/agent/README.md`
-  - 渐进式披露入口，按任务继续下钻
-- 根目录 `AGENTS.md`
-  - Codex 仓库级强约束
-- 根目录 `CLAUDE.md`
-  - Claude Code 兼容入口
+LAS Point Cloud Viewer 是基于 Qt 5.15、OpenSceneGraph 和 LASlib/LASzip 的桌面点云工具，主要面向 Windows，并维护 Ubuntu 22.04 构建路径。产品聚焦电力巡检和通道检查，不是通用 GIS 平台。
 
-## Fast Orientation
-- 入口：`src/main.cpp`
-- 主窗口与 Ribbon：`src/gui/MainWindow.cpp`、`src/gui/MainWindow.Ribbon.cpp`、`src/gui/MainWindow.Docks.cpp`
-- 视图交互、量测、悬停拾取、状态栏：`src/gui/PointCloudViewer.cpp`
-- 巡检业务模型：`src/domain/InspectionData.*`
-- 净空分析与导出：`src/domain/ClearanceAnalysis.*`、`src/domain/ClearanceReportExporter.*`
-- 剖面投影与绘制：`src/domain/ProfileMarkerProjection.*`、`src/gui/ProfilePlotWidget.*`
-- 点云显示参数模型：`src/osg/PointCloudVisualization.h`
-- LAS/LAZ 点云渲染与 shader：`src/osg/OsgPointCloudNode.cpp`
-- Gaussian PLY 数据与 GPU 渲染：`src/gaussian/GaussianModel.h`、`src/gaussian/GaussianPlyReader.cpp`、`src/gaussian/GaussianRenderer.cpp`
-- LAS/LAZ 读取：`src/pointcloud/LasReader.cpp`
-- 空场景最近工作台：`src/gui/WelcomeWorkspaceWidget.*`、`src/gui/WorkspaceThumbnailCache.*`
-- 中文翻译：`translations/lasviewer_zh_CN.ts`
-- 构建与部署逻辑：`CMakeLists.txt`、`cmake/LASViewerDependencies.cmake`、`cmake/LASViewerTargetConfig.cmake`、`cmake/LASViewerRuntimeDeploy.cmake`、`src/*/CMakeLists.txt`、`examples/CMakeLists.txt`
+当前主要能力：
 
-## Current User-Facing Features
-- 加载一个或多个 `.las/.laz`，或单个受支持的 3D Gaussian Splatting `.ply`
-- Gaussian PLY 使用 OpenGL 4.3 GPU renderer；当前不与 LAS/LAZ 同屏混合
-- 空场景显示“最近工程 / 最近数据”工作台，支持缩略图缓存、缺失文件状态、打开/追加/定位/移除
-- 左侧 `Project Explorer` 目录树，支持多数据集/高斯模型状态、搜索、展开折叠、定位文件夹、复制路径
-- 工程打开/保存/另存为，持久化数据路径、显示参数、语言、杆塔和隐患台账
-- RGB、高程渐变、单色显示
-- 点大小、透明度、深度雾化、EDL 风格增强、圆形 splat
-- 顶视、前视、右视、适配视图
-- 右上角坐标轴指示器，显示 `X+ / Y+ / Z+`
-- 鼠标悬停点坐标显示
-- 多点连续量测，右键回退点，视图覆盖层显示量测路径
-- 净空分析阈值、分段明细表、净空 CSV 导出
-- 底部档距剖面 dock，支持预警分段高亮，并叠加附近杆塔/隐患点
-- 杆塔编辑：连续添加、前插、移动、表格改名、业务属性维护
-- 隐患台账：连续点选标注、列表管理、详情编辑、CSV/HTML 导出
-- 航线导入/导出、场景显示、编辑、Route QA 和漫游预览
-- 中英文界面，其中中文翻译已接入构建和部署
+- 后台加载一个或多个 LAS/LAZ，支持进度、取消、渐进 preview 和交互 LOD。
+- 多数据集独立 OSG 节点；日常浏览不保留完整合并副本，分析时才按需生成兼容缓存。
+- RGB、高程、单色、分类着色；分类显隐、框选/多边形编辑和 Undo/Redo。
+- 点大小、透明度、Depth Cue、EDL 风格和圆形 splat。
+- 多边形/盒裁剪、裁剪预览和 LAS 导出。
+- 连续量测、净空分析、剖面、杆塔、隐患和报告导出。
+- 工程级点云/地理 CRS、PROJ 转换和 KML/KMZ 互操作。
+- 航线导入导出、多目标航点编辑、Route QA、相机预览和漫游。
+- 单个 3D Gaussian Splatting PLY 的 OpenGL 4.3 GPU 渲染。
+- 工程保存/恢复、最近工作台、缩略图缓存和中英文界面。
+- Windows 内嵌 MP4(H.264) 录屏；Linux 当前不包含该录屏后端。
 
-## File Responsibilities
-### `src/gui/MainWindow.*`
-- Ribbon 动作
-- 左右/底部 dock 组织
-- 检查器面板和渲染控制
-- 项目树、杆塔表、隐患表、量测面板、剖面面板接线
-- 设置持久化
-- 语言切换
-- 与 `PointCloudViewer` 的信号槽连接
+明确边界见 `product-state.md`。
 
-当前已按职责拆分为：
-- `src/gui/MainWindow.Core.cpp`
-  - 生命周期、拖放、窗口事件、无边框窗口行为
-- `src/gui/MainWindow.Actions.cpp`
-  - QAction 创建与分组
-- `src/gui/MainWindow.Ribbon.cpp`
-  - Ribbon 页面、组、快速工具栏、窗口控制
-- `src/gui/MainWindow.Backstage.cpp`
-  - Backstage 页面、最近工程、空场景工作台数据、缩略图调度、应用设置入口
-- `src/gui/MainWindow.Docks.cpp`
-  - dock、检查器、日志、状态栏
-- `src/gui/MainWindow.Connections.cpp`
-  - 信号槽连接总入口
-- `src/gui/MainWindow.ControllerConnections.cpp`
-  - controller 和业务 UI 连接
-- `src/gui/MainWindow.ViewerConnections.cpp`
-  - viewer、动作和全局 UI 连接
-- `src/gui/MainWindow.Capture.cpp`
-  - 截图、录屏和文件保存
-- `src/gui/MainWindow.Analysis.cpp`
-  - 量测、净空和植被分析面板
-- `src/gui/MainWindow.ProfileClassification.cpp`
-  - 分类编辑与 LAS 保存
-- `src/gui/MainWindow.ProjectExplorer.cpp`
-  - 项目树构建、过滤和上下文操作
-- `src/gui/MainWindow.PointCloud.cpp`
-  - 点云打开、追加、清空、配色和基础显示同步
-- `src/gui/MainWindow.Route.cpp`
-  - 航线导入导出、焦点、表格刷新、漫游状态同步
-- `src/gui/MainWindow.RouteEditor.cpp`
-  - 航点编辑对话框、实时预览、保存/取消恢复
-- `src/gui/MainWindow.TowerIssue.cpp`
-  - 杆塔/隐患面板、详情编辑器、导入导出与聚焦
-- `src/gui/MainWindow.ProjectSerializer.cpp`
-  - 工程文件 JSON 读写
-- `src/gui/MainWindow.SettingsStore.cpp`
-  - `QSettings` / `UiHistoryStore` 持久化
-- `src/gui/MainWindow.Helpers.cpp`
-  - 共享 helper 与内部辅助转换
-- `src/gui/MainWindowInternal.h`
-  - 拆分后的共享内部声明与常量
+## Architecture
 
-### `src/gui/PointCloudViewer.*`
-- `OsgWidget.*`：Qt/OpenGL/OSG 嵌入与原始输入事件桥接
-- `PointCloudViewer.cpp`：通用交互、场景、拾取与 Overlay
-- `PointCloudViewer.Loading.cpp`：LAS/LAZ/Gaussian 加载、追加、清空；Gaussian 只允许单模型且不与 LAS/LAZ 混载
-- `PointCloudViewer.Clip.cpp`：裁剪编辑、预览和导出
-- `PointCloudViewer.Classification.cpp`：分类显示、选择任务与 Undo/Redo
-- `PointCloudViewer.Measurement.cpp`：量测状态、计算和覆盖层
-- `PointCloudViewer.Markers.cpp`：杆塔/隐患状态、拾取和覆盖层
-- `PointCloudViewerOverlays.*`：裁剪/分类共用多边形覆盖层
-- `PointCloudViewer.Route.cpp`：航线显示数据、标签、颜色和编辑状态
-- `PointCloudViewer.RouteRoam.cpp`：漫游状态机与相机位姿
-- `PointCloudViewer.h`：保持统一 Viewer public API
+### Build Targets
 
-### `src/domain/InspectionData.*`
-- 杆塔业务属性和隐患台账模型
-- 工程文件序列化所需的 JSON 转换
+- `LASViewerCoreObj`：`src/*` 共享实现和资源。
+- `LASPointCloudViewer`：主程序入口。
+- `LASViewerSmokeTest`：唯一 smoke 可执行文件，场景位于 `examples/*Smoke.cpp`。
 
-### `src/domain/ClearanceAnalysis.*`
-- 量测路径转净空分段结果
-- 水平距离、三维距离、里程、阈值预警统计
+源码通过各目录的 `CMakeLists.txt` 就近登记；顶层 `CMakeLists.txt` 只负责目标和模块接线。
 
-### `src/domain/ProfileMarkerProjection.*`
-- 将杆塔/隐患投影到当前量测剖面
-- 供剖面图叠加业务标记使用
+### LAS/LAZ Pipeline
 
-### `src/gui/ProfilePlotWidget.*`
-- 量测剖面绘制
-- 预警分段高亮
-- 杆塔/隐患投影标记绘制
+1. 用户打开、追加或拖放时，`PointCloudViewer.Loading.cpp` 在工作线程读取 LAS/LAZ。
+2. 工作线程同时建立轻量 XY 拾取索引、交互 preview 和相对原点的 float OSG CPU 几何。
+3. UI 线程原子提交已准备节点；大文件单文件先显示最多约 16 万 preview 点。
+4. 超过阈值的数据集额外保留最多约 18 万点交互节点；相机运动时通过 `NodeMask` 显示 preview，释放并静止后恢复完整节点。
+5. 每个数据集保留独立 `PointCloudData` 和场景节点；需要连续全量数组的分析 API 才生成合并缓存。
+6. `OsgPointCloudNode` 使用相对原点 `Vec3`、`Vec4ub` 颜色和 VBO；点大小、透明度、背景、Depth Cue、EDL 和圆形 splat 直接更新 State/Uniform。
 
-### `src/osg/OsgPointCloudNode.cpp`
-- LAS/LAZ 点云几何构建
-- 渲染状态
-- EDL-style / depth cue / opacity / round splat 等 shader uniform
+工程恢复仍保留同步兼容入口；GPU VBO 首次上传仍需要有效 OpenGL context。
 
-### `src/gaussian/*`
-- `GaussianModel.h`：Gaussian CPU 数据与 bounds
-- `GaussianPlyReader.*`：受支持 3DGS PLY 的校验、解析和并行转换
-- `GaussianRenderer.*`：OpenGL 4.3 SSBO、排序、实例化 quad 和 alpha 混合
-- `OsgWidget.*` 复用 OSG 相机与输入，在同一 `QOpenGLWidget` 中调用原生 Gaussian renderer
+### Gaussian Pipeline
 
-### `src/gui/WelcomeWorkspaceWidget.*` / `WorkspaceThumbnailCache.*`
-- 空场景最近工程与最近数据列表、右键操作和响应式布局
-- 缩略图只在正常场景渲染后被动捕获；启动时不重新读取点云
-- 缓存位于 `QStandardPaths::AppLocalDataLocation/thumbnails`，按路径、大小、修改时间失效并限制容量
+1. `GaussianPlyReader` 读取 binary little-endian、float32 3DGS PLY。
+2. 工作线程构建 `GaussianModel`。
+3. `OsgWidget` 复用 OSG 相机，在同一 `QOpenGLWidget` 中调用原生 `GaussianRenderer`。
+4. renderer 使用 OpenGL 4.3 SSBO、排序和实例化 quad。
 
-### `src/osg/PointCloudVisualization.h`
-- LAS/LAZ 点云显示参数的单一数据结构
-- 如果新增 LAS/LAZ 显示选项，通常先从这里加字段，再串到 GUI 和渲染层；Gaussian 参数留在 Gaussian 模块
+Gaussian 不进入 `PointCloudData`，当前不与 LAS/LAZ 或业务 overlay 同屏混合。
 
-### `CMakeLists.txt`
-- 顶层项目入口，只保留 option/cache 变量、模块 include、目标创建与接线
+### Project And Business Data
 
-### `cmake/*.cmake`
-- `LASViewerDependencies.cmake`
-  - 依赖探测与三方根目录解析
-- `LASViewerTranslations.cmake`
-  - Qt 翻译 `.qm` 生成
-- `LASViewerTargetConfig.cmake`
-  - 目标 include/link/compile 配置，以及共享 `target_sources()` helper
-- `LASViewerRuntimeDeploy.cmake`
-  - Windows 运行时 DLL、翻译和 PROJ 资源部署
-- Visual Studio / MSVC 并行编译配置仍在顶层 `CMakeLists.txt`
+- `MainWindow.ProjectSerializer.cpp` 保存多数据集、显示参数、工程 CRS、杆塔、隐患和航线状态。
+- `src/crs/` 提供 CRS 模型、常用目录、authority 查询、选择对话框和 PROJ 转换。
+- `src/domain/` 承载杆塔、隐患、净空、剖面投影和报告。
+- `src/route/` 承载标准航线模型、JSON、KML/KMZ、规划和 QA。
+- `MainWindow` 组织 UI 和项目状态；业务模型不要直接依赖 OSG。
 
-### `src/*/CMakeLists.txt` / `examples/CMakeLists.txt`
-- 各目录源码通过 `target_sources()` 就近加入主程序或 smoke target
-- 新增文件时，优先修改所属目录的本地 `CMakeLists.txt`，不要回到顶层集中登记
+## File Map
 
-## Standard Validation
-```powershell
-cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DQT_ROOT=E:/code/Qt5.15.2/5.15.2/msvc2019_64
-cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las .\test_data\ezhou_powerline_sample.las
-# Gaussian PLY 也复用 viewer-render；把 --las 参数指向受支持的小型 .ply
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode viewer-render --las <gaussian-model.ply>
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode route-roam --las .\test_data\ezhou_powerline_sample.las
-```
+### Main Window
 
-如在 `mainwindow-refactor` 这类重构 worktree 中验证，可先使用：
-```powershell
-cmake --build out/build --config Release --target LASPointCloudViewer LASViewerSmokeTest -- /p:PostBuildEventUseInBuild=false
-.\out\build\bin\Release\LASViewerSmokeTest.exe --mode main-backstage
-```
+| 文件 | 职责 |
+|---|---|
+| `MainWindow.Core.cpp` | 生命周期、拖放、窗口行为和录屏生命周期 |
+| `MainWindow.Actions.cpp` / `MainWindow.Ribbon.cpp` | 动作和 Ribbon |
+| `MainWindow.Backstage.cpp` | Backstage、最近工程/数据和缩略图调度 |
+| `MainWindow.Docks.cpp` | dock、检查器、状态栏和日志 |
+| `MainWindow.Connections.cpp` | 连接总入口 |
+| `MainWindow.ControllerConnections.cpp` | controller 和业务动作接线 |
+| `MainWindow.ViewerConnections.cpp` | viewer 和全局 UI 状态接线 |
+| `MainWindow.PointCloud.cpp` | 点云打开、追加、清空和基础显示 |
+| `MainWindow.ProjectExplorer.cpp` | 项目树 |
+| `MainWindow.Analysis.cpp` | 量测、净空和植被分析 |
+| `MainWindow.ProfileClassification.cpp` | 分类编辑和 LAS 保存 |
+| `MainWindow.Route.cpp` / `MainWindow.RouteEditor.cpp` | 航线状态和航点编辑 |
+| `MainWindow.TowerIssue.cpp` | 杆塔与隐患 |
+| `MainWindow.ProjectSerializer.cpp` | 工程 JSON |
+| `MainWindow.SettingsStore.cpp` | QSettings 和 UI 历史 |
+| `MainWindow.Capture.cpp` | 截图和录屏落盘 |
+| `MainWindow.Helpers.cpp` | 共享内部 helper |
 
-如需快速检查 GUI 是否能正常启动：
-```powershell
-.\out\build\bin\Release\LASPointCloudViewer.exe
-```
+### Viewer
 
-## Translation Workflow
-新增界面文字后：
-```powershell
-E:\code\Qt5.15.2\5.15.2\msvc2019_64\bin\lupdate.exe src -ts translations\lasviewer_zh_CN.ts
-cmake --build out/build --config Release --target LASPointCloudViewer
-```
+| 文件 | 职责 |
+|---|---|
+| `OsgWidget.*` | Qt/OpenGL/OSG 嵌入和原始输入 |
+| `PointCloudViewer.cpp` | 通用场景、相机、拾取和基础显示 |
+| `PointCloudViewer.Loading.cpp` | LAS/LAZ/Gaussian 加载和清空 |
+| `PointCloudViewer.Clip.cpp` | 裁剪 |
+| `PointCloudViewer.Classification.cpp` | 分类编辑 |
+| `PointCloudViewer.Measurement.cpp` | 量测 |
+| `PointCloudViewer.Markers.cpp` | 杆塔和隐患 overlay |
+| `PointCloudViewer.Route.cpp` / `RouteRoam.cpp` | 航线显示、编辑和漫游 |
+| `PointCloudViewerOverlays.*` | 共用多边形选择覆盖层 |
 
-## Data And Smoke Test
-- 推荐 smoke test 数据：`test_data/ezhou_powerline_sample.las`
-- 如果需要新的测试数据，优先加小样本和生成脚本，不要直接提交大型原始 LAS
+### Other Hot Paths
 
-## Common Pitfalls
-- 新增显示参数时，只改 UI 不改渲染层会导致控件无效。
-- 新增 UI 文本但不更新 `.ts/.qm` 会出现漏翻译。
-- 改相机或拾取逻辑后，最好同时验证缩放、悬停坐标、量测点选、杆塔/隐患选择。
-- 改工程文件结构后，要同时检查旧工程兼容和新字段保存加载。
-- 改量测逻辑后，要同时检查量测表格、剖面 dock 和导出结果是否一致。
-- CMake 依赖 Windows 和本地 Qt 路径，排查构建问题时优先看 `CMakeLists.txt`、`cmake/*.cmake`、`src/*/CMakeLists.txt` 和 `out/build/CMakeCache.txt`。
+- LAS/LAZ：`src/pointcloud/LasReader.*`、`PointCloudData.*`
+- OSG：`src/osg/OsgPointCloudNode.*`、`PointCloudVisualization.h`
+- Gaussian：`src/gaussian/*`
+- CRS：`src/crs/*`
+- 航线：`src/route/*`
+- 业务：`src/domain/*`
+- 最近工作台：`WelcomeWorkspaceWidget.*`、`WorkspaceThumbnailCache.*`
+- Smoke：`examples/*Smoke.cpp`、`viewer_smoke_test.cpp`
 
-## What To Read For Typical Tasks
-- “加一个显示选项”：
-  - `src/osg/PointCloudVisualization.h`
-  - `src/gui/MainWindow.cpp`
-  - `src/gui/MainWindow.Docks.cpp`
-  - `src/gui/PointCloudViewer.cpp`
-  - `src/osg/OsgPointCloudNode.cpp`
-- “修 UI 或交互”：
-  - `src/gui/MainWindow.cpp`
-  - `src/gui/MainWindow.Docks.cpp`
-  - `src/gui/MainWindow.Ribbon.cpp`
-  - `src/gui/MainWindow.Backstage.cpp`
-  - `src/gui/PointCloudViewer.cpp`
-- “修空场景首页 / 最近记录 / 缩略图”：
-  - `src/gui/WelcomeWorkspaceWidget.*`
-  - `src/gui/WorkspaceThumbnailCache.*`
-  - `src/gui/MainWindow.Backstage.cpp`
-  - `src/gui/MainWindow.ViewerConnections.cpp`
-- “修 Gaussian PLY”：
-  - `src/gaussian/*`
-  - `src/gui/OsgWidget.*`
-  - `src/gui/PointCloudViewer.Loading.cpp`
-  - `examples/ViewerRenderSmoke.cpp`
-- “修电力巡检业务功能”：
-  - `src/domain/InspectionData.*`
-  - `src/gui/MainWindow.cpp`
-  - `src/gui/MainWindow.Route.cpp`
-  - `src/gui/MainWindow.TowerIssue.cpp`
-  - `src/gui/PointCloudViewer.cpp`
-- “修净空分析或剖面图”：
-  - `src/domain/ClearanceAnalysis.*`
-  - `src/domain/ClearanceReportExporter.*`
-  - `src/domain/ProfileMarkerProjection.*`
-  - `src/gui/ProfilePlotWidget.*`
-  - `src/gui/MainWindow.cpp`
-  - `src/gui/MainWindow.Docks.cpp`
-- “修翻译”：
-  - `translations/lasviewer_zh_CN.ts`
-  - `src/gui/MainWindow.cpp`
-  - `src/gui/MainWindow.Ribbon.cpp`
-  - `src/gui/MainWindow.Backstage.cpp`
-  - `src/gui/PointCloudViewer.cpp`
-- “修构建或部署”：
-  - `CMakeLists.txt`
-  - `cmake/*.cmake`
-  - `src/*/CMakeLists.txt`
-  - `examples/CMakeLists.txt`
+## Common Task Routing
 
-## Goal For New Sessions
-新对话的 agent 读完本文件后，应当已经知道：
-- 这个项目是什么
-- 入口和热区文件在哪里
-- 当前能力大致到什么程度
-- 改完后该怎么构建和验证
-- 接下来应该去读 `docs/agent/README.md`
+- 显示参数：`PointCloudVisualization.h` → `MainWindow.Docks.cpp`/`PointCloudViewer.*` → `OsgPointCloudNode.cpp`
+- 点云加载：`LasReader.*`、`PointCloudViewer.Loading.cpp`、`MainWindow.PointCloud.cpp`
+- 拾取/相机：`OsgWidget.*`、`PointCloudViewer.cpp`
+- 量测/覆盖层：对应的 `PointCloudViewer.Measurement.cpp` 或 `Markers.cpp`
+- 航线：`src/route/*`、`MainWindow.Route*.cpp`、`PointCloudViewer.Route*.cpp`
+- CRS：`src/crs/*`、`MainWindow.ProjectSerializer.cpp`、`RouteInterop.cpp`
+- 工程：`MainWindow.ProjectSerializer.cpp`、`SettingsStore.cpp`
+- 构建：`CMakeLists.txt`、`cmake/*.cmake`、各目录 `CMakeLists.txt`
+- 翻译：`translations/lasviewer_zh_CN.ts`
+
+构建、smoke、翻译和发布命令见 `workflows.md`。

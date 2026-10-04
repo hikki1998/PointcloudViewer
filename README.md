@@ -1,12 +1,12 @@
 # LAS Point Cloud Viewer
 
-基于 Qt 5.15、OpenSceneGraph 和 LASlib 的 Windows 桌面点云查看器，面向电力巡检/通道检查场景，支持点云浏览、量测、净空分析、杆塔/隐患管理和巡检航线编辑。
+基于 Qt 5.15、OpenSceneGraph 和 LASlib/LASzip 的桌面点云查看器，主要面向 Windows，同时维护 Ubuntu 22.04 构建与发布路径。产品聚焦电力巡检/通道检查场景，支持点云浏览、量测、净空分析、杆塔/隐患管理和巡检航线编辑。
 
 如果你是第一次进入这个仓库，不要直接散读源码。先按下面顺序建立上下文：
 
 1. `AGENTS.md`
-2. `CLAUDE.md`（如果你使用 Claude Code）
-3. `docs/agent/README.md`
+2. `docs/agent/context.md`
+3. 按需阅读 `docs/agent/product-state.md` 或 `docs/agent/workflows.md`
 
 ## 目录
 
@@ -16,8 +16,17 @@
 - `shaders/`：渲染资源
 - `3rd/`：仓库内随代码分发的精简版 release 三方库
 - `out/`：推荐的本地构建输出目录，不纳入版本控制
-- `docs/agent/`：面向 agent 的渐进式披露文档
-- `planning/`：规划与路线图文档
+- `docs/agent/`：当前架构、产品状态和工作流
+- `docs/releases/`：历史版本发布说明
+
+## 当前能力概览
+
+- 后台加载一个或多个 LAS/LAZ，支持渐进 preview、交互 LOD、分类显示/编辑和裁剪导出
+- 加载单个受支持的 3D Gaussian Splatting PLY，使用 OpenGL 4.3 GPU 渲染
+- 量测、净空分析、剖面、杆塔/隐患管理和报告导出
+- 工程级 CRS、KML/KMZ 互操作、航线编辑、Route QA 和漫游预览
+- 工程保存/恢复、最近工作台、中文翻译和统一 smoke test
+- Windows 支持内嵌 MP4 录屏；Linux 当前不包含该录屏后端
 
 源码声明采用按目录就近维护：
 
@@ -37,7 +46,7 @@ cmake --build out/build --config Release --target LASPointCloudViewer
 cmake --build out/build --config Release --target LASViewerSmokeTest
 ```
 
-默认会使用仓库内 `3rd/` 作为 `THIRDPARTY_ROOT`。其中包含 `osg/`、`qtitan/`、`laslib/`、`lastools/` 这几个精简版 release 依赖目录，每个目录根下都有 `.version` 标记文件。Qt 不随仓库分发，仍需通过 `QT_ROOT` 单独指定。
+默认会使用仓库内 `3rd/` 作为 `THIRDPARTY_ROOT`。其中包含 `osg/`、`qtitan/`、`gdal/`（当前使用其 PROJ 子集）、`laslib/`、`lastools/` 等精简版 release 依赖。Qt 不随仓库分发，仍需通过 `QT_ROOT` 单独指定。
 
 新增源码文件时，不需要回头修改顶层 `CMakeLists.txt`，只需要更新所属目录下的本地 `CMakeLists.txt`。
 
@@ -66,7 +75,7 @@ cmake --build out/build --config Release --target LASViewerSmokeTest
 
 ## 发布打包
 
-首版发布使用“最小可运行 ZIP 包”方式分发，默认面向 Windows x64 用户，不附带大型测试数据。
+Windows 发布使用“最小可运行 ZIP 包”方式分发，不附带大型测试数据。Linux 构建与打包方式见 `docs/linux-build.md`。
 
 先执行 Release 构建：
 
@@ -107,29 +116,23 @@ GitHub Release 建议流程：
 
 ### 第一跳
 - `AGENTS.md`
-  - Codex 仓库级自动入口和强约束
-- `CLAUDE.md`
-  - Claude Code 仓库级兼容入口
-
-### 渐进式披露
+  - 仓库级自动入口和强约束
 - `docs/agent/context.md`
-  - 5 分钟上下文、热文件、当前能力、验证基线
-- `docs/agent/README.md`
-  - 文档总入口和阅读路径
-- `docs/agent/architecture.md`
-  - 模块边界、热文件和核心链路
+  - 当前产品、代码入口和验证基线
+
+### Agent 文档
+- `docs/agent/context.md`
+  - 产品、架构、核心链路和文件定位
 - `docs/agent/product-state.md`
-  - 当前已经具备的用户可见能力
+  - 当前能力和明确边界
 - `docs/agent/workflows.md`
-  - 常见改动路径、验证、翻译、发布流程
+  - 构建、smoke、翻译和发布
 
 ### 专题文档
-- `planning/PLAN.md`
-  - 标准航线 JSON / IO 方案
-- `planning/ROUTE_MODULE_ROADMAP.md`
-  - 航线编辑与显示模块优化路线图
-- `docs/history/codex-collaboration-retrospective.md`
-  - 项目过程复盘，不是日常 onboarding 主入口
+- `docs/linux-build.md`
+  - Linux 构建与运行
+- `docs/releases/`
+  - 各版本发布说明
 
 ## 测试数据
 
@@ -144,7 +147,8 @@ python .\test_data\create_sampled_las.py <source.las> .\test_data\ezhou_powerlin
 - OpenSceneGraph 3.6.5
 - QtitanRibbon
 - LASlib / LASzip
-- Visual Studio 2022
+- Windows：Visual Studio 2022
+- Linux：GCC、Ninja、Ubuntu 22.04 系统依赖
 - CMake 3.16+
 
 仓库内 `3rd/` 目录布局：
@@ -153,6 +157,7 @@ python .\test_data\create_sampled_las.py <source.las> .\test_data\ezhou_powerlin
 3rd/
   osg/
   qtitan/
+  gdal/
   laslib/
   lastools/
 ```

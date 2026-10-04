@@ -6,7 +6,7 @@ Included packages:
 
 - `osg/`: release headers, import libraries, and runtime DLLs needed by this viewer
 - `qtitan/`: release headers plus `qtnribbon4.dll/.lib`
-- `gdal/`: minimal GDAL/PROJ bundle for current CRS features; includes `include/gdal.h`, `include/proj9/`, `lib/proj9.lib`, `bin/proj_9.dll` and its runtime DLLs, plus `bin/proj9/share`
+- `gdal/`: minimal PROJ runtime/development subset sourced from the GDAL bundle for current CRS features; includes `include/gdal.h`, `include/proj9/`, `lib/proj9.lib`, `bin/proj_9.dll` and its runtime DLLs, plus `bin/proj9/share`
 - `laslib/`: release headers and `LASlib64.lib` / `laszip64.lib`
 - `lastools/`: only `LASzip/src/`, which is required by LASlib headers
 

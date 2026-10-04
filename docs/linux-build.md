@@ -102,7 +102,7 @@ cmake -S . -B out/linux/build -G Ninja \
 After a release build, create the Linux x64 package with:
 
 ```bash
-bash scripts/linux/package-release.sh v1.3.0 out/linux/build/bin out/release
+bash scripts/linux/package-release.sh v1.4.0 out/linux/build/bin out/release
 ```
 
 The package contains the main executable, the bundled QtitanRibbon shim library, translations, a launch script, and this Linux build guide.
