@@ -37,25 +37,21 @@ compile_commands.json
 *_autogen/
 mocs_compilation*.cpp
 
-# Runtime and local files
+# Runtime and agent-local state
 *.log
 *.tmp
 Thumbs.db
-/plan/
-/planning/
-/docs/superpowers/
-test_data/220kV万川23B6线49-57.las
-test_data/220kV万川23B6线57-65.las
-ourcesappoutvsworkbenchcontribterminalcommonscriptssafe_rm_aliases.ps1*
+/.claude/
+/.planning/
+/.codegraph/
 
-# Vendored third-party payload
+# Local test datasets; tracked smoke fixtures remain tracked
+/test_data/*.las
+/test_data/*.laz
+/test_data/*.ply
+/test_data/*.json
+/translations/*.qm
+
+# Vendored third-party payload overrides the global binary ignores above
 !/3rd/
 !/3rd/**
-test_data/45-46(#045_#046) - 副本.las
-test_data/45-46(#045_#046).las
-test_data/湖北_鄂州_无_110_华柴线.las
-translations/lasviewer_zh_CN.qm
-test_data/N#045.json
-.codegraph/.gitignore
-test_data/gaussian_truck_iteration_7000.ply
-test_data/nju_xianlincampus.ply
