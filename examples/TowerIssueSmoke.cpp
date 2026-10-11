@@ -488,8 +488,8 @@ bool runTowerFileInteropSmoke(const QStringList&)
 bool runTowerProjectLinkSmoke(const QStringList&)
 {
     const QString sourceTowerFilePath = QFileInfo(
-        QDir::current().absoluteFilePath(QStringLiteral("templates/tower.LiTower"))).absoluteFilePath();
-    if (!verify(QFileInfo::exists(sourceTowerFilePath), "templates/tower.LiTower should exist")) {
+        QDir::current().absoluteFilePath(QStringLiteral("test_data/tower.LiTower"))).absoluteFilePath();
+    if (!verify(QFileInfo::exists(sourceTowerFilePath), "test_data/tower.LiTower should exist")) {
         return false;
     }
 

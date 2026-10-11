@@ -50,6 +50,7 @@ Thumbs.db
 /test_data/*.laz
 /test_data/*.ply
 /test_data/*.json
+!/test_data/N#045.json
 /translations/*.qm
 
 # Vendored third-party payload overrides the global binary ignores above

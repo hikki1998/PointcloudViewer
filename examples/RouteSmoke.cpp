@@ -441,7 +441,7 @@ bool runRouteRoamStateSmoke(const QStringList& filePaths)
 
 bool runRouteJsonSmoke(const QStringList&)
 {
-    const QString templatePath = QDir::current().absoluteFilePath(QStringLiteral("templates/N#045.json"));
+    const QString templatePath = QDir::current().absoluteFilePath(QStringLiteral("test_data/N#045.json"));
     PowerlineRouteDocument importedRoute;
     QString errorMessage;
     if (!importPowerlineRouteJson(templatePath, &importedRoute, &errorMessage)) {

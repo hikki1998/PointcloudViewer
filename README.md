@@ -12,8 +12,8 @@
 
 - `src/`：应用源码
 - `examples/`：示例和 smoke test
-- `test_data/`：测试数据与生成脚本
-- `shaders/`：渲染资源
+- `test_data/`：测试数据、smoke 夹具与生成脚本
+- `src/osg/`、`src/gaussian/`：点云与 Gaussian 渲染实现，shader 当前内嵌于对应源码
 - `3rd/`：仓库内随代码分发的精简版 release 三方库
 - `out/`：推荐的本地构建输出目录，不纳入版本控制
 - `docs/agent/`：当前架构、产品状态和工作流
