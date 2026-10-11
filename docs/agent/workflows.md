@@ -86,13 +86,13 @@ Linux 默认使用系统 LASzip API 和仓库 Qtitan shim，不包含 Windows �
 Windows：
 
 ```powershell
-.\scripts\package_release.ps1 -Version v1.4.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
+.\scripts\package_release.ps1 -Version v1.5.0 -Config Release -BuildBinDir out/build/bin/Release -OutputDir out/release
 ```
 
 Linux：
 
 ```bash
-bash scripts/linux/package-release.sh v1.4.0 out/linux/build/bin out/release
+bash scripts/linux/package-release.sh v1.5.0 out/linux/build/bin out/release
 ```
 
 发布说明位于 `docs/releases/`。
